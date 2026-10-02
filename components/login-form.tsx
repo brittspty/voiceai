@@ -103,7 +103,7 @@ function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }
           <div className="mt-5 rounded-lg bg-chip p-3 text-xs text-muted">
             <div>Demo owner: {hint.ownerEmail}</div>
             {hint.ownerPassword && <div>Password: {hint.ownerPassword}</div>}
-            <div className="mt-1">Admin with two-step: {hint.adminEmail} · secret JBSWY3DPEHPK3PXP</div>
+            <div className="mt-1">Admin: {hint.adminEmail}</div>
           </div>
         )}
       </div>

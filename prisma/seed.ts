@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import bcrypt from "bcryptjs";
 import { PrismaClient, type CallOutcome, type Consent, type Prisma } from "@prisma/client";
 import { clientConfig, defaultKnowledge } from "../lib/client-config";
+import { plannedSeedUsers, SAMPLE_ACTIVITY_ACTIONS, seedStartupLines } from "../lib/seed-plan";
 import { zonedTimeToUtc } from "../lib/time";
 import { buildTranscript } from "../lib/transcript";
 import { DEFAULT_POLICY } from "../lib/types";
@@ -61,31 +62,17 @@ async function main() {
   });
 
   await prisma.user.createMany({
-    data: [
-      {
-        id: "user_owner",
-        name: cfg.owner.name,
-        email: cfg.owner.email,
-        passwordHash: await bcrypt.hash(cfg.owner.password, 10),
-        role: "owner",
-      },
-      {
-        id: "user_admin",
-        name: cfg.admin.name,
-        email: cfg.admin.email,
-        passwordHash: await bcrypt.hash(cfg.admin.password, 10),
-        role: "admin",
-        totpEnabled: true,
-        totpSecret: "JBSWY3DPEHPK3PXP",
-      },
-      {
-        id: "user_viewer",
-        name: cfg.viewer.name,
-        email: cfg.viewer.email,
-        passwordHash: await bcrypt.hash(cfg.viewer.password, 10),
-        role: "viewer",
-      },
-    ],
+    data: await Promise.all(
+      plannedSeedUsers(cfg).map(async (user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        passwordHash: await bcrypt.hash(user.password, 10),
+        role: user.role,
+        totpEnabled: user.totpEnabled,
+        totpSecret: user.totpSecret,
+      })),
+    ),
   });
 
   const offices = [];
@@ -178,21 +165,17 @@ async function main() {
     },
   });
   if (cfg.sampleData) {
+    const [rules, office, knowledgeAction] = SAMPLE_ACTIVITY_ACTIONS;
     await prisma.activity.createMany({
       data: [
-        { actorId: "user_owner", actorName: cfg.owner.name, action: "Published calling rules", targetType: "calling_rules", targetLabel: "v1", createdAt: wall("2026-09-20T09:00:00") },
-        { actorId: "user_owner", actorName: cfg.owner.name, action: "Added an office", targetType: "office", targetLabel: sampleOffice?.name || "Office", createdAt: wall("2026-09-18T11:20:00") },
-        { actorId: "user_owner", actorName: cfg.owner.name, action: "Published a knowledge document", targetType: "knowledge", targetId: knowledge.id, targetLabel: knowledge.title, createdAt: new Date(Date.now() - 8 * 86400000) },
-        { actorId: "user_admin", actorName: cfg.admin.name, action: "Turned on two-step sign-in", targetType: "user", targetLabel: cfg.admin.email, createdAt: wall("2026-09-22T08:40:00") },
+        { actorId: "user_owner", actorName: cfg.owner.name, action: rules, targetType: "calling_rules", targetLabel: "v1", createdAt: wall("2026-09-20T09:00:00") },
+        { actorId: "user_owner", actorName: cfg.owner.name, action: office, targetType: "office", targetLabel: sampleOffice?.name || "Office", createdAt: wall("2026-09-18T11:20:00") },
+        { actorId: "user_owner", actorName: cfg.owner.name, action: knowledgeAction, targetType: "knowledge", targetId: knowledge.id, targetLabel: knowledge.title, createdAt: new Date(Date.now() - 8 * 86400000) },
       ],
     });
   }
 
-  console.log(`Seeded ${cfg.companyName}.`);
-  console.log(`Agent  ${cfg.agentName}`);
-  console.log(`Owner  ${cfg.owner.email}`);
-  console.log(`Admin  ${cfg.admin.email}  (two-step secret JBSWY3DPEHPK3PXP)`);
-  console.log(`Viewer ${cfg.viewer.email}`);
+  for (const line of seedStartupLines(cfg)) console.log(line);
 }
 
 function integrationRow(provider: string, label: string, detail: string, configured: boolean, mockLatency: number) {
