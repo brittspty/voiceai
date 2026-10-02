@@ -8,7 +8,9 @@ export async function POST(request: Request) {
   if (payload?.kind === "session") {
     await prisma.session.delete({ where: { id: payload.sid } }).catch(() => undefined);
   }
-  const res = NextResponse.redirect(new URL("/login", request.url), 303);
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || new URL(request.url).host;
+  const proto = request.headers.get("x-forwarded-proto") || "http";
+  const res = NextResponse.redirect(new URL("/login", `${proto}://${host}`), 303);
   res.cookies.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
   return res;
 }

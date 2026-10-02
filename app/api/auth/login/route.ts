@@ -6,6 +6,12 @@ import { signToken, SESSION_COOKIE } from "@/lib/session-token";
 
 const attempts = new Map<string, { n: number; at: number }>();
 
+function originOf(request: Request) {
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || new URL(request.url).host;
+  const proto = request.headers.get("x-forwarded-proto") || "http";
+  return `${proto}://${host}`;
+}
+
 function cookie(token: string) {
   return {
     httpOnly: true,
@@ -34,7 +40,7 @@ export async function POST(request: Request) {
     bucket.at = Date.now();
   }
   if (bucket.n >= 12) {
-    if (form) return NextResponse.redirect(new URL("/login?error=rate", request.url), 303);
+    if (form) return NextResponse.redirect(new URL("/login?error=rate", originOf(request)), 303);
     return NextResponse.json({ error: "Too many attempts. Wait a few minutes and try again." }, { status: 429 });
   }
   const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
@@ -42,12 +48,12 @@ export async function POST(request: Request) {
   if (!user || !match) {
     bucket.n += 1;
     attempts.set(email, bucket);
-    if (form) return NextResponse.redirect(new URL("/login?error=credentials", request.url), 303);
+    if (form) return NextResponse.redirect(new URL("/login?error=credentials", originOf(request)), 303);
     return NextResponse.json({ error: "Email or password is wrong." }, { status: 401 });
   }
   attempts.delete(email);
   if (user.totpEnabled && user.totpSecret) {
-    if (form) return NextResponse.redirect(new URL("/login?error=totp", request.url), 303);
+    if (form) return NextResponse.redirect(new URL("/login?error=totp", originOf(request)), 303);
     const ticket = await signToken({ kind: "totp", uid: user.id, exp: Math.floor(Date.now() / 1000) + 300 });
     return NextResponse.json({ totpRequired: true, ticket });
   }
@@ -56,7 +62,7 @@ export async function POST(request: Request) {
   });
   const token = await signToken({ kind: "session", sid: session.id, exp: Math.floor(session.expiresAt.getTime() / 1000) });
   await audit({ id: user.id, name: user.name }, "Signed in", { type: "session", id: session.id, label: user.email });
-  const res = form ? NextResponse.redirect(new URL("/", request.url), 303) : NextResponse.json({ ok: true });
+  const res = form ? NextResponse.redirect(new URL("/", originOf(request)), 303) : NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, token, cookie(token));
   return res;
 }
