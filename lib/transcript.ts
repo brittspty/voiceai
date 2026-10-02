@@ -1,6 +1,8 @@
+import { clientConfig } from "./client-config";
 import type { CallOutcomeName, TranscriptLine } from "./types";
 
-export function buildTranscript(agentName: string, contactName: string, outcome: CallOutcomeName | string): TranscriptLine[] {
+export function buildTranscript(agentName: string, contactName: string, outcome: CallOutcomeName | string, companyName?: string): TranscriptLine[] {
+  const company = companyName?.trim() || clientConfig().companyName;
   const named = contactName.startsWith("Test call") || contactName === "Unknown" ? "there" : contactName.split(" ")[0];
   if (outcome === "failed" || outcome === "no_answer") {
     return [
@@ -12,7 +14,7 @@ export function buildTranscript(agentName: string, contactName: string, outcome:
     ];
   }
   const lines: TranscriptLine[] = [
-    { speaker: "agent", text: `Hi, this is ${agentName} with Capital Financial. Am I speaking with ${named}?`, atSec: 1 },
+    { speaker: "agent", text: `Hi, this is ${agentName} with ${company}. Am I speaking with ${named}?`, atSec: 1 },
     { speaker: "contact", text: named === "there" ? "Yes, you've reached me." : `Yes, this is ${named}.`, atSec: 6 },
     {
       speaker: "agent",

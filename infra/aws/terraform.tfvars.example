@@ -3,4 +3,6 @@ name           = "voiceops"
 instance_type  = "t4g.small"
 ssh_cidr       = "203.0.113.10/32"
 public_key     = "ssh-ed25519 AAAA... you@laptop"
+# First Specificity server: voiceai.specificityinc.com
+# Each client business gets a different domain on its own server.
 domain         = "voice.example.com"

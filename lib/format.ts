@@ -1,6 +1,7 @@
+import { clientConfig } from "./client-config";
 import type { CallOutcomeName, CallStatusName } from "./types";
 
-export function formatDateTime(date: Date | string, timeZone = "America/New_York") {
+export function formatDateTime(date: Date | string, timeZone = clientConfig().timezone) {
   return new Intl.DateTimeFormat("en-US", {
     timeZone,
     month: "short",
@@ -12,7 +13,7 @@ export function formatDateTime(date: Date | string, timeZone = "America/New_York
   }).format(new Date(date));
 }
 
-export function formatDay(date: Date | string, timeZone = "America/New_York") {
+export function formatDay(date: Date | string, timeZone = clientConfig().timezone) {
   return new Intl.DateTimeFormat("en-US", {
     timeZone,
     month: "short",
@@ -20,7 +21,7 @@ export function formatDay(date: Date | string, timeZone = "America/New_York") {
   }).format(new Date(date));
 }
 
-export function formatLongDay(iso: string, timeZone = "America/New_York") {
+export function formatLongDay(iso: string, timeZone = clientConfig().timezone) {
   const [y, m, d] = iso.split("-").map(Number);
   const utc = new Date(Date.UTC(y, m - 1, d, 16, 0, 0));
   return new Intl.DateTimeFormat("en-US", {

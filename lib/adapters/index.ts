@@ -20,7 +20,7 @@ export const mockVoice: VoicePort = {
       outcome,
       durationSec: failed ? 0 : 42 + (input.to.charCodeAt(input.to.length - 1) % 20),
       costCents: failed ? 0 : 14,
-      transcript: buildTranscript(input.agentName, input.contactName || input.to, outcome),
+      transcript: buildTranscript(input.agentName, input.contactName || input.to, outcome, input.companyName),
     };
     return result;
   },

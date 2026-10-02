@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { clientConfig } from "./client-config";
 import { prisma } from "./db";
 import { evaluateGates } from "./gates";
 import { hasEnv, integrationsMode } from "./env";
@@ -475,7 +476,7 @@ export async function callingQueue() {
   const rows = [];
   for (const contact of contacts) {
     const attempts = await prisma.call.count({ where: { contactId: contact.id, dialedAt: { not: null } } });
-    const tz = contact.timezone || "America/New_York";
+    const tz = contact.timezone || contact.office?.timezone || clientConfig().timezone;
     const bounds = zonedDayBounds(new Date(), tz);
     const dialsToday = await prisma.call.count({ where: { dialedAt: { gte: bounds.start, lt: bounds.end } } });
     const gate = evaluateGates({

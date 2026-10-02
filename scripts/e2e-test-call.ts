@@ -1,3 +1,4 @@
+import { clientConfig } from "../lib/client-config";
 import { prisma } from "../lib/db";
 import { enqueue } from "../lib/queue";
 
@@ -12,7 +13,7 @@ async function main() {
       consentAt: new Date(),
       source: "Test console",
       officeId: office.id,
-      timezone: "America/New_York",
+      timezone: clientConfig().timezone,
     },
   });
   const call = await prisma.call.create({

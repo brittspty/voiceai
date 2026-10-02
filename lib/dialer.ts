@@ -1,6 +1,7 @@
 import type { CallOutcome, Prisma } from "@prisma/client";
 import { getPorts } from "./adapters";
 import { audit } from "./audit";
+import { clientConfig } from "./client-config";
 import { prisma } from "./db";
 import { workerStepMs } from "./env";
 import { evaluateGates } from "./gates";
@@ -27,7 +28,7 @@ export async function gateContextForContact(contactId: string, now = new Date())
   const contact = await prisma.contact.findUnique({ where: { id: contactId }, include: { office: true } });
   if (!contact) throw new Error("Contact not found");
   const { policy } = await getPublishedPolicy();
-  const timeZone = contact.timezone || contact.office?.timezone || "America/New_York";
+  const timeZone = contact.timezone || contact.office?.timezone || clientConfig().timezone;
   const { start, end } = zonedDayBounds(now, timeZone);
   const [dialsToday, attemptsForContact, dnc] = await Promise.all([
     prisma.call.count({ where: { dialedAt: { gte: start, lt: end } } }),
@@ -66,7 +67,8 @@ export async function processDialJob(job: { id: string; payload: unknown; callId
   const org = await prisma.org.findUnique({ where: { id: "org" } });
   const agent = await prisma.agentVersion.findFirst({ where: { status: "published" }, orderBy: { version: "desc" } });
   const draft = agent ?? (await prisma.agentVersion.findFirst({ orderBy: { version: "desc" } }));
-  const agentName = org?.agentName || draft?.agentName || "Karen";
+  const agentName = org?.agentName || draft?.agentName || clientConfig().agentName;
+  const companyName = org?.name || clientConfig().companyName;
   const openingLine = draft?.openingLine || `Hi, this is ${agentName}.`;
   const ctx = await gateContextForContact(call.contactId);
   const ports = getPorts(Boolean(org?.testMode));
@@ -80,6 +82,7 @@ export async function processDialJob(job: { id: string; payload: unknown; callId
         to: call.contact.phone,
         contactName: call.contact.name,
         agentName,
+        companyName,
         openingLine,
         simulatedOutcome: payload.simulatedOutcome,
       },
@@ -157,7 +160,7 @@ export async function finishCall(
   const call = await prisma.call.findUnique({ where: { id: callId }, include: { contact: true, office: true } });
   if (!call || call.status === "completed") return;
   const org = await prisma.org.findUnique({ where: { id: "org" } });
-  const agentName = org?.agentName || "Karen";
+  const agentName = org?.agentName || clientConfig().agentName;
   const booked = result.outcome === "booked";
   await prisma.call.update({
     where: { id: callId },
@@ -187,7 +190,7 @@ export async function finishCall(
           contactId: call.contactId,
           officeId: call.officeId,
           callId: call.id,
-          advisorName: "Karen",
+          advisorName: agentName,
           startsAt: starts,
           endsAt: new Date(starts.getTime() + 30 * 60 * 1000),
           format: "phone",

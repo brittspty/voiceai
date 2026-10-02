@@ -5,6 +5,7 @@ export type VoicePlaceInput = {
   to: string;
   contactName: string;
   agentName: string;
+  companyName?: string;
   openingLine: string;
   simulatedOutcome?: CallOutcomeName;
 };

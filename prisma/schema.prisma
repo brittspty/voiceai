@@ -133,6 +133,9 @@ model Org {
   subtitle        String
   agentName       String
   timezone        String
+  brandColor      String  @default("#2563eb")
+  logoUrl         String  @default("")
+  mark            String  @default("V")
   testMode        Boolean @default(true)
   scheduleEnabled Boolean @default(false)
 }
