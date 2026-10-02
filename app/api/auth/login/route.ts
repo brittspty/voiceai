@@ -16,16 +16,25 @@ function cookie(token: string) {
   };
 }
 
+async function credentials(request: Request) {
+  const type = request.headers.get("content-type") || "";
+  if (type.includes("application/json")) {
+    const body = (await request.json().catch(() => ({}))) as { email?: string; password?: string };
+    return { email: (body.email || "").trim().toLowerCase(), password: body.password || "", form: false };
+  }
+  const data = await request.formData();
+  return { email: String(data.get("email") || "").trim().toLowerCase(), password: String(data.get("password") || ""), form: true };
+}
+
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as { email?: string; password?: string };
-  const email = (body.email || "").trim().toLowerCase();
-  const password = body.password || "";
+  const { email, password, form } = await credentials(request);
   const bucket = attempts.get(email) ?? { n: 0, at: Date.now() };
   if (Date.now() - bucket.at > 10 * 60 * 1000) {
     bucket.n = 0;
     bucket.at = Date.now();
   }
   if (bucket.n >= 12) {
+    if (form) return NextResponse.redirect(new URL("/login?error=rate", request.url), 303);
     return NextResponse.json({ error: "Too many attempts. Wait a few minutes and try again." }, { status: 429 });
   }
   const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
@@ -33,10 +42,12 @@ export async function POST(request: Request) {
   if (!user || !match) {
     bucket.n += 1;
     attempts.set(email, bucket);
+    if (form) return NextResponse.redirect(new URL("/login?error=credentials", request.url), 303);
     return NextResponse.json({ error: "Email or password is wrong." }, { status: 401 });
   }
   attempts.delete(email);
   if (user.totpEnabled && user.totpSecret) {
+    if (form) return NextResponse.redirect(new URL("/login?error=totp", request.url), 303);
     const ticket = await signToken({ kind: "totp", uid: user.id, exp: Math.floor(Date.now() / 1000) + 300 });
     return NextResponse.json({ totpRequired: true, ticket });
   }
@@ -45,7 +56,7 @@ export async function POST(request: Request) {
   });
   const token = await signToken({ kind: "session", sid: session.id, exp: Math.floor(session.expiresAt.getTime() / 1000) });
   await audit({ id: user.id, name: user.name }, "Signed in", { type: "session", id: session.id, label: user.email });
-  const res = NextResponse.json({ ok: true });
+  const res = form ? NextResponse.redirect(new URL("/", request.url), 303) : NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, token, cookie(token));
   return res;
 }

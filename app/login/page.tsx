@@ -1,11 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+  const params = useSearchParams();
+  const queryError = params.get("error") === "credentials" ? "Email or password is wrong." : params.get("error") === "rate" ? "Too many attempts. Wait a few minutes and try again." : params.get("error") === "totp" ? "This account needs the in-app two-step step. Sign in from this page after it finishes loading." : null;
+  const [error, setError] = useState<string | null>(queryError);
   const [ticket, setTicket] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -22,6 +33,8 @@ export default function LoginPage() {
         {!ticket ? (
           <form
             className="space-y-3"
+            method="post"
+            action="/api/auth/login"
             onSubmit={async (event) => {
               event.preventDefault();
               setPending(true);
