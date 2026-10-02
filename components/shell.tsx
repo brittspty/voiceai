@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BookOpen, FileText, LayoutDashboard, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
@@ -29,6 +29,14 @@ export function AppShell({
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const apply = () => setNarrow(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
 
   const itemActive = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href === "/settings/calling" ? "/settings" : href));
 
@@ -90,7 +98,7 @@ export function AppShell({
       )}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-line bg-canvas/95 px-4 backdrop-blur">
-          <button className="rounded-md p-1.5 text-muted hover:bg-hover" onClick={() => (window.innerWidth < 768 ? setOpen(true) : setCollapsed((v) => !v))} aria-label="Toggle sidebar">
+          <button className="rounded-md p-1.5 text-muted hover:bg-hover" onClick={() => (narrow ? setOpen(true) : setCollapsed((v) => !v))} aria-label="Toggle sidebar">
             <PanelLeft className="h-4 w-4" />
           </button>
           <div className="text-sm font-medium">Voice Operations</div>
