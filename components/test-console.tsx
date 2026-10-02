@@ -11,6 +11,35 @@ export function TestConsole({ offices, contacts }: { offices: { id: string; name
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  async function run(form: HTMLFormElement | null, intent: "preflight" | "call") {
+    if (!form) return;
+    const data = new FormData(form);
+    setError(null);
+    setPending(true);
+    try {
+      const contactId = String(data.get("contactId") || "");
+      const payload = {
+        contactId: contactId || undefined,
+        name: String(data.get("name") || ""),
+        phone: String(data.get("phone") || ""),
+        consent: String(data.get("consent") || "high") as "high",
+        officeId: String(data.get("officeId") || ""),
+        simulatedOutcome: String(data.get("outcome") || "callback_requested") as "callback_requested",
+      };
+      if (intent === "preflight") {
+        setChecks(await preflightCall(payload).then((r) => r.checks));
+      } else {
+        const started = await startTestCall(payload);
+        const res = await fetch(`/api/calls/${started.callId}`);
+        setCall(await res.json());
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not start");
+    } finally {
+      setPending(false);
+    }
+  }
+
   useEffect(() => {
     if (!call || call.status === "completed" || call.status === "failed") return;
     const timer = setInterval(async () => {
@@ -23,34 +52,9 @@ export function TestConsole({ offices, contacts }: { offices: { id: string; name
   return (
     <form
       className="grid gap-4 lg:grid-cols-2"
-      onSubmit={async (event) => {
-        event.preventDefault();
-        const form = new FormData(event.currentTarget);
-        setError(null);
-        setPending(true);
-        try {
-          const contactId = String(form.get("contactId") || "");
-          const payload = {
-            contactId: contactId || undefined,
-            name: String(form.get("name") || ""),
-            phone: String(form.get("phone") || ""),
-            consent: String(form.get("consent") || "high") as "high",
-            officeId: String(form.get("officeId") || ""),
-            simulatedOutcome: String(form.get("outcome") || "callback_requested") as "callback_requested",
-          };
-          if ((event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "preflight") {
-            setChecks(await preflightCall(payload).then((r) => r.checks));
-          } else {
-            const started = await startTestCall(payload);
-            const res = await fetch(`/api/calls/${started.callId}`);
-            setCall(await res.json());
-          }
-        } catch (reason) {
-          setError(reason instanceof Error ? reason.message : "Could not start");
-        } finally {
-          setPending(false);
-        }
-      }}
+      method="post"
+      action="/settings/test-console"
+      onSubmit={(event) => event.preventDefault()}
     >
       <div className="space-y-3 rounded-xl border border-line bg-card p-4">
         <label className="block text-sm">Existing contact
@@ -83,8 +87,8 @@ export function TestConsole({ offices, contacts }: { offices: { id: string; name
         </label>
         {error && <p className="text-sm text-[#d14343]">{error}</p>}
         <div className="flex gap-2">
-          <button name="intent" value="preflight" className="rounded-full border border-line px-3 py-1.5 text-sm" disabled={pending}>Run preflight</button>
-          <button name="intent" value="call" className="rounded-full bg-ink px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-white dark:text-black" disabled={pending || Boolean(checks && checks.some((c) => !c.passed))}>Place test call</button>
+          <button type="button" className="rounded-full border border-line px-3 py-1.5 text-sm" disabled={pending} onClick={(event) => run(event.currentTarget.form, "preflight")}>Run preflight</button>
+          <button type="button" className="rounded-full bg-ink px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-white dark:text-black" disabled={pending || Boolean(checks && checks.some((c) => !c.passed))} onClick={(event) => run(event.currentTarget.form, "call")}>Place test call</button>
         </div>
         <p className="text-xs text-muted">Test calls use the same gates and count against the daily cap. In test mode the voice provider and CRM are mocked.</p>
       </div>
