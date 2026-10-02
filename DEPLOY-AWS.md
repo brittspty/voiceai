@@ -69,7 +69,7 @@ SEED_AGENT_NAME=Avery
 SEED_TIMEZONE=America/New_York
 ```
 
-Set `SEED_ORG_NAME` and the other `SEED_*` values from `.env.example` before the first start. The container seeds on boot and will not replace a workspace that is already there. For Specificity, `SITE_ADDRESS` is `voiceai.specificityinc.com`.
+Set `SEED_ORG_NAME` and the other `SEED_*` values from `.env.example` before the first start. For a production first boot set `SEED_SAMPLE_DATA=false` and real `SEED_OWNER_*` values. That seed creates only the owner. Admin and viewer are demo accounts and are created only when `SEED_SAMPLE_DATA` is true. The container seeds on boot and will not replace a workspace that is already there. For Specificity, `SITE_ADDRESS` is `voiceai.specificityinc.com`.
 
 Leave the vendor keys empty until you are ready to leave mock mode. Alternatively store the same keys in SSM Parameter Store under `/voiceops/prod/` (the instance role can read that path) and render the file:
 
@@ -92,7 +92,13 @@ docker compose ps
 curl -fsS https://voice.example.com/api/health
 ```
 
-Caddy (`Caddyfile`) reverse-proxies the domain to the app container and obtains a Let’s Encrypt certificate. Webhook URLs:
+Caddy (`Caddyfile`) reverse-proxies the domain to the app container and obtains a Let’s Encrypt certificate. If the name did not resolve on the first tries, Caddy stops asking. After DNS resolves, run:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml restart caddy
+```
+
+Webhook URLs:
 
 - `https://voice.example.com/api/webhooks/ghl`
 - `https://voice.example.com/api/webhooks/elevenlabs`
@@ -104,11 +110,23 @@ Sign in as the seeded owner (see the README) and confirm Overview, Calls, and th
 
 ## 4. Nightly Postgres backups
 
+Terraform is not installed on the server. Running `terraform output` there has no state, so `$(terraform output -raw backup_bucket)` expands to an empty bucket name and the upload goes nowhere.
+
+On your laptop, from `infra/aws`, print the bucket name (`backup_bucket` in `infra/aws/outputs.tf`):
+
 ```bash
-sudo tee /etc/cron.d/voiceops-backup >/dev/null <<EOF
-15 7 * * * ec2-user cd /opt/voiceops && BACKUP_BUCKET=$(terraform output -raw backup_bucket) /opt/voiceops/scripts/backup-postgres.sh >> /var/log/voiceops-backup.log 2>&1
+terraform output -raw backup_bucket
+```
+
+Copy that name. On the server, write it literally into `/etc/cron.d/voiceops-backup`. The heredoc is quoted so the shell does not expand anything:
+
+```bash
+sudo tee /etc/cron.d/voiceops-backup >/dev/null <<'EOF'
+15 7 * * * ec2-user cd /opt/voiceops && BACKUP_BUCKET=REPLACE_WITH_BUCKET_NAME /opt/voiceops/scripts/backup-postgres.sh >> /var/log/voiceops-backup.log 2>&1
 EOF
 ```
+
+Replace `REPLACE_WITH_BUCKET_NAME` with the value from `terraform output -raw backup_bucket`. User data creates `/var/log/voiceops-backup.log` owned by `ec2-user`. The script dumps to a temporary file and does not upload when `pg_dump` fails or the file is empty.
 
 The bucket expires objects after 30 days. Restore with `gunzip` and `psql` into the Postgres container. Take a backup before the first live dials.
 
@@ -133,3 +151,12 @@ The later shape, not built in this repo:
 5. Keep S3 backups, or switch RDS automated backups on and retire the cron dump.
 
 The app does not need a rewrite for that move. It already reads configuration only from the environment.
+
+## Notes from the first AWS pilot
+
+These showed up on the first deploy to Amazon Linux 2023 arm64 (`t4g.small`, Docker Compose + Caddy) at `voiceai.specificityinc.com`.
+
+- **Certificate.** Wait until DNS resolves before the first Caddy start. If the certificate still has not arrived after the name resolves, Caddy has given up on the early NXDOMAIN answers. Run `docker compose -f docker-compose.yml -f docker-compose.prod.yml restart caddy`.
+- **Cron.** Amazon Linux 2023 does not ship cron. User data installs and enables `cronie` (`crond`). Without it the nightly backup never runs.
+- **Memory.** A 2 GB instance needs swap to finish the image build. User data adds a 2 GB swap file when total memory is under 3 GB.
+- **Production seed.** Set `SEED_SAMPLE_DATA=false` and real `SEED_*` values before the first boot. With sample data off, the only user created is the owner from `SEED_OWNER_*`. Demo admin and viewer accounts are created only when `SEED_SAMPLE_DATA` is true. Two-step sign-in starts off. Turn it on in the app. Do not reuse a shared authenticator secret.
