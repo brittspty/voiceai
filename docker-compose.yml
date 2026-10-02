@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: voiceops
+      POSTGRES_PASSWORD: voiceops
+      POSTGRES_DB: voiceops
+    ports:
+      - "54329:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voiceops"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    logging: &logs
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "63799:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    logging: *logs
+  app:
+    build: .
+    ports:
+      - "43123:43123"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://voiceops:voiceops@postgres:5432/voiceops
+      REDIS_URL: redis://redis:6379
+      PORT: "43123"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *logs
+  worker:
+    build: .
+    command: ["sh", "docker/start.sh", "worker"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://voiceops:voiceops@postgres:5432/voiceops
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      app:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *logs
+
+volumes:
+  pgdata:

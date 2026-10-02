@@ -1,0 +1,34 @@
+# Production override for a single server. Caddy terminates HTTPS.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS to your domain}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+  app:
+    restart: unless-stopped
+    ports: !override []
+    environment:
+      APP_URL: https://${SITE_ADDRESS}
+  worker:
+    restart: unless-stopped
+  postgres:
+    restart: unless-stopped
+    ports: !override []
+  redis:
+    restart: unless-stopped
+    ports: !override []
+
+volumes:
+  caddy_data:
+  caddy_config:
