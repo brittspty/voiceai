@@ -15,7 +15,7 @@ export function normalizePhone(input: string) {
 export function maskPhone(phone: string) {
   const digits = digitsOnly(phone);
   const last4 = (digits.slice(-4) || "0000").padStart(4, "0");
-  return `(\u00b7\u00b7\u00b7) \u00b7\u00b7\u00b7-${last4}`;
+  return `(···) ···-${last4}`;
 }
 
 export function samePhone(a: string, b: string) {
