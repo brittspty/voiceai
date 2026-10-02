@@ -19,6 +19,7 @@ import {
   publishRules,
   publishVoice,
   refreshIntegrations,
+  saveWorkspace,
   retryAllJobs,
   retryJob,
   saveAgentDraft,
@@ -29,7 +30,7 @@ import {
 
 const TITLES: Record<string, [string, string]> = {
   calling: ["Call settings", "Who the agent will call, and the reason each lead is eligible or held back."],
-  agent: ["Agent", "Instructions and the opening line. Only an owner can edit them, and publishing makes a new version."],
+  agent: ["Agent", "Workspace name, mark, instructions, and the opening line. Only an owner can edit them, and publishing the script makes a new version."],
   voice: ["Voice", "Choose the voice the agent uses. Making one live publishes a version."],
   "calling-rules": ["Calling rules", "When the agent may dial, how many times, and which safety checks are on. Publishing replaces the live rules."],
   offices: ["Offices", "Timezone, calendar, and advisor routing for each office."],
@@ -67,7 +68,7 @@ export default async function SettingsSection({ params, searchParams }: { params
       {section === "agent" && <Agent owner={isOwner(user.role)} bundle={bundle} />}
       {section === "voice" && <Voice owner={isOwner(user.role)} live={bundle.voiceVersions.find((v) => v.status === "published")} opening={bundle.draftAgent?.openingLine || ""} />}
       {section === "calling-rules" && <Rules owner={isOwner(user.role)} policy={bundle.policy.policy} version={bundle.policy.version?.version} />}
-      {section === "offices" && <Offices canWrite={canWrite(user.role)} offices={bundle.offices} />}
+      {section === "offices" && <Offices canWrite={canWrite(user.role)} offices={bundle.offices} timezone={bundle.org.timezone} agentName={bundle.org.agentName} />}
       {section === "users" && <Users owner={isOwner(user.role)} user={user} users={bundle.users} />}
       {section === "capabilities" && <Capabilities owner={isOwner(user.role)} bundle={bundle} />}
       {section === "integrations" && <Integrations checks={bundle.checks} />}
@@ -119,6 +120,30 @@ async function Calling({ offices, userCan }: { offices: { id: string; name: stri
 function Agent({ owner, bundle }: { owner: boolean; bundle: Awaited<ReturnType<typeof getSettingsBundle>> }) {
   const draft = bundle.draftAgent;
   return (
+    <div className="space-y-4">
+    <form className="space-y-3 rounded-xl border border-line bg-card p-4" action={async (formData) => {
+      "use server";
+      await saveWorkspace({
+        name: String(formData.get("name") || ""),
+        subtitle: String(formData.get("subtitle") || ""),
+        timezone: String(formData.get("timezone") || ""),
+        brandColor: String(formData.get("brandColor") || ""),
+        logoUrl: String(formData.get("logoUrl") || ""),
+        mark: String(formData.get("mark") || ""),
+      });
+    }}>
+      <h3 className="font-medium">Workspace</h3>
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="block text-sm">Company name<input name="name" defaultValue={bundle.org.name} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
+        <label className="block text-sm">Subtitle<input name="subtitle" defaultValue={bundle.org.subtitle} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
+        <label className="block text-sm">Timezone<input name="timezone" defaultValue={bundle.org.timezone} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
+        <label className="block text-sm">Brand color<input name="brandColor" defaultValue={bundle.org.brandColor} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
+        <label className="block text-sm">Mark<input name="mark" defaultValue={bundle.org.mark} maxLength={2} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
+        <label className="block text-sm">Logo URL<input name="logoUrl" defaultValue={bundle.org.logoUrl} placeholder="https://" disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
+      </div>
+      <p className="text-xs text-muted">Leave the logo blank to keep the built-in mark. The color sits behind the mark on the sign-in page and in the sidebar.</p>
+      {owner ? <button className="rounded-full bg-ink px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black">Save workspace</button> : <p className="text-sm text-muted">Only an owner can edit the workspace.</p>}
+    </form>
     <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
       <form className="space-y-3 rounded-xl border border-line bg-card p-4" action={async (formData) => {
         "use server";
@@ -147,6 +172,7 @@ function Agent({ owner, bundle }: { owner: boolean; bundle: Awaited<ReturnType<t
           ))}
         </ul>
       </div>
+    </div>
     </div>
   );
 }
@@ -223,7 +249,7 @@ function Rules({ owner, policy, version }: { owner: boolean; policy: CallingPoli
   );
 }
 
-function Offices({ offices, canWrite: allow }: { offices: Awaited<ReturnType<typeof getSettingsBundle>>["offices"]; canWrite: boolean }) {
+function Offices({ offices, canWrite: allow, timezone, agentName }: { offices: Awaited<ReturnType<typeof getSettingsBundle>>["offices"]; canWrite: boolean; timezone: string; agentName: string }) {
   return (
     <div>
       {allow && (
@@ -231,16 +257,16 @@ function Offices({ offices, canWrite: allow }: { offices: Awaited<ReturnType<typ
           "use server";
           await addOffice({
             name: String(formData.get("name") || ""),
-            timezone: String(formData.get("timezone") || "America/New_York"),
+            timezone: String(formData.get("timezone") || timezone),
             type: String(formData.get("type") || "office") as "office",
             calendarName: String(formData.get("calendar") || ""),
-            advisor: String(formData.get("advisor") || "Karen"),
+            advisor: String(formData.get("advisor") || agentName),
           });
         }}>
           <input name="name" placeholder="Office name" required className="h-9 rounded-lg border border-line px-2 text-sm" />
-          <input name="timezone" defaultValue="America/New_York" className="h-9 rounded-lg border border-line px-2 text-sm" />
+          <input name="timezone" defaultValue={timezone} className="h-9 rounded-lg border border-line px-2 text-sm" />
           <input name="calendar" placeholder="Calendar name" className="h-9 rounded-lg border border-line px-2 text-sm" />
-          <input name="advisor" placeholder="Advisor" className="h-9 rounded-lg border border-line px-2 text-sm" />
+          <input name="advisor" placeholder={agentName} className="h-9 rounded-lg border border-line px-2 text-sm" />
           <select name="type" className="h-9 rounded-lg border border-line bg-card px-2 text-sm"><option value="office">Office</option><option value="virtual">Virtual</option></select>
           <button className="rounded-full bg-ink px-3 text-sm text-white dark:bg-white dark:text-black">Add office</button>
         </form>

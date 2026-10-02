@@ -1,11 +1,12 @@
 import { PageTitle } from "@/components/shell";
 import { appUrl } from "@/lib/env";
+import { getOrg } from "@/lib/queries";
 
-export default function DocsPage() {
-  const base = appUrl();
+export default async function DocsPage() {
+  const [base, org] = [appUrl(), await getOrg()];
   return (
     <div className="max-w-3xl">
-      <PageTitle title="Docs" subtitle="How this Voice Operations workspace is wired. The product is run by Specificity Inc. Capital Financial is the sample tenant." />
+      <PageTitle title="Docs" subtitle={`How this Voice Operations workspace is wired for ${org.name}. Each client runs on its own server.`} />
       <div className="space-y-4 text-sm leading-6">
         <section className="rounded-xl border border-line bg-card p-4">
           <h2 className="font-medium">What it does</h2>

@@ -2,6 +2,8 @@
 
 This is the pilot setup: one small ARM instance runs the same `docker-compose` stack as local development (app, worker, Postgres, Redis). Caddy gets a certificate and serves HTTPS, including the GoHighLevel, ElevenLabs, and Twilio webhooks. Nothing in this repository talks to AWS by itself. You apply it from a machine that already has credentials.
 
+The first deployment is Specificity Inc at `https://voiceai.specificityinc.com`. Each later client gets a new server, a new domain, and an empty database from this same setup. Company name, agent, offices, colors, logo, knowledge, and vendor keys come from `.env` and the database, not from a fork. The checklist is in the README under "New client deployment".
+
 ## Rough monthly cost (us-east-1)
 
 | Piece | Pilot choice | About |
@@ -61,7 +63,13 @@ SESSION_SECRET=<long random string>
 INTEGRATIONS_MODE=mock
 APP_URL=https://voice.example.com
 SITE_ADDRESS=voice.example.com
+SHOW_DEMO_LOGIN=false
+SEED_ORG_NAME=Specificity Inc
+SEED_AGENT_NAME=Avery
+SEED_TIMEZONE=America/New_York
 ```
+
+Set `SEED_ORG_NAME` and the other `SEED_*` values from `.env.example` before the first start. The container seeds on boot and will not replace a workspace that is already there. For Specificity, `SITE_ADDRESS` is `voiceai.specificityinc.com`.
 
 Leave the vendor keys empty until you are ready to leave mock mode. Alternatively store the same keys in SSM Parameter Store under `/voiceops/prod/` (the instance role can read that path) and render the file:
 

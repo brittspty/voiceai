@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [user, org] = await Promise.all([requireUser(), getOrg()]);
   return (
-    <AppShell org={{ name: org.name, subtitle: org.subtitle }} user={user}>
+    <AppShell org={{ name: org.name, subtitle: org.subtitle, brandColor: org.brandColor, logoUrl: org.logoUrl, mark: org.mark }} user={user}>
       {children}
     </AppShell>
   );

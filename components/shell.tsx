@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { BookOpen, FileText, LayoutDashboard, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
+import { BrandMark } from "@/components/brand-mark";
 import { cn } from "@/lib/cn";
 
 const NAV = [
@@ -20,7 +21,7 @@ export function AppShell({
   user,
   children,
 }: {
-  org: { name: string; subtitle: string };
+  org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
   user: { name: string; email: string; role: string };
   children: React.ReactNode;
 }) {
@@ -43,12 +44,7 @@ export function AppShell({
   const nav = (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2.5 px-3 py-4">
-        <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#2563eb] text-white">
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M4 20V9l8-5 8 5v11" />
-            <path d="M9 20v-6h6v6" />
-          </svg>
-        </div>
+        <BrandMark brandColor={org.brandColor} logoUrl={org.logoUrl} mark={org.mark} />
         {!collapsed && (
           <div className="leading-tight">
             <div className="text-sm font-semibold">{org.name}</div>
