@@ -1,0 +1,55 @@
+{
+  "name": "voiceops",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 43123",
+    "build": "prisma generate && next build",
+    "start": "next start -p 43123",
+    "lint": "eslint",
+    "test": "node --import tsx --test lib/time.test.ts lib/totp.test.ts lib/gates.test.ts lib/pipeline.test.ts lib/readiness.test.ts lib/webhooks.test.ts",
+    "worker": "tsx worker/index.ts",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:setup": "prisma migrate deploy && tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "@radix-ui/react-checkbox": "^1.3.11",
+    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-dropdown-menu": "^2.1.24",
+    "@radix-ui/react-popover": "^1.1.23",
+    "@radix-ui/react-slot": "^1.3.3",
+    "@radix-ui/react-switch": "^1.3.7",
+    "@radix-ui/react-tooltip": "^1.2.16",
+    "bcryptjs": "^3.0.3",
+    "clsx": "^2.1.1",
+    "ioredis": "^6.0.0",
+    "lucide-react": "^1.50.0",
+    "next": "16.3.8",
+    "next-themes": "^0.4.6",
+    "prisma": "^6.19.3",
+    "qrcode": "^1.5.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "recharts": "^3.10.1",
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.8",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  }
+}
