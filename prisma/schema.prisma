@@ -1,0 +1,386 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  owner
+  admin
+  viewer
+}
+
+enum Consent {
+  none
+  low
+  medium
+  high
+}
+
+enum CallStatus {
+  queued
+  dialing
+  in_progress
+  wrap_up
+  completed
+  failed
+}
+
+enum CallOutcome {
+  callback_requested
+  booked
+  not_interested
+  no_answer
+  voicemail
+  failed
+  wrong_number
+}
+
+enum CallDirection {
+  outbound
+  inbound
+}
+
+enum OfficeType {
+  virtual
+  office
+}
+
+enum OfficeStatus {
+  active
+  paused
+}
+
+enum VersionStatus {
+  draft
+  published
+}
+
+enum DocStatus {
+  draft
+  live
+}
+
+enum JobType {
+  dial
+  crm_writeback
+  inbound_event
+}
+
+enum JobStatus {
+  waiting
+  running
+  succeeded
+  failed
+  discarded
+}
+
+enum AppointmentFormat {
+  phone
+  video
+  in_person
+}
+
+enum AppointmentStatus {
+  pending
+  confirmed
+  cancelled
+  completed
+}
+
+enum IntegrationStatus {
+  healthy
+  degraded
+  down
+  unconfigured
+}
+
+enum CrmUpdateStatus {
+  pending
+  succeeded
+  failed
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  name               String
+  email              String    @unique
+  passwordHash       String
+  role               Role
+  totpSecret         String?
+  totpPendingSecret  String?
+  totpEnabled        Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  sessions           Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Org {
+  id              String  @id @default("org")
+  name            String
+  subtitle        String
+  agentName       String
+  timezone        String
+  testMode        Boolean @default(true)
+  scheduleEnabled Boolean @default(false)
+}
+
+model Office {
+  id            String       @id @default(cuid())
+  name          String
+  timezone      String
+  type          OfficeType
+  status        OfficeStatus @default(active)
+  calendarName  String
+  ghlCalendarId String?
+  syncedAt      DateTime?
+  createdAt     DateTime     @default(now())
+  advisors      Advisor[]
+  hours         OfficeHour[]
+  contacts      Contact[]
+  calls         Call[]
+  appointments  Appointment[]
+}
+
+model Advisor {
+  id       String  @id @default(cuid())
+  officeId String
+  office   Office  @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  name     String
+  email    String?
+}
+
+model OfficeHour {
+  id        String  @id @default(cuid())
+  officeId  String
+  office    Office  @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  weekday   Int
+  closed    Boolean @default(false)
+  openTime  String  @default("09:00")
+  closeTime String  @default("17:00")
+
+  @@unique([officeId, weekday])
+}
+
+model Contact {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String
+  email        String?
+  officeId     String?
+  office       Office?       @relation(fields: [officeId], references: [id])
+  consent      Consent       @default(none)
+  consentAt    DateTime?
+  source       String
+  ghlContactId String?
+  timezone     String        @default("America/New_York")
+  createdAt    DateTime      @default(now())
+  calls        Call[]
+  appointments Appointment[]
+
+  @@index([phone])
+  @@index([ghlContactId])
+}
+
+model DoNotCall {
+  id          String    @id @default(cuid())
+  phone       String
+  reason      String
+  source      String
+  addedById   String?
+  addedByName String?
+  active      Boolean   @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([phone])
+}
+
+model Call {
+  id                       String         @id @default(cuid())
+  contactId                String
+  contact                  Contact        @relation(fields: [contactId], references: [id])
+  officeId                 String?
+  office                   Office?        @relation(fields: [officeId], references: [id])
+  status                   CallStatus
+  outcome                  CallOutcome?
+  direction                CallDirection  @default(outbound)
+  startedAt                DateTime?
+  endedAt                  DateTime?
+  durationSec              Int            @default(0)
+  costCents                Int            @default(0)
+  consent                  Consent        @default(none)
+  isTest                   Boolean        @default(false)
+  transcript               Json           @default("[]")
+  timeline                 Json           @default("[]")
+  gateChecks               Json           @default("[]")
+  recordingUrl             String?
+  elevenLabsConversationId String?
+  twilioCallSid            String?
+  failureReason            String?
+  gatesPassed              Boolean        @default(false)
+  triggeredAt              DateTime       @default(now())
+  dialedAt                 DateTime?
+  connected                Boolean        @default(false)
+  booked                   Boolean        @default(false)
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+  appointments             Appointment[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([contactId])
+  @@index([elevenLabsConversationId])
+  @@index([twilioCallSid])
+}
+
+model Appointment {
+  id          String            @id @default(cuid())
+  contactId   String
+  contact     Contact           @relation(fields: [contactId], references: [id])
+  officeId    String
+  office      Office            @relation(fields: [officeId], references: [id])
+  callId      String?
+  call        Call?             @relation(fields: [callId], references: [id])
+  advisorName String
+  startsAt    DateTime
+  endsAt      DateTime
+  format      AppointmentFormat
+  status      AppointmentStatus
+  ghlEventId  String?
+  createdAt   DateTime          @default(now())
+
+  @@index([startsAt])
+  @@index([officeId])
+}
+
+model KnowledgeDoc {
+  id          String    @id @default(cuid())
+  title       String
+  body        String
+  status      DocStatus @default(draft)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  publishedAt DateTime?
+}
+
+model AgentVersion {
+  id           String        @id @default(cuid())
+  version      Int
+  status       VersionStatus
+  agentName    String
+  instructions String
+  openingLine  String
+  authorId     String?
+  authorName   String?
+  createdAt    DateTime      @default(now())
+  publishedAt  DateTime?
+}
+
+model VoiceVersion {
+  id          String        @id @default(cuid())
+  version     Int
+  status      VersionStatus
+  voiceId     String
+  voiceName   String
+  authorId    String?
+  authorName  String?
+  createdAt   DateTime      @default(now())
+  publishedAt DateTime?
+}
+
+model CallingRulesVersion {
+  id          String        @id @default(cuid())
+  version     Int
+  status      VersionStatus
+  config      Json
+  authorId    String?
+  authorName  String?
+  createdAt   DateTime      @default(now())
+  publishedAt DateTime?
+}
+
+model Tag {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  contactCount Int      @default(0)
+  source       String   @default("ghl")
+  updatedAt    DateTime @updatedAt
+}
+
+model FieldMapping {
+  id            String  @id @default(cuid())
+  internalField String
+  ghlField      String
+  direction     String
+  enabled       Boolean @default(true)
+}
+
+model CrmUpdate {
+  id         String          @id @default(cuid())
+  callId     String?
+  contactId  String?
+  summary    String
+  payload    Json
+  status     CrmUpdateStatus @default(pending)
+  attempts   Int             @default(0)
+  lastError  String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  type        JobType
+  status      JobStatus @default(waiting)
+  payload     Json
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  lastError   String?
+  runAt       DateTime  @default(now())
+  lockedAt    DateTime?
+  finishedAt  DateTime?
+  callId      String?
+  contactId   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, runAt])
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actorName   String
+  action      String
+  targetType  String
+  targetId    String?
+  targetLabel String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model IntegrationCheck {
+  provider  String            @id
+  label     String
+  detail    String
+  status    IntegrationStatus
+  latencyMs Int?
+  checkedAt DateTime
+}
