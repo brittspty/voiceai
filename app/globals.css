@@ -1,0 +1,50 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --canvas: #f4f4f5;
+  --card: #ffffff;
+  --line: #e6e6ea;
+  --ink: #1c1c1f;
+  --muted: #71717a;
+  --sidebar: #f7f7f8;
+  --hover: #ececef;
+  --chip: #f3f3f5;
+  --shadow: 0 1px 2px rgba(16, 16, 20, 0.04);
+}
+
+.dark {
+  --canvas: #101012;
+  --card: #18181b;
+  --line: #2a2a30;
+  --ink: #f4f4f5;
+  --muted: #a1a1aa;
+  --sidebar: #141416;
+  --hover: #232328;
+  --chip: #232328;
+  --shadow: none;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-sidebar: var(--sidebar);
+  --color-hover: var(--hover);
+  --color-chip: var(--chip);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+html, body { height: 100%; }
+body { background: var(--canvas); color: var(--ink); }
+
+.bg-hatch {
+  background-color: #f3f4f6;
+  background-image: repeating-linear-gradient(-45deg, transparent, transparent 5px, rgba(24, 24, 27, 0.045) 5px, rgba(24, 24, 27, 0.045) 6px);
+}
+.dark .bg-hatch {
+  background-color: #141416;
+  background-image: repeating-linear-gradient(-45deg, transparent, transparent 5px, rgba(255, 255, 255, 0.04) 5px, rgba(255, 255, 255, 0.04) 6px);
+}
