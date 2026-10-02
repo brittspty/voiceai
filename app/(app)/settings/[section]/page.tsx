@@ -197,7 +197,7 @@ function Rules({ owner, policy, version }: { owner: boolean; policy: CallingPoli
         minConsent: String(formData.get("minConsent") || policy.minConsent) as CallingPolicy["minConsent"],
       });
     }}>
-      <p className="text-muted">Published version {version ?? "\u2014"}.</p>
+      <p className="text-muted">Published version {version ?? "—"}.</p>
       <div className="grid grid-cols-2 gap-2">
         <label>Window start<input name="windowStart" type="time" defaultValue={policy.windowStart} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
         <label>Window end<input name="windowEnd" type="time" defaultValue={policy.windowEnd} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
@@ -253,7 +253,7 @@ function Offices({ offices, canWrite: allow }: { offices: Awaited<ReturnType<typ
               <tr key={office.id} className="border-b border-line last:border-0">
                 <td className="px-4 py-3 font-medium">{office.name}</td>
                 <td className="px-4 py-3">{office.timezone}</td>
-                <td className="px-4 py-3">{office.advisors.map((a) => a.name).join(", ") || "\u2014"}</td>
+                <td className="px-4 py-3">{office.advisors.map((a) => a.name).join(", ") || "—"}</td>
                 <td className="px-4 py-3 capitalize">{office.type}</td>
                 <td className="px-4 py-3 capitalize">{office.status}</td>
                 <td className="px-4 py-3">{allow && <form action={async () => { "use server"; await setOfficeStatus(office.id, office.status === "active" ? "paused" : "active"); }}><button className="underline">{office.status === "active" ? "Pause" : "Resume"}</button></form>}</td>
@@ -427,7 +427,7 @@ async function Failed() {
                 <td className="px-3 py-2">{job.type.replaceAll("_", " ")}</td>
                 <td className="px-3 py-2">{job.status}</td>
                 <td className="px-3 py-2">{job.attempts}/{job.maxAttempts}</td>
-                <td className="px-3 py-2 text-muted">{job.lastError || "\u2014"}</td>
+                <td className="px-3 py-2 text-muted">{job.lastError || "—"}</td>
                 <td className="px-3 py-2 text-muted">{formatDateTime(job.updatedAt)}</td>
                 <td className="px-3 py-2">
                   <form className="inline" action={async () => { "use server"; await retryJob(job.id); }}><button className="underline">Retry</button></form>
