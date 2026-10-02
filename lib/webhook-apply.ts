@@ -1,5 +1,6 @@
 import type { CallOutcome, Prisma } from "@prisma/client";
 import { audit } from "./audit";
+import { clientConfig } from "./client-config";
 import { prisma } from "./db";
 import { finishCall } from "./dialer";
 import { enqueue } from "./queue";
@@ -18,6 +19,7 @@ export async function applyGhlEvent(event: GhlEvent) {
         ? await prisma.contact.findFirst({ where: { phone: event.phone } })
         : null;
     const office = await prisma.office.findFirst({ where: { status: "active" }, orderBy: { createdAt: "asc" } });
+    const org = await prisma.org.findUnique({ where: { id: "org" } });
     if (contact && office) {
       await prisma.appointment.upsert({
         where: { id: event.ghlId ? `appt_${event.ghlId}` : `appt_${contact.id}_${event.startTime}` },
@@ -26,7 +28,7 @@ export async function applyGhlEvent(event: GhlEvent) {
           id: event.ghlId ? `appt_${event.ghlId}` : undefined,
           contactId: contact.id,
           officeId: office.id,
-          advisorName: "Karen",
+          advisorName: org?.agentName || clientConfig().agentName,
           startsAt: new Date(event.startTime),
           endsAt: new Date(new Date(event.startTime).getTime() + 30 * 60 * 1000),
           format: "phone",
@@ -56,7 +58,7 @@ export async function applyGhlEvent(event: GhlEvent) {
         consent: "none",
         source: "GoHighLevel",
         ghlContactId: event.ghlId,
-        timezone: event.timezone || office?.timezone || "America/New_York",
+        timezone: event.timezone || office?.timezone || clientConfig().timezone,
       },
     }));
   await audit(SYSTEM_ACTOR, "Synced a lead from GoHighLevel", { type: "contact", id: contact.id, label: contact.name });
@@ -94,7 +96,7 @@ export async function applyElevenEvent(event: ElevenEvent) {
   const transcript =
     event.transcript && event.transcript.length
       ? event.transcript
-      : buildTranscript(org?.agentName || "Karen", call.contact.name, outcome);
+      : buildTranscript(org?.agentName || clientConfig().agentName, call.contact.name, outcome, org?.name);
   await finishCall(call.id, {
     outcome,
     durationSec: event.durationSec ?? call.durationSec ?? 0,

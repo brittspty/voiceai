@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { Consent, OfficeStatus, OfficeType, Prisma, Role } from "@prisma/client";
 import QRCode from "qrcode";
 import { checkEleven, checkGhl, checkTwilio } from "./adapters";
+import { clientConfig, parseBrandColor, parseLogoUrl, parseMark } from "./client-config";
 import { audit } from "./audit";
 import { canWrite, isOwner, requireUser } from "./auth";
 import { prisma } from "./db";
@@ -37,7 +38,7 @@ export async function preflightCall(input: { contactId?: string; phone?: string;
     ? await prisma.doNotCall.findFirst({ where: { active: true, phone: { contains: phone.replace(/\D/g, "").slice(-10) } } })
     : null;
   const org = await prisma.org.findUnique({ where: { id: "org" } });
-  const tz = input.timeZone || org?.timezone || "America/New_York";
+  const tz = input.timeZone || org?.timezone || clientConfig().timezone;
   const { zonedDayBounds } = await import("./time");
   const bounds = zonedDayBounds(new Date(), tz);
   const dialsToday = await prisma.call.count({ where: { dialedAt: { gte: bounds.start, lt: bounds.end } } });
@@ -79,7 +80,7 @@ export async function startTestCall(input: {
           consentAt: new Date(),
           source: "Test console",
           officeId: office?.id,
-          timezone: office?.timezone || "America/New_York",
+          timezone: office?.timezone || clientConfig().timezone,
         },
       });
     }
@@ -178,17 +179,49 @@ export async function saveKnowledge(input: { id?: string; title: string; body: s
   return { id: doc.id };
 }
 
+export async function saveWorkspace(input: { name: string; subtitle: string; timezone: string; brandColor: string; logoUrl: string; mark: string }) {
+  const user = await requireUser();
+  assertOwner(user.role);
+  const name = input.name.trim();
+  if (!name) throw new Error("Enter a company name.");
+  const timezone = input.timezone.trim();
+  if (!timezone) throw new Error("Enter a timezone.");
+  try {
+    Intl.DateTimeFormat("en-US", { timeZone: timezone });
+  } catch {
+    throw new Error("Use an IANA timezone such as America/New_York.");
+  }
+  const brandColor = parseBrandColor(input.brandColor);
+  if (!brandColor) throw new Error("Use a hex color such as #2563eb.");
+  const logoUrl = parseLogoUrl(input.logoUrl);
+  if (logoUrl === null) throw new Error("Logo URL must be an http or https address.");
+  await prisma.org.update({
+    where: { id: "org" },
+    data: {
+      name,
+      subtitle: input.subtitle.trim() || "Voice Ops",
+      timezone,
+      brandColor,
+      logoUrl,
+      mark: parseMark(input.mark),
+    },
+  });
+  await audit(user, "Updated the workspace", { type: "org", id: "org", label: name });
+  revalidatePath("/", "layout");
+  revalidatePath("/settings/agent");
+}
+
 export async function saveAgentDraft(input: { agentName: string; instructions: string; openingLine: string }) {
   const user = await requireUser();
   assertOwner(user.role);
   const latest = await prisma.agentVersion.findFirst({ orderBy: { version: "desc" } });
   const version = (latest?.version ?? 0) + 1;
-  await prisma.org.update({ where: { id: "org" }, data: { agentName: input.agentName.trim() || "Karen" } });
+  await prisma.org.update({ where: { id: "org" }, data: { agentName: input.agentName.trim() || clientConfig().agentName } });
   const row = await prisma.agentVersion.create({
     data: {
       version,
       status: "draft",
-      agentName: input.agentName.trim() || "Karen",
+      agentName: input.agentName.trim() || clientConfig().agentName,
       instructions: input.instructions,
       openingLine: input.openingLine,
       authorId: user.id,
