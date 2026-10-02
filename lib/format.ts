@@ -73,7 +73,7 @@ export function outcomeLabel(outcome: string | null | undefined) {
     failed: "Failed",
     wrong_number: "Wrong number",
   };
-  if (!outcome) return "\u2014";
+  if (!outcome) return "—";
   return map[outcome] ?? outcome;
 }
 
