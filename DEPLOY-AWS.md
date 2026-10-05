@@ -69,6 +69,8 @@ SEED_AGENT_NAME=Avery
 SEED_TIMEZONE=America/New_York
 ```
 
+Set the GoHighLevel consent field keys (`GHL_CONSENT_TIER_FIELD` and the other `GHL_CONSENT_*` values in `.env.example`) to this location's field keys before any live dial. The defaults are `contact.consent_tier`, `contact.consent_revoked_at`, and the other `contact.consent_*` keys. The dialer resolves those keys to field ids. It does not dial when the tier is Low, missing, or unreadable. See the consent gate section in the README. Do not change the live ElevenLabs agent from this deploy; add the `consent_scope` dynamic variable (`scheduling_only` or `full`) on the agent yourself.
+
 Set `SEED_ORG_NAME` and the other `SEED_*` values from `.env.example` before the first start. For a production first boot set `SEED_SAMPLE_DATA=false` and real `SEED_OWNER_*` values. That seed creates only the owner. Admin and viewer are demo accounts and are created only when `SEED_SAMPLE_DATA` is true. The container seeds on boot and will not replace a workspace that is already there. For Specificity, `SITE_ADDRESS` is `voiceai.specificityinc.com`.
 
 Leave the vendor keys empty until you are ready to leave mock mode. Alternatively store the same keys in SSM Parameter Store under `/voiceops/prod/` (the instance role can read that path) and render the file:

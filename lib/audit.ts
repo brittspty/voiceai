@@ -1,10 +1,11 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import type { Actor } from "./types";
 
 export async function audit(
   actor: Actor,
   action: string,
-  target: { type: string; id?: string | null; label?: string | null },
+  target: { type: string; id?: string | null; label?: string | null; detail?: Prisma.InputJsonValue },
 ) {
   await prisma.activity.create({
     data: {
@@ -14,6 +15,7 @@ export async function audit(
       targetType: target.type,
       targetId: target.id ?? null,
       targetLabel: target.label ?? null,
+      detail: target.detail,
     },
   });
 }

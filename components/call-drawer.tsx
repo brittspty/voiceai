@@ -25,6 +25,7 @@ export type CallRow = {
   recordingUrl: string | null;
   elevenLabsId: string | null;
   failureReason: string | null;
+  consentScope?: string | null;
 };
 
 export function CallDrawer({ call, onClose }: { call: CallRow | null; onClose: () => void }) {
@@ -53,6 +54,7 @@ export function CallDrawer({ call, onClose }: { call: CallRow | null; onClose: (
                 <Meta label="Duration" value={<Duration seconds={call.durationSec} />} />
                 <Meta label="Cost" value={<Money cents={call.costCents} />} />
                 <Meta label="Consent" value={<ConsentPill consent={call.consent} />} />
+                <Meta label="Scope" value={call.consentScope === "scheduling_only" ? "Scheduling only" : call.consentScope === "full" ? "Full conversation" : "—"} />
                 <Meta label="ElevenLabs" value={call.elevenLabsId || "—"} />
               </dl>
               {call.failureReason && <p className="mt-3 rounded-lg bg-[#fdecec] px-3 py-2 text-sm text-[#d14343]">{call.failureReason}</p>}

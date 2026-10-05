@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { clientConfig } from "./client-config";
+import { queueConsentView } from "./consent";
 import { prisma } from "./db";
 import { evaluateGates } from "./gates";
 import { hasEnv, integrationsMode } from "./env";
@@ -106,12 +107,24 @@ export async function getOverview(range = "today") {
       dialing: live.filter((c) => c.status === "dialing").length,
       inProgress: live.filter((c) => c.status === "in_progress").length,
       wrapUp: live.filter((c) => c.status === "wrap_up").length,
-      items: live.map((c) => ({
-        id: c.id,
-        name: c.contact.name,
-        office: c.office?.name || "—",
-        status: c.status,
-      })),
+      items: live.map((c) => {
+        const consentView = queueConsentView({
+          mocked: integrationsMode() !== "live" || org.testMode,
+          ghlContactId: c.contact.ghlContactId,
+          storedConsent: c.contact.consent,
+          phone: c.contact.phone,
+          consentCheckedAt: c.contact.consentCheckedAt,
+          consentHoldReason: c.contact.consentHoldReason,
+          consentScope: c.contact.consentScope,
+        });
+        return {
+          id: c.id,
+          name: c.contact.name,
+          office: c.office?.name || "—",
+          status: c.status,
+          reason: c.failureReason || consentView.reason,
+        };
+      }),
     },
     chart,
     outcomes: [...outcomeCounts.entries()].map(([outcome, count]) => ({ outcome, count })),
@@ -144,6 +157,7 @@ export function toCallRow(call: {
   recordingUrl: string | null;
   elevenLabsConversationId: string | null;
   failureReason: string | null;
+  consentScope: string | null;
   contact: { name: string; phone: string };
   office: { name: string } | null;
 }) {
@@ -166,6 +180,7 @@ export function toCallRow(call: {
     recordingUrl: call.recordingUrl,
     elevenLabsId: call.elevenLabsConversationId,
     failureReason: call.failureReason,
+    consentScope: call.consentScope,
   };
 }
 
@@ -469,10 +484,14 @@ export async function getSettingsBundle() {
 }
 
 export async function callingQueue() {
-  const contacts = await prisma.contact.findMany({ include: { office: true }, orderBy: { createdAt: "desc" }, take: 40 });
+  const [contacts, org] = await Promise.all([
+    prisma.contact.findMany({ include: { office: true }, orderBy: { createdAt: "desc" }, take: 40 }),
+    prisma.org.findUnique({ where: { id: "org" } }),
+  ]);
   const { policy } = await getPublishedPolicy();
   const dncRows = await prisma.doNotCall.findMany({ where: { active: true } });
   const dncDigits = new Set(dncRows.map((r) => digitsOnly(r.phone)));
+  const mocked = integrationsMode() !== "live" || Boolean(org?.testMode);
   const rows = [];
   for (const contact of contacts) {
     const attempts = await prisma.call.count({ where: { contactId: contact.id, dialedAt: { not: null } } });
@@ -488,13 +507,28 @@ export async function callingQueue() {
       attemptsForContact: attempts,
       policy,
     });
+    const consentView = queueConsentView({
+      mocked,
+      ghlContactId: contact.ghlContactId,
+      storedConsent: contact.consent,
+      phone: contact.phone,
+      consentCheckedAt: contact.consentCheckedAt,
+      consentHoldReason: contact.consentHoldReason,
+      consentScope: contact.consentScope,
+    });
+    const other = gate.checks.filter((check) => check.id !== "consent" && !check.passed);
+    const reason = consentView.blocked
+      ? [consentView.reason, ...other.map((check) => check.detail)].join(" ")
+      : other.length
+        ? other.map((check) => check.detail).join(" ")
+        : consentView.reason;
     rows.push({
       id: contact.id,
       name: contact.name,
       phone: contact.phone,
       source: contact.source,
-      status: gate.passed ? "Eligible" : "Held",
-      reason: gate.passed ? "Passes consent, do-not-call, hours, and caps." : gate.checks.filter((c) => !c.passed).map((c) => c.detail).join(" "),
+      status: consentView.blocked ? consentView.status : other.length ? "Held" : "Eligible",
+      reason,
     });
   }
   return rows;

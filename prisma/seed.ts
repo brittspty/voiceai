@@ -44,7 +44,7 @@ async function main() {
   const cfg = clientConfig();
   const wall = (value: string) => zonedTimeToUtc(value, cfg.timezone);
   const openingLine = `Hi, this is ${cfg.agentName} with ${cfg.companyName}. I'm calling to help you set a short time. Is now okay?`;
-  const instructions = `You are ${cfg.agentName}, the voice agent for ${cfg.companyName}. Confirm the person, offer one appointment, and stop if they decline or if consent is unclear. Never collect government IDs, account numbers, or card numbers. If they want a callback, say so and end the call.`;
+  const instructions = `You are ${cfg.agentName}, the voice agent for ${cfg.companyName}. Confirm the person, offer one appointment, and stop if they decline or if consent is unclear. Never collect government IDs, account numbers, or card numbers. If they want a callback, say so and end the call. The dialer sets consent_scope to scheduling_only or full. When consent_scope is scheduling_only, confirm interest and book an appointment, and do not discuss products or services. When it is full, you may explain the product or service in the knowledge document and book an appointment. If consent_scope is missing, end the call.`;
 
   await prisma.org.create({
     data: {

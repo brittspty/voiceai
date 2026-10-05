@@ -68,7 +68,7 @@ export function TestConsole({ offices, contacts }: { offices: { id: string; name
         <div className="grid grid-cols-2 gap-2">
           <label className="text-sm">Consent
             <select name="consent" defaultValue="high" className="mt-1 h-9 w-full rounded-lg border border-line bg-transparent px-2">
-              <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="none">None</option>
+              <option value="high">High — full conversation</option><option value="medium">Medium — scheduling only</option><option value="low">Low — do not dial</option><option value="none">None — treated as Low</option>
             </select>
           </label>
           <label className="text-sm">Office
@@ -90,7 +90,7 @@ export function TestConsole({ offices, contacts }: { offices: { id: string; name
           <button type="button" className="rounded-full border border-line px-3 py-1.5 text-sm" disabled={pending} onClick={(event) => run(event.currentTarget.form, "preflight")}>Run preflight</button>
           <button type="button" className="rounded-full bg-ink px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-white dark:text-black" disabled={pending || Boolean(checks && checks.some((c) => !c.passed))} onClick={(event) => run(event.currentTarget.form, "call")}>Place test call</button>
         </div>
-        <p className="text-xs text-muted">Test calls use the same gates and count against the daily cap. In test mode the voice provider and CRM are mocked.</p>
+        <p className="text-xs text-muted">Test calls use the same gates and count against the daily cap. Test mode keeps the voice provider and CRM mocked, so no real call is placed. A test lead with no GoHighLevel id is judged from the stored tier. Low and missing do not dial. A lead that has a GoHighLevel id is read from GoHighLevel again before the simulated dial.</p>
       </div>
       <div className="rounded-xl border border-line bg-card p-4">
         <h3 className="font-medium">Preflight</h3>

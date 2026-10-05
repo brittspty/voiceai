@@ -4,6 +4,7 @@ import { PageTitle } from "@/components/shell";
 import { TestConsole } from "@/components/test-console";
 import { TotpSetup } from "@/components/totp-setup";
 import { requireUser, isOwner, canWrite } from "@/lib/auth";
+import { consentFieldConfig } from "@/lib/client-config";
 import { prisma } from "@/lib/db";
 import { appUrl } from "@/lib/env";
 import { formatDateTime } from "@/lib/format";
@@ -39,7 +40,7 @@ const TITLES: Record<string, [string, string]> = {
   integrations: ["Integrations", "Connections to your CRM, voice provider, and phone carrier. Refreshes itself every 30 seconds, or check them all now."],
   activity: ["Activity log", "Every sign-in and every change, newest first."],
   "failed-jobs": ["Failed jobs", "Incoming events and CRM updates that failed after retries."],
-  "test-console": ["Test console", "Place a test call through the real gate, dial, transcript, and CRM path. It counts against the daily cap."],
+  "test-console": ["Test console", "Place a test call through the real gate, dial, transcript, and CRM path. Test mode stays on the mock voice, so it does not place a real call. It counts against the daily cap."],
   production: ["Production ready", "What has to be true before the agent dials real leads. Test mode stays on until you turn it off."],
 };
 
@@ -87,8 +88,14 @@ export default async function SettingsSection({ params, searchParams }: { params
 
 async function Calling({ offices, userCan }: { offices: { id: string; name: string; status: string }[]; userCan: boolean }) {
   const rows = await callingQueue();
+  const consent = consentFieldConfig();
   return (
     <div className="space-y-4">
+      <p className="text-sm text-muted">
+        GoHighLevel consent is read again immediately before every dial. Low, missing, or unreadable {consent.tier} is skipped.
+        Medium allows scheduling only. High allows a full conversation. A {consent.revokedAt} value, the {consent.revokedTag} tag, or a {consent.phone} that does not match the dialed number also skips the call.
+        The {consent.dialOkTag} tag never overrides a skip.
+      </p>
       <div className="rounded-xl border border-line bg-card p-4 text-sm">
         {offices.map((office) => (
           <form key={office.id} className="flex items-center justify-between py-1" action={async () => { "use server"; await setOfficeStatus(office.id, office.status === "active" ? "paused" : "active"); }}>
@@ -106,7 +113,7 @@ async function Calling({ offices, userCan }: { offices: { id: string; name: stri
                 <td className="px-4 py-3">{row.name}</td>
                 <td className="px-4 py-3">{maskPhone(row.phone)}</td>
                 <td className="px-4 py-3">{row.source}</td>
-                <td className="px-4 py-3">{row.status}</td>
+                <td className={`px-4 py-3 ${row.status === "Skipped" ? "text-[#d14343]" : ""}`}>{row.status}</td>
                 <td className="px-4 py-3 text-muted">{row.reason}</td>
               </tr>
             ))}
@@ -223,7 +230,7 @@ function Rules({ owner, policy, version }: { owner: boolean; policy: CallingPoli
         minConsent: String(formData.get("minConsent") || policy.minConsent) as CallingPolicy["minConsent"],
       });
     }}>
-      <p className="text-muted">Published version {version ?? "—"}.</p>
+      <p className="text-muted">Published version {version ?? "—"}. The GoHighLevel consent gate always runs, including when require-consent is off. Low and missing tiers never dial. Medium limits the agent to scheduling. High allows a full conversation.</p>
       <div className="grid grid-cols-2 gap-2">
         <label>Window start<input name="windowStart" type="time" defaultValue={policy.windowStart} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
         <label>Window end<input name="windowEnd" type="time" defaultValue={policy.windowEnd} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
@@ -349,6 +356,7 @@ function Capabilities({ owner, bundle }: { owner: boolean; bundle: Awaited<Retur
       }}>
         <h3 className="font-medium">Safety switches</h3>
         <label className="flex items-center gap-2"><input type="checkbox" name="requireConsent" defaultChecked={policy.requireConsent} /> Block calls without consent</label>
+        <p className="text-xs text-muted">Turning this off does not bypass the GoHighLevel consent gate. Low, missing, revoked, and unreadable consent still do not dial.</p>
         <label className="flex items-center gap-2"><input type="checkbox" name="enforceDnc" defaultChecked={policy.enforceDnc} /> Enforce do-not-call</label>
         <label className="flex items-center gap-2"><input type="checkbox" name="enforceCallingHours" defaultChecked={policy.enforceCallingHours} /> Stay inside the local calling window</label>
         <label className="flex items-center gap-2"><input type="checkbox" name="testMode" defaultChecked={bundle.org.testMode} /> Test mode</label>

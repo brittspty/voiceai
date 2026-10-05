@@ -6,7 +6,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { Calendar, Clock, PhoneOutgoing, Percent, Target } from "lucide-react";
 import { formatDuration, formatPercent, outcomeLabel } from "@/lib/format";
 
-type Live = { queued: number; dialing: number; inProgress: number; wrapUp: number; items: { id: string; name: string; office: string; status: string }[] };
+type Live = { queued: number; dialing: number; inProgress: number; wrapUp: number; items: { id: string; name: string; office: string; status: string; reason?: string | null }[] };
 
 export function RangeSelect({ range }: { range: string }) {
   return (
@@ -87,6 +87,7 @@ export function LiveNow({ initial, range }: { initial: Live; range: string }) {
           <div key={item.id} className="rounded-lg border border-line px-3 py-2">
             <div className="text-sm font-medium">{item.name.length > 28 ? `${item.name.slice(0, 26)}…` : item.name} <span className="font-normal text-muted">{item.status === "queued" ? "waiting" : item.status.replaceAll("_", " ")}</span></div>
             <div className="text-xs text-muted">{item.office}</div>
+            {item.reason && <div className="mt-1 text-xs text-muted">{item.reason}</div>}
           </div>
         ))}
       </div>

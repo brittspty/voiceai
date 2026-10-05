@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { consentSnapshot, decideConsent } from "./consent";
 import { runDialAttempt, type CrmPort, type VoicePort } from "./pipeline";
 import { DEFAULT_POLICY } from "./types";
 import { zonedTimeToUtc } from "./time";
+
+const allowed = decideConsent(consentSnapshot({ tierRaw: "High" }), "+19195550100");
 
 const gate = {
   now: zonedTimeToUtc("2026-10-02T11:00:00", "America/New_York"),
@@ -24,7 +27,8 @@ test("does not dial when a gate fails", async () => {
   };
   const crm: CrmPort = { async writeOutcome() { return { externalId: "x" }; } };
   const result = await runDialAttempt({
-    gate: { ...gate, consent: "none" },
+    gate: { ...gate, onDoNotCall: true },
+    consent: allowed,
     voice,
     crm,
     voiceInput: { to: "+19195550100", contactName: "Demo", agentName: "Karen", openingLine: "Hi" },
@@ -39,6 +43,7 @@ test("dials, then writes the outcome, and plans a meeting when booked", async ()
   const voice: VoicePort = {
     async placeCall(input) {
       order.push("voice");
+      assert.equal(input.consentScope, "full");
       return {
         conversationId: "conv_test",
         callSid: "CA_test",
@@ -58,6 +63,7 @@ test("dials, then writes the outcome, and plans a meeting when booked", async ()
   };
   const result = await runDialAttempt({
     gate,
+    consent: allowed,
     voice,
     crm,
     voiceInput: { to: "+19195550100", contactName: "Demo", agentName: "Karen", openingLine: "Hi", simulatedOutcome: "booked" },
@@ -92,6 +98,7 @@ test("keeps the call result when the CRM write fails", async () => {
   };
   const result = await runDialAttempt({
     gate,
+    consent: allowed,
     voice,
     crm,
     voiceInput: { to: "+19195550100", contactName: "Demo", agentName: "Karen", openingLine: "Hi" },

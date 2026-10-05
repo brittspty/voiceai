@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clientConfig, defaultKnowledge, parseBrandColor, parseLogoUrl, parseOffices, showDemoLogin } from "./client-config";
+import { clientConfig, consentFieldConfig, defaultKnowledge, parseBrandColor, parseLogoUrl, parseOffices, showDemoLogin } from "./client-config";
 
 test("defaults to the Specificity workspace", () => {
   const cfg = clientConfig({});
@@ -49,6 +49,25 @@ test("rejects colors and logos that are not safe to render", () => {
   assert.equal(parseLogoUrl("https://cdn.example.com/a.svg"), "https://cdn.example.com/a.svg");
 });
 
+test("consent field keys default to the GoHighLevel contact fields and can be overridden", () => {
+  const defaults = consentFieldConfig({});
+  assert.equal(defaults.tier, "contact.consent_tier");
+  assert.equal(defaults.revokedAt, "contact.consent_revoked_at");
+  assert.equal(defaults.phone, "contact.consent_phone");
+  assert.equal(defaults.revokedTag, "consent_revoked");
+  assert.equal(defaults.dialOkTag, "avery_dial_ok");
+  assert.equal(defaults.cacheTtlMs, 3_600_000);
+  const custom = consentFieldConfig({
+    GHL_CONSENT_TIER_FIELD: "contact.voice_tier",
+    GHL_CONSENT_DIAL_OK_TAG: "ok_to_call",
+    GHL_CONSENT_FIELD_CACHE_MS: "60000",
+  });
+  assert.equal(custom.tier, "contact.voice_tier");
+  assert.equal(custom.dialOkTag, "ok_to_call");
+  assert.equal(custom.cacheTtlMs, 60_000);
+  assert.equal(consentFieldConfig({ GHL_CONSENT_FIELD_CACHE_MS: "-1" }).cacheTtlMs, 3_600_000);
+});
+
 test("hides the demo sign-in hint on a public host unless asked", () => {
   assert.equal(showDemoLogin({ APP_URL: "https://voiceai.specificityinc.com" }), false);
   assert.equal(showDemoLogin({ APP_URL: "https://voiceai.specificityinc.com", SHOW_DEMO_LOGIN: "true" }), true);
@@ -65,6 +84,8 @@ test("the default knowledge script uses the configured company and agent", () =>
   assert.match(body, /Specificity Inc/);
   assert.match(body, /Avery/);
   assert.match(body, /Main office/);
+  assert.match(body, /consent_scope/);
+  assert.match(body, /scheduling_only/);
   assert.equal(body.includes("Capital Financial"), false);
   assert.equal(parseOffices("  ", "Not/AZone").length, 2);
 });
