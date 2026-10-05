@@ -1,6 +1,9 @@
 import type { CallOutcome, Prisma } from "@prisma/client";
+import { ghlFetch, voiceIsMocked } from "./adapters";
 import { audit } from "./audit";
-import { clientConfig } from "./client-config";
+import { clientConfig, consentFieldConfig } from "./client-config";
+import { reviewContactConsent } from "./consent";
+import { saveConsentReview, sharedFieldCache } from "./consent-review";
 import { prisma } from "./db";
 import { finishCall } from "./dialer";
 import { enqueue } from "./queue";
@@ -63,6 +66,16 @@ export async function applyGhlEvent(event: GhlEvent) {
     }));
   await audit(SYSTEM_ACTOR, "Synced a lead from GoHighLevel", { type: "contact", id: contact.id, label: contact.name });
   const org = await prisma.org.findUnique({ where: { id: "org" } });
+  const consentConfig = consentFieldConfig();
+  const decision = await reviewContactConsent(
+    {
+      ghlContactId: contact.ghlContactId,
+      phone: contact.phone,
+      storedConsent: contact.consent,
+      mocked: voiceIsMocked(Boolean(org?.testMode)),
+    },
+    { fetchImpl: ghlFetch, cache: sharedFieldCache(consentConfig.cacheTtlMs) },
+  );
   if (org?.scheduleEnabled) {
     const call = await prisma.call.create({
       data: {
@@ -75,7 +88,10 @@ export async function applyGhlEvent(event: GhlEvent) {
         timeline: [{ at: new Date().toISOString(), label: "Lead triggered a dial" }] as Prisma.InputJsonValue,
       },
     });
+    await saveConsentReview({ contactId: contact.id, callId: call.id, contactName: contact.name, decision });
     await enqueue({ type: "dial", callId: call.id, contactId: contact.id, payload: { callId: call.id } });
+  } else {
+    await saveConsentReview({ contactId: contact.id, callId: null, contactName: contact.name, decision });
   }
   return { ok: true, contactId: contact.id };
 }

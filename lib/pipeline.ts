@@ -1,13 +1,18 @@
+import { isConsentScope, mergeConsentGate, type ConsentDecision, type ConsentScope } from "./consent";
 import { evaluateGates, type GateInput } from "./gates";
 import type { CallOutcomeName, TranscriptLine } from "./types";
 
-export type VoicePlaceInput = {
+export type VoiceCallRequest = {
   to: string;
   contactName: string;
   agentName: string;
   companyName?: string;
   openingLine: string;
   simulatedOutcome?: CallOutcomeName;
+};
+
+export type VoicePlaceInput = VoiceCallRequest & {
+  consentScope: ConsentScope;
 };
 
 export type VoicePlaceResult = {
@@ -42,7 +47,8 @@ export interface CrmPort {
 
 export type DialContext = {
   gate: GateInput;
-  voiceInput: VoicePlaceInput;
+  consent: ConsentDecision;
+  voiceInput: VoiceCallRequest;
   crmInput: Omit<CrmWriteInput, "outcome" | "durationSec" | "summary">;
   voice: VoicePort;
   crm: CrmPort;
@@ -66,20 +72,30 @@ export function crmSummary(agentName: string, outcome: CallOutcomeName, duration
 }
 
 export async function placeIfAllowed(
-  ctx: Pick<DialContext, "gate" | "voice" | "voiceInput">,
+  ctx: Pick<DialContext, "gate" | "consent" | "voice" | "voiceInput">,
   hooks?: { onStatus?: (status: "dialing" | "in_progress" | "wrap_up") => Promise<void> },
 ) {
   const gate = evaluateGates(ctx.gate);
-  if (!gate.passed) {
-    return { kind: "blocked" as const, checks: gate.checks, vendorCalled: false as const };
+  const dialable = ctx.consent.allow && isConsentScope(ctx.consent.scope);
+  const decision = dialable
+    ? ctx.consent
+    : {
+        ...ctx.consent,
+        allow: false,
+        scope: null,
+        reason: ctx.consent.allow ? "Consent scope was missing. Call not placed." : ctx.consent.reason,
+      };
+  const checks = mergeConsentGate(gate.checks, decision);
+  if (!checks.every((check) => check.passed) || !isConsentScope(decision.scope)) {
+    return { kind: "blocked" as const, checks, vendorCalled: false as const };
   }
   await hooks?.onStatus?.("dialing");
-  const voice = await ctx.voice.placeCall(ctx.voiceInput);
+  const voice = await ctx.voice.placeCall({ ...ctx.voiceInput, consentScope: decision.scope });
   await hooks?.onStatus?.("in_progress");
   await hooks?.onStatus?.("wrap_up");
   return {
     kind: "completed" as const,
-    checks: gate.checks,
+    checks,
     vendorCalled: true as const,
     voice,
     createAppointment: voice.outcome === "booked",

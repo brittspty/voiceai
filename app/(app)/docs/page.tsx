@@ -10,7 +10,12 @@ export default async function DocsPage() {
       <div className="space-y-4 text-sm leading-6">
         <section className="rounded-xl border border-line bg-card p-4">
           <h2 className="font-medium">What it does</h2>
-          <p className="mt-1 text-muted">An outbound voice agent calls leads from GoHighLevel, speaks through ElevenLabs over a Twilio number, and books meetings back onto the office calendar. Every dial passes consent, do-not-call, local calling hours, a daily cap, and a retry limit.</p>
+          <p className="mt-1 text-muted">An outbound voice agent calls leads from GoHighLevel, speaks through ElevenLabs over a Twilio number, and books meetings back onto the office calendar. Every dial passes GoHighLevel consent, do-not-call, local calling hours, a daily cap, and a retry limit. Consent is read again immediately before the dial.</p>
+        </section>
+        <section className="rounded-xl border border-line bg-card p-4">
+          <h2 className="font-medium">Consent gate</h2>
+          <p className="mt-1 text-muted">The contact field <span className="font-mono">contact.consent_tier</span> is Low, Medium, or High. Low, missing, empty, unknown, and unreadable values do not dial. Medium may only confirm interest and book an appointment. High may discuss the product or service and schedule. A non-empty <span className="font-mono">contact.consent_revoked_at</span>, the <span className="font-mono">consent_revoked</span> tag, or a <span className="font-mono">contact.consent_phone</span> that does not match the dialed number also skips the call. The <span className="font-mono">avery_dial_ok</span> tag never overrides a skip. Field keys are set per client in the environment. The dialer resolves them to GoHighLevel field ids and caches the map.</p>
+          <p className="mt-2 text-muted">ElevenLabs receives the dynamic variable <span className="font-mono">consent_scope</span>. Medium sends <span className="font-mono">scheduling_only</span>. High sends <span className="font-mono">full</span>. In the agent prompt, reference <span className="font-mono">{`{{consent_scope}}`}</span>. Skips and allows are written to the activity log with the tier, reason, consent version, and timestamp, and the skip reason shows on Call settings and the live queue.</p>
         </section>
         <section className="rounded-xl border border-line bg-card p-4">
           <h2 className="font-medium">Webhooks</h2>

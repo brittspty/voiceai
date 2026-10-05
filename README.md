@@ -53,7 +53,7 @@ Place a test call from **Settings → Test console**. Preflight runs the same ga
 npm test
 ```
 
-Covers the pre-dial gates (consent, do-not-call, local hours and timezone, daily cap, retry limit), the dial-then-CRM pipeline, webhook parsing and signatures, TOTP, and the production checklist.
+Covers the pre-dial gates (GoHighLevel consent tier, do-not-call, local hours and timezone, daily cap, retry limit), the dial-then-CRM pipeline, webhook parsing and signatures, TOTP, and the production checklist.
 
 ## Environment
 
@@ -66,6 +66,7 @@ See `.env.example`. Secrets are only read from the environment. Do not commit `.
 | `INTEGRATIONS_MODE` | `mock` (default) or `live` |
 | `APP_URL` | Public origin, used in webhook instructions |
 | `GHL_API_KEY`, `GHL_LOCATION_ID`, `GHL_WEBHOOK_SECRET` | GoHighLevel |
+| `GHL_CONSENT_*` | Consent field keys, tags, and field-id cache. See [Consent gate](#consent-gate). Defaults match `contact.consent_tier` and the other `contact.consent_*` fields |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_AGENT_PHONE_NUMBER_ID`, `ELEVENLABS_WEBHOOK_SECRET` | ElevenLabs outbound calls |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `TWILIO_WEBHOOK_SECRET` | Twilio account check and status callbacks |
 | `WORKER_STEP_MS` | Pause between dial states so the live board can show them. `0` skips the pause |
@@ -81,8 +82,8 @@ See `.env.example`. Secrets are only read from the environment. Do not commit `.
 
 Adapters live in `lib/adapters`. `getPorts()` returns mocks when `INTEGRATIONS_MODE` is not `live` or the workspace test-mode switch is on.
 
-- **GoHighLevel.** `POST /api/webhooks/ghl` accepts a contact or appointment event. With the schedule on, a new lead becomes a dial job. After a call, a CRM job writes a note and a tag to `https://services.leadconnectorhq.com`. Health checks `GET /locations/{id}`.
-- **ElevenLabs.** The worker places the call with `POST /v1/convai/twilio/outbound-call`. `POST /api/webhooks/elevenlabs` stores the transcript, outcome, duration, and cost. In mock mode the adapter returns those immediately.
+- **GoHighLevel.** `POST /api/webhooks/ghl` accepts a contact or appointment event. With the schedule on, a new lead becomes a dial job. Immediately before that dial, the worker reads the contact again and applies the [consent gate](#consent-gate). After a call, a CRM job writes a note and a tag to `https://services.leadconnectorhq.com`. Health checks `GET /locations/{id}`. Custom field ids come from `GET /locations/{locationId}/customFields`.
+- **ElevenLabs.** The worker places the call with `POST /v1/convai/twilio/outbound-call` and sends `consent_scope` as a dynamic variable. `POST /api/webhooks/elevenlabs` stores the transcript, outcome, duration, and cost. In mock mode the adapter returns those immediately and does not call ElevenLabs.
 - **Twilio.** Live mode checks the account. `POST /api/webhooks/twilio` maps `CallStatus` onto the call. ElevenLabs is what actually dials.
 
 Webhook auth: HMAC-SHA256 of the raw body in `x-voiceops-signature`, or the shared secret in `x-webhook-secret`. Mock mode accepts unsigned bodies so the demo runs with empty secrets. Live mode rejects them.
@@ -96,7 +97,62 @@ Failed webhook handling and failed CRM writes land in **Settings → Failed jobs
 3. Point each vendor at the HTTPS webhook URLs.
 4. Sign in as an owner. On **Production ready**, turn test mode off only when the list is green, then turn the schedule on for a small pilot.
 
-Until both switches move, dials stay simulated.
+Until both switches move, dials stay simulated. Test mode never selects the live voice port, even when `INTEGRATIONS_MODE=live`.
+
+## Consent gate
+
+No outbound call is placed unless the GoHighLevel contact's consent allows it. The worker reads the contact again immediately before each dial attempt, so a revocation between queue and dial stops the call. The gate fails closed: a missing value, an empty value, an unknown value, a missing field, or an API error is treated as Low and the call is not placed.
+
+Custom field values come back from GoHighLevel API v2 by field id. The dialer resolves the configured field keys to ids with `GET /locations/{locationId}/customFields?model=contact`, then caches that map (memory, and Redis when it is up) for `GHL_CONSENT_FIELD_CACHE_MS` (default one hour). Keys are per client, because each deployment has its own location. Do not hard-code field ids.
+
+| Tier or signal | What the dialer does |
+| --- | --- |
+| `Low` | Cookie consent only. Do not dial. |
+| `Medium` | Dial. The agent may only confirm interest and book an appointment. No product or service discussion. |
+| `High` | Dial. Full conversation: product and service detail, plus scheduling. |
+| Missing, empty, unknown, or unreadable | Treated as Low. Do not dial. |
+| `consent_revoked_at` set to any non-empty value | Do not dial. Treated as do-not-call, whatever the tier says. |
+| Tag `consent_revoked` | Do not dial. Treated as do-not-call. |
+| `consent_phone` set and not equal to the dialed number | Do not dial. Both numbers are normalized to E.164 before the comparison. An unreadable consent phone also does not dial. |
+| Tag `avery_dial_ok` | Informational only. It is stored on the audit row and never overrides a Low, missing, revoked, or mismatched decision. |
+
+Audit-only fields, logged when present and not used to allow a call: `consent_purpose`, `consent_timestamp`, `consent_source_url`, `consent_version`, `consent_phone`, `consent_method`, `consent_ip`, `consent_user_agent`, `cookie_consent_categories`.
+
+Every allow and every skip is an activity-log row. The action includes the tier, the reason, `consent_version`, and `consent_timestamp`. The same skip reason is shown on **Settings → Call settings** and on the live queue. A lead whose consent has not been read yet stays held.
+
+### ElevenLabs `consent_scope`
+
+When a call is allowed, the outbound request sets the dynamic variable `consent_scope`:
+
+| Consent | `consent_scope` |
+| --- | --- |
+| Medium | `scheduling_only` |
+| High | `full` |
+
+Create that dynamic variable on the ElevenLabs agent and branch the prompt on `{{consent_scope}}`. `scheduling_only` may confirm interest and book an appointment only. `full` may also discuss the product or service. This app does not change the live agent for you. The default knowledge document in a new workspace describes the same variable.
+
+### Consent environment
+
+Blank values keep the default. Option labels in GoHighLevel must be `Low`, `Medium`, and `High`.
+
+| Variable | Default |
+| --- | --- |
+| `GHL_CONSENT_TIER_FIELD` | `contact.consent_tier` |
+| `GHL_CONSENT_REVOKED_AT_FIELD` | `contact.consent_revoked_at` |
+| `GHL_CONSENT_PURPOSE_FIELD` | `contact.consent_purpose` |
+| `GHL_CONSENT_TIMESTAMP_FIELD` | `contact.consent_timestamp` |
+| `GHL_CONSENT_SOURCE_URL_FIELD` | `contact.consent_source_url` |
+| `GHL_CONSENT_VERSION_FIELD` | `contact.consent_version` |
+| `GHL_CONSENT_PHONE_FIELD` | `contact.consent_phone` |
+| `GHL_CONSENT_METHOD_FIELD` | `contact.consent_method` |
+| `GHL_CONSENT_IP_FIELD` | `contact.consent_ip` |
+| `GHL_CONSENT_USER_AGENT_FIELD` | `contact.consent_user_agent` |
+| `GHL_CONSENT_COOKIE_CATEGORIES_FIELD` | `contact.cookie_consent_categories` |
+| `GHL_CONSENT_REVOKED_TAG` | `consent_revoked` |
+| `GHL_CONSENT_DIAL_OK_TAG` | `avery_dial_ok` |
+| `GHL_CONSENT_FIELD_CACHE_MS` | `3600000` |
+
+Test mode, and any run where `INTEGRATIONS_MODE` is not `live`, keeps the mock voice and mock CRM. Those paths do not call Twilio or ElevenLabs. If the contact has a GoHighLevel id and API credentials, test mode still reads consent before the simulated dial and will not simulate a call the gate would skip. A test-console lead with no GoHighLevel id is judged from its stored tier with the same Low / Medium / High rules. A live dial never uses that stored tier.
 
 ## New client deployment
 

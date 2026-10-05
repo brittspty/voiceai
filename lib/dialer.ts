@@ -1,10 +1,11 @@
 import type { CallOutcome, Prisma } from "@prisma/client";
-import { getPorts } from "./adapters";
+import { getPorts, ghlFetch } from "./adapters";
 import { audit } from "./audit";
-import { clientConfig } from "./client-config";
+import { clientConfig, consentFieldConfig } from "./client-config";
+import { reviewContactConsent } from "./consent";
+import { saveConsentReview, sharedFieldCache } from "./consent-review";
 import { prisma } from "./db";
 import { workerStepMs } from "./env";
-import { evaluateGates } from "./gates";
 import { crmSummary, placeIfAllowed } from "./pipeline";
 import { getPublishedPolicy } from "./policy";
 import { digitsOnly } from "./phone";
@@ -73,10 +74,28 @@ export async function processDialJob(job: { id: string; payload: unknown; callId
   const ctx = await gateContextForContact(call.contactId);
   const ports = getPorts(Boolean(org?.testMode));
   const step = workerStepMs();
+  const consentConfig = consentFieldConfig();
+  const decision = await reviewContactConsent(
+    {
+      ghlContactId: call.contact.ghlContactId,
+      phone: call.contact.phone,
+      storedConsent: call.contact.consent,
+      mocked: ports.mocked,
+    },
+    { fetchImpl: ghlFetch, cache: sharedFieldCache(consentConfig.cacheTtlMs) },
+  );
+  await saveConsentReview({
+    contactId: call.contactId,
+    callId: call.id,
+    contactName: call.contact.name,
+    decision,
+  });
+  await appendTimeline(call.id, { at: new Date().toISOString(), label: "Consent checked", detail: decision.reason });
 
   const placed = await placeIfAllowed(
     {
       gate: ctx.gate,
+      consent: decision,
       voice: ports.voice,
       voiceInput: {
         to: call.contact.phone,
@@ -122,7 +141,9 @@ export async function processDialJob(job: { id: string; payload: unknown; callId
       },
     });
     await appendTimeline(call.id, { at: new Date().toISOString(), label: "Blocked before dial", detail: reason });
-    await audit(SYSTEM_ACTOR, "Blocked a call before dialing", { type: "call", id: call.id, label: call.contact.name });
+    if (decision.allow) {
+      await audit(SYSTEM_ACTOR, "Blocked a call before dialing", { type: "call", id: call.id, label: call.contact.name });
+    }
     return;
   }
 

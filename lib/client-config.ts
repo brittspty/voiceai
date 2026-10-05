@@ -107,6 +107,43 @@ function text(env: Env, name: string, fallback: string) {
   return value && value.trim() ? value.trim() : fallback;
 }
 
+export type ConsentFieldConfig = {
+  tier: string;
+  revokedAt: string;
+  purpose: string;
+  timestamp: string;
+  sourceUrl: string;
+  version: string;
+  phone: string;
+  method: string;
+  ip: string;
+  userAgent: string;
+  cookieCategories: string;
+  revokedTag: string;
+  dialOkTag: string;
+  cacheTtlMs: number;
+};
+
+export function consentFieldConfig(env: Env = process.env): ConsentFieldConfig {
+  const ttl = Number(env.GHL_CONSENT_FIELD_CACHE_MS ?? 3_600_000);
+  return {
+    tier: text(env, "GHL_CONSENT_TIER_FIELD", "contact.consent_tier"),
+    revokedAt: text(env, "GHL_CONSENT_REVOKED_AT_FIELD", "contact.consent_revoked_at"),
+    purpose: text(env, "GHL_CONSENT_PURPOSE_FIELD", "contact.consent_purpose"),
+    timestamp: text(env, "GHL_CONSENT_TIMESTAMP_FIELD", "contact.consent_timestamp"),
+    sourceUrl: text(env, "GHL_CONSENT_SOURCE_URL_FIELD", "contact.consent_source_url"),
+    version: text(env, "GHL_CONSENT_VERSION_FIELD", "contact.consent_version"),
+    phone: text(env, "GHL_CONSENT_PHONE_FIELD", "contact.consent_phone"),
+    method: text(env, "GHL_CONSENT_METHOD_FIELD", "contact.consent_method"),
+    ip: text(env, "GHL_CONSENT_IP_FIELD", "contact.consent_ip"),
+    userAgent: text(env, "GHL_CONSENT_USER_AGENT_FIELD", "contact.consent_user_agent"),
+    cookieCategories: text(env, "GHL_CONSENT_COOKIE_CATEGORIES_FIELD", "contact.cookie_consent_categories"),
+    revokedTag: text(env, "GHL_CONSENT_REVOKED_TAG", "consent_revoked"),
+    dialOkTag: text(env, "GHL_CONSENT_DIAL_OK_TAG", "avery_dial_ok"),
+    cacheTtlMs: Number.isFinite(ttl) && ttl >= 0 ? ttl : 3_600_000,
+  };
+}
+
 function flag(env: Env, name: string, fallback: boolean) {
   const value = (env[name] || "").trim().toLowerCase();
   if (value === "true" || value === "1") return true;
@@ -184,7 +221,13 @@ What you must not say
 - Do not pretend to be a government agency or another company.
 
 Consent and calling rules
-Every outbound call is checked before it is dialed. The dialer blocks a call when consent is missing, the number is on the do-not-call list, the local time is outside the published window, the daily cap is used up, or the lead has already been attempted the maximum number of times. If a check fails, do not dial.
+Every outbound call is checked again immediately before it is dialed. The dialer blocks a call when GoHighLevel consent is Low, missing, or unreadable, when consent was revoked, when the consent phone does not match the number being dialed, when the number is on the do-not-call list, when the local time is outside the published window, when the daily cap is used up, or when the lead has already been attempted the maximum number of times. If a check fails, do not dial.
+
+Consent scope
+The dialer sends a dynamic variable named consent_scope on every outbound call.
+- scheduling_only: confirm you are speaking with the person, confirm they want a conversation, and book an appointment. Do not describe a product or a service.
+- full: you may explain the product or service in this document, and you may book an appointment.
+If consent_scope is missing or has any other value, say you cannot continue and end the call. In the ElevenLabs agent, reference this value as {{consent_scope}}.
 
 Offices
 This workspace starts with: ${offices}. The sample calendar is open on Friday from 10:00 AM to 5:00 PM and closed the other days. Replace those hours in Settings before a pilot. If a day is closed, offer the next open day. Do not invent a time.

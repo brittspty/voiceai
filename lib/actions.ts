@@ -4,8 +4,10 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import type { Consent, OfficeStatus, OfficeType, Prisma, Role } from "@prisma/client";
 import QRCode from "qrcode";
-import { checkEleven, checkGhl, checkTwilio } from "./adapters";
-import { clientConfig, parseBrandColor, parseLogoUrl, parseMark } from "./client-config";
+import { checkEleven, checkGhl, checkTwilio, ghlFetch, voiceIsMocked } from "./adapters";
+import { clientConfig, consentFieldConfig, parseBrandColor, parseLogoUrl, parseMark } from "./client-config";
+import { mergeConsentGate, reviewContactConsent } from "./consent";
+import { sharedFieldCache } from "./consent-review";
 import { audit } from "./audit";
 import { canWrite, isOwner, requireUser } from "./auth";
 import { prisma } from "./db";
@@ -28,21 +30,33 @@ function assertOwner(role: Role) {
 
 export async function preflightCall(input: { contactId?: string; phone?: string; consent?: Consent; timeZone?: string }) {
   await requireUser();
+  const org = await prisma.org.findUnique({ where: { id: "org" } });
+  const mocked = voiceIsMocked(Boolean(org?.testMode));
+  const consentConfig = consentFieldConfig();
   if (input.contactId) {
     const ctx = await gateContextForContact(input.contactId);
-    return evaluateGates(ctx.gate);
+    const decision = await reviewContactConsent(
+      {
+        ghlContactId: ctx.contact.ghlContactId,
+        phone: ctx.contact.phone,
+        storedConsent: ctx.contact.consent,
+        mocked,
+      },
+      { fetchImpl: ghlFetch, cache: sharedFieldCache(consentConfig.cacheTtlMs) },
+    );
+    const checks = mergeConsentGate(evaluateGates(ctx.gate).checks, decision);
+    return { passed: checks.every((check) => check.passed), checks };
   }
   const phone = normalizePhone(input.phone || "");
   const { policy } = await (await import("./policy")).getPublishedPolicy();
   const dnc = phone
     ? await prisma.doNotCall.findFirst({ where: { active: true, phone: { contains: phone.replace(/\D/g, "").slice(-10) } } })
     : null;
-  const org = await prisma.org.findUnique({ where: { id: "org" } });
   const tz = input.timeZone || org?.timezone || clientConfig().timezone;
   const { zonedDayBounds } = await import("./time");
   const bounds = zonedDayBounds(new Date(), tz);
   const dialsToday = await prisma.call.count({ where: { dialedAt: { gte: bounds.start, lt: bounds.end } } });
-  return evaluateGates({
+  const gate = evaluateGates({
     now: new Date(),
     timeZone: tz,
     consent: input.consent ?? "none",
@@ -51,6 +65,17 @@ export async function preflightCall(input: { contactId?: string; phone?: string;
     attemptsForContact: 0,
     policy,
   });
+  const decision = await reviewContactConsent(
+    {
+      ghlContactId: null,
+      phone,
+      storedConsent: input.consent ?? "none",
+      mocked,
+    },
+    { fetchImpl: ghlFetch, cache: sharedFieldCache(consentConfig.cacheTtlMs) },
+  );
+  const checks = mergeConsentGate(gate.checks, decision);
+  return { passed: checks.every((check) => check.passed), checks };
 }
 
 export async function startTestCall(input: {

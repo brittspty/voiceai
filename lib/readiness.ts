@@ -83,7 +83,7 @@ export function readinessItems(input: ReadinessInput): ReadinessItem[] {
       id: "consent",
       label: "Calls without consent are blocked",
       ok: input.requireConsent,
-      hint: "Leave the consent gate on.",
+      hint: "Leave the consent gate on. GoHighLevel consent is also checked before every dial and cannot be skipped.",
     },
     {
       id: "dnc",

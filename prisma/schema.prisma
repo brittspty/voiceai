@@ -187,9 +187,15 @@ model Contact {
   consent      Consent       @default(none)
   consentAt    DateTime?
   source       String
-  ghlContactId String?
-  timezone     String        @default("America/New_York")
-  createdAt    DateTime      @default(now())
+  ghlContactId      String?
+  timezone          String        @default("America/New_York")
+  consentTier       String?
+  consentScope      String?
+  consentHoldReason String?
+  consentVersion    String?
+  consentTimestamp  String?
+  consentCheckedAt  DateTime?
+  createdAt         DateTime      @default(now())
   calls        Call[]
   appointments Appointment[]
 
@@ -225,6 +231,7 @@ model Call {
   durationSec              Int            @default(0)
   costCents                Int            @default(0)
   consent                  Consent        @default(none)
+  consentScope             String?
   isTest                   Boolean        @default(false)
   transcript               Json           @default("[]")
   timeline                 Json           @default("[]")
@@ -374,6 +381,7 @@ model Activity {
   targetType  String
   targetId    String?
   targetLabel String?
+  detail      Json?
   createdAt   DateTime @default(now())
 
   @@index([createdAt])

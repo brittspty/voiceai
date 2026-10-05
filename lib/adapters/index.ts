@@ -1,3 +1,4 @@
+import { assertConsentScope, elevenLabsOutboundPayload } from "../elevenlabs";
 import { integrationsMode } from "../env";
 import { buildTranscript } from "../transcript";
 import type { CallOutcomeName } from "../types";
@@ -11,6 +12,7 @@ function mockOutcome(input: VoicePlaceInput): CallOutcomeName {
 
 export const mockVoice: VoicePort = {
   async placeCall(input) {
+    assertConsentScope(input.consentScope);
     const outcome = mockOutcome(input);
     const failed = outcome === "failed" || outcome === "no_answer";
     const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -33,7 +35,7 @@ export const mockCrm: CrmPort = {
   },
 };
 
-async function ghlFetch(path: string, init?: RequestInit) {
+export async function ghlFetch(path: string, init?: RequestInit) {
   const key = process.env.GHL_API_KEY;
   if (!key) throw new Error("GHL_API_KEY is not set");
   const res = await fetch(`https://services.leadconnectorhq.com${path}`, {
@@ -83,6 +85,7 @@ export const liveCrm: CrmPort = {
 
 export const liveVoice: VoicePort = {
   async placeCall(input) {
+    assertConsentScope(input.consentScope);
     const key = process.env.ELEVENLABS_API_KEY;
     const agentId = process.env.ELEVENLABS_AGENT_ID;
     const phoneNumberId = process.env.ELEVENLABS_AGENT_PHONE_NUMBER_ID;
@@ -92,16 +95,15 @@ export const liveVoice: VoicePort = {
     const res = await fetch("https://api.elevenlabs.io/v1/convai/twilio/outbound-call", {
       method: "POST",
       headers: { "xi-api-key": key, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        agent_id: agentId,
-        agent_phone_number_id: phoneNumberId,
-        to_number: input.to,
-        conversation_initiation_client_data: {
-          conversation_config_override: {
-            agent: { first_message: input.openingLine },
-          },
-        },
-      }),
+      body: JSON.stringify(
+        elevenLabsOutboundPayload({
+          agentId,
+          agentPhoneNumberId: phoneNumberId,
+          to: input.to,
+          openingLine: input.openingLine,
+          consentScope: input.consentScope,
+        }),
+      ),
     });
     const text = await res.text();
     if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${text.slice(0, 240)}`);
@@ -117,8 +119,12 @@ export const liveVoice: VoicePort = {
   },
 };
 
+export function voiceIsMocked(testMode: boolean) {
+  return integrationsMode() !== "live" || testMode;
+}
+
 export function getPorts(testMode: boolean): { voice: VoicePort; crm: CrmPort; mocked: boolean } {
-  const mocked = integrationsMode() !== "live" || testMode;
+  const mocked = voiceIsMocked(testMode);
   return mocked ? { voice: mockVoice, crm: mockCrm, mocked: true } : { voice: liveVoice, crm: liveCrm, mocked: false };
 }
 
