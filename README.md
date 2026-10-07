@@ -89,6 +89,75 @@ Webhook auth: HMAC-SHA256 of the raw body in `x-voiceops-signature`, or the shar
 
 Failed webhook handling and failed CRM writes land in **Settings → Failed jobs**, with retry and discard. Every change is in the activity log. Agent instructions, voice, and calling rules are versioned; publishing is owner-only.
 
+## Marketing data layer
+
+Read-only ad performance for this deployment. The canonical tables are platform-agnostic (accounts, campaigns, ad sets, ads, creatives and versions, audiences, daily metrics, sync runs). Meta payloads are also stored in `MarketingRawRecord` so a later source can be added without rewriting those tables. Google Ads, TikTok, and LinkedIn are reserved on the platform enum; only Meta is connected.
+
+This app is still one database per client. `workspaceId` is stored on every marketing row and defaults to `org` (the same id as `Org`). It is not used to separate clients inside one database. Do not point two businesses at the same Postgres.
+
+### Setup
+
+Leave the Meta variables empty and the worker skips marketing sync. Nothing is called and no error is raised. To load labeled fixture rows instead:
+
+```bash
+MARKETING_SYNC_MODE=mock npm run marketing:sync
+```
+
+The Marketing screen shows a Mock data label when the latest run used fixtures. Open it from the sidebar after signing in.
+
+A live sync needs a Meta system user token and the app that issued it:
+
+| Variable | Use |
+| --- | --- |
+| `META_ACCESS_TOKEN` | System user token. Scopes: `ads_read` and, when granted, `read_insights`. Stored only as the pointer `env:META_ACCESS_TOKEN` |
+| `META_APP_SECRET` | App secret. When this is set, every Graph call sends `appsecret_proof` (HMAC-SHA256 of the access token, keyed by this secret). Never written to the database |
+| `META_APP_ID` | Meta app id that issued the token. Required for a live sync. Example: `1093413013101625` |
+| `META_AD_ACCOUNT_IDS` | Comma-separated ad account ids for this deployment (`act_123` or `123`). One deployment can list several accounts. Example: `act_532471207924121` (Specificity Inc Marketing, USD, America/New_York). Other clients set their own ids. The code does not default to that account |
+| `META_GRAPH_VERSION` | Graph version. Default `v23.0` |
+| `META_ATTRIBUTION_WINDOWS` | Comma-separated windows sent to insights. Default `7d_click,1d_view`, stored as `7d_click_1d_view` |
+| `MARKETING_SYNC_MODE` | `auto` (default), `mock`, `live`, or `off`. `auto` syncs when the token, app id, and app secret are set and at least one account is configured; otherwise it skips |
+| `MARKETING_LOOKBACK_DAYS` | Trailing days re-pulled each run, from 1 to 90. Default 7. Late attribution is handled by upserting this window, not by a high-water mark |
+| `MARKETING_SYNC_INTERVAL_MS` | Worker interval. Default 6 hours. The worker also syncs once on startup |
+| `DATABASE_URL` | Postgres URL the CLI writes to. Required for `npm run meta:sync` unless you pass `--dry-run` |
+
+When `META_AD_ACCOUNT_IDS` is set, that list is the only allow-list. When it is empty, the sync uses `AdAccount` rows with `syncEnabled` still true. Clearing the env var does not delete history. Set `MARKETING_SYNC_MODE=off` to stop all syncs. Accounts removed from the allow-list stay in the database and are not pulled while the env list is non-empty.
+
+Set the same variables on the app and the worker, then restart the worker. `npm run marketing:sync` runs one sync in the foreground using `MARKETING_SYNC_MODE` (mock fixtures or a live pull).
+
+To validate a real token outside this environment, run the read-only Meta CLI. It calls Graph with `appsecret_proof`, prints pulled row counts and any API errors as JSON, and writes the database unless `--dry-run` is set:
+
+```bash
+META_ACCESS_TOKEN=... META_APP_ID=1093413013101625 META_APP_SECRET=... \
+  DATABASE_URL=postgresql://... \
+  npm run meta:sync -- --account act_532471207924121 --days 30 --dry-run
+```
+
+`--account` accepts one id or a comma-separated list, and can be repeated. It overrides `META_AD_ACCOUNT_IDS` for that run. `--days` is the inclusive trailing window (1–90, default 7). The date window is computed in `America/New_York`. Omit `--dry-run` to upsert into `DATABASE_URL` and print a row count for each marketing table.
+
+Insights run first, at ad level. Campaigns, ad sets, and ads are then loaded one edge at a time (not in parallel). Each list is filtered to rows updated since the window start and not archived or deleted. Delivered ids are loaded from the same account edge with `filtering` `IN` on `campaign.id`, `adset.id`, or `ad.id`, 50 ids at a time. The `ids` query parameter is not used. Ad rows ask only for `creative{id}`. Full creative fields, including `object_story_spec`, are a second pass on `/{account}/ads` filtered by `ad.id` IN, limit 25, and only for ads that delivered. Filtering `adcreative.id` is not supported. Ads that did not deliver stay on `creative{id}`.
+
+If an edge fails, insights and any entities already loaded are still saved, and the report names the skipped edge. A skipped edge does not delete or replace rows already stored for parents that did not load. Delivered ids with no payload are placeholders: they are inserted only when that id is new, so a later metric can attach. An existing campaign, ad set, or ad is left as-is, including its audience links and raw payload. Audience links are replaced only for ad sets whose payload included `targeting`.
+
+Graph list calls follow cursor pagination (100 rows per page, 200 pages max). A response that says to reduce the amount of data, or any 5xx, retries that page at half the limit (minimum 10). HTTP 429 and error codes 4, 17, 32, 613, and 80004 retry with `Retry-After` or exponential backoff. Code 17 with neither `Retry-After` nor `estimated_time_to_regain_access` waits 30 seconds, doubling up to 120 seconds. A short 1–8 second backoff was still inside the user-request limit, so the ad set edge was skipped after five tries. `estimated_time_to_regain_access` is waited out when it is greater than zero. High `total_cputime` / `call_count` with a zero regain time is a 5 second gap, not a minute per page, except for that code 17 backoff. Each page logs one stderr line: method, path with no query string, page number, rows so far, and the sleep reason and duration. The token and `appsecret_proof` are not logged. An account pull stops after 12 minutes instead of sleeping past that limit. A code 17 wait that would pass the cap stops the pull with a rate-limit error instead of treating the edge as empty.
+
+An insights window longer than 7 days, or a short window that still times out at the minimum page size, is submitted as an async insights job. Polls back off from 5 seconds to 30 seconds.
+
+Development access (`ads_api_access_tier: development_access`) keeps CPU usage near 100% from the first call, so a full ad archive will not finish. This pull stays on the delivering and recently updated set. Standard Access is required before syncing several accounts on the worker interval. A 30-day pull of one account stays small when the delivering set fits in one batch and insights return in a page or two: the account, one insights job, a few polls, the insight result pages, one filtered id batch each for campaigns, ad sets, and ads, one updated-since list page per edge, one ads call per 25 delivered ads for creative fields, and one audience list. Add a call per extra 50 ids and per extra insight page.
+
+Daily rows are unique on workspace, date, platform, ad, audience segment, and attribution window. Running the sync again updates those rows in place. Reach is stored and shown per row; the screen does not add it up. Budgets are converted from Meta minor units into the account currency. Overlapping lead action types use the max value so the same leads are not counted twice. Creative versions are a SHA-256 of headline, body, description, CTA, media id, and landing path (query strings are ignored). The first time a fingerprint is seen it gets the next `vN` label for that concept and keeps it.
+
+### Add a source
+
+1. The `AdPlatform` enum already includes `google_ads`, `tiktok`, and `linkedin`. Add a new value only if the source is not in that list, and ship a migration with it.
+2. Map the source's payloads into `NormalizedSnapshot` in a new file under `lib/marketing/connectors/`. Keep source-specific JSON in `MarketingRawRecord`.
+3. Implement `AdPlatformConnector` and register it in `lib/marketing/connectors/registry.ts`. `applySnapshot` upserts the canonical tables; the new source should not need its own tables.
+4. Read credentials from env vars at call time. If they are missing, skip. Do not hardcode an account id.
+5. Add mapping tests and an idempotent sync test. Re-running the same snapshot must not insert duplicate daily rows.
+
+### Deferred
+
+Lead, call, and booking joins stay out of this module so dialing and consent are unchanged. Also deferred: targeting history (current include and exclude links are stored), a date dimension, campaign-name parsing, age/gender/placement breakdowns, currency conversion, an OAuth connect button, and the Google, TikTok, and LinkedIn connectors.
+
 ## Switch from test to live
 
 1. Put real keys in the environment. Rotate the Twilio token. Use a fresh ElevenLabs key.

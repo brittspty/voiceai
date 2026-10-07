@@ -387,3 +387,375 @@ model IntegrationCheck {
   latencyMs Int?
   checkedAt DateTime
 }
+
+// Marketing data layer.
+// Tenant boundary is this database (one deployment per client), matching Org.
+// workspaceId is stored so a later multi-tenant move does not rewrite the tables.
+// It defaults to Org.id ("org") and is not an access-control key.
+
+enum AdPlatform {
+  meta
+  google_ads
+  tiktok
+  linkedin
+}
+
+enum MarketingAuthType {
+  oauth
+  system_user
+  private_token
+  internal
+}
+
+enum MarketingConnectionStatus {
+  connected
+  expired
+  error
+  disconnected
+  unconfigured
+}
+
+enum MarketingEntityStatus {
+  active
+  paused
+  archived
+  deleted
+  unknown
+}
+
+enum CampaignObjective {
+  leads
+  traffic
+  conversions
+  awareness
+  calls
+  other
+}
+
+enum BudgetType {
+  daily
+  lifetime
+  none
+}
+
+enum CreativeFormat {
+  image
+  video
+  carousel
+  text
+  lead_form
+  unknown
+}
+
+enum AudienceType {
+  custom_list
+  lookalike
+  interest
+  keyword
+  retargeting
+  broad
+  verified_human
+  unknown
+}
+
+enum AudienceSegmentKind {
+  targeting
+  breakdown
+}
+
+enum AudienceLinkRole {
+  include
+  exclude
+}
+
+enum MarketingSyncKind {
+  structure
+  insights
+  full
+}
+
+enum MarketingSyncStatus {
+  running
+  succeeded
+  failed
+  skipped
+}
+
+enum MarketingSyncMode {
+  mock
+  live
+}
+
+model PlatformConnection {
+  id            String                    @id @default(cuid())
+  workspaceId   String                    @default("org")
+  platform      AdPlatform
+  authType      MarketingAuthType
+  secretRef     String
+  appExternalId String                    @default("")
+  status        MarketingConnectionStatus @default(unconfigured)
+  lastSyncAt    DateTime?
+  lastError     String?
+  scopes        String[]                  @default([])
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  accounts      AdAccount[]
+  syncRuns      MarketingSyncRun[]
+
+  @@unique([workspaceId, platform])
+  @@index([workspaceId])
+}
+
+model AdAccount {
+  id           String                 @id @default(cuid())
+  workspaceId  String                 @default("org")
+  connectionId String
+  connection   PlatformConnection     @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  platform     AdPlatform
+  externalId   String
+  name         String
+  currency     String
+  timezone     String
+  status       MarketingEntityStatus  @default(unknown)
+  syncEnabled  Boolean                @default(true)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  campaigns    Campaign[]
+  audiences    Audience[]
+
+  @@unique([workspaceId, platform, externalId])
+  @@index([connectionId])
+  @@index([workspaceId, platform, syncEnabled])
+}
+
+model Campaign {
+  id           String                @id @default(cuid())
+  workspaceId  String                @default("org")
+  adAccountId  String
+  adAccount    AdAccount             @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  platform     AdPlatform
+  externalId   String
+  name         String
+  objective    CampaignObjective     @default(other)
+  objectiveRaw String                @default("")
+  status       MarketingEntityStatus @default(unknown)
+  statusRaw    String                @default("")
+  budgetType   BudgetType            @default(none)
+  budgetAmount Decimal?              @db.Decimal(18, 4)
+  startDate    DateTime?
+  endDate      DateTime?
+  namingParsed Json                  @default("{}")
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  adGroups     AdGroup[]
+  metrics      DailyMetric[]
+
+  @@unique([workspaceId, platform, externalId])
+  @@index([adAccountId])
+}
+
+model AdGroup {
+  id               String                @id @default(cuid())
+  workspaceId      String                @default("org")
+  campaignId       String
+  campaign         Campaign              @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  platform         AdPlatform
+  externalId       String
+  name             String
+  status           MarketingEntityStatus @default(unknown)
+  statusRaw        String                @default("")
+  optimizationGoal String                @default("")
+  bidStrategy      String                @default("")
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  ads              Ad[]
+  audiences        AdGroupAudience[]
+  metrics          DailyMetric[]
+
+  @@unique([workspaceId, platform, externalId])
+  @@index([campaignId])
+}
+
+model Creative {
+  id          String            @id @default(cuid())
+  workspaceId String            @default("org")
+  name        String
+  conceptKey  String
+  conceptTag  String            @default("")
+  format      CreativeFormat    @default(unknown)
+  angle       String            @default("")
+  offer       String            @default("")
+  hook        String            @default("")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  versions    CreativeVersion[]
+
+  @@unique([workspaceId, conceptKey])
+  @@index([workspaceId])
+}
+
+model CreativeVersion {
+  id                  String    @id @default(cuid())
+  workspaceId         String    @default("org")
+  creativeId          String
+  creative            Creative  @relation(fields: [creativeId], references: [id], onDelete: Cascade)
+  versionLabel        String
+  fingerprint         String
+  headline            String    @default("")
+  body                String    @default("")
+  description         String    @default("")
+  cta                 String    @default("")
+  mediaRef            String    @default("")
+  landingUrl          String    @default("")
+  firstSeenAt         DateTime  @default(now())
+  platformCreativeIds Json      @default("[]")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  ads                 Ad[]
+  metrics             DailyMetric[]
+
+  @@unique([workspaceId, fingerprint])
+  @@index([creativeId])
+}
+
+model Ad {
+  id                String                @id @default(cuid())
+  workspaceId       String                @default("org")
+  adGroupId         String
+  adGroup           AdGroup               @relation(fields: [adGroupId], references: [id], onDelete: Cascade)
+  platform          AdPlatform
+  externalId        String
+  name              String
+  status            MarketingEntityStatus @default(unknown)
+  statusRaw         String                @default("")
+  creativeVersionId String?
+  creativeVersion   CreativeVersion?      @relation(fields: [creativeVersionId], references: [id])
+  destinationUrl    String                @default("")
+  urlTags           String                @default("")
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  metrics           DailyMetric[]
+
+  @@unique([workspaceId, platform, externalId])
+  @@index([adGroupId])
+  @@index([creativeVersionId])
+}
+
+model Audience {
+  id                String            @id @default(cuid())
+  workspaceId       String            @default("org")
+  adAccountId       String?
+  adAccount         AdAccount?        @relation(fields: [adAccountId], references: [id], onDelete: SetNull)
+  platform          AdPlatform
+  externalId        String
+  name              String
+  type              AudienceType      @default(unknown)
+  sourceDescription String            @default("")
+  sizeEstimate      Int?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  adGroups          AdGroupAudience[]
+
+  @@unique([workspaceId, platform, externalId])
+  @@index([adAccountId])
+}
+
+model AdGroupAudience {
+  id          String           @id @default(cuid())
+  workspaceId String           @default("org")
+  adGroupId   String
+  adGroup     AdGroup          @relation(fields: [adGroupId], references: [id], onDelete: Cascade)
+  audienceId  String
+  audience    Audience         @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  role        AudienceLinkRole
+
+  @@unique([adGroupId, audienceId, role])
+  @@index([audienceId])
+}
+
+model AudienceSegment {
+  id          String              @id @default(cuid())
+  workspaceId String              @default("org")
+  segmentKey  String
+  kind        AudienceSegmentKind
+  label       String
+  createdAt   DateTime            @default(now())
+  metrics     DailyMetric[]
+
+  @@unique([workspaceId, kind, segmentKey])
+}
+
+model MarketingSyncRun {
+  id                 String              @id @default(cuid())
+  workspaceId        String              @default("org")
+  connectionId       String?
+  connection         PlatformConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  platform           AdPlatform
+  kind               MarketingSyncKind
+  status             MarketingSyncStatus
+  mode               MarketingSyncMode
+  windowStart        DateTime?           @db.Date
+  windowEnd          DateTime?           @db.Date
+  requestedAccounts  String[]            @default([])
+  rowsRead           Int                 @default(0)
+  rowsWritten        Int                 @default(0)
+  error              String?
+  note               String              @default("")
+  startedAt          DateTime            @default(now())
+  finishedAt         DateTime?
+  metrics            DailyMetric[]
+
+  @@index([platform, startedAt])
+  @@index([connectionId])
+}
+
+model DailyMetric {
+  id                  String             @id @default(cuid())
+  workspaceId         String             @default("org")
+  date                DateTime           @db.Date
+  platform            AdPlatform
+  campaignId          String?
+  campaign            Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  adGroupId           String?
+  adGroup             AdGroup?           @relation(fields: [adGroupId], references: [id], onDelete: SetNull)
+  adId                String
+  ad                  Ad                 @relation(fields: [adId], references: [id], onDelete: Cascade)
+  creativeVersionId   String?
+  creativeVersion     CreativeVersion?   @relation(fields: [creativeVersionId], references: [id], onDelete: SetNull)
+  audienceSegmentId   String
+  audienceSegment     AudienceSegment    @relation(fields: [audienceSegmentId], references: [id])
+  attributionWindow   String
+  currency            String             @default("USD")
+  spend               Decimal            @default(0) @db.Decimal(18, 4)
+  impressions         BigInt             @default(0)
+  clicks              BigInt             @default(0)
+  linkClicks          BigInt             @default(0)
+  reach               BigInt             @default(0)
+  platformLeads       Decimal            @default(0) @db.Decimal(18, 4)
+  platformConversions Decimal            @default(0) @db.Decimal(18, 4)
+  conversionValue     Decimal            @default(0) @db.Decimal(18, 4)
+  videoViews3s        BigInt?
+  thruplays           BigInt?
+  ingestedAt          DateTime           @default(now())
+  sourcePullId        String?
+  sourcePull          MarketingSyncRun?  @relation(fields: [sourcePullId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, date, platform, adId, audienceSegmentId, attributionWindow])
+  @@index([date])
+  @@index([campaignId])
+  @@index([sourcePullId])
+}
+
+model MarketingRawRecord {
+  id          String     @id @default(cuid())
+  workspaceId String     @default("org")
+  platform    AdPlatform
+  objectType  String
+  externalId  String
+  payload     Json
+  fetchedAt   DateTime   @default(now())
+  syncRunId   String?
+
+  @@unique([workspaceId, platform, objectType, externalId])
+  @@index([syncRunId])
+}
