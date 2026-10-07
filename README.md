@@ -109,19 +109,32 @@ A live sync needs a Meta system user token and the app that issued it:
 
 | Variable | Use |
 | --- | --- |
-| `META_ACCESS_TOKEN` | System user token. Scopes: `ads_read`, `read_insights`. Stored only as the pointer `env:META_ACCESS_TOKEN` |
-| `META_APP_ID` | Meta app id. Required for a live sync. Not a substitute for the token |
-| `META_APP_SECRET` | App secret. Each request sends `appsecret_proof` (HMAC of the token). Never written to the database |
-| `META_AD_ACCOUNT_IDS` | Comma-separated ad account ids for this deployment (`act_123` or `123`). One deployment can list several accounts. Example for Specificity's main account: `act_532471207924121`. Other clients set their own ids. The code does not default to that account |
+| `META_ACCESS_TOKEN` | System user token. Scopes: `ads_read` and, when granted, `read_insights`. Stored only as the pointer `env:META_ACCESS_TOKEN` |
+| `META_APP_SECRET` | App secret. When this is set, every Graph call sends `appsecret_proof` (HMAC-SHA256 of the access token, keyed by this secret). Never written to the database |
+| `META_APP_ID` | Meta app id that issued the token. Required for a live sync. Example: `1093413013101625` |
+| `META_AD_ACCOUNT_IDS` | Comma-separated ad account ids for this deployment (`act_123` or `123`). One deployment can list several accounts. Example: `act_532471207924121` (Specificity Inc Marketing, USD, America/New_York). Other clients set their own ids. The code does not default to that account |
 | `META_GRAPH_VERSION` | Graph version. Default `v23.0` |
 | `META_ATTRIBUTION_WINDOWS` | Comma-separated windows sent to insights. Default `7d_click,1d_view`, stored as `7d_click_1d_view` |
 | `MARKETING_SYNC_MODE` | `auto` (default), `mock`, `live`, or `off`. `auto` syncs when the token, app id, and app secret are set and at least one account is configured; otherwise it skips |
-| `MARKETING_LOOKBACK_DAYS` | Trailing days re-pulled each run, from 1 to 28. Default 7. Late attribution is handled by upserting this window, not by a high-water mark |
+| `MARKETING_LOOKBACK_DAYS` | Trailing days re-pulled each run, from 1 to 90. Default 7. Late attribution is handled by upserting this window, not by a high-water mark |
 | `MARKETING_SYNC_INTERVAL_MS` | Worker interval. Default 6 hours. The worker also syncs once on startup |
+| `DATABASE_URL` | Postgres URL the CLI writes to. Required for `npm run meta:sync` unless you pass `--dry-run` |
 
 When `META_AD_ACCOUNT_IDS` is set, that list is the only allow-list. When it is empty, the sync uses `AdAccount` rows with `syncEnabled` still true. Clearing the env var does not delete history. Set `MARKETING_SYNC_MODE=off` to stop all syncs. Accounts removed from the allow-list stay in the database and are not pulled while the env list is non-empty.
 
-Set the same variables on the app and the worker, then restart the worker. `npm run marketing:sync` runs one sync in the foreground.
+Set the same variables on the app and the worker, then restart the worker. `npm run marketing:sync` runs one sync in the foreground using `MARKETING_SYNC_MODE` (mock fixtures or a live pull).
+
+To validate a real token outside this environment, run the read-only Meta CLI. It calls Graph with `appsecret_proof`, prints pulled row counts and any API errors as JSON, and writes the database unless `--dry-run` is set:
+
+```bash
+META_ACCESS_TOKEN=... META_APP_ID=1093413013101625 META_APP_SECRET=... \
+  DATABASE_URL=postgresql://... \
+  npm run meta:sync -- --account act_532471207924121 --days 30 --dry-run
+```
+
+`--account` accepts one id or a comma-separated list, and can be repeated. It overrides `META_AD_ACCOUNT_IDS` for that run. `--days` is the inclusive trailing window (1–90, default 7). The date window is computed in `America/New_York`. Omit `--dry-run` to upsert into `DATABASE_URL` and print a row count for each marketing table.
+
+Graph list calls follow cursor pagination (100 rows per page, 200 pages max). Responses that include `x-business-use-case-usage` or `x-fb-ads-insights-throttle` pause before the next call when usage is high. HTTP 429 and error codes 4, 17, 32, 613, and 80004 retry with `Retry-After` or exponential backoff. An insights window longer than 7 days, or a short window that times out, is submitted as an async insights job and polled until it completes.
 
 Daily rows are unique on workspace, date, platform, ad, audience segment, and attribution window. Running the sync again updates those rows in place. Reach is stored and shown per row; the screen does not add it up. Budgets are converted from Meta minor units into the account currency. Overlapping lead action types use the max value so the same leads are not counted twice. Creative versions are a SHA-256 of headline, body, description, CTA, media id, and landing path (query strings are ignored). The first time a fingerprint is seen it gets the next `vN` label for that concept and keeps it.
 

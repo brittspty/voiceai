@@ -66,10 +66,12 @@ export function attributionWindowLabel(windows: string[]) {
   return windows.join("_");
 }
 
-export function lookbackDays(env: Env) {
-  const parsed = Number(env.MARKETING_LOOKBACK_DAYS ?? 7);
-  if (!Number.isFinite(parsed)) return 7;
-  return Math.min(28, Math.max(1, Math.floor(parsed)));
+export const MAX_LOOKBACK_DAYS = 90;
+
+export function lookbackDays(env: Env, fallback = 7) {
+  const parsed = Number(env.MARKETING_LOOKBACK_DAYS ?? fallback);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(MAX_LOOKBACK_DAYS, Math.max(1, Math.floor(parsed)));
 }
 
 export function marketingSyncIntervalMs(env: Env = process.env) {

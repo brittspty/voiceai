@@ -53,7 +53,7 @@ async function withStore<T>(store: MarketingStore | undefined, run: (store: Mark
   if (store) return run(store);
   const { prisma } = await import("../db");
   const { createPrismaMarketingStore } = await import("./prisma-store");
-  return prisma.$transaction((tx) => run(createPrismaMarketingStore(tx)), { timeout: 120_000, maxWait: 15_000 });
+  return prisma.$transaction((tx) => run(createPrismaMarketingStore(tx)), { timeout: 300_000, maxWait: 15_000 });
 }
 
 export async function runMarketingSync(options: {
