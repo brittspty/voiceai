@@ -22,6 +22,12 @@ const ADSET_FIELDS = "id,name,campaign_id,status,effective_status,optimization_g
 const AD_FIELDS = "id,name,adset_id,status,effective_status,creative{id}";
 const CREATIVE_FIELDS =
   "id,name,title,body,call_to_action_type,image_hash,video_id,thumbnail_url,object_story_spec,url_tags,asset_feed_spec";
+/**
+ * Filtering `adcreative.id` IN is rejected (#100). Full creative fields are read from the ads edge
+ * for delivered ad ids only. The payload is heavy, so each request stays small.
+ */
+const CREATIVE_AD_FIELDS = `id,creative{${CREATIVE_FIELDS}}`;
+export const CREATIVE_PAGE_LIMIT = 25;
 const AUDIENCE_FIELDS = "id,name,subtype,approximate_count_lower_bound,description";
 const INSIGHT_FIELDS =
   "ad_id,adset_id,campaign_id,spend,impressions,reach,clicks,inline_link_clicks,actions,action_values,date_start,date_stop,video_thruplay_watched_actions";
@@ -167,7 +173,7 @@ function withStubs(rows: unknown[], ids: string[], stub: (id: string) => Record<
   const have = new Set(merged.map((row) => str(asRecord(row).id)));
   for (const id of ids) {
     if (!id || have.has(id)) continue;
-    merged.push(stub(id));
+    merged.push({ ...stub(id), _placeholder: true });
     have.add(id);
   }
   return merged;
@@ -265,16 +271,30 @@ export async function pullMetaAccount(input: MetaPullInput & { accountId: string
 
   // The ids= query parameter is rejected for this app ("deprecated in v26.0+"), even on v23.0.
   // Delivered entities are loaded with filtering IN on the account edge, 50 ids at a time.
-  const fetchIdChunks = async (path: string, fields: string, idField: string, ids: string[], label: string) => {
+  const fetchIdChunks = async (
+    path: string,
+    fields: string,
+    idField: string,
+    ids: string[],
+    label: string,
+    options?: { batch?: number; limit?: number },
+  ) => {
     const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
     const rows: unknown[] = [];
     if (stopped || !unique.length) return rows;
-    for (let index = 0; index < unique.length; index += ID_BATCH) {
-      const chunk = unique.slice(index, index + ID_BATCH);
+    const batch = options?.batch ?? ID_BATCH;
+    for (let index = 0; index < unique.length; index += batch) {
+      const chunk = unique.slice(index, index + batch);
       const filtering = JSON.stringify([{ field: idField, operator: "IN", value: chunk }]);
+      const params: Record<string, string> = { fields, filtering };
+      if (options?.limit) params.limit = String(options.limit);
       try {
-        rows.push(...(await graphList({ ...common, path, params: { fields, filtering } })));
+        rows.push(...(await graphList({ ...common, path, params })));
       } catch (error) {
+        // graphRequest already retried rate-limit codes. Code 17 waits 30s doubling to 120s
+        // when Meta sends neither Retry-After nor estimated_time_to_regain_access. A wait past
+        // the pull deadline throws a Meta rate limit stop instead of an empty edge. Anything
+        // still thrown here did not load: callers must not replace stored rows for those ids.
         if (isMetaBudgetStop(error)) stopFor(error);
         else warnings.push(`${label} skipped: ${clipError(error)}`);
         break;
@@ -317,20 +337,21 @@ export async function pullMetaAccount(input: MetaPullInput & { accountId: string
   }));
   if (!stopped) {
     const deliveredAds = new Set(delivered.ads);
-    const creativeIds = ads.flatMap((item) => {
+    const creativeAdIds = ads.flatMap((item) => {
       const record = asRecord(item);
-      if (!deliveredAds.has(str(record.id))) return [];
-      const creativeId = str(asRecord(record.creative).id);
-      return creativeId ? [creativeId] : [];
+      if (record._placeholder === true) return [];
+      const id = str(record.id);
+      return id && deliveredAds.has(id) ? [id] : [];
     });
-    const creatives = await fetchIdChunks(`${accountId}/adcreatives`, CREATIVE_FIELDS, "adcreative.id", creativeIds, "creatives");
-    const creativeById = new Map(creatives.map((item) => [str(asRecord(item).id), item]));
-    ads = ads.map((item) => {
-      const record = asRecord(item);
-      const creativeId = str(asRecord(record.creative).id);
-      const full = creativeById.get(creativeId);
-      return full ? { ...record, creative: full } : record;
-    });
+    const detailed = await fetchIdChunks(
+      `${accountId}/ads`,
+      CREATIVE_AD_FIELDS,
+      "ad.id",
+      creativeAdIds,
+      "creatives",
+      { batch: CREATIVE_PAGE_LIMIT, limit: CREATIVE_PAGE_LIMIT },
+    );
+    ads = mergeRows([ads, detailed]);
     try {
       audiences = await graphList({ ...common, path: `${accountId}/customaudiences`, params: { fields: AUDIENCE_FIELDS } });
     } catch (error) {

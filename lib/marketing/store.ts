@@ -55,13 +55,16 @@ export type MarketingStore = {
   finishRun(id: string, patch: RunFinish): Promise<void>;
   enabledAccountIds(platform: AdPlatform, workspaceId: string): Promise<string[]>;
   upsertAccount(input: NormalizedSnapshot["accounts"][number] & { workspaceId: string; connectionId: string }): Promise<{ id: string }>;
+  findCampaign(workspaceId: string, platform: AdPlatform, externalId: string): Promise<{ id: string } | null>;
   upsertCampaign(input: NormalizedSnapshot["campaigns"][number] & { workspaceId: string; adAccountId: string }): Promise<{ id: string }>;
+  findAdGroup(workspaceId: string, platform: AdPlatform, externalId: string): Promise<{ id: string } | null>;
   upsertAdGroup(input: NormalizedSnapshot["adGroups"][number] & { workspaceId: string; campaignId: string }): Promise<{ id: string }>;
   upsertCreative(input: NormalizedSnapshot["creatives"][number] & { workspaceId: string }): Promise<{ id: string }>;
   findCreativeVersion(workspaceId: string, fingerprint: string): Promise<VersionRow | null>;
   versionLabels(creativeId: string): Promise<string[]>;
   insertCreativeVersion(input: NormalizedSnapshot["creatives"][number] & { workspaceId: string; creativeId: string; versionLabel: string }): Promise<{ id: string }>;
   updateCreativeVersion(id: string, input: NormalizedSnapshot["creatives"][number]): Promise<void>;
+  findAd(workspaceId: string, platform: AdPlatform, externalId: string): Promise<{ id: string } | null>;
   upsertAd(input: NormalizedSnapshot["ads"][number] & { workspaceId: string; adGroupId: string; creativeVersionId: string | null }): Promise<{ id: string }>;
   upsertAudience(input: NormalizedSnapshot["audiences"][number] & { workspaceId: string; adAccountId: string | null }): Promise<{ id: string }>;
   replaceAdGroupAudiences(adGroupId: string, workspaceId: string, links: { audienceId: string; role: AudienceLinkRole }[]): Promise<void>;
@@ -99,6 +102,7 @@ export type MemoryDump = {
   metricSpend: Record<string, string>;
   versionLabels: Record<string, string>;
   metricPulls: Record<string, string>;
+  names: Record<string, string>;
 };
 
 export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump } {
@@ -109,6 +113,7 @@ export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump }
   const campaigns = new Map<string, { id: string }>();
   const adGroups = new Map<string, { id: string }>();
   const ads = new Map<string, { id: string; externalId: string }>();
+  const names = new Map<string, string>();
   const creatives = new Map<string, { id: string }>();
   const versions = new Map<string, MemoryVersion>();
   const audiences = new Map<string, { id: string }>();
@@ -159,16 +164,24 @@ export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump }
       });
       return { id };
     },
+    async findCampaign(workspaceId, platform, externalId) {
+      return campaigns.get(`${workspaceId}:${platform}:${externalId}`) ?? null;
+    },
     async upsertCampaign(input) {
       const key = `${input.workspaceId}:${input.platform}:${input.externalId}`;
       const id = campaigns.get(key)?.id ?? nextId();
       campaigns.set(key, { id });
+      names.set(`campaign:${input.externalId}`, input.name);
       return { id };
+    },
+    async findAdGroup(workspaceId, platform, externalId) {
+      return adGroups.get(`${workspaceId}:${platform}:${externalId}`) ?? null;
     },
     async upsertAdGroup(input) {
       const key = `${input.workspaceId}:${input.platform}:${input.externalId}`;
       const id = adGroups.get(key)?.id ?? nextId();
       adGroups.set(key, { id });
+      names.set(`ad_group:${input.externalId}`, input.name);
       return { id };
     },
     async upsertCreative(input) {
@@ -203,10 +216,15 @@ export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump }
         versions.set(key, { ...row, platformCreativeIds: input.platformCreativeIds, fields: { ...row.fields, ...input } });
       }
     },
+    async findAd(workspaceId, platform, externalId) {
+      const row = ads.get(`${workspaceId}:${platform}:${externalId}`);
+      return row ? { id: row.id } : null;
+    },
     async upsertAd(input) {
       const key = `${input.workspaceId}:${input.platform}:${input.externalId}`;
       const id = ads.get(key)?.id ?? nextId();
       ads.set(key, { id, externalId: input.externalId });
+      names.set(`ad:${input.externalId}`, input.name);
       return { id };
     },
     async upsertAudience(input) {
@@ -263,6 +281,7 @@ export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump }
         metricSpend,
         versionLabels,
         metricPulls,
+        names: Object.fromEntries(names),
       };
     },
   };

@@ -173,6 +173,38 @@ export function retryDelayMs(attempt: number, retryAfterHeader: string | null) {
   return Math.min(backoff + jitter, 60_000);
 }
 
+/** Code 17 with no Retry-After and no regain estimate. Short 1–8s retries were still inside the limit. */
+export const CODE_17_BACKOFF_START_MS = 30_000;
+export const CODE_17_BACKOFF_MAX_MS = 120_000;
+
+/**
+ * Rate-limit retries. Retry-After and estimated_time_to_regain_access win.
+ * Code 17 ("User request limit reached") otherwise waits 30s, doubling up to 120s.
+ * A few 1–8s retries used to exhaust the attempt budget while the limit still held,
+ * and the edge was then skipped.
+ */
+export function rateLimitWait(
+  attempt: number,
+  code: number | null,
+  headers: { get(name: string): string | null },
+): Pace {
+  const retryAfterHeader = headers.get("retry-after");
+  const paced = paceFromHeaders(headers);
+  const retryAfter = Number(retryAfterHeader);
+  const hasRetryAfter = Number.isFinite(retryAfter) && retryAfter > 0;
+  const hasRegain = paced.reason.startsWith("estimated_time_to_regain_access");
+  if (code === 17 && !hasRetryAfter && !hasRegain) {
+    const backoff = CODE_17_BACKOFF_START_MS * 2 ** attempt;
+    const jitter = Math.floor(Math.random() * 250);
+    const ms = Math.min(backoff + jitter, CODE_17_BACKOFF_MAX_MS);
+    return { ms, reason: `code 17 backoff ${Math.round(ms / 1000)}s` };
+  }
+  const retry = retryDelayMs(attempt, retryAfterHeader);
+  const ms = Math.max(retry, paced.ms);
+  const reason = paced.ms >= retry && paced.reason ? paced.reason : `retry-after ${Math.round(retry / 1000)}s`;
+  return { ms, reason };
+}
+
 function metaErrorMessage(body: unknown, status: number, secrets: string[]) {
   const error = asRecord(asRecord(body).error);
   const message = str(error.message) || (typeof body === "string" ? body : "");
@@ -309,11 +341,8 @@ async function graphRequest(input: GraphCall & { method: "GET" | "POST" }) {
       const retryable = response.status === 429 || (code !== null && RATE_LIMIT_CODES.has(code));
       lastError = new MetaGraphError(metaErrorMessage(body, response.status, secrets), { status: response.status, code });
       if (retryable && attempt < MAX_ATTEMPTS - 1) {
-        const decision = paceFromHeaders(response.headers);
-        const retry = retryDelayMs(attempt, response.headers.get("retry-after"));
-        const wait = Math.max(retry, decision.ms);
-        const reason = decision.ms >= retry && decision.reason ? decision.reason : `retry-after ${Math.round(retry / 1000)}s`;
-        await pause(input, wait, reason, input.rowsBefore ?? 0);
+        const decision = rateLimitWait(attempt, code, response.headers);
+        await pause(input, decision.ms, decision.reason, input.rowsBefore ?? 0);
         continue;
       }
       await pause(input, 0, `error ${response.status}`, input.rowsBefore ?? 0);

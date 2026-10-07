@@ -17,12 +17,22 @@ export async function applySnapshot(store: MarketingStore, snapshot: NormalizedS
     rowsWritten += 1;
   }
 
+  const preservedRaw = new Set<string>();
   const campaignIds = new Map<string, string>();
   for (const campaign of snapshot.campaigns) {
     const adAccountId = accountIds.get(`${campaign.platform}:${campaign.accountExternalId}`);
     if (!adAccountId) continue;
+    const key = `${campaign.platform}:${campaign.externalId}`;
+    if (campaign.placeholder) {
+      const existing = await store.findCampaign(ctx.workspaceId, campaign.platform, campaign.externalId);
+      if (existing) {
+        campaignIds.set(key, existing.id);
+        preservedRaw.add(`campaign:${campaign.externalId}`);
+        continue;
+      }
+    }
     const saved = await store.upsertCampaign({ ...campaign, workspaceId: ctx.workspaceId, adAccountId });
-    campaignIds.set(`${campaign.platform}:${campaign.externalId}`, saved.id);
+    campaignIds.set(key, saved.id);
     rowsWritten += 1;
   }
 
@@ -30,10 +40,36 @@ export async function applySnapshot(store: MarketingStore, snapshot: NormalizedS
   for (const adGroup of snapshot.adGroups) {
     const campaignId = campaignIds.get(`${adGroup.platform}:${adGroup.campaignExternalId}`);
     if (!campaignId) continue;
+    const key = `${adGroup.platform}:${adGroup.externalId}`;
+    if (adGroup.placeholder) {
+      const existing = await store.findAdGroup(ctx.workspaceId, adGroup.platform, adGroup.externalId);
+      if (existing) {
+        adGroupIds.set(key, existing.id);
+        preservedRaw.add(`ad_group:${adGroup.externalId}`);
+        continue;
+      }
+    }
     const saved = await store.upsertAdGroup({ ...adGroup, workspaceId: ctx.workspaceId, campaignId });
-    adGroupIds.set(`${adGroup.platform}:${adGroup.externalId}`, saved.id);
+    adGroupIds.set(key, saved.id);
     rowsWritten += 1;
   }
+
+  const preservedAdIds = new Map<string, string>();
+  for (const ad of snapshot.ads) {
+    if (!ad.placeholder) continue;
+    const existing = await store.findAd(ctx.workspaceId, ad.platform, ad.externalId);
+    if (!existing) continue;
+    const key = `${ad.platform}:${ad.externalId}`;
+    preservedAdIds.set(key, existing.id);
+    preservedRaw.add(`ad:${ad.externalId}`);
+    const creative = snapshot.creatives.find((row) => row.fingerprint === ad.fingerprint);
+    for (const ref of creative?.platformCreativeIds ?? []) {
+      if (ref.platform === ad.platform) preservedRaw.add(`creative:${ref.externalId}`);
+    }
+  }
+  const activeFingerprints = new Set(
+    snapshot.ads.filter((ad) => !preservedAdIds.has(`${ad.platform}:${ad.externalId}`)).map((ad) => ad.fingerprint),
+  );
 
   const creativeIds = new Map<string, string>();
   const concepts = new Map<string, string>();
@@ -41,6 +77,7 @@ export async function applySnapshot(store: MarketingStore, snapshot: NormalizedS
     (a, b) => a.conceptKey.localeCompare(b.conceptKey) || a.fingerprint.localeCompare(b.fingerprint),
   );
   for (const creative of creatives) {
+    if (!activeFingerprints.has(creative.fingerprint)) continue;
     let creativeId = concepts.get(creative.conceptKey);
     if (!creativeId) {
       const saved = await store.upsertCreative({ ...creative, workspaceId: ctx.workspaceId });
@@ -65,6 +102,12 @@ export async function applySnapshot(store: MarketingStore, snapshot: NormalizedS
 
   const adIds = new Map<string, string>();
   for (const ad of snapshot.ads) {
+    const key = `${ad.platform}:${ad.externalId}`;
+    const preserved = preservedAdIds.get(key);
+    if (preserved) {
+      adIds.set(key, preserved);
+      continue;
+    }
     const adGroupId = adGroupIds.get(`${ad.platform}:${ad.adGroupExternalId}`);
     if (!adGroupId) continue;
     const saved = await store.upsertAd({
@@ -85,11 +128,12 @@ export async function applySnapshot(store: MarketingStore, snapshot: NormalizedS
     rowsWritten += 1;
   }
 
-  const groupsWithLinks = new Set(snapshot.adGroups.map((group) => `${group.platform}:${group.externalId}`));
-  for (const key of groupsWithLinks) {
+  for (const adGroup of snapshot.adGroups) {
+    if (adGroup.placeholder || !adGroup.audiencesLoaded) continue;
+    const key = `${adGroup.platform}:${adGroup.externalId}`;
     const adGroupId = adGroupIds.get(key);
     if (!adGroupId) continue;
-    const [platform, externalId] = key.split(":");
+    const { platform, externalId } = adGroup;
     const links = snapshot.adGroupAudiences
       .filter((link) => link.platform === platform && link.adGroupExternalId === externalId)
       .map((link) => ({
@@ -109,6 +153,7 @@ export async function applySnapshot(store: MarketingStore, snapshot: NormalizedS
   }
 
   for (const raw of snapshot.raw) {
+    if (preservedRaw.has(`${raw.objectType}:${raw.externalId}`)) continue;
     await store.upsertRaw({ ...raw, workspaceId: ctx.workspaceId, syncRunId: ctx.runId });
     rowsWritten += 1;
   }

@@ -51,6 +51,8 @@ export type NormalizedCampaign = {
   startDate: string | null;
   endDate: string | null;
   namingParsed: Record<string, string>;
+  /** True when this row was invented because the edge did not load. Do not overwrite a stored row. */
+  placeholder?: boolean;
 };
 
 export type NormalizedAdGroup = {
@@ -62,6 +64,10 @@ export type NormalizedAdGroup = {
   statusRaw: string;
   optimizationGoal: string;
   bidStrategy: string;
+  /** True when this row was invented because the edge did not load. Do not overwrite a stored row. */
+  placeholder?: boolean;
+  /** True when the payload included targeting, so include/exclude links may be replaced. */
+  audiencesLoaded?: boolean;
 };
 
 export type NormalizedCreative = {
@@ -92,6 +98,8 @@ export type NormalizedAd = {
   fingerprint: string;
   destinationUrl: string;
   urlTags: string;
+  /** True when this row was invented because the edge did not load. Do not overwrite a stored row. */
+  placeholder?: boolean;
 };
 
 export type NormalizedAudience = {

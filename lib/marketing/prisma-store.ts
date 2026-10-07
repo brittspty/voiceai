@@ -98,6 +98,12 @@ export function createPrismaMarketingStore(client: Client): MarketingStore {
       });
       return { id: row.id };
     },
+    async findCampaign(workspaceId, platform, externalId) {
+      return client.campaign.findUnique({
+        where: { workspaceId_platform_externalId: { workspaceId, platform, externalId } },
+        select: { id: true },
+      });
+    },
     async upsertCampaign(input) {
       const row = await client.campaign.upsert({
         where: { workspaceId_platform_externalId: { workspaceId: input.workspaceId, platform: input.platform, externalId: input.externalId } },
@@ -132,6 +138,12 @@ export function createPrismaMarketingStore(client: Client): MarketingStore {
         },
       });
       return { id: row.id };
+    },
+    async findAdGroup(workspaceId, platform, externalId) {
+      return client.adGroup.findUnique({
+        where: { workspaceId_platform_externalId: { workspaceId, platform, externalId } },
+        select: { id: true },
+      });
     },
     async upsertAdGroup(input) {
       const row = await client.adGroup.upsert({
@@ -228,6 +240,12 @@ export function createPrismaMarketingStore(client: Client): MarketingStore {
           landingUrl: input.landingUrl,
           platformCreativeIds: input.platformCreativeIds,
         },
+      });
+    },
+    async findAd(workspaceId, platform, externalId) {
+      return client.ad.findUnique({
+        where: { workspaceId_platform_externalId: { workspaceId, platform, externalId } },
+        select: { id: true },
       });
     },
     async upsertAd(input) {

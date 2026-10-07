@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { applySnapshot } from "./apply";
 import { parseMetaSyncArgs } from "./cli-args";
 import { lookbackDays } from "./config";
-import { ASYNC_INSIGHTS_AFTER_DAYS, ID_BATCH, inclusiveDays, pullAdInsights, pullMetaAccount, pullMetaSnapshot } from "./connectors/meta";
+import { createMemoryStore } from "./store";
+import { ASYNC_INSIGHTS_AFTER_DAYS, CREATIVE_PAGE_LIMIT, ID_BATCH, inclusiveDays, pullAdInsights, pullMetaAccount, pullMetaSnapshot } from "./connectors/meta";
 import {
   RATE_LIMIT_CODES,
   appSecretProof,
@@ -76,6 +78,60 @@ test("rate-limit error codes back off and then succeed", async () => {
     assert.equal(calls, 2);
     assert.equal(waits[0], 2000);
   }
+});
+
+test("code 17 without Retry-After or a regain estimate waits on a longer backoff", async () => {
+  let calls = 0;
+  const waits: number[] = [];
+  const lines: string[] = [];
+  const fetchImpl: FetchLike = async () => {
+    calls += 1;
+    if (calls === 1) {
+      return Response.json(
+        { error: { code: 17, message: `User request limit reached ${TOKEN}` } },
+        {
+          status: 400,
+          headers: {
+            "x-business-use-case-usage": JSON.stringify({
+              "123": [{ call_count: 100, total_cputime: 102, total_time: 90, estimated_time_to_regain_access: 0 }],
+            }),
+          },
+        },
+      );
+    }
+    return Response.json({ id: "ok" });
+  };
+  const body = await graphGet({
+    ...graph({ fetchImpl, sleep: async (ms) => waits.push(ms) }),
+    log: (line) => lines.push(line),
+  });
+  assert.equal((body as { id: string }).id, "ok");
+  assert.equal(calls, 2);
+  assert.ok(waits[0] !== undefined && waits[0] >= 30_000 && waits[0] < 30_250);
+  assert.match(lines[0] ?? "", /code 17 backoff 30s/);
+  assert.equal(lines.some((line) => line.includes(TOKEN)), false);
+
+  calls = 0;
+  const regainWaits: number[] = [];
+  const regain: FetchLike = async () => {
+    calls += 1;
+    if (calls === 1) {
+      return Response.json(
+        { error: { code: 17, message: "User request limit reached" } },
+        {
+          status: 400,
+          headers: {
+            "x-business-use-case-usage": JSON.stringify({
+              "123": [{ call_count: 1, total_cputime: 1, total_time: 1, estimated_time_to_regain_access: 2 }],
+            }),
+          },
+        },
+      );
+    }
+    return Response.json({ id: "ok" });
+  };
+  await graphGet(graph({ fetchImpl: regain, sleep: async (ms) => regainWaits.push(ms) }));
+  assert.equal(regainWaits[0], 120_000);
 });
 
 test("HTTP 429 retries and a plain 400 does not", async () => {
@@ -341,18 +397,20 @@ test("async insight polls back off from 5s to 30s", async () => {
 test("insights run first and creatives are loaded only for ads that delivered", async () => {
   let inFlight = 0;
   let maxInFlight = 0;
-  const calls: { path: string; fields: string; ids: string; filtering: string; level: string }[] = [];
+  const calls: { path: string; fields: string; ids: string; filtering: string; level: string; limit: string }[] = [];
   const fetchImpl: FetchLike = async (url) => {
     inFlight += 1;
     maxInFlight = Math.max(maxInFlight, inFlight);
     const parsed = new URL(url);
     const filtering = parsed.searchParams.get("filtering") ?? "";
+    const fields = parsed.searchParams.get("fields") ?? "";
     calls.push({
       path: parsed.pathname,
-      fields: parsed.searchParams.get("fields") ?? "",
+      fields,
       ids: parsed.searchParams.get("ids") ?? "",
       filtering,
       level: parsed.searchParams.get("level") ?? "",
+      limit: parsed.searchParams.get("limit") ?? "",
     });
     try {
       if (parsed.pathname === "/v23.0/act_1") {
@@ -372,21 +430,27 @@ test("insights run first and creatives are loaded only for ads that delivered", 
       if (filtering.includes("adset.id")) {
         return Response.json({ data: [{ id: "as_9", name: "Set", campaign_id: "c_9", effective_status: "ACTIVE", targeting: {} }] });
       }
-      if (filtering.includes('"ad.id"') || filtering.includes("ad.id")) {
-        return Response.json({ data: [{ id: "ad_9", name: "Ad", adset_id: "as_9", effective_status: "ACTIVE", creative: { id: "cr_9" } }] });
-      }
-      if (filtering.includes("adcreative.id")) {
+      if ((filtering.includes('"ad.id"') || filtering.includes("ad.id")) && fields.includes("object_story_spec")) {
         return Response.json({
           data: [
             {
-              id: "cr_9",
-              name: "Creative",
-              title: "Headline",
-              body: "Body copy",
-              object_story_spec: { link_data: { name: "Headline", message: "Body copy", link: "https://example.com/offer" } },
+              id: "ad_9",
+              name: "Ad",
+              adset_id: "as_9",
+              effective_status: "ACTIVE",
+              creative: {
+                id: "cr_9",
+                name: "Creative",
+                title: "Headline",
+                body: "Body copy",
+                object_story_spec: { link_data: { name: "Headline", message: "Body copy", link: "https://example.com/offer" } },
+              },
             },
           ],
         });
+      }
+      if (filtering.includes('"ad.id"') || filtering.includes("ad.id")) {
+        return Response.json({ data: [{ id: "ad_9", name: "Ad", adset_id: "as_9", effective_status: "ACTIVE", creative: { id: "cr_9" } }] });
       }
       if (parsed.pathname.endsWith("/ads")) {
         return Response.json({
@@ -428,10 +492,16 @@ test("insights run first and creatives are loaded only for ads that delivered", 
   assert.equal(maxInFlight, 1);
   assert.ok(calls.some((call) => call.path.endsWith("/campaigns") && call.filtering.includes("updated_time") && call.filtering.includes("ARCHIVED")));
   assert.equal(calls.some((call) => call.ids), false);
-  assert.equal(calls.some((call) => call.fields.includes("object_story_spec") && call.path.endsWith("/ads")), false);
+  assert.equal(calls.some((call) => call.path.endsWith("/adcreatives")), false);
+  const lightAds = calls.filter((call) => call.path.endsWith("/ads") && !call.fields.includes("object_story_spec"));
+  assert.ok(lightAds.length >= 1);
+  assert.equal(lightAds.some((call) => call.fields.includes("object_story_spec")), false);
   const creativeCall = calls.find((call) => call.fields.includes("object_story_spec"));
-  assert.equal(creativeCall?.path.endsWith("/adcreatives"), true);
-  assert.match(creativeCall?.filtering ?? "", /cr_9/);
+  assert.equal(creativeCall?.path.endsWith("/ads"), true);
+  assert.equal(creativeCall?.limit, String(CREATIVE_PAGE_LIMIT));
+  assert.match(creativeCall?.filtering ?? "", /"ad\.id"/);
+  assert.match(creativeCall?.filtering ?? "", /ad_9/);
+  assert.equal((creativeCall?.filtering ?? "").includes("ad_recent"), false);
   assert.match(calls.find((call) => call.filtering.includes("campaign.id"))?.filtering ?? "", /"operator":"IN"/);
   const delivered = (bundle.ads as { id: string; creative?: { title?: string } }[]).find((ad) => ad.id === "ad_9");
   const recent = (bundle.ads as { id: string; creative?: { title?: string; id?: string } }[]).find((ad) => ad.id === "ad_recent");
@@ -547,16 +617,17 @@ test("a deprecated ids error does not drop insights already pulled", async () =>
       });
     }
     const filtering = parsed.searchParams.get("filtering") ?? "";
+    const fields = parsed.searchParams.get("fields") ?? "";
     if (filtering.includes("campaign.id")) return deprecated();
     if (filtering.includes("adset.id")) {
       return Response.json({ data: [{ id: "as_9", name: "Set", campaign_id: "c_9", effective_status: "ACTIVE" }] });
     }
+    if (filtering.includes("ad.id") && fields.includes("object_story_spec")) return deprecated();
     if (filtering.includes("ad.id")) {
       return Response.json({
         data: [{ id: "ad_9", name: "Delivered ad", adset_id: "as_9", effective_status: "ACTIVE", creative: { id: "cr_9" } }],
       });
     }
-    if (parsed.pathname.endsWith("/adcreatives")) return deprecated();
     return Response.json({ data: [] });
   };
   const pulled = await pullMetaSnapshot({
@@ -580,6 +651,161 @@ test("a deprecated ids error does not drop insights already pulled", async () =>
   assert.equal(pulled.snapshot.campaigns[0]?.name, "c_9");
   assert.match(pulled.snapshot.warnings.join("\n"), /campaigns skipped: Meta 500 code 100: The ids query parameter is deprecated/);
   assert.match(pulled.snapshot.warnings.join("\n"), /creatives skipped: Meta 500 code 100: The ids query parameter is deprecated/);
+  assert.equal(urls.some((url) => url.includes("/adcreatives")), false);
+});
+
+test("a skipped ad set edge keeps stored audience links", async () => {
+  let failAdSets = false;
+  let clearTargeting = false;
+  const lines: string[] = [];
+  const fetchImpl: FetchLike = async (url) => {
+    const parsed = new URL(url);
+    const filtering = parsed.searchParams.get("filtering") ?? "";
+    const fields = parsed.searchParams.get("fields") ?? "";
+    if (parsed.pathname === "/v23.0/act_1") {
+      return Response.json({ id: "act_1", name: "A", currency: "USD", timezone_name: "UTC", account_status: 1 });
+    }
+    if (parsed.pathname.endsWith("/insights")) {
+      return Response.json({
+        data: [{ ad_id: "ad_9", adset_id: "as_9", campaign_id: "c_9", spend: "2", impressions: "10", clicks: "1", date_start: "2026-10-07" }],
+      });
+    }
+    if (filtering.includes("campaign.id") || parsed.pathname.endsWith("/campaigns")) {
+      return Response.json({ data: [{ id: "c_9", name: "Camp", objective: "OUTCOME_LEADS", effective_status: "ACTIVE" }] });
+    }
+    if (filtering.includes("adset.id")) {
+      if (failAdSets) {
+        return Response.json({ error: { code: 17, message: "User request limit reached" } }, { status: 400 });
+      }
+      return Response.json({
+        data: [
+          {
+            id: "as_9",
+            name: "Homeowners",
+            campaign_id: "c_9",
+            effective_status: "ACTIVE",
+            targeting: clearTargeting ? {} : { custom_audiences: [{ id: "aud_1", name: "Owners" }] },
+          },
+        ],
+      });
+    }
+    if (filtering.includes("ad.id") && fields.includes("object_story_spec")) {
+      return Response.json({
+        data: [
+          {
+            id: "ad_9",
+            creative: {
+              id: "cr_9",
+              title: "Headline",
+              body: "Body",
+              object_story_spec: { link_data: { name: "Headline", message: "Body", link: "https://example.com/a" } },
+            },
+          },
+        ],
+      });
+    }
+    if (filtering.includes("ad.id") || parsed.pathname.endsWith("/ads")) {
+      return Response.json({
+        data: [{ id: "ad_9", name: "Ad", adset_id: "as_9", effective_status: "ACTIVE", creative: { id: "cr_9" } }],
+      });
+    }
+    return Response.json({ data: [] });
+  };
+  const pull = () =>
+    pullMetaSnapshot({
+      accountIds: ["act_1"],
+      accessToken: TOKEN,
+      appSecret: SECRET,
+      graphVersion: "v23.0",
+      since: "2026-10-01",
+      until: "2026-10-07",
+      attributionWindows: ["7d_click"],
+      fetchImpl,
+      sleep: async () => {},
+      log: (line) => lines.push(line),
+    });
+
+  const first = await pull();
+  assert.equal(first.failures.length, 0);
+  assert.equal(first.snapshot.adGroupAudiences.length, 1);
+  assert.equal(first.snapshot.adGroups[0]?.placeholder, false);
+  assert.equal(first.snapshot.adGroups[0]?.audiencesLoaded, true);
+  const delivered = (first.snapshot.raw.find((row) => row.objectType === "ad")?.payload ?? {}) as { creative?: { title?: string } };
+  assert.equal(delivered.creative?.title, "Headline");
+
+  const store = createMemoryStore();
+  const ctx = { workspaceId: "org", runId: "run_1", connectionId: "conn" };
+  await applySnapshot(store, first.snapshot, ctx);
+  assert.equal(store.dump().links, 1);
+  assert.equal(store.dump().names["ad_group:as_9"], "Homeowners");
+
+  failAdSets = true;
+  lines.length = 0;
+  const second = await pull();
+  assert.equal(second.failures.length, 0);
+  assert.match(second.snapshot.warnings.join("\n"), /ad sets skipped: Meta 400 code 17/);
+  assert.equal(second.snapshot.adGroups[0]?.placeholder, true);
+  assert.equal(second.snapshot.adGroups[0]?.audiencesLoaded, false);
+  assert.equal(second.snapshot.adGroupAudiences.length, 0);
+  assert.equal(second.snapshot.metrics.length, 1);
+  assert.ok(lines.some((line) => line.includes("code 17 backoff") && line.includes("/adsets")));
+  assert.equal(lines.some((line) => line.includes(TOKEN) || line.includes(SECRET)), false);
+  await applySnapshot(store, second.snapshot, { ...ctx, runId: "run_2" });
+  assert.equal(store.dump().links, 1);
+  assert.equal(store.dump().names["ad_group:as_9"], "Homeowners");
+  assert.equal(store.dump().metrics, 1);
+
+  failAdSets = false;
+  clearTargeting = true;
+  const third = await pull();
+  assert.equal(third.snapshot.adGroups[0]?.audiencesLoaded, true);
+  assert.equal(third.snapshot.adGroups[0]?.placeholder, false);
+  assert.equal(third.snapshot.adGroupAudiences.length, 0);
+  await applySnapshot(store, third.snapshot, { ...ctx, runId: "run_3" });
+  assert.equal(store.dump().links, 0);
+  assert.equal(store.dump().names["ad_group:as_9"], "Homeowners");
+});
+
+test("code 17 stops the pull when the backoff would pass the time budget", async () => {
+  const fetchImpl: FetchLike = async (url) => {
+    const parsed = new URL(url);
+    if (parsed.pathname === "/v23.0/act_1") {
+      return Response.json({ id: "act_1", name: "A", currency: "USD", timezone_name: "UTC", account_status: 1 });
+    }
+    if (parsed.pathname.endsWith("/insights")) {
+      return Response.json({
+        data: [{ ad_id: "ad_9", adset_id: "as_9", campaign_id: "c_9", spend: "1", date_start: "2026-10-07" }],
+      });
+    }
+    const filtering = parsed.searchParams.get("filtering") ?? "";
+    if (filtering.includes("adset.id")) {
+      return Response.json({ error: { code: 17, message: "User request limit reached" } }, { status: 400 });
+    }
+    return Response.json({ data: [] });
+  };
+  let slept = 0;
+  const pulled = await pullMetaSnapshot({
+    accountIds: ["act_1"],
+    accessToken: TOKEN,
+    appSecret: SECRET,
+    graphVersion: "v23.0",
+    since: "2026-10-01",
+    until: "2026-10-07",
+    attributionWindows: ["7d_click"],
+    fetchImpl,
+    sleep: async (ms) => {
+      slept += ms;
+    },
+    log: () => {},
+    deadline: Date.now() + 1_000,
+  });
+  assert.equal(slept, 0);
+  assert.match(pulled.failures[0] ?? "", /Standard Access/);
+  assert.equal(
+    pulled.snapshot.warnings.some((warning) => warning.startsWith("ad sets skipped")),
+    false,
+  );
+  assert.equal(pulled.snapshot.metrics.length, 1);
 });
 
 test("meta sync cli flags", () => {

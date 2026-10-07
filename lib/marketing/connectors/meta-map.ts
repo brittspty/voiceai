@@ -305,6 +305,7 @@ export function normalizeMetaBundle(
       startDate: parseTime(record.start_time),
       endDate: parseTime(record.stop_time),
       namingParsed: {},
+      placeholder: record._placeholder === true,
     });
     snapshot.raw.push({ platform, objectType: "campaign", externalId, payload: item });
   }
@@ -321,6 +322,8 @@ export function normalizeMetaBundle(
     }
     adGroupIds.add(externalId);
     const statusRaw = str(record.effective_status) || str(record.status);
+    const placeholder = record._placeholder === true;
+    const audiencesLoaded = !placeholder && Object.prototype.hasOwnProperty.call(record, "targeting");
     snapshot.adGroups.push({
       platform,
       campaignExternalId,
@@ -330,8 +333,11 @@ export function normalizeMetaBundle(
       statusRaw,
       optimizationGoal: str(record.optimization_goal),
       bidStrategy: str(record.bid_strategy),
+      placeholder,
+      audiencesLoaded,
     });
     snapshot.raw.push({ platform, objectType: "ad_group", externalId, payload: item });
+    if (!audiencesLoaded) continue;
     for (const role of ["include", "exclude"] as const) {
       for (const audience of targetingAudiences(record, role)) {
         snapshot.adGroupAudiences.push({
@@ -394,6 +400,7 @@ export function normalizeMetaBundle(
       fingerprint: creative.fingerprint,
       destinationUrl: creative.landingUrl,
       urlTags: creative.urlTags,
+      placeholder: record._placeholder === true,
     });
     snapshot.raw.push({ platform, objectType: "ad", externalId, payload: item });
     if (creative.externalId) {
