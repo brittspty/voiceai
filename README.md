@@ -89,6 +89,54 @@ Webhook auth: HMAC-SHA256 of the raw body in `x-voiceops-signature`, or the shar
 
 Failed webhook handling and failed CRM writes land in **Settings → Failed jobs**, with retry and discard. Every change is in the activity log. Agent instructions, voice, and calling rules are versioned; publishing is owner-only.
 
+## Marketing data layer
+
+Read-only ad performance for this deployment. The canonical tables are platform-agnostic (accounts, campaigns, ad sets, ads, creatives and versions, audiences, daily metrics, sync runs). Meta payloads are also stored in `MarketingRawRecord` so a later source can be added without rewriting those tables. Google Ads, TikTok, and LinkedIn are reserved on the platform enum; only Meta is connected.
+
+This app is still one database per client. `workspaceId` is stored on every marketing row and defaults to `org` (the same id as `Org`). It is not used to separate clients inside one database. Do not point two businesses at the same Postgres.
+
+### Setup
+
+Leave the Meta variables empty and the worker skips marketing sync. Nothing is called and no error is raised. To load labeled fixture rows instead:
+
+```bash
+MARKETING_SYNC_MODE=mock npm run marketing:sync
+```
+
+The Marketing screen shows a Mock data label when the latest run used fixtures. Open it from the sidebar after signing in.
+
+A live sync needs a Meta system user token and the app that issued it:
+
+| Variable | Use |
+| --- | --- |
+| `META_ACCESS_TOKEN` | System user token. Scopes: `ads_read`, `read_insights`. Stored only as the pointer `env:META_ACCESS_TOKEN` |
+| `META_APP_ID` | Meta app id. Required for a live sync. Not a substitute for the token |
+| `META_APP_SECRET` | App secret. Each request sends `appsecret_proof` (HMAC of the token). Never written to the database |
+| `META_AD_ACCOUNT_IDS` | Comma-separated ad account ids for this deployment (`act_123` or `123`). One deployment can list several accounts. Example for Specificity's main account: `act_532471207924121`. Other clients set their own ids. The code does not default to that account |
+| `META_GRAPH_VERSION` | Graph version. Default `v23.0` |
+| `META_ATTRIBUTION_WINDOWS` | Comma-separated windows sent to insights. Default `7d_click,1d_view`, stored as `7d_click_1d_view` |
+| `MARKETING_SYNC_MODE` | `auto` (default), `mock`, `live`, or `off`. `auto` syncs when the token, app id, and app secret are set and at least one account is configured; otherwise it skips |
+| `MARKETING_LOOKBACK_DAYS` | Trailing days re-pulled each run, from 1 to 28. Default 7. Late attribution is handled by upserting this window, not by a high-water mark |
+| `MARKETING_SYNC_INTERVAL_MS` | Worker interval. Default 6 hours. The worker also syncs once on startup |
+
+When `META_AD_ACCOUNT_IDS` is set, that list is the only allow-list. When it is empty, the sync uses `AdAccount` rows with `syncEnabled` still true. Clearing the env var does not delete history. Set `MARKETING_SYNC_MODE=off` to stop all syncs. Accounts removed from the allow-list stay in the database and are not pulled while the env list is non-empty.
+
+Set the same variables on the app and the worker, then restart the worker. `npm run marketing:sync` runs one sync in the foreground.
+
+Daily rows are unique on workspace, date, platform, ad, audience segment, and attribution window. Running the sync again updates those rows in place. Reach is stored and shown per row; the screen does not add it up. Budgets are converted from Meta minor units into the account currency. Overlapping lead action types use the max value so the same leads are not counted twice. Creative versions are a SHA-256 of headline, body, description, CTA, media id, and landing path (query strings are ignored). The first time a fingerprint is seen it gets the next `vN` label for that concept and keeps it.
+
+### Add a source
+
+1. The `AdPlatform` enum already includes `google_ads`, `tiktok`, and `linkedin`. Add a new value only if the source is not in that list, and ship a migration with it.
+2. Map the source's payloads into `NormalizedSnapshot` in a new file under `lib/marketing/connectors/`. Keep source-specific JSON in `MarketingRawRecord`.
+3. Implement `AdPlatformConnector` and register it in `lib/marketing/connectors/registry.ts`. `applySnapshot` upserts the canonical tables; the new source should not need its own tables.
+4. Read credentials from env vars at call time. If they are missing, skip. Do not hardcode an account id.
+5. Add mapping tests and an idempotent sync test. Re-running the same snapshot must not insert duplicate daily rows.
+
+### Deferred
+
+Lead, call, and booking joins stay out of this module so dialing and consent are unchanged. Also deferred: targeting history (current include and exclude links are stored), a date dimension, campaign-name parsing, age/gender/placement breakdowns, currency conversion, an OAuth connect button, and the Google, TikTok, and LinkedIn connectors.
+
 ## Switch from test to live
 
 1. Put real keys in the environment. Rotate the Twilio token. Use a fresh ElevenLabs key.
