@@ -340,6 +340,8 @@ function shouldShrinkPage(error: unknown, limit: number) {
   if (limit <= MIN_PAGE_LIMIT) return false;
   if (!(error instanceof MetaGraphError)) return false;
   if (error.code !== null && RATE_LIMIT_CODES.has(error.code)) return false;
+  // Code 100 is an invalid parameter. A smaller page will not make it succeed.
+  if (error.code === 100) return false;
   const message = error.message;
   return error.status >= 500 || /reduce the amount of data/i.test(message);
 }

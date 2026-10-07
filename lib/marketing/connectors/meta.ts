@@ -5,6 +5,7 @@ import {
   graphPost,
   isMetaBudgetStop,
   MAX_PULL_MS,
+  MetaGraphError,
   redactSecrets,
   waitForMeta,
   type FetchLike,
@@ -147,6 +148,31 @@ function updatedSinceFilter(since: string) {
   return JSON.stringify([{ field: "updated_time", operator: "GREATER_THAN", value: Number.isFinite(unix) ? unix : 0 }]);
 }
 
+function insightLinks(insights: unknown[]) {
+  const adsetByAd = new Map<string, string>();
+  const campaignByAdset = new Map<string, string>();
+  for (const item of insights) {
+    const record = asRecord(item);
+    const adId = str(record.ad_id);
+    const adsetId = str(record.adset_id);
+    const campaignId = str(record.campaign_id);
+    if (adId && adsetId && !adsetByAd.has(adId)) adsetByAd.set(adId, adsetId);
+    if (adsetId && campaignId && !campaignByAdset.has(adsetId)) campaignByAdset.set(adsetId, campaignId);
+  }
+  return { adsetByAd, campaignByAdset };
+}
+
+function withStubs(rows: unknown[], ids: string[], stub: (id: string) => Record<string, unknown>) {
+  const merged = mergeRows([rows]);
+  const have = new Set(merged.map((row) => str(asRecord(row).id)));
+  for (const id of ids) {
+    if (!id || have.has(id)) continue;
+    merged.push(stub(id));
+    have.add(id);
+  }
+  return merged;
+}
+
 function insightEntityIds(insights: unknown[]) {
   const ads = new Set<string>();
   const adsets = new Set<string>();
@@ -218,6 +244,10 @@ export async function pullMetaAccount(input: MetaPullInput & { accountId: string
         stopFor(error);
         return [];
       }
+      if (error instanceof MetaGraphError && error.code === 100) {
+        warnings.push(`${path} recent list skipped: ${clipError(error)}`);
+        return [];
+      }
       try {
         return await graphList({ ...common, path, params: { fields, filtering: updatedSinceFilter(input.since) } });
       } catch (again) {
@@ -228,71 +258,85 @@ export async function pullMetaAccount(input: MetaPullInput & { accountId: string
     }
   };
 
-  const takeIds = async (ids: string[], fields: string) => {
-    if (stopped) return [];
-    const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
-    const rows: unknown[] = [];
-    for (let index = 0; index < unique.length; index += ID_BATCH) {
-      const chunk = unique.slice(index, index + ID_BATCH);
-      let body: Record<string, unknown>;
-      try {
-        body = asRecord(
-          await graphGet({
-            ...common,
-            path: "",
-            params: { ids: chunk.join(","), fields },
-            rowsBefore: rows.length,
-          }),
-        );
-      } catch (error) {
-        if (!isMetaBudgetStop(error)) throw error;
-        stopFor(error);
-        return rows;
-      }
-      for (const id of chunk) {
-        const row = asRecord(body[id]);
-        if (str(row.id)) rows.push(row);
-        else if (row.error) warnings.push(`${id} skipped: ${clipError(new Error(str(asRecord(row.error).message) || "request failed"))}`);
-      }
-    }
-    return rows;
-  };
-
   const recent = async (path: string, fields: string) => {
     if (stopped) return [];
     return listRecent(path, fields);
   };
 
-  try {
-    campaigns = mergeRows([await takeIds(delivered.campaigns, CAMPAIGN_FIELDS), await recent(`${accountId}/campaigns`, CAMPAIGN_FIELDS)]);
-    adsets = mergeRows([await takeIds(delivered.adsets, ADSET_FIELDS), await recent(`${accountId}/adsets`, ADSET_FIELDS)]);
-    ads = mergeRows([await takeIds(delivered.ads, AD_FIELDS), await recent(`${accountId}/ads`, AD_FIELDS)]);
-    if (!stopped) {
-      const deliveredAds = new Set(delivered.ads);
-      const creativeIds = ads.flatMap((item) => {
-        const record = asRecord(item);
-        if (!deliveredAds.has(str(record.id))) return [];
-        const creativeId = str(asRecord(record.creative).id);
-        return creativeId ? [creativeId] : [];
-      });
-      const creatives = await takeIds(creativeIds, CREATIVE_FIELDS);
-      const creativeById = new Map(creatives.map((item) => [str(asRecord(item).id), item]));
-      ads = ads.map((item) => {
-        const record = asRecord(item);
-        const creativeId = str(asRecord(record.creative).id);
-        const full = creativeById.get(creativeId);
-        return full ? { ...record, creative: full } : record;
-      });
+  // The ids= query parameter is rejected for this app ("deprecated in v26.0+"), even on v23.0.
+  // Delivered entities are loaded with filtering IN on the account edge, 50 ids at a time.
+  const fetchIdChunks = async (path: string, fields: string, idField: string, ids: string[], label: string) => {
+    const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+    const rows: unknown[] = [];
+    if (stopped || !unique.length) return rows;
+    for (let index = 0; index < unique.length; index += ID_BATCH) {
+      const chunk = unique.slice(index, index + ID_BATCH);
+      const filtering = JSON.stringify([{ field: idField, operator: "IN", value: chunk }]);
       try {
-        audiences = await graphList({ ...common, path: `${accountId}/customaudiences`, params: { fields: AUDIENCE_FIELDS } });
+        rows.push(...(await graphList({ ...common, path, params: { fields, filtering } })));
       } catch (error) {
         if (isMetaBudgetStop(error)) stopFor(error);
-        else warnings.push(`${accountId} audiences skipped: ${clipError(error)}`);
+        else warnings.push(`${label} skipped: ${clipError(error)}`);
+        break;
       }
     }
-  } catch (error) {
-    if (!isMetaBudgetStop(error)) throw error;
-    stopFor(error);
+    return rows;
+  };
+
+  const links = insightLinks(insights);
+  const loadEdge = async (
+    path: string,
+    fields: string,
+    idField: string,
+    ids: string[],
+    label: string,
+    stub: (id: string) => Record<string, unknown>,
+  ) => {
+    const fetched = await fetchIdChunks(path, fields, idField, ids, label);
+    const listed = await recent(path, fields);
+    return withStubs(mergeRows([fetched, listed]), ids, stub);
+  };
+
+  campaigns = await loadEdge(`${accountId}/campaigns`, CAMPAIGN_FIELDS, "campaign.id", delivered.campaigns, "campaigns", (id) => ({
+    id,
+    name: id,
+    effective_status: "UNKNOWN",
+  }));
+  adsets = await loadEdge(`${accountId}/adsets`, ADSET_FIELDS, "adset.id", delivered.adsets, "ad sets", (id) => ({
+    id,
+    name: id,
+    campaign_id: links.campaignByAdset.get(id) ?? "",
+    effective_status: "UNKNOWN",
+  }));
+  ads = await loadEdge(`${accountId}/ads`, AD_FIELDS, "ad.id", delivered.ads, "ads", (id) => ({
+    id,
+    name: id,
+    adset_id: links.adsetByAd.get(id) ?? "",
+    effective_status: "UNKNOWN",
+    creative: {},
+  }));
+  if (!stopped) {
+    const deliveredAds = new Set(delivered.ads);
+    const creativeIds = ads.flatMap((item) => {
+      const record = asRecord(item);
+      if (!deliveredAds.has(str(record.id))) return [];
+      const creativeId = str(asRecord(record.creative).id);
+      return creativeId ? [creativeId] : [];
+    });
+    const creatives = await fetchIdChunks(`${accountId}/adcreatives`, CREATIVE_FIELDS, "adcreative.id", creativeIds, "creatives");
+    const creativeById = new Map(creatives.map((item) => [str(asRecord(item).id), item]));
+    ads = ads.map((item) => {
+      const record = asRecord(item);
+      const creativeId = str(asRecord(record.creative).id);
+      const full = creativeById.get(creativeId);
+      return full ? { ...record, creative: full } : record;
+    });
+    try {
+      audiences = await graphList({ ...common, path: `${accountId}/customaudiences`, params: { fields: AUDIENCE_FIELDS } });
+    } catch (error) {
+      if (isMetaBudgetStop(error)) stopFor(error);
+      else warnings.push(`${accountId} audiences skipped: ${clipError(error)}`);
+    }
   }
   return { account, campaigns, adsets, ads, audiences, insights, warnings, stopped };
 }

@@ -346,11 +346,12 @@ test("insights run first and creatives are loaded only for ads that delivered", 
     inFlight += 1;
     maxInFlight = Math.max(maxInFlight, inFlight);
     const parsed = new URL(url);
+    const filtering = parsed.searchParams.get("filtering") ?? "";
     calls.push({
       path: parsed.pathname,
       fields: parsed.searchParams.get("fields") ?? "",
       ids: parsed.searchParams.get("ids") ?? "",
-      filtering: parsed.searchParams.get("filtering") ?? "",
+      filtering,
       level: parsed.searchParams.get("level") ?? "",
     });
     try {
@@ -363,22 +364,29 @@ test("insights run first and creatives are loaded only for ads that delivered", 
         });
       }
       if (parsed.searchParams.has("ids")) {
-        const body: Record<string, unknown> = {};
-        for (const id of (parsed.searchParams.get("ids") ?? "").split(",")) {
-          if (id === "c_9") body[id] = { id, name: "Camp", objective: "OUTCOME_LEADS", effective_status: "ACTIVE" };
-          else if (id === "as_9") body[id] = { id, name: "Set", campaign_id: "c_9", effective_status: "ACTIVE", targeting: {} };
-          else if (id === "ad_9") body[id] = { id, name: "Ad", adset_id: "as_9", effective_status: "ACTIVE", creative: { id: "cr_9" } };
-          else if (id === "cr_9") {
-            body[id] = {
-              id,
+        return Response.json({ error: { message: "The ids query parameter is deprecated in v26.0+.", code: 100 } }, { status: 500 });
+      }
+      if (filtering.includes("campaign.id")) {
+        return Response.json({ data: [{ id: "c_9", name: "Camp", objective: "OUTCOME_LEADS", effective_status: "ACTIVE" }] });
+      }
+      if (filtering.includes("adset.id")) {
+        return Response.json({ data: [{ id: "as_9", name: "Set", campaign_id: "c_9", effective_status: "ACTIVE", targeting: {} }] });
+      }
+      if (filtering.includes('"ad.id"') || filtering.includes("ad.id")) {
+        return Response.json({ data: [{ id: "ad_9", name: "Ad", adset_id: "as_9", effective_status: "ACTIVE", creative: { id: "cr_9" } }] });
+      }
+      if (filtering.includes("adcreative.id")) {
+        return Response.json({
+          data: [
+            {
+              id: "cr_9",
               name: "Creative",
               title: "Headline",
               body: "Body copy",
               object_story_spec: { link_data: { name: "Headline", message: "Body copy", link: "https://example.com/offer" } },
-            };
-          }
-        }
-        return Response.json(body);
+            },
+          ],
+        });
       }
       if (parsed.pathname.endsWith("/ads")) {
         return Response.json({
@@ -419,10 +427,12 @@ test("insights run first and creatives are loaded only for ads that delivered", 
   assert.equal(calls[insightAt]?.level, "ad");
   assert.equal(maxInFlight, 1);
   assert.ok(calls.some((call) => call.path.endsWith("/campaigns") && call.filtering.includes("updated_time") && call.filtering.includes("ARCHIVED")));
+  assert.equal(calls.some((call) => call.ids), false);
   assert.equal(calls.some((call) => call.fields.includes("object_story_spec") && call.path.endsWith("/ads")), false);
   const creativeCall = calls.find((call) => call.fields.includes("object_story_spec"));
-  assert.equal(creativeCall?.ids, "cr_9");
-  assert.equal(creativeCall?.path.endsWith("/ids") ?? false, false);
+  assert.equal(creativeCall?.path.endsWith("/adcreatives"), true);
+  assert.match(creativeCall?.filtering ?? "", /cr_9/);
+  assert.match(calls.find((call) => call.filtering.includes("campaign.id"))?.filtering ?? "", /"operator":"IN"/);
   const delivered = (bundle.ads as { id: string; creative?: { title?: string } }[]).find((ad) => ad.id === "ad_9");
   const recent = (bundle.ads as { id: string; creative?: { title?: string; id?: string } }[]).find((ad) => ad.id === "ad_recent");
   assert.equal(delivered?.creative?.title, "Headline");
@@ -430,11 +440,25 @@ test("insights run first and creatives are loaded only for ads that delivered", 
   assert.equal(recent?.creative?.title, undefined);
 });
 
-test("id lookups are chunked and a late rate-limit stop keeps insights", async () => {
+function filterInValues(filtering: string, field: string) {
+  if (!filtering.includes(field)) return null;
+  try {
+    const rows = JSON.parse(filtering) as { field?: string; value?: unknown }[];
+    const match = rows.find((row) => row.field === field);
+    return Array.isArray(match?.value) ? match.value.map(String) : null;
+  } catch {
+    return null;
+  }
+}
+
+test("id filters are chunked and a late rate-limit stop keeps insights", async () => {
   const adIds = Array.from({ length: ID_BATCH + 1 }, (_, index) => `ad_${index}`);
-  const idCalls: string[][] = [];
+  const adBatches: string[][] = [];
   const fetchImpl: FetchLike = async (url) => {
     const parsed = new URL(url);
+    if (parsed.searchParams.has("ids")) {
+      return Response.json({ error: { message: "The ids query parameter is deprecated in v26.0+.", code: 100 } }, { status: 500 });
+    }
     if (parsed.pathname === "/v23.0/act_1") {
       return Response.json({ id: "act_1", name: "A", currency: "USD", timezone_name: "UTC", account_status: 1 });
     }
@@ -443,12 +467,13 @@ test("id lookups are chunked and a late rate-limit stop keeps insights", async (
         data: adIds.map((adId) => ({ ad_id: adId, adset_id: "as_1", campaign_id: "c_1", spend: "1", date_start: "2026-10-07" })),
       });
     }
-    if (parsed.searchParams.has("ids")) {
-      const ids = (parsed.searchParams.get("ids") ?? "").split(",");
-      idCalls.push(ids);
-      if ((parsed.searchParams.get("fields") ?? "").includes("adset_id") && ids.length < ID_BATCH) {
+    const filtering = parsed.searchParams.get("filtering") ?? "";
+    const ads = filterInValues(filtering, "ad.id");
+    if (ads) {
+      adBatches.push(ads);
+      if (ads.length < ID_BATCH) {
         return Response.json(
-          Object.fromEntries(ids.map((id) => [id, { id, name: id, adset_id: "as_1", creative: { id: "cr_1" } }])),
+          { data: [] },
           {
             headers: {
               "x-business-use-case-usage": JSON.stringify({
@@ -458,13 +483,9 @@ test("id lookups are chunked and a late rate-limit stop keeps insights", async (
           },
         );
       }
-      const body: Record<string, unknown> = {};
-      for (const id of ids) {
-        if (id.startsWith("ad_")) body[id] = { id, name: id, adset_id: "as_1", creative: { id: "cr_1" } };
-        else if (id === "c_1") body[id] = { id, name: "Camp", effective_status: "ACTIVE" };
-        else body[id] = { id, name: id, campaign_id: "c_1", effective_status: "ACTIVE" };
-      }
-      return Response.json(body);
+      return Response.json({
+        data: ads.map((id) => ({ id, name: id, adset_id: "as_1", effective_status: "ACTIVE", creative: { id: "cr_1" } })),
+      });
     }
     return Response.json({ data: [] });
   };
@@ -482,7 +503,6 @@ test("id lookups are chunked and a late rate-limit stop keeps insights", async (
     log: () => {},
     deadline: Date.now() + 1_000,
   });
-  const adBatches = idCalls.filter((ids) => ids[0]?.startsWith("ad_"));
   assert.deepEqual(
     adBatches.map((ids) => ids.length),
     [ID_BATCH, 1],
@@ -503,7 +523,63 @@ test("id lookups are chunked and a late rate-limit stop keeps insights", async (
     deadline: Date.now() + 1_000,
   });
   assert.equal(pulled.snapshot.accounts.length, 1);
+  assert.equal(pulled.snapshot.metrics.length, ID_BATCH + 1);
   assert.match(pulled.failures[0] ?? "", /Standard Access/);
+});
+
+test("a deprecated ids error does not drop insights already pulled", async () => {
+  const deprecated = () =>
+    Response.json({ error: { message: "The ids query parameter is deprecated in v26.0+.", code: 100 } }, { status: 500 });
+  const urls: string[] = [];
+  const fetchImpl: FetchLike = async (url) => {
+    urls.push(url);
+    const parsed = new URL(url);
+    if (parsed.searchParams.has("ids")) return deprecated();
+    if (parsed.pathname === "/v23.0/act_1") {
+      return Response.json({ id: "act_1", name: "Specificity Inc Marketing", currency: "USD", timezone_name: "America/New_York", account_status: 1 });
+    }
+    if (parsed.pathname.endsWith("/insights")) {
+      return Response.json({
+        data: [
+          { ad_id: "ad_9", adset_id: "as_9", campaign_id: "c_9", spend: "4.5", impressions: "20", clicks: "2", date_start: "2026-10-07" },
+          { ad_id: "ad_9", adset_id: "as_9", campaign_id: "c_9", spend: "1.5", impressions: "8", clicks: "1", date_start: "2026-10-06" },
+        ],
+      });
+    }
+    const filtering = parsed.searchParams.get("filtering") ?? "";
+    if (filtering.includes("campaign.id")) return deprecated();
+    if (filtering.includes("adset.id")) {
+      return Response.json({ data: [{ id: "as_9", name: "Set", campaign_id: "c_9", effective_status: "ACTIVE" }] });
+    }
+    if (filtering.includes("ad.id")) {
+      return Response.json({
+        data: [{ id: "ad_9", name: "Delivered ad", adset_id: "as_9", effective_status: "ACTIVE", creative: { id: "cr_9" } }],
+      });
+    }
+    if (parsed.pathname.endsWith("/adcreatives")) return deprecated();
+    return Response.json({ data: [] });
+  };
+  const pulled = await pullMetaSnapshot({
+    accountIds: ["act_1"],
+    accessToken: TOKEN,
+    appSecret: SECRET,
+    graphVersion: "v23.0",
+    since: "2026-10-01",
+    until: "2026-10-07",
+    attributionWindows: ["7d_click"],
+    fetchImpl,
+    sleep: async () => {},
+    log: () => {},
+  });
+  assert.equal(urls.some((url) => new URL(url).searchParams.has("ids")), false);
+  assert.equal(pulled.failures.length, 0);
+  assert.equal(pulled.snapshot.accounts.length, 1);
+  assert.equal(pulled.snapshot.adGroups.length, 1);
+  assert.equal(pulled.snapshot.ads.length, 1);
+  assert.equal(pulled.snapshot.metrics.length, 2);
+  assert.equal(pulled.snapshot.campaigns[0]?.name, "c_9");
+  assert.match(pulled.snapshot.warnings.join("\n"), /campaigns skipped: Meta 500 code 100: The ids query parameter is deprecated/);
+  assert.match(pulled.snapshot.warnings.join("\n"), /creatives skipped: Meta 500 code 100: The ids query parameter is deprecated/);
 });
 
 test("meta sync cli flags", () => {
