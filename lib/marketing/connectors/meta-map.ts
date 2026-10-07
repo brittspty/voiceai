@@ -20,6 +20,8 @@ export type MetaBundle = {
   audiences: unknown[];
   insights: unknown[];
   warnings?: string[];
+  /** Set when the pull stopped early so insights already fetched can still be stored. */
+  stopped?: string;
 };
 
 const LEAD_ACTIONS = new Set([

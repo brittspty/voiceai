@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parseMetaSyncArgs } from "./cli-args";
 import { lookbackDays } from "./config";
-import { ASYNC_INSIGHTS_AFTER_DAYS, inclusiveDays, pullAdInsights } from "./connectors/meta";
+import { ASYNC_INSIGHTS_AFTER_DAYS, ID_BATCH, inclusiveDays, pullAdInsights, pullMetaAccount, pullMetaSnapshot } from "./connectors/meta";
 import {
   RATE_LIMIT_CODES,
   appSecretProof,
   businessUseCaseDelayMs,
   graphGet,
+  graphList,
   graphPost,
   insightsThrottleDelayMs,
   type FetchLike,
@@ -211,6 +212,298 @@ test("a short insights window falls back to an async job after a timeout", async
   });
   assert.equal(rows.length, 1);
   assert.ok(methods.some((method) => method.startsWith("POST")));
+});
+
+test("saturated cpu without a regain time waits 5s, not 60s", () => {
+  const stuck = JSON.stringify({
+    "123": [{ call_count: 3, total_cputime: 102, total_time: 78, estimated_time_to_regain_access: 0 }],
+  });
+  assert.equal(businessUseCaseDelayMs(stuck), 5_000);
+});
+
+test("graphList halves the page limit on 5xx and on reduce-the-amount-of-data", async () => {
+  const limits: string[] = [];
+  let calls = 0;
+  const fetchImpl: FetchLike = async (url) => {
+    limits.push(new URL(url).searchParams.get("limit") ?? "");
+    calls += 1;
+    if (calls < 3) {
+      return Response.json({ error: { message: "Please reduce the amount of data", code: 1 } }, { status: 400 });
+    }
+    return Response.json({ data: [{ id: "a" }] });
+  };
+  const rows = await graphList({ ...graph({ fetchImpl }), path: "act_1/ads", log: () => {} });
+  assert.deepEqual(limits, ["100", "50", "25"]);
+  assert.equal(rows.length, 1);
+
+  const statusLimits: string[] = [];
+  const always: FetchLike = async (url) => {
+    statusLimits.push(new URL(url).searchParams.get("limit") ?? "");
+    return Response.json({ error: { message: "internal", code: 1 } }, { status: 500 });
+  };
+  await assert.rejects(() => graphList({ ...graph({ fetchImpl: always }), path: "act_1/ads", log: () => {} }));
+  assert.deepEqual(statusLimits, ["100", "50", "25", "12", "10"]);
+});
+
+test("progress lines name the page and sleep without secrets", async () => {
+  const token = "super-secret-token-value";
+  const lines: string[] = [];
+  const fetchImpl: FetchLike = async (url) => {
+    const parsed = new URL(url);
+    assert.equal(parsed.searchParams.get("access_token"), token);
+    if (!parsed.searchParams.get("after")) {
+      return Response.json(
+        {
+          data: [{ id: "1" }],
+          paging: { next: "https://graph.facebook.com/next?access_token=super-secret-token-value", cursors: { after: "cursor-1" } },
+        },
+        {
+          headers: {
+            "x-business-use-case-usage": JSON.stringify({
+              "123": [{ call_count: 3, total_cputime: 102, total_time: 70, estimated_time_to_regain_access: 0 }],
+            }),
+          },
+        },
+      );
+    }
+    return Response.json({ data: [{ id: "2" }] });
+  };
+  const rows = await graphList({
+    version: "v23.0",
+    path: "act_1/ads",
+    token,
+    appSecret: SECRET,
+    fetchImpl,
+    sleep: async () => {},
+    log: (line) => lines.push(line),
+  });
+  assert.equal(rows.length, 2);
+  assert.equal(lines[0], "Meta GET /v23.0/act_1/ads page 1 rows 1 sleep 5s (total_cputime 102)");
+  assert.equal(lines[1], "Meta GET /v23.0/act_1/ads page 2 rows 2 sleep 0s");
+  assert.equal(lines.some((line) => line.includes(token) || line.includes("appsecret_proof") || line.includes("access_token")), false);
+});
+
+test("a regain wait past the run limit fails instead of sleeping", async () => {
+  let slept = 0;
+  const fetchImpl: FetchLike = async () =>
+    Response.json(
+      { id: "1" },
+      {
+        headers: {
+          "x-business-use-case-usage": JSON.stringify({
+            "123": [{ call_count: 3, total_cputime: 102, total_time: 80, estimated_time_to_regain_access: 2 }],
+          }),
+        },
+      },
+    );
+  await assert.rejects(
+    () => graphGet({ ...graph({ fetchImpl, sleep: async (ms) => { slept = ms; } }), deadline: Date.now() + 1_000, log: () => {} }),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /Development access tier/);
+      assert.match(error.message, /Standard Access/);
+      assert.equal(error.message.includes(TOKEN), false);
+      return true;
+    },
+  );
+  assert.equal(slept, 0);
+});
+
+test("async insight polls back off from 5s to 30s", async () => {
+  const waits: number[] = [];
+  let polls = 0;
+  const fetchImpl: FetchLike = async (url, init) => {
+    const path = new URL(url).pathname;
+    if (init?.method === "POST") return Response.json({ report_run_id: "job_b" });
+    if (path.endsWith("/job_b")) {
+      polls += 1;
+      if (polls < 5) return Response.json({ async_status: "Job Running", async_percent_completion: polls * 10 });
+      return Response.json({ async_status: "Job Completed", async_percent_completion: 100 });
+    }
+    return Response.json({ data: [] });
+  };
+  await pullAdInsights({
+    accountIds: ["act_1"],
+    accountId: "act_1",
+    accessToken: TOKEN,
+    appSecret: SECRET,
+    graphVersion: "v23.0",
+    since: "2026-09-08",
+    until: "2026-10-07",
+    attributionWindows: ["7d_click"],
+    fetchImpl,
+    sleep: async (ms) => waits.push(ms),
+    log: () => {},
+  });
+  assert.deepEqual(waits, [5_000, 10_000, 20_000, 30_000]);
+});
+
+test("insights run first and creatives are loaded only for ads that delivered", async () => {
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const calls: { path: string; fields: string; ids: string; filtering: string; level: string }[] = [];
+  const fetchImpl: FetchLike = async (url) => {
+    inFlight += 1;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    const parsed = new URL(url);
+    calls.push({
+      path: parsed.pathname,
+      fields: parsed.searchParams.get("fields") ?? "",
+      ids: parsed.searchParams.get("ids") ?? "",
+      filtering: parsed.searchParams.get("filtering") ?? "",
+      level: parsed.searchParams.get("level") ?? "",
+    });
+    try {
+      if (parsed.pathname === "/v23.0/act_1") {
+        return Response.json({ id: "act_1", name: "Specificity", currency: "USD", timezone_name: "America/New_York", account_status: 1 });
+      }
+      if (parsed.pathname.endsWith("/insights")) {
+        return Response.json({
+          data: [{ ad_id: "ad_9", adset_id: "as_9", campaign_id: "c_9", spend: "2", impressions: "10", clicks: "1", date_start: "2026-10-07" }],
+        });
+      }
+      if (parsed.searchParams.has("ids")) {
+        const body: Record<string, unknown> = {};
+        for (const id of (parsed.searchParams.get("ids") ?? "").split(",")) {
+          if (id === "c_9") body[id] = { id, name: "Camp", objective: "OUTCOME_LEADS", effective_status: "ACTIVE" };
+          else if (id === "as_9") body[id] = { id, name: "Set", campaign_id: "c_9", effective_status: "ACTIVE", targeting: {} };
+          else if (id === "ad_9") body[id] = { id, name: "Ad", adset_id: "as_9", effective_status: "ACTIVE", creative: { id: "cr_9" } };
+          else if (id === "cr_9") {
+            body[id] = {
+              id,
+              name: "Creative",
+              title: "Headline",
+              body: "Body copy",
+              object_story_spec: { link_data: { name: "Headline", message: "Body copy", link: "https://example.com/offer" } },
+            };
+          }
+        }
+        return Response.json(body);
+      }
+      if (parsed.pathname.endsWith("/ads")) {
+        return Response.json({
+          data: [
+            { id: "ad_9", name: "Ad", adset_id: "as_9", effective_status: "ACTIVE", creative: { id: "cr_9" } },
+            { id: "ad_recent", name: "Recent", adset_id: "as_9", effective_status: "PAUSED", creative: { id: "cr_recent" } },
+          ],
+        });
+      }
+      if (parsed.pathname.endsWith("/campaigns")) {
+        return Response.json({ data: [{ id: "c_9", name: "Camp", objective: "OUTCOME_LEADS", effective_status: "ACTIVE" }] });
+      }
+      if (parsed.pathname.endsWith("/adsets")) {
+        return Response.json({ data: [{ id: "as_9", name: "Set", campaign_id: "c_9", effective_status: "ACTIVE" }] });
+      }
+      return Response.json({ data: [] });
+    } finally {
+      inFlight -= 1;
+    }
+  };
+
+  const bundle = await pullMetaAccount({
+    accountIds: ["act_1"],
+    accountId: "act_1",
+    accessToken: TOKEN,
+    appSecret: SECRET,
+    graphVersion: "v23.0",
+    since: "2026-10-01",
+    until: "2026-10-07",
+    attributionWindows: ["7d_click"],
+    fetchImpl,
+    sleep: async () => {},
+    log: () => {},
+  });
+  const insightAt = calls.findIndex((call) => call.path.endsWith("/insights"));
+  const adsAt = calls.findIndex((call) => call.path.endsWith("/ads"));
+  assert.ok(insightAt >= 0 && insightAt < adsAt);
+  assert.equal(calls[insightAt]?.level, "ad");
+  assert.equal(maxInFlight, 1);
+  assert.ok(calls.some((call) => call.path.endsWith("/campaigns") && call.filtering.includes("updated_time") && call.filtering.includes("ARCHIVED")));
+  assert.equal(calls.some((call) => call.fields.includes("object_story_spec") && call.path.endsWith("/ads")), false);
+  const creativeCall = calls.find((call) => call.fields.includes("object_story_spec"));
+  assert.equal(creativeCall?.ids, "cr_9");
+  assert.equal(creativeCall?.path.endsWith("/ids") ?? false, false);
+  const delivered = (bundle.ads as { id: string; creative?: { title?: string } }[]).find((ad) => ad.id === "ad_9");
+  const recent = (bundle.ads as { id: string; creative?: { title?: string; id?: string } }[]).find((ad) => ad.id === "ad_recent");
+  assert.equal(delivered?.creative?.title, "Headline");
+  assert.equal(recent?.creative?.id, "cr_recent");
+  assert.equal(recent?.creative?.title, undefined);
+});
+
+test("id lookups are chunked and a late rate-limit stop keeps insights", async () => {
+  const adIds = Array.from({ length: ID_BATCH + 1 }, (_, index) => `ad_${index}`);
+  const idCalls: string[][] = [];
+  const fetchImpl: FetchLike = async (url) => {
+    const parsed = new URL(url);
+    if (parsed.pathname === "/v23.0/act_1") {
+      return Response.json({ id: "act_1", name: "A", currency: "USD", timezone_name: "UTC", account_status: 1 });
+    }
+    if (parsed.pathname.endsWith("/insights")) {
+      return Response.json({
+        data: adIds.map((adId) => ({ ad_id: adId, adset_id: "as_1", campaign_id: "c_1", spend: "1", date_start: "2026-10-07" })),
+      });
+    }
+    if (parsed.searchParams.has("ids")) {
+      const ids = (parsed.searchParams.get("ids") ?? "").split(",");
+      idCalls.push(ids);
+      if ((parsed.searchParams.get("fields") ?? "").includes("adset_id") && ids.length < ID_BATCH) {
+        return Response.json(
+          Object.fromEntries(ids.map((id) => [id, { id, name: id, adset_id: "as_1", creative: { id: "cr_1" } }])),
+          {
+            headers: {
+              "x-business-use-case-usage": JSON.stringify({
+                "123": [{ call_count: 1, total_cputime: 1, total_time: 1, estimated_time_to_regain_access: 2 }],
+              }),
+            },
+          },
+        );
+      }
+      const body: Record<string, unknown> = {};
+      for (const id of ids) {
+        if (id.startsWith("ad_")) body[id] = { id, name: id, adset_id: "as_1", creative: { id: "cr_1" } };
+        else if (id === "c_1") body[id] = { id, name: "Camp", effective_status: "ACTIVE" };
+        else body[id] = { id, name: id, campaign_id: "c_1", effective_status: "ACTIVE" };
+      }
+      return Response.json(body);
+    }
+    return Response.json({ data: [] });
+  };
+  const bundle = await pullMetaAccount({
+    accountIds: ["act_1"],
+    accountId: "act_1",
+    accessToken: TOKEN,
+    appSecret: SECRET,
+    graphVersion: "v23.0",
+    since: "2026-10-01",
+    until: "2026-10-07",
+    attributionWindows: ["7d_click"],
+    fetchImpl,
+    sleep: async () => {},
+    log: () => {},
+    deadline: Date.now() + 1_000,
+  });
+  const adBatches = idCalls.filter((ids) => ids[0]?.startsWith("ad_"));
+  assert.deepEqual(
+    adBatches.map((ids) => ids.length),
+    [ID_BATCH, 1],
+  );
+  assert.equal(bundle.insights.length, ID_BATCH + 1);
+  assert.match(bundle.stopped ?? "", /Standard Access/);
+  const pulled = await pullMetaSnapshot({
+    accountIds: ["act_1"],
+    accessToken: TOKEN,
+    appSecret: SECRET,
+    graphVersion: "v23.0",
+    since: "2026-10-01",
+    until: "2026-10-07",
+    attributionWindows: ["7d_click"],
+    fetchImpl,
+    sleep: async () => {},
+    log: () => {},
+    deadline: Date.now() + 1_000,
+  });
+  assert.equal(pulled.snapshot.accounts.length, 1);
+  assert.match(pulled.failures[0] ?? "", /Standard Access/);
 });
 
 test("meta sync cli flags", () => {
