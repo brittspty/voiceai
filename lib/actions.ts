@@ -17,6 +17,7 @@ import { normalizePhone } from "./phone";
 import { randomTotpSecret, totpUri, verifyTotp } from "./totp";
 import type { CallOutcomeName, CallingPolicy } from "./types";
 import { DEFAULT_POLICY } from "./types";
+import { VOICE_CONSENT_FLOOR } from "./voice-consent";
 
 function assertWrite(role: Role) {
   if (!canWrite(role)) throw new Error("You have view-only access.");
@@ -46,6 +47,7 @@ export async function preflightCall(input: { contactId?: string; phone?: string;
     now: new Date(),
     timeZone: tz,
     consent: input.consent ?? "none",
+    consentFloor: VOICE_CONSENT_FLOOR,
     onDoNotCall: Boolean(dnc),
     dialsToday,
     attemptsForContact: 0,

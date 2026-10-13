@@ -1,24 +1,50 @@
-import { NextResponse } from "next/server";
-import { integrationsMode } from "@/lib/env";
-import { verifySignature } from "@/lib/webhook-parse";
-import { acceptOrQueue } from "@/lib/webhook-apply";
-
-async function payload(request: Request) {
-  const text = await request.text();
-  const type = request.headers.get("content-type") || "";
-  if (type.includes("application/x-www-form-urlencoded")) {
-    return { text, body: Object.fromEntries(new URLSearchParams(text)) };
-  }
-  return { text, body: JSON.parse(text || "{}") };
-}
+import type { Prisma } from "@prisma/client";
+import { audit } from "@/lib/audit";
+import { clientConfig } from "@/lib/client-config";
+import { prisma } from "@/lib/db";
+import { appUrl, integrationsMode } from "@/lib/env";
+import { enqueue } from "@/lib/queue";
+import { handleTwilioWebhook } from "@/lib/twilio";
+import { SYSTEM_ACTOR } from "@/lib/types";
+import { applyTwilioEvent, logInboundTwilioCall } from "@/lib/webhook-apply";
+import { parseTwilio } from "@/lib/webhook-parse";
 
 export async function POST(request: Request) {
-  const { text, body } = await payload(request);
-  const secret = process.env.TWILIO_WEBHOOK_SECRET || process.env.TWILIO_AUTH_TOKEN;
-  const signature = request.headers.get("x-voiceops-signature");
-  const shared = request.headers.get("x-webhook-secret");
-  const allowed = (secret && shared === secret) || verifySignature(secret, text, signature, integrationsMode());
-  if (!allowed) return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-  const result = await acceptOrQueue("twilio", body);
-  return NextResponse.json(result);
+  let testMode = true;
+  let companyName = clientConfig().companyName;
+  try {
+    const org = await prisma.org.findUnique({ where: { id: "org" } });
+    if (org) {
+      testMode = org.testMode;
+      companyName = org.name || companyName;
+    }
+  } catch {
+    testMode = true;
+  }
+  return handleTwilioWebhook(request, {
+    mode: integrationsMode(),
+    authToken: process.env.TWILIO_AUTH_TOKEN,
+    webhookSecret: process.env.TWILIO_WEBHOOK_SECRET,
+    appUrl: appUrl(),
+    agentId: process.env.ELEVENLABS_AGENT_ID,
+    elevenKey: process.env.ELEVENLABS_API_KEY,
+    testMode,
+    companyName,
+    applyStatus: async (body) => {
+      const event = parseTwilio(body);
+      if (!event) return { ok: true, ignored: true };
+      return applyTwilioEvent(event);
+    },
+    logInbound: (params) => logInboundTwilioCall(params),
+    onError: async (error, body) => {
+      await enqueue({
+        type: "inbound_event",
+        payload: { source: "twilio", body: body as Prisma.InputJsonValue },
+      });
+      await audit(SYSTEM_ACTOR, "Queued an incoming event after it failed", {
+        type: "webhook",
+        label: error instanceof Error ? error.message : "twilio",
+      });
+    },
+  });
 }

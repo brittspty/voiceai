@@ -184,9 +184,11 @@ model Contact {
   email        String?
   officeId     String?
   office       Office?       @relation(fields: [officeId], references: [id])
-  consent      Consent       @default(none)
-  consentAt    DateTime?
-  source       String
+  consent        Consent   @default(none)
+  consentRevoked Boolean   @default(false)
+  consentAt      DateTime?
+  tags           String[]  @default([])
+  source         String
   ghlContactId String?
   timezone     String        @default("America/New_York")
   createdAt    DateTime      @default(now())
@@ -231,7 +233,7 @@ model Call {
   gateChecks               Json           @default("[]")
   recordingUrl             String?
   elevenLabsConversationId String?
-  twilioCallSid            String?
+  twilioCallSid            String?        @unique
   failureReason            String?
   gatesPassed              Boolean        @default(false)
   triggeredAt              DateTime       @default(now())
@@ -246,7 +248,6 @@ model Call {
   @@index([createdAt])
   @@index([contactId])
   @@index([elevenLabsConversationId])
-  @@index([twilioCallSid])
 }
 
 model Appointment {

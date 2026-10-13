@@ -11,6 +11,7 @@ import { digitsOnly } from "./phone";
 import { enqueue } from "./queue";
 import { SYSTEM_ACTOR, type CallOutcomeName, type TimelineEvent, type TranscriptLine } from "./types";
 import { zonedDayBounds } from "./time";
+import { consentScopeFor, hasAveryDialTag, VOICE_CONSENT_FLOOR } from "./voice-consent";
 
 function sleep(ms: number) {
   if (ms <= 0) return Promise.resolve();
@@ -36,13 +37,18 @@ export async function gateContextForContact(contactId: string, now = new Date())
     prisma.doNotCall.findFirst({ where: { active: true, phone: { contains: digitsOnly(contact.phone).slice(-10) } } }),
   ]);
   const dncLive = Boolean(dnc && (!dnc.expiresAt || dnc.expiresAt > now));
+  const tags = Array.isArray(contact.tags) ? contact.tags : [];
   return {
     contact,
     policy,
+    consentScope: consentScopeFor(contact.consent, contact.consentRevoked),
     gate: {
       now,
       timeZone,
       consent: contact.consent,
+      consentRevoked: contact.consentRevoked,
+      consentFloor: VOICE_CONSENT_FLOOR,
+      averyDialOk: hasAveryDialTag(tags),
       onDoNotCall: dncLive,
       dialsToday,
       attemptsForContact,
@@ -85,6 +91,7 @@ export async function processDialJob(job: { id: string; payload: unknown; callId
         companyName,
         openingLine,
         simulatedOutcome: payload.simulatedOutcome,
+        consentScope: ctx.consentScope ?? undefined,
       },
     },
     {
@@ -275,6 +282,23 @@ export async function processInboundJob(job: { payload: unknown }) {
     const { applyElevenEvent } = await import("./webhook-apply");
     const event = parseEleven(payload.body);
     if (event) await applyElevenEvent(event);
+    return;
+  }
+  if (payload.source === "twilio" && payload.body && typeof payload.body === "object") {
+    const { twilioWebhookKind } = await import("./twilio");
+    const { parseTwilio } = await import("./webhook-parse");
+    const { applyTwilioEvent, logInboundTwilioCall } = await import("./webhook-apply");
+    const record = payload.body as Record<string, unknown>;
+    const params: Record<string, string> = {};
+    for (const [key, value] of Object.entries(record)) {
+      if (typeof value === "string" && value.trim()) params[key] = value.trim();
+      else if (typeof value === "number" && Number.isFinite(value)) params[key] = String(value);
+    }
+    if (twilioWebhookKind(record) === "inbound" || (params.Direction || "").toLowerCase() === "inbound") {
+      await logInboundTwilioCall(params);
+    }
+    const event = parseTwilio(record);
+    if (event) await applyTwilioEvent(event);
     return;
   }
   if (payload.body) {

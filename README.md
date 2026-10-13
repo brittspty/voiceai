@@ -53,7 +53,7 @@ Place a test call from **Settings → Test console**. Preflight runs the same ga
 npm test
 ```
 
-Covers the pre-dial gates (consent, do-not-call, local hours and timezone, daily cap, retry limit), the dial-then-CRM pipeline, webhook parsing and signatures, TOTP, and the production checklist.
+Covers the pre-dial gates (consent tier, revocation, the `avery_dial_ok` tag, do-not-call, local hours and timezone, daily cap, retry limit), the dial-then-CRM pipeline, Twilio signature checks, inbound TwiML, call-status updates, webhook parsing, TOTP, and the production checklist.
 
 ## Environment
 
@@ -64,10 +64,11 @@ See `.env.example`. Secrets are only read from the environment. Do not commit `.
 | `DATABASE_URL`, `REDIS_URL` | Postgres and Redis |
 | `SESSION_SECRET` | Signs the session cookie |
 | `INTEGRATIONS_MODE` | `mock` (default) or `live` |
-| `APP_URL` | Public origin, used in webhook instructions |
-| `GHL_API_KEY`, `GHL_LOCATION_ID`, `GHL_WEBHOOK_SECRET` | GoHighLevel |
-| `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_AGENT_PHONE_NUMBER_ID`, `ELEVENLABS_WEBHOOK_SECRET` | ElevenLabs outbound calls |
-| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `TWILIO_WEBHOOK_SECRET` | Twilio account check and status callbacks |
+| `APP_URL` | Public origin Twilio calls, and the origin used in webhook instructions. Signature checks use this origin plus the request path, not the proxy's internal host |
+| `GHL_API_KEY`, `GHL_LOCATION_ID`, `GHL_WEBHOOK_SECRET` | GoHighLevel. Contact fields `consent_tier` and `consent_revoked`, and the tag `avery_dial_ok`, feed the voice consent gate |
+| `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_AGENT_PHONE_NUMBER_ID`, `ELEVENLABS_WEBHOOK_SECRET` | ElevenLabs outbound calls and, when live with test mode off, inbound register-call. Mock or test mode plays a short message and hangs up |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER` | Twilio account check. `TWILIO_AUTH_TOKEN` also verifies `X-Twilio-Signature` on the voice webhook |
+| `TWILIO_WEBHOOK_SECRET` | Optional. Internal callers only (`x-webhook-secret` or `x-voiceops-signature`). Twilio itself uses the auth token signature |
 | `WORKER_STEP_MS` | Pause between dial states so the live board can show them. `0` skips the pause |
 | `SEED_ORG_NAME`, `SEED_ORG_SUBTITLE`, `SEED_AGENT_NAME`, `SEED_TIMEZONE` | Workspace identity applied on the first seed. Defaults: Specificity Inc, Voice Ops, Avery, America/New_York |
 | `SEED_OFFICES` | `Name\|office\|Timezone;Name\|virtual`. Default: Main office and Virtual, both in `SEED_TIMEZONE` |
@@ -83,9 +84,10 @@ Adapters live in `lib/adapters`. `getPorts()` returns mocks when `INTEGRATIONS_M
 
 - **GoHighLevel.** `POST /api/webhooks/ghl` accepts a contact or appointment event. With the schedule on, a new lead becomes a dial job. After a call, a CRM job writes a note and a tag to `https://services.leadconnectorhq.com`. Health checks `GET /locations/{id}`.
 - **ElevenLabs.** The worker places the call with `POST /v1/convai/twilio/outbound-call`. `POST /api/webhooks/elevenlabs` stores the transcript, outcome, duration, and cost. In mock mode the adapter returns those immediately.
-- **Twilio.** Live mode checks the account. `POST /api/webhooks/twilio` maps `CallStatus` onto the call. ElevenLabs is what actually dials.
+- **Twilio voice.** Live mode checks the account. `POST /api/webhooks/twilio` is the voice webhook and the status callback. Twilio's own posts must carry a valid `X-Twilio-Signature` (HMAC-SHA1 of the public URL plus the sorted form fields, keyed with `TWILIO_AUTH_TOKEN`). `APP_URL` is the origin used for that check when the app sits behind a proxy. Internal callers can still use `x-webhook-secret` or `x-voiceops-signature`. Voice requests get TwiML. An inbound call is logged. If integrations are live, test mode is off, and the ElevenLabs agent id and API key are set, the webhook registers the call with ElevenLabs and returns that TwiML. Otherwise it speaks a short message and hangs up. Status events `initiated`, `ringing`, `answered` (and `in-progress`), `completed`, `busy`, `no-answer`, `failed`, and `canceled` update the call record and ignore repeats or older events. This app does not send SMS.
+- **Consent.** GoHighLevel contact fields `consent_tier` (`low`, `medium`, `high`) and `consent_revoked`, plus the tag `avery_dial_ok` when it is present, are stored on the contact. Avery's outbound voice calls need tier medium or high and must not be revoked. Low or none is blocked. Do-not-call, calling hours, the daily cap, and the retry limit still apply. A medium call passes `consent_scope` `scheduling only` to ElevenLabs. A high call passes `product/service conversation`.
 
-Webhook auth: HMAC-SHA256 of the raw body in `x-voiceops-signature`, or the shared secret in `x-webhook-secret`. Mock mode accepts unsigned bodies so the demo runs with empty secrets. Live mode rejects them.
+Webhook auth for GoHighLevel and ElevenLabs: HMAC-SHA256 of the raw body in `x-voiceops-signature`, or the shared secret in `x-webhook-secret`. Mock mode accepts unsigned bodies so the demo runs with empty secrets. Live mode rejects them. Twilio voice uses the signature above; the shared-secret headers on that route are for internal callers only.
 
 Failed webhook handling and failed CRM writes land in **Settings → Failed jobs**, with retry and discard. Every change is in the activity log. Agent instructions, voice, and calling rules are versioned; publishing is owner-only.
 
