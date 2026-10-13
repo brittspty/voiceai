@@ -7,6 +7,12 @@ export type GateInput = {
   now: Date;
   timeZone: string;
   consent: ConsentLevel | null;
+  /** When true, the consent check fails even if the tier would otherwise pass. */
+  consentRevoked?: boolean;
+  /** Stricter of this floor and policy.minConsent. Avery voice passes "medium". */
+  consentFloor?: ConsentLevel;
+  /** Read from the GHL tag avery_dial_ok. Omitted when the contact was not checked for it. */
+  averyDialOk?: boolean;
   onDoNotCall: boolean;
   dialsToday: number;
   attemptsForContact: number;
@@ -22,14 +28,20 @@ export function evaluateGates(input: GateInput): { passed: boolean; checks: Gate
   const checks: GateCheckView[] = [];
 
   if (policy.requireConsent) {
-    const ok = consentMeets(input.consent, policy.minConsent);
+    const minimum = stricterConsent(policy.minConsent, input.consentFloor);
+    const ok = !input.consentRevoked && consentMeets(input.consent, minimum);
+    const tagNote = averyTagNote(input.averyDialOk);
     checks.push({
       id: "consent",
       label: "Consent",
       passed: ok,
-      detail: ok
-        ? `Consent is ${input.consent}, which meets the ${policy.minConsent} minimum.`
-        : "No usable consent is on file for this number.",
+      detail: input.consentRevoked
+        ? `Consent was revoked for this contact.${tagNote}`
+        : ok
+          ? `Consent is ${input.consent}, which meets the ${minimum} minimum.${tagNote}`
+          : input.consent && input.consent !== "none"
+            ? `Consent is ${input.consent}, which is below the ${minimum} minimum.${tagNote}`
+            : `No usable consent is on file for this number.${tagNote}`,
     });
   } else {
     checks.push({
@@ -100,4 +112,14 @@ export function evaluateGates(input: GateInput): { passed: boolean; checks: Gate
   });
 
   return { passed: checks.every((c) => c.passed), checks };
+}
+
+function stricterConsent(policyMin: ConsentLevel, floor: ConsentLevel | undefined) {
+  if (!floor) return policyMin;
+  return RANK[policyMin] >= RANK[floor] ? policyMin : floor;
+}
+
+function averyTagNote(averyDialOk: boolean | undefined) {
+  if (typeof averyDialOk !== "boolean") return "";
+  return averyDialOk ? " Tag avery_dial_ok is on the contact." : " Tag avery_dial_ok is not on the contact.";
 }

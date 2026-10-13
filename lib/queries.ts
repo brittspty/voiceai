@@ -6,6 +6,7 @@ import { hasEnv, integrationsMode } from "./env";
 import { pageOf, one, type SP } from "./params";
 import { getPublishedPolicy } from "./policy";
 import { digitsOnly } from "./phone";
+import { hasAveryDialTag, VOICE_CONSENT_FLOOR } from "./voice-consent";
 import { readinessItems } from "./readiness";
 import { addDaysISO, zonedDayBounds, zonedISODate, zonedTimeToUtc, startOfWeekMonday } from "./time";
 import type { GateCheckView, TimelineEvent, TranscriptLine } from "./types";
@@ -479,10 +480,14 @@ export async function callingQueue() {
     const tz = contact.timezone || contact.office?.timezone || clientConfig().timezone;
     const bounds = zonedDayBounds(new Date(), tz);
     const dialsToday = await prisma.call.count({ where: { dialedAt: { gte: bounds.start, lt: bounds.end } } });
+    const tags = Array.isArray(contact.tags) ? contact.tags : [];
     const gate = evaluateGates({
       now: new Date(),
       timeZone: tz,
       consent: contact.consent,
+      consentRevoked: contact.consentRevoked,
+      consentFloor: VOICE_CONSENT_FLOOR,
+      averyDialOk: hasAveryDialTag(tags),
       onDoNotCall: dncDigits.has(digitsOnly(contact.phone)),
       dialsToday,
       attemptsForContact: attempts,

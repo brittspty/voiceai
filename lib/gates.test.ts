@@ -123,6 +123,54 @@ test("passes when consent, hours, dnc, cap, and attempts are clear", () => {
   assert.equal(result.checks.every((c) => c.passed), true);
 });
 
+test("Avery voice blocks low, none, and revoked consent, and keeps the other gates", () => {
+  const base = {
+    now: at("2026-10-02T10:30:00"),
+    timeZone: "America/New_York",
+    onDoNotCall: false,
+    dialsToday: 0,
+    attemptsForContact: 0,
+    policy,
+    consentFloor: "medium" as const,
+  };
+  const low = evaluateGates({ ...base, consent: "low", averyDialOk: true });
+  assert.equal(low.passed, false);
+  assert.equal(low.checks.find((c) => c.id === "consent")?.passed, false);
+  assert.match(low.checks.find((c) => c.id === "consent")?.detail || "", /below the medium minimum/);
+  assert.match(low.checks.find((c) => c.id === "consent")?.detail || "", /avery_dial_ok is on the contact/);
+  assert.equal(low.checks.find((c) => c.id === "hours")?.passed, true);
+
+  const none = evaluateGates({ ...base, consent: "none", averyDialOk: false });
+  assert.equal(none.checks.find((c) => c.id === "consent")?.passed, false);
+  assert.match(none.checks.find((c) => c.id === "consent")?.detail || "", /avery_dial_ok is not on the contact/);
+
+  const revoked = evaluateGates({ ...base, consent: "high", consentRevoked: true });
+  assert.equal(revoked.passed, false);
+  assert.match(revoked.checks.find((c) => c.id === "consent")?.detail || "", /revoked/);
+
+  const medium = evaluateGates({ ...base, consent: "medium", averyDialOk: true });
+  assert.equal(medium.passed, true);
+  assert.match(medium.checks.find((c) => c.id === "consent")?.detail || "", /meets the medium minimum/);
+
+  const highFloor = evaluateGates({
+    ...base,
+    consent: "medium",
+    policy: { ...policy, minConsent: "high" },
+  });
+  assert.equal(highFloor.checks.find((c) => c.id === "consent")?.passed, false);
+
+  const dnc = evaluateGates({ ...base, consent: "high", onDoNotCall: true });
+  assert.equal(dnc.checks.find((c) => c.id === "consent")?.passed, true);
+  assert.equal(dnc.checks.find((c) => c.id === "dnc")?.passed, false);
+
+  const capped = evaluateGates({ ...base, consent: "high", dialsToday: 3 });
+  assert.equal(capped.checks.find((c) => c.id === "daily_cap")?.passed, false);
+  const retries = evaluateGates({ ...base, consent: "high", attemptsForContact: 2 });
+  assert.equal(retries.checks.find((c) => c.id === "attempts")?.passed, false);
+  const early = evaluateGates({ ...base, consent: "high", now: at("2026-10-02T08:15:00") });
+  assert.equal(early.checks.find((c) => c.id === "hours")?.passed, false);
+});
+
 test("turned-off compliance switches do not block", () => {
   const result = evaluateGates({
     now: at("2026-10-04T02:00:00"),

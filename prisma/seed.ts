@@ -137,6 +137,9 @@ async function main() {
       { internalField: "Name", ghlField: "contact.name", direction: "read" },
       { internalField: "Outcome", ghlField: "custom.voice_outcome", direction: "write" },
       { internalField: "Consent", ghlField: "custom.consent", direction: "read" },
+      { internalField: "Consent tier", ghlField: "consent_tier", direction: "read" },
+      { internalField: "Consent revoked", ghlField: "consent_revoked", direction: "read" },
+      { internalField: "Avery dial", ghlField: "tags.avery_dial_ok", direction: "read" },
       { internalField: "Tags", ghlField: "tags", direction: "both" },
     ],
   });

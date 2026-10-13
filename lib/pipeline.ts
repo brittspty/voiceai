@@ -1,5 +1,6 @@
 import { evaluateGates, type GateInput } from "./gates";
 import type { CallOutcomeName, TranscriptLine } from "./types";
+import type { ConsentScope } from "./voice-consent";
 
 export type VoicePlaceInput = {
   to: string;
@@ -8,6 +9,7 @@ export type VoicePlaceInput = {
   companyName?: string;
   openingLine: string;
   simulatedOutcome?: CallOutcomeName;
+  consentScope?: ConsentScope;
 };
 
 export type VoicePlaceResult = {

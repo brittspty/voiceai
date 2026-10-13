@@ -9,6 +9,7 @@ import { buildTranscript } from "./transcript";
 import type { ElevenEvent, GhlEvent, TwilioEvent } from "./webhook-parse";
 import { mapVendorOutcome, parseGhl } from "./webhook-parse";
 import { normalizePhone } from "./phone";
+import { reduceTwilioCallStatus, type CallSnapshot } from "./twilio";
 
 export async function applyGhlEvent(event: GhlEvent) {
   if (event.kind === "ignore") return { ok: true, ignored: true };
@@ -41,13 +42,19 @@ export async function applyGhlEvent(event: GhlEvent) {
     return { ok: true };
   }
 
-  if (!event.phone) return { ok: true, ignored: true };
+  if (!event.phone) {
+    if (!event.ghlId) return { ok: true, ignored: true };
+    const existing = await prisma.contact.findFirst({ where: { ghlContactId: event.ghlId } });
+    if (!existing) return { ok: true, ignored: true };
+    await updateContactConsent(existing.id, event);
+    return { ok: true };
+  }
   const phone = normalizePhone(event.phone);
   const existing = event.ghlId
     ? await prisma.contact.findFirst({ where: { ghlContactId: event.ghlId } })
     : await prisma.contact.findFirst({ where: { phone } });
   const office = await prisma.office.findFirst({ where: { type: "virtual", status: "active" } });
-  const contact =
+  let contact =
     existing ??
     (await prisma.contact.create({
       data: {
@@ -55,12 +62,16 @@ export async function applyGhlEvent(event: GhlEvent) {
         phone,
         email: event.email,
         officeId: office?.id,
-        consent: "none",
+        consent: event.consentTier ?? "none",
+        consentRevoked: event.consentRevoked ?? false,
+        consentAt: event.consentTier && event.consentTier !== "none" ? new Date() : null,
+        tags: event.tags,
         source: "GoHighLevel",
         ghlContactId: event.ghlId,
         timezone: event.timezone || office?.timezone || clientConfig().timezone,
       },
     }));
+  if (existing) contact = await updateContactConsent(existing.id, event);
   await audit(SYSTEM_ACTOR, "Synced a lead from GoHighLevel", { type: "contact", id: contact.id, label: contact.name });
   const org = await prisma.org.findUnique({ where: { id: "org" } });
   if (org?.scheduleEnabled) {
@@ -109,26 +120,87 @@ export async function applyElevenEvent(event: ElevenEvent) {
 export async function applyTwilioEvent(event: TwilioEvent) {
   const call = await prisma.call.findFirst({ where: { twilioCallSid: event.callSid } });
   if (!call) return { ok: true, ignored: true };
-  const status = event.status.toLowerCase();
-  if (status === "queued" || status === "ringing") {
-    await prisma.call.update({ where: { id: call.id }, data: { status: "dialing" } });
-  } else if (status === "in-progress") {
-    await prisma.call.update({ where: { id: call.id }, data: { status: "in_progress", startedAt: call.startedAt ?? new Date() } });
-  } else if (status === "busy" || status === "no-answer" || status === "failed" || status === "canceled") {
-    await prisma.call.update({
-      where: { id: call.id },
+  const nowIso = new Date().toISOString();
+  const current: CallSnapshot = {
+    status: call.status,
+    outcome: call.outcome,
+    startedAt: call.startedAt?.toISOString() ?? null,
+    endedAt: call.endedAt?.toISOString() ?? null,
+    dialedAt: call.dialedAt?.toISOString() ?? null,
+    durationSec: call.durationSec,
+    failureReason: call.failureReason,
+  };
+  const reduced = reduceTwilioCallStatus(current, event, nowIso);
+  if (!reduced.changed) return { ok: true, unchanged: true };
+  const timeline = Array.isArray(call.timeline) ? [...(call.timeline as unknown[])] : [];
+  timeline.push({ at: nowIso, label: `Twilio ${event.status.toLowerCase()}` });
+  await prisma.call.update({
+    where: { id: call.id },
+    data: {
+      status: reduced.next.status,
+      outcome: (reduced.next.outcome as CallOutcome | null) ?? undefined,
+      startedAt: reduced.next.startedAt ? new Date(reduced.next.startedAt) : undefined,
+      endedAt: reduced.next.endedAt ? new Date(reduced.next.endedAt) : undefined,
+      dialedAt: reduced.next.dialedAt ? new Date(reduced.next.dialedAt) : undefined,
+      durationSec: reduced.next.durationSec,
+      failureReason: reduced.next.failureReason,
+      timeline: timeline as Prisma.InputJsonValue,
+    },
+  });
+  return { ok: true };
+}
+
+export async function logInboundTwilioCall(params: Record<string, string>) {
+  const callSid = params.CallSid || params.callSid;
+  if (!callSid) return { ok: true, ignored: true };
+  const existing = await prisma.call.findFirst({ where: { twilioCallSid: callSid } });
+  if (existing) return { ok: true, callId: existing.id, duplicate: true };
+  const phone = normalizePhone(params.From || params.Caller || "");
+  const office = await prisma.office.findFirst({ where: { type: "virtual", status: "active" } });
+  const org = await prisma.org.findUnique({ where: { id: "org" } });
+  let contact = phone ? await prisma.contact.findFirst({ where: { phone } }) : null;
+  if (!contact) {
+    contact = await prisma.contact.create({
       data: {
-        status: "failed",
-        outcome: status === "no-answer" ? "no_answer" : "failed",
-        durationSec: 0,
-        endedAt: new Date(),
-        failureReason: `Twilio reported ${status}`,
+        name: "Inbound caller",
+        phone: phone || `inbound:${callSid}`,
+        officeId: office?.id,
+        consent: "none",
+        source: "Inbound",
+        timezone: office?.timezone || org?.timezone || clientConfig().timezone,
       },
     });
-  } else if (status === "completed" && event.durationSec != null) {
-    await prisma.call.update({ where: { id: call.id }, data: { durationSec: event.durationSec } });
   }
-  return { ok: true };
+  const call = await prisma.call.create({
+    data: {
+      contactId: contact.id,
+      officeId: contact.officeId,
+      status: "queued",
+      consent: contact.consent,
+      isTest: Boolean(org?.testMode),
+      direction: "inbound",
+      twilioCallSid: callSid,
+      timeline: [{ at: new Date().toISOString(), label: "Inbound call" }] as Prisma.InputJsonValue,
+    },
+  });
+  await audit(SYSTEM_ACTOR, "Logged an inbound call", { type: "call", id: call.id, label: contact.phone });
+  return { ok: true, callId: call.id };
+}
+
+async function updateContactConsent(contactId: string, event: Extract<GhlEvent, { kind: "contact" }>) {
+  const data: Prisma.ContactUpdateInput = {};
+  if (event.consentTier) {
+    data.consent = event.consentTier;
+    data.consentAt = event.consentTier === "none" ? null : new Date();
+  }
+  if (event.consentRevoked !== undefined) data.consentRevoked = event.consentRevoked;
+  if (event.tagsProvided) data.tags = { set: event.tags };
+  if (!Object.keys(data).length) {
+    const current = await prisma.contact.findUnique({ where: { id: contactId } });
+    if (!current) throw new Error("Contact not found");
+    return current;
+  }
+  return prisma.contact.update({ where: { id: contactId }, data });
 }
 
 export async function acceptOrQueue(source: "ghl" | "elevenlabs" | "twilio", body: unknown) {

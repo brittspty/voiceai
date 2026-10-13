@@ -1,4 +1,5 @@
 import { integrationsMode } from "../env";
+import { elevenLabsOutboundPayload } from "../twilio";
 import { buildTranscript } from "../transcript";
 import type { CallOutcomeName } from "../types";
 import type { CrmPort, CrmWriteInput, VoicePlaceInput, VoicePlaceResult, VoicePort } from "../pipeline";
@@ -92,16 +93,15 @@ export const liveVoice: VoicePort = {
     const res = await fetch("https://api.elevenlabs.io/v1/convai/twilio/outbound-call", {
       method: "POST",
       headers: { "xi-api-key": key, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        agent_id: agentId,
-        agent_phone_number_id: phoneNumberId,
-        to_number: input.to,
-        conversation_initiation_client_data: {
-          conversation_config_override: {
-            agent: { first_message: input.openingLine },
-          },
-        },
-      }),
+      body: JSON.stringify(
+        elevenLabsOutboundPayload({
+          agentId,
+          agentPhoneNumberId: phoneNumberId,
+          to: input.to,
+          openingLine: input.openingLine,
+          consentScope: input.consentScope,
+        }),
+      ),
     });
     const text = await res.text();
     if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${text.slice(0, 240)}`);

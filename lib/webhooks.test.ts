@@ -32,6 +32,37 @@ test("parses ElevenLabs and Twilio callbacks", () => {
   assert.equal(mapVendorOutcome("no-answer"), "no_answer");
 });
 
+test("reads GoHighLevel consent_tier, consent_revoked, and the avery_dial_ok tag", () => {
+  const contact = parseGhl({
+    type: "ContactUpdate",
+    contact: {
+      id: "ghl_9",
+      phone: "+19195550100",
+      tags: ["Medicare", "Avery_Dial_OK"],
+      customFields: [
+        { key: "consent_tier", value: "medium" },
+        { key: "consent_revoked", field_value: "false" },
+      ],
+    },
+  });
+  assert.equal(contact.kind, "contact");
+  if (contact.kind === "contact") {
+    assert.equal(contact.consentTier, "medium");
+    assert.equal(contact.consentRevoked, false);
+    assert.equal(contact.tagsProvided, true);
+    assert.deepEqual(contact.tags, ["Medicare", "Avery_Dial_OK"]);
+  }
+  const revoked = parseGhl({
+    id: "ghl_9",
+    customField: { consent_tier: "high", consent_revoked: "yes" },
+  });
+  assert.equal(revoked.kind, "contact");
+  if (revoked.kind === "contact") {
+    assert.equal(revoked.consentTier, "high");
+    assert.equal(revoked.consentRevoked, true);
+  }
+});
+
 test("checks webhook signatures and allows unsigned mock traffic", () => {
   const body = "{\"ok\":true}";
   const sig = signBody("secret", body);

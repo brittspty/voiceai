@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { normalizePhone } from "./phone";
+import type { ConsentLevel } from "./types";
+import { readGhlConsent } from "./voice-consent";
 
 export function signBody(secret: string, body: string) {
   return createHmac("sha256", secret).update(body).digest("hex");
@@ -24,6 +26,9 @@ export type GhlEvent =
       phone: string;
       email?: string;
       tags: string[];
+      tagsProvided?: boolean;
+      consentTier?: ConsentLevel;
+      consentRevoked?: boolean;
       timezone?: string;
     }
   | {
@@ -61,7 +66,8 @@ export function parseGhl(body: unknown): GhlEvent {
   const first = str(contact.firstName);
   const last = str(contact.lastName);
   const name = str(contact.name || contact.fullName || contact.contactName) || [first, last].filter(Boolean).join(" ") || "New lead";
-  const tags = Array.isArray(contact.tags) ? contact.tags.map((t) => String(t)) : [];
+  const consent = readGhlConsent(body);
+  const tags = consent.tagsProvided ? consent.tags : Array.isArray(contact.tags) ? contact.tags.map((t) => String(t)) : [];
   return {
     kind: "contact",
     event,
@@ -70,6 +76,9 @@ export function parseGhl(body: unknown): GhlEvent {
     phone,
     email: str(contact.email),
     tags,
+    tagsProvided: consent.tagsProvided,
+    consentTier: consent.tier ?? undefined,
+    consentRevoked: consent.revoked === null ? undefined : consent.revoked,
     timezone: str(contact.timezone || contact.timeZone),
   };
 }
