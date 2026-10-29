@@ -2,10 +2,14 @@
 
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import type { Consent, OfficeStatus, OfficeType, Prisma, Role } from "@prisma/client";
 import QRCode from "qrcode";
 import { checkEleven, checkGhl, checkTwilio } from "./adapters";
 import { clientConfig, parseBrandColor, parseLogoUrl, parseMark } from "./client-config";
+import { goLiveBlockReason } from "./customer-copy";
+import { getSettingsBundle } from "./queries";
+import { TEST_STRIP_COOKIE } from "./ui-prefs";
 import { audit } from "./audit";
 import { canWrite, isOwner, requireUser } from "./auth";
 import { prisma } from "./db";
@@ -290,9 +294,16 @@ export async function publishRules(config: CallingPolicy) {
   revalidatePath("/settings/capabilities");
 }
 
-export async function updateSwitches(input: { requireConsent: boolean; enforceDnc: boolean; enforceCallingHours: boolean; testMode: boolean; scheduleEnabled: boolean }) {
+export async function updateSwitches(input: { requireConsent: boolean; enforceDnc: boolean; enforceCallingHours: boolean; testMode: boolean; scheduleEnabled: boolean; confirm?: string }) {
   const user = await requireUser();
   assertOwner(user.role);
+  const org = await prisma.org.findUnique({ where: { id: "org" } });
+  if (!org) throw new Error("Organization is not seeded");
+  if (org.testMode && !input.testMode) {
+    const bundle = await getSettingsBundle();
+    const reason = goLiveBlockReason({ confirm: input.confirm, items: bundle.readiness });
+    if (reason) throw new Error(reason);
+  }
   const { policy, version } = await (await import("./policy")).getPublishedPolicy();
   const next = { ...policy, requireConsent: input.requireConsent, enforceDnc: input.enforceDnc, enforceCallingHours: input.enforceCallingHours };
   const latest = await prisma.callingRulesVersion.findFirst({ orderBy: { version: "desc" } });
@@ -314,6 +325,13 @@ export async function updateSwitches(input: { requireConsent: boolean; enforceDn
   await audit(user, "Updated safety switches", { type: "settings", label: input.testMode ? "Test mode on" : "Test mode off" });
   revalidatePath("/settings/capabilities");
   revalidatePath("/settings/production");
+  revalidatePath("/", "layout");
+}
+
+export async function dismissTestStrip() {
+  await requireUser();
+  const jar = await cookies();
+  jar.set(TEST_STRIP_COOKIE, "1", { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax", httpOnly: true });
 }
 
 export async function addOffice(input: { name: string; timezone: string; type: OfficeType; calendarName: string; advisor: string }) {

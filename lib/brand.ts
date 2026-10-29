@@ -6,6 +6,10 @@ export const PRODUCT_TITLE = "VoiceOps: AI calling for service businesses";
 export const PRODUCT_TAGLINE =
   "Avery calls your new leads in minutes, follows calling rules, and logs every call to GoHighLevel.";
 
+/** One brand name for the header, sidebar, and sign-in. Not the workspace subtitle. */
+export const BRAND_WORDMARK = "Specificity";
+export const BRAND_TAGLINE = "Identify. Engage. Convert.";
+
 /** Placeholder tokens until a workspace sets its own color and logo. */
 export const BRAND_FONT = "Poppins";
 export const PLACEHOLDER_BRAND_COLOR = "#FF5800";

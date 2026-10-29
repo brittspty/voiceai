@@ -159,6 +159,16 @@ export function presentGoLiveItem(item: ReadinessItem): GoLiveCopy {
   return { id: item.id, ...copy, ok: item.ok, adminHint: item.hint };
 }
 
+export const GO_LIVE_PHRASE = "GO LIVE";
+
+/** Why leaving test mode must be refused, or null when the switch is allowed. */
+export function goLiveBlockReason(input: { confirm: string | undefined; items: ReadinessItem[] }): string | null {
+  if ((input.confirm || "").trim() !== GO_LIVE_PHRASE) return "Type GO LIVE to confirm.";
+  const progress = goLiveProgress(input.items);
+  if (!progress.ready) return `Finish ${progress.remaining} more steps to go live.`;
+  return null;
+}
+
 export function goLiveProgress(items: ReadinessItem[]) {
   const done = items.filter((item) => item.ok).length;
   const blocking = items.filter((item) => item.id !== "test-mode" && !item.ok);

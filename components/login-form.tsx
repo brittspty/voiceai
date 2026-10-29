@@ -11,8 +11,9 @@ export type LoginBrand = {
   brandColor: string;
   logoUrl: string;
   mark: string;
-  productName: string;
+  wordmark: string;
   tagline: string;
+  productLine: string;
 };
 
 export type DemoHint = {
@@ -42,13 +43,13 @@ function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }
       <div className="w-full max-w-sm rounded-2xl border border-line bg-card p-6 shadow-[var(--shadow)]">
         <div className="mb-5">
           <div className="flex items-center gap-2.5">
-            <BrandMark brandColor={brand.brandColor} logoUrl={brand.logoUrl} mark={brand.mark} letter alt={brand.productName} />
+            <BrandMark brandColor={brand.brandColor} logoUrl={brand.logoUrl} mark={brand.mark} letter alt={brand.wordmark} />
             <div>
-              <h1 className="text-sm font-semibold">Sign in to {brand.productName}</h1>
-              <div className="text-xs text-zinc-600 dark:text-zinc-300">{brand.companyName}</div>
+              <h1 className="text-sm font-semibold">Sign in to {brand.wordmark}</h1>
+              <p className="text-xs italic text-zinc-600 dark:text-zinc-300">{brand.tagline}</p>
             </div>
           </div>
-          <p className="mt-3 text-sm leading-6 text-zinc-700 dark:text-zinc-300">{brand.tagline}</p>
+          <p className="mt-3 text-sm leading-6 text-zinc-700 dark:text-zinc-300">{brand.productLine}</p>
         </div>
         {!ticket ? (
           <form
@@ -105,7 +106,7 @@ function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }
             <button disabled={pending} className="h-10 w-full rounded-full bg-ink text-sm text-white dark:bg-white dark:text-black">Verify</button>
           </form>
         )}
-        <p className="mt-4 text-sm text-zinc-700 dark:text-zinc-300">New to VoiceOps? <Link href="/contact" className="font-medium underline">Request access</Link>. We&apos;ll set you up within 1 business day.</p>
+        <p className="mt-4 text-sm text-zinc-700 dark:text-zinc-300">New to {brand.wordmark}? <Link href="/contact" className="font-medium underline">Request access</Link>. We&apos;ll set you up within 1 business day.</p>
         {hint && (
           <div className="mt-5 rounded-lg bg-chip p-3 text-xs text-muted">
             <div>Demo owner: {hint.ownerEmail}</div>
@@ -113,7 +114,7 @@ function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }
             <div className="mt-1">Admin: {hint.adminEmail}</div>
           </div>
         )}
-        <p className="mt-5 text-xs text-zinc-600 dark:text-zinc-300">© Specificity Inc · <Link className="underline" href="/privacy">Privacy</Link> · <Link className="underline" href="/terms">Terms</Link> · <Link className="underline" href="/contact">Support</Link></p>
+        <p className="mt-5 text-xs text-zinc-600 dark:text-zinc-300">© {brand.wordmark} · {brand.tagline} · <Link className="underline" href="/privacy">Privacy</Link> · <Link className="underline" href="/terms">Terms</Link> · <Link className="underline" href="/contact">Support</Link></p>
       </div>
     </div>
   );

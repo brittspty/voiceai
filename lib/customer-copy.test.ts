@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { goLiveProgress, periodLabel, presentIntegration } from "./customer-copy";
+import { goLiveBlockReason, goLiveProgress, periodLabel, presentIntegration } from "./customer-copy";
 import { readinessItems, type ReadinessInput } from "./readiness";
 
 const ready: ReadinessInput = {
@@ -77,6 +77,15 @@ test("a day-old check is unknown until someone checks again", () => {
   });
   assert.equal(shown.status, "Unknown");
   assert.equal(shown.stale, true);
+});
+
+test("leaving test mode needs the phrase and a finished checklist", () => {
+  const readyItems = readinessItems(ready);
+  assert.equal(goLiveBlockReason({ confirm: undefined, items: readyItems }), "Type GO LIVE to confirm.");
+  assert.equal(goLiveBlockReason({ confirm: "go live", items: readyItems }), "Type GO LIVE to confirm.");
+  assert.equal(goLiveBlockReason({ confirm: "GO LIVE", items: readyItems }), null);
+  const blocked = readinessItems({ ...ready, hasGhlKey: false, integrationsMode: "mock" });
+  assert.match(goLiveBlockReason({ confirm: "GO LIVE", items: blocked }) || "", /Finish \d+ more steps/);
 });
 
 test("period labels follow the overview dropdown", () => {

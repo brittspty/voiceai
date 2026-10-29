@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { refreshCalendar } from "@/lib/actions";
 import { addDaysISO, formatHHMM, parseHHMM, zonedTimeToUtc } from "@/lib/time";
@@ -63,8 +64,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
             return <div key={iso} className={`border-b border-line px-2 py-2 text-center font-medium ${today ? "text-ink" : "text-muted"}`}>{label}</div>;
           })}
           {HOURS.map((hour) => (
-            <>
-              <div key={`h-${hour}`} className="border-t border-line px-2 py-3 text-right text-muted">{formatHHMM(hour * 60).replace(":00 ", " ")}</div>
+            <Fragment key={hour}>
+              <div className="border-t border-line px-2 py-3 text-right text-muted">{formatHHMM(hour * 60).replace(":00 ", " ")}</div>
               {data.days.map((iso) => {
                 const weekday = new Date(`${iso}T12:00:00Z`).getUTCDay();
                 const hours = office.hours.find((h) => h.weekday === weekday);
@@ -78,7 +79,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                   </div>
                 );
               })}
-            </>
+            </Fragment>
           ))}
         </div>
       </div>

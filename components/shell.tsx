@@ -25,7 +25,7 @@ export function AppShell({
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
   user: { name: string; email: string; role: string };
-  mode: { testMode: boolean; agentName: string; productName: string };
+  mode: { testMode: boolean; agentName: string; wordmark: string; tagline: string };
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -48,12 +48,7 @@ export function AppShell({
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2.5 px-3 py-4">
         <BrandMark brandColor={org.brandColor} logoUrl={org.logoUrl} mark={org.mark} />
-        {!collapsed && (
-          <div className="leading-tight">
-            <div className="text-sm font-semibold">{org.name}</div>
-            <div className="text-xs text-muted">{org.subtitle}</div>
-          </div>
-        )}
+        {!collapsed && <div className="text-sm font-semibold">{mode.wordmark}</div>}
       </div>
       <nav className="flex flex-col gap-0.5 px-2">
         {NAV.map((item) => {
@@ -95,7 +90,7 @@ export function AppShell({
           <button className="rounded-md p-1.5 text-muted hover:bg-hover" onClick={() => (narrow ? setOpen(true) : setCollapsed((v) => !v))} aria-label="Toggle sidebar">
             <PanelLeft className="h-4 w-4" />
           </button>
-          <div className="text-sm font-medium">{mode.productName}</div>
+          <div className="text-sm font-medium">{mode.wordmark}</div>
           <Link
             href="/settings/production"
             className={cn(
@@ -138,7 +133,7 @@ export function AppShell({
         </header>
         <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
         <footer className="border-t border-line px-4 py-3 text-xs text-zinc-600 dark:text-zinc-300 md:px-8">
-          © {org.name} · <Link className="underline" href="/privacy">Privacy</Link> · <Link className="underline" href="/terms">Terms</Link> · <Link className="underline" href="/contact">Support</Link>
+          © {mode.wordmark} · {mode.tagline} · <Link className="underline" href="/privacy">Privacy</Link> · <Link className="underline" href="/terms">Terms</Link> · <Link className="underline" href="/contact">Support</Link>
         </footer>
       </div>
     </div>

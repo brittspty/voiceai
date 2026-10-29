@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/shell";
 import { requireUser } from "@/lib/auth";
-import { PRODUCT_NAME, resolveBrandColor, resolveLogoUrl } from "@/lib/brand";
+import { BRAND_TAGLINE, BRAND_WORDMARK, resolveBrandColor, resolveLogoUrl } from "@/lib/brand";
 import { getOrg } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <AppShell
       org={{ name: org.name, subtitle: org.subtitle, brandColor: resolveBrandColor(org.brandColor), logoUrl: resolveLogoUrl(org.logoUrl), mark: org.mark }}
       user={user}
-      mode={{ testMode: org.testMode, agentName: org.agentName, productName: PRODUCT_NAME }}
+      mode={{ testMode: org.testMode, agentName: org.agentName, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE }}
     >
       {children}
     </AppShell>

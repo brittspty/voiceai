@@ -49,7 +49,7 @@ export function GoLivePanel({
     setPending(true);
     setError(null);
     try {
-      await updateSwitches({ ...switches, testMode: nextTestMode });
+      await updateSwitches({ ...switches, testMode: nextTestMode, confirm: nextTestMode ? undefined : phrase });
       setOpen(false);
       setConfirmBack(false);
       router.refresh();
