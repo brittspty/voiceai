@@ -48,3 +48,15 @@ export function isOwner(role: Role) {
 export function isSuperAdmin(role: string) {
   return role === "super_admin";
 }
+
+export const OPERATOR_SETTINGS = ["users", "production", "integrations"] as const;
+
+export function canOpenOperatorSettings(role: string) {
+  return role === "owner" || role === "super_admin";
+}
+
+export async function requireStaffUser() {
+  const user = await requireUser();
+  if (user.role === "client_viewer") throw new Error("You can only view your results.");
+  return user;
+}

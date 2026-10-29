@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   const session = await prisma.session.create({
     data: { userId: user.id, expiresAt: new Date(Date.now() + 12 * 24 * 3600 * 1000) },
   });
-  const token = await signToken({ kind: "session", sid: session.id, exp: Math.floor(session.expiresAt.getTime() / 1000) });
+  const token = await signToken({ kind: "session", sid: session.id, role: user.role, exp: Math.floor(session.expiresAt.getTime() / 1000) });
   await audit({ id: user.id, name: user.name }, "Signed in with two-step verification", { type: "session", id: session.id, label: user.email });
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, token, {

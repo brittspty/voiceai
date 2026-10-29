@@ -3,18 +3,20 @@
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { audit } from "../audit";
-import { requireUser } from "../auth";
+import { requireStaffUser } from "../auth";
 import { prisma } from "../db";
 import { setCampaignBudget } from "./budget";
 import { prismaBudgetStore } from "./budget-store";
+import { passwordIssues } from "./access";
+import { clientViewersEnabled } from "./config";
 import { loadMarketingAccess } from "./queries";
 import { decideRecommendation } from "./recommendations";
-import { assertCanCreateShareLink, newShareToken } from "./share-link";
+import { assertCanCreateShareLink, defaultShareExpiry, hashPasscode, newShareToken } from "./share-link";
 import { OFFERED_SKILL, skillIsSafe } from "./skills";
 import { WORKSPACE_ID } from "./types";
 
 export async function saveCampaignBudget(formData: FormData) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   const access = await loadMarketingAccess(user);
   await setCampaignBudget(
     { kind: "human", access },
@@ -32,7 +34,7 @@ export async function saveCampaignBudget(formData: FormData) {
 }
 
 export async function decideMarketingRecommendation(formData: FormData) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   const access = await loadMarketingAccess(user);
   const id = String(formData.get("id") || "");
   const decision = String(formData.get("decision") || "dismiss");
@@ -55,6 +57,16 @@ export async function decideMarketingRecommendation(formData: FormData) {
     await prisma.recommendation.update({
       where: { id: rec.id },
       data: { status: "verified", decisionNote: "", decidedById: null, decidedAt: null },
+    });
+    revalidatePath("/marketing");
+    return;
+  }
+  if (decision === "assign") {
+    if (rec.type !== "budget_change") throw new Error("Only a budget handoff can be assigned.");
+    await audit(user, "Assigned a budget change to a teammate", { type: "recommendation", id: rec.id, label: rec.title });
+    await prisma.recommendation.update({
+      where: { id: rec.id },
+      data: { decisionNote: "assigned", decidedById: user.id },
     });
     revalidatePath("/marketing");
     return;
@@ -98,7 +110,7 @@ export async function decideMarketingRecommendation(formData: FormData) {
 }
 
 export async function decideSkillOffer(formData: FormData) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   const access = await loadMarketingAccess(user);
   if (access.kind !== "super_admin") throw new Error("Super admins only.");
   if (!skillIsSafe(OFFERED_SKILL)) throw new Error("This skill cannot be added.");
@@ -107,19 +119,22 @@ export async function decideSkillOffer(formData: FormData) {
   revalidatePath("/marketing/skills");
 }
 
-export async function createShareLink(input: { label?: string; expiresAt?: string | null }) {
-  const user = await requireUser();
+export async function createShareLink(input: { label?: string; expiresAt?: string | null; passcode?: string | null }) {
+  const user = await requireStaffUser();
   const access = await loadMarketingAccess(user);
   assertCanCreateShareLink(access, WORKSPACE_ID);
   const minted = newShareToken();
-  const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
+  const chosen = input.expiresAt ? new Date(input.expiresAt) : defaultShareExpiry();
+  const expiresAt = Number.isNaN(chosen.getTime()) ? defaultShareExpiry() : chosen;
+  const passcode = (input.passcode || "").trim();
   await prisma.clientShareLink.create({
     data: {
       workspaceId: WORKSPACE_ID,
       tokenHash: minted.tokenHash,
       label: (input.label || "").slice(0, 120),
       createdById: user.id,
-      expiresAt: expiresAt && !Number.isNaN(expiresAt.getTime()) ? expiresAt : null,
+      expiresAt,
+      passcodeHash: passcode ? hashPasscode(passcode) : null,
     },
   });
   revalidatePath("/marketing");
@@ -127,11 +142,14 @@ export async function createShareLink(input: { label?: string; expiresAt?: strin
 }
 
 export async function createClientViewer(input: { name: string; email: string; password: string }) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
+  if (!clientViewersEnabled()) throw new Error("Client viewer invites are turned off.");
   const access = await loadMarketingAccess(user);
   if (access.kind !== "super_admin" && access.kind !== "account_manager") {
     throw new Error("You can't add a client viewer.");
   }
+  const issues = passwordIssues(input.password, input.email);
+  if (issues.length) throw new Error(issues[0]);
   const created = await prisma.user.create({
     data: {
       name: input.name.trim(),
@@ -146,7 +164,7 @@ export async function createClientViewer(input: { name: string; email: string; p
 }
 
 export async function revokeShareLink(id: string) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   const access = await loadMarketingAccess(user);
   assertCanCreateShareLink(access, WORKSPACE_ID);
   await prisma.clientShareLink.update({ where: { id }, data: { revokedAt: new Date() } });

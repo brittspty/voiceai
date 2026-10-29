@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { MarketingView } from "@/components/marketing-view";
 import { requireUser } from "@/lib/auth";
-import { clientLinksEnabled, digestEnabled, monitorEnabled } from "@/lib/marketing/config";
+import { amBudgetCapUsd, clientLinksEnabled, digestEnabled, monitorEnabled } from "@/lib/marketing/config";
 import { getMarketingPage, loadMarketingAccess } from "@/lib/marketing/queries";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,8 @@ export default async function MarketingPage() {
         clientLinks: clientLinksEnabled(),
         canEditBudget: access.canEditBudget,
         canCreateShareLink: access.canCreateShareLink,
+        isSuperAdmin: access.kind === "super_admin",
+        budgetCap: amBudgetCapUsd(),
       }}
     />
   );

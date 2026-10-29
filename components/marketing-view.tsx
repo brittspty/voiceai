@@ -175,7 +175,7 @@ export function MarketingView(props: {
   alerts?: AlertRow[];
   recommendations?: RecommendationRow[];
   digests?: DigestRow[];
-  flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean };
+  flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; isSuperAdmin?: boolean; budgetCap?: number };
 }) {
   const impressions = props.totals.reduce((sum, row) => sum + row.impressions, 0);
   const clicks = props.totals.reduce((sum, row) => sum + row.clicks, 0);
@@ -188,8 +188,8 @@ export function MarketingView(props: {
       />
       {props.mock && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card px-4 py-3 text-sm">
-          <Pill tone="amber">Mock data</Pill>
-          <span className="text-muted">Fixture rows for this workspace. Not a live ad account.</span>
+          <Pill tone="amber">MOCK</Pill>
+          <span className="font-semibold text-ink">EXAMPLE DATA</span>
         </div>
       )}
       {props.lastRun?.error && (
@@ -272,7 +272,7 @@ export function MarketingView(props: {
                     {campaign.reportedBudgetAmount !== null && campaign.reportedBudgetType !== "none" && (
                       <div className="text-xs text-muted">Platform reported {money(campaign.reportedBudgetAmount, campaign.currency)}</div>
                     )}
-                    {props.flags?.canEditBudget && (
+                    {props.flags?.canEditBudget && campaign.budgetAmount !== null && campaign.budgetType !== "none" && (
                       <form action={saveCampaignBudget} className="mt-2 flex flex-wrap gap-1">
                         <input type="hidden" name="campaignId" value={campaign.id} />
                         <input type="hidden" name="adAccountId" value={campaign.accountId} />
@@ -330,7 +330,7 @@ export function MarketingView(props: {
 
           <div id="queue">
             {props.flags?.monitor ? (
-              <DecisionQueue cards={props.recommendations ?? []} canAct={Boolean(props.flags.canEditBudget)} />
+              <DecisionQueue cards={props.recommendations ?? []} canAct={Boolean(props.flags.canEditBudget)} isSuperAdmin={props.flags.isSuperAdmin} budgetCap={props.flags.budgetCap} />
             ) : (
               <p className="text-sm text-muted">Decision cards are turned off.</p>
             )}
@@ -340,7 +340,10 @@ export function MarketingView(props: {
           <section>
             <h2 className="mb-2 font-medium">Client link</h2>
             {props.flags?.clientLinks && props.flags.canCreateShareLink ? (
-              <ShareLinkButton />
+              <div className="space-y-2">
+                <ShareLinkButton />
+                <p className="text-sm text-muted">New links last 30 days unless you pick a date. <a className="text-brand-ink" href="/marketing/links">Revoke a link</a></p>
+              </div>
             ) : (
               <p className="text-sm text-muted">Client links are turned off.</p>
             )}

@@ -2,6 +2,38 @@ import { createHash, randomBytes } from "node:crypto";
 import { clientLinksEnabled, type Env } from "./config";
 import type { MarketingAccess } from "./access";
 
+export const SHARE_LINK_DEFAULT_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function defaultShareExpiry(now = new Date()) {
+  return new Date(now.getTime() + SHARE_LINK_DEFAULT_MS);
+}
+
+const passcodeFails = new Map<string, { n: number; lockedUntil: number }>();
+
+export function passcodeCookieValue(linkId: string, passcodeHash: string) {
+  return hashShareToken(`${linkId}:${passcodeHash}`);
+}
+
+export function hashPasscode(code: string) {
+  return createHash("sha256").update(code.trim()).digest("hex");
+}
+
+export function checkSharePasscode(linkId: string, given: string, expectedHash: string, now = Date.now()) {
+  const row = passcodeFails.get(linkId);
+  if (row && row.lockedUntil > now) return { ok: false, locked: true, triesLeft: 0 };
+  if (hashPasscode(given) === expectedHash) {
+    passcodeFails.delete(linkId);
+    return { ok: true, locked: false, triesLeft: 5 };
+  }
+  const n = (row?.n ?? 0) + 1;
+  if (n >= 5) {
+    passcodeFails.set(linkId, { n, lockedUntil: now + 15 * 60 * 1000 });
+    return { ok: false, locked: true, triesLeft: 0 };
+  }
+  passcodeFails.set(linkId, { n, lockedUntil: 0 });
+  return { ok: false, locked: false, triesLeft: 5 - n };
+}
+
 export function newShareToken() {
   const token = randomBytes(32).toString("base64url");
   return { token, tokenHash: hashShareToken(token) };

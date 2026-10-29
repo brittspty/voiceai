@@ -36,6 +36,7 @@ export function buildClientShare(input: {
   sharedBy?: string;
   expires?: string;
   rangeLabel?: string;
+  updated?: string;
 }): ClientShareView {
   const campaigns = input.campaigns.map((row) => {
     const status = campaignStatus(row.booked, row.leads);
@@ -80,7 +81,7 @@ export function buildClientShare(input: {
       },
     ],
     campaigns,
-    updated: "Updated from the latest sync",
+    updated: input.updated || "Updated just now",
     sharedBy: input.sharedBy || "your marketing team",
     expires: input.expires || "",
   };

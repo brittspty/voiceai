@@ -11,7 +11,7 @@ import { goLiveBlockReason } from "./customer-copy";
 import { getSettingsBundle } from "./queries";
 import { TEST_STRIP_COOKIE } from "./ui-prefs";
 import { audit } from "./audit";
-import { canWrite, isOwner, isSuperAdmin, requireUser } from "./auth";
+import { canOpenOperatorSettings, canWrite, isOwner, isSuperAdmin, requireStaffUser, requireUser } from "./auth";
 import { appUrl } from "./env";
 import { sendInviteEmail } from "./mail";
 import { createHash, randomBytes } from "node:crypto";
@@ -34,7 +34,7 @@ function assertOwner(role: Role) {
 }
 
 export async function preflightCall(input: { contactId?: string; phone?: string; consent?: Consent; timeZone?: string }) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertWrite(user.role);
   if (input.contactId) {
     const ctx = await gateContextForContact(input.contactId);
@@ -69,7 +69,7 @@ export async function startTestCall(input: {
   officeId?: string;
   simulatedOutcome?: CallOutcomeName;
 }) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertWrite(user.role);
   let contact = input.contactId ? await prisma.contact.findUnique({ where: { id: input.contactId } }) : null;
   if (!contact) {
@@ -117,7 +117,7 @@ export async function startTestCall(input: {
 }
 
 export async function addDnc(input: { phone: string; reason: string; expires?: string }) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertWrite(user.role);
   const phone = normalizePhone(input.phone);
   if (!phone) throw new Error("Enter a phone number.");
@@ -136,7 +136,7 @@ export async function addDnc(input: { phone: string; reason: string; expires?: s
 }
 
 export async function importDnc(csv: string) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertWrite(user.role);
   const lines = csv.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   let count = 0;
@@ -159,7 +159,7 @@ export async function importDnc(csv: string) {
 }
 
 export async function setDncActive(id: string, active: boolean) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertWrite(user.role);
   const row = await prisma.doNotCall.update({ where: { id }, data: { active } });
   await audit(user, active ? "Reactivated a do-not-call number" : "Deactivated a do-not-call number", {
@@ -171,7 +171,7 @@ export async function setDncActive(id: string, active: boolean) {
 }
 
 export async function saveKnowledge(input: { id?: string; title: string; body: string; publish?: boolean }) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertWrite(user.role);
   const data = {
     title: input.title.trim() || "Untitled document",
@@ -192,7 +192,7 @@ export async function saveKnowledge(input: { id?: string; title: string; body: s
 }
 
 export async function saveWorkspace(input: { name: string; subtitle: string; timezone: string; brandColor: string; logoUrl: string; mark: string }) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertOwner(user.role);
   const name = input.name.trim();
   if (!name) throw new Error("Enter a company name.");
@@ -224,7 +224,7 @@ export async function saveWorkspace(input: { name: string; subtitle: string; tim
 }
 
 export async function saveAgentDraft(input: { agentName: string; instructions: string; openingLine: string }) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertOwner(user.role);
   const latest = await prisma.agentVersion.findFirst({ orderBy: { version: "desc" } });
   const version = (latest?.version ?? 0) + 1;
@@ -245,7 +245,7 @@ export async function saveAgentDraft(input: { agentName: string; instructions: s
 }
 
 export async function publishAgent(id: string) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertOwner(user.role);
   const row = await prisma.agentVersion.findUnique({ where: { id } });
   if (!row) throw new Error("Draft not found");
@@ -258,7 +258,7 @@ export async function publishAgent(id: string) {
 }
 
 export async function publishVoice(voiceId: string, voiceName: string) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertOwner(user.role);
   const latest = await prisma.voiceVersion.findFirst({ orderBy: { version: "desc" } });
   await prisma.voiceVersion.updateMany({ where: { status: "published" }, data: { status: "draft" } });
@@ -278,7 +278,7 @@ export async function publishVoice(voiceId: string, voiceName: string) {
 }
 
 export async function publishRules(config: CallingPolicy) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertOwner(user.role);
   const policy = asPolicy({ ...DEFAULT_POLICY, ...config });
   const latest = await prisma.callingRulesVersion.findFirst({ orderBy: { version: "desc" } });
@@ -299,8 +299,8 @@ export async function publishRules(config: CallingPolicy) {
 }
 
 export async function updateSwitches(input: { requireConsent: boolean; enforceDnc: boolean; enforceCallingHours: boolean; testMode: boolean; scheduleEnabled: boolean; confirm?: string }) {
-  const user = await requireUser();
-  assertOwner(user.role);
+  const user = await requireStaffUser();
+  if (!canOpenOperatorSettings(user.role)) throw new Error("Only an owner or super admin can do that.");
   const org = await prisma.org.findUnique({ where: { id: "org" } });
   if (!org) throw new Error("Organization is not seeded");
   if (org.testMode && !input.testMode) {
@@ -339,7 +339,7 @@ export async function dismissTestStrip() {
 }
 
 export async function addOffice(input: { name: string; timezone: string; type: OfficeType; calendarName: string; advisor: string }) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertWrite(user.role);
   const office = await prisma.office.create({
     data: {
@@ -365,7 +365,7 @@ export async function addOffice(input: { name: string; timezone: string; type: O
 }
 
 export async function setOfficeStatus(id: string, status: OfficeStatus) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertWrite(user.role);
   const office = await prisma.office.update({ where: { id }, data: { status } });
   await audit(user, status === "paused" ? "Paused calling for an office" : "Resumed calling for an office", {
@@ -382,8 +382,8 @@ function hashInviteToken(token: string) {
 }
 
 export async function inviteTeammate(input: { name: string; email: string; role: Role }) {
-  const user = await requireUser();
-  assertOwner(user.role);
+  const user = await requireStaffUser();
+  if (!canOpenOperatorSettings(user.role)) throw new Error("Only an owner or super admin can do that.");
   if (input.role !== "owner" && input.role !== "admin" && input.role !== "viewer") {
     throw new Error("That role is assigned separately.");
   }
@@ -425,7 +425,7 @@ export async function requestAccess(input: { name: string; email: string; busine
 }
 
 export async function beginTotp() {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   const secret = randomTotpSecret();
   await prisma.user.update({ where: { id: user.id }, data: { totpPendingSecret: secret } });
   const uri = totpUri(user.email, secret);
@@ -434,7 +434,7 @@ export async function beginTotp() {
 }
 
 export async function confirmTotp(code: string) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   const row = await prisma.user.findUnique({ where: { id: user.id } });
   if (!row?.totpPendingSecret) throw new Error("Start two-step setup first.");
   const ok = await verifyTotp(row.totpPendingSecret, code);
@@ -448,7 +448,7 @@ export async function confirmTotp(code: string) {
 }
 
 export async function disableTotp(userId: string) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   if (user.id !== userId) assertOwner(user.role);
   const target = await prisma.user.update({
     where: { id: userId },
@@ -459,8 +459,8 @@ export async function disableTotp(userId: string) {
 }
 
 export async function refreshIntegrations() {
-  const user = await requireUser();
-  assertWrite(user.role);
+  const user = await requireStaffUser();
+  if (!canOpenOperatorSettings(user.role)) throw new Error("Only an owner or super admin can do that.");
   const checks = [
     { provider: "ghl", label: "GoHighLevel", ...(await checkGhl()) },
     { provider: "elevenlabs", label: "ElevenLabs", ...(await checkEleven()) },
@@ -478,7 +478,7 @@ export async function refreshIntegrations() {
 }
 
 export async function refreshCalendar(officeId: string) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertWrite(user.role);
   await prisma.office.update({ where: { id: officeId }, data: { syncedAt: new Date() } });
   await audit(user, "Refreshed calendar availability from GoHighLevel", { type: "office", id: officeId });
@@ -487,7 +487,7 @@ export async function refreshCalendar(officeId: string) {
 }
 
 export async function retryJob(id: string) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertWrite(user.role);
   await prisma.job.update({
     where: { id },
@@ -498,7 +498,7 @@ export async function retryJob(id: string) {
 }
 
 export async function retryAllJobs() {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertWrite(user.role);
   await prisma.job.updateMany({
     where: { status: "failed" },
@@ -509,7 +509,7 @@ export async function retryAllJobs() {
 }
 
 export async function discardJob(id: string) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   assertWrite(user.role);
   await prisma.job.update({ where: { id }, data: { status: "discarded", finishedAt: new Date() } });
   await audit(user, "Discarded a failed job", { type: "job", id });
@@ -517,7 +517,7 @@ export async function discardJob(id: string) {
 }
 
 export async function saveMapping(id: string, ghlField: string, enabled: boolean) {
-  const user = await requireUser();
+  const user = await requireStaffUser();
   if (!isSuperAdmin(user.role)) throw new Error("Only Specificity can change CRM keys.");
   const row = await prisma.fieldMapping.update({ where: { id }, data: { ghlField, enabled } });
   await audit(user, "Updated a CRM field mapping", { type: "field_mapping", id, label: row.internalField });

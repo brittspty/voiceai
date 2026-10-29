@@ -104,6 +104,17 @@ export function clientLinksEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_CLIENT_LINKS");
 }
 
+/** Off unless MARKETING_CLIENT_VIEWERS is explicitly on. */
+export function clientViewersEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_CLIENT_VIEWERS");
+}
+
+export function amBudgetCapUsd(env: Env = process.env) {
+  const parsed = Number(env.MARKETING_AM_BUDGET_CAP_USD ?? 500);
+  if (!Number.isFinite(parsed) || parsed < 0) return 500;
+  return parsed;
+}
+
 export const FULL_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
 export const INTRADAY_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 

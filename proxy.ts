@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { clientViewerBlock } from "@/lib/marketing/client-gate";
 import { readToken, SESSION_COOKIE } from "@/lib/session-token";
 
 const PUBLIC_PREFIXES = ["/login", "/forgot-password", "/privacy", "/terms", "/contact", "/request-access", "/invite/", "/api/auth/", "/api/webhooks/", "/api/health", "/share", "/api/share"];
+
+function withPath(request: NextRequest) {
+  const headers = new Headers(request.headers);
+  headers.set("x-voiceops-path", request.nextUrl.pathname);
+  const response = NextResponse.next({ request: { headers } });
+  if (request.nextUrl.pathname.startsWith("/share") || request.nextUrl.pathname.startsWith("/api/share")) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
+  return response;
+}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -20,13 +31,23 @@ export async function proxy(request: NextRequest) {
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
+  if (signedIn && payload?.kind === "session" && payload.role === "client_viewer") {
+    const block = clientViewerBlock(pathname);
+    if (block === "deny") return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+    if (block === "redirect") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/marketing/client";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
   if (signedIn && pathname === "/login") {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = payload?.kind === "session" && payload.role === "client_viewer" ? "/marketing/client" : "/";
     url.search = "";
     return NextResponse.redirect(url);
   }
-  return NextResponse.next();
+  return withPath(request);
 }
 
 export const config = {

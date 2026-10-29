@@ -46,9 +46,10 @@ Flags default **off**:
 
 ### Follow-ups
 
+- PDF download on the client share view.
 - Turn the flags on only after the owner approves the deploy checklist.
 - Email and SMS delivery for digests.
 - Designer replaces the placeholder brand tokens.
 - UX specs for alerts, suggestions, digests, and the client view.
 - A screen to invite a client viewer (the API exists; the form does not).
-- Keep a client viewer who signs in with email out of Calls and Settings.
+- A signed-in client viewer is limited to the client results page. Invites stay behind `MARKETING_CLIENT_VIEWERS` and need a strong password.

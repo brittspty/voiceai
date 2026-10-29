@@ -7,6 +7,7 @@ import { BarChart3, BookOpen, FileText, LayoutDashboard, Moon, PanelLeft, Phone,
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
+import { roleLabel } from "@/lib/marketing/access";
 import { cn } from "@/lib/cn";
 
 const NAV = [
@@ -23,7 +24,7 @@ export function AppShell({
   mode,
   children,
 }: {
-  org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string; testMode?: boolean };
+  org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
   user: { name: string; email: string; role: string };
   mode: { testMode: boolean; agentName: string; wordmark: string; tagline: string };
   children: React.ReactNode;
@@ -51,10 +52,7 @@ export function AppShell({
         {!collapsed && <div className="text-sm font-semibold">{mode.wordmark}</div>}
       </div>
       <nav className="flex flex-col gap-0.5 px-2">
-        {(user.role === "client_viewer"
-          ? [{ href: "/marketing/client", label: "Performance", icon: BarChart3 }]
-          : [...NAV, ...(user.role === "super_admin" ? [{ href: "/marketing/compare", label: "Clients", icon: BarChart3 }, { href: "/marketing/skills", label: "Skills", icon: BarChart3 }] : [])]
-        ).map((item) => {
+        {(user.role === "client_viewer" ? [{ href: "/marketing/client", label: "Performance", icon: BarChart3 }] : NAV).map((item) => {
           const Icon = item.icon;
           const active = itemActive(item.href);
           return (
@@ -62,7 +60,7 @@ export function AppShell({
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
-              className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm", active ? "bg-hover font-medium text-ink" : "text-muted hover:bg-hover")}
+              className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm", active ? "bg-hover font-medium text-ink" : "text-zinc-600 hover:bg-hover dark:text-zinc-300")}
             >
               <Icon className="h-4 w-4" />
               {!collapsed && item.label}
@@ -71,7 +69,7 @@ export function AppShell({
         })}
       </nav>
       <div className="mt-auto px-2 pb-4">
-        {user.role !== "client_viewer" && <Link href="/docs" className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted hover:bg-hover", pathname === "/docs" && "bg-hover text-ink")}>
+        {user.role !== "client_viewer" && <Link href="/docs" className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-zinc-600 hover:bg-hover dark:text-zinc-300", pathname === "/docs" && "bg-hover text-ink")}>
           <FileText className="h-4 w-4" />
           {!collapsed && "Help"}
         </Link>}
@@ -94,16 +92,18 @@ export function AppShell({
             <PanelLeft className="h-4 w-4" />
           </button>
           <div className="text-sm font-medium">{mode.wordmark}</div>
-          <Link
-            href="/settings/production"
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-              mode.testMode ? "bg-amber-100 text-amber-950" : "bg-emerald-100 text-emerald-950",
-            )}
-          >
-            <span aria-hidden="true">●</span>
-            {mode.testMode ? "Test mode: no real calls" : `Live: ${mode.agentName} is calling leads`}
-          </Link>
+          {user.role !== "client_viewer" && (
+            <Link
+              href="/settings/production"
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+                mode.testMode ? "bg-amber-100 text-amber-950" : "bg-emerald-100 text-emerald-950",
+              )}
+            >
+              <span aria-hidden="true">●</span>
+              {mode.testMode ? "Test mode: no real calls" : `Live: ${mode.agentName} is calling leads`}
+            </Link>
+          )}
           <div className="ml-auto flex items-center gap-1">
             <button className="rounded-full p-2 text-muted hover:bg-hover" title="Switch theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Switch theme">
               <Sun className="h-4 w-4 dark:hidden" />
@@ -121,9 +121,9 @@ export function AppShell({
                   <div className="px-2 py-1.5">
                     <div className="text-sm font-medium">{user.name}</div>
                     <div className="text-xs text-muted">{user.email}</div>
-                    <div className="mt-1 text-xs capitalize text-muted">{user.role}</div>
+                    <div className="mt-1 text-xs text-muted">{roleLabel(user.role)}</div>
                   </div>
-                  {user.role !== "client_viewer" && (
+                  {user.role !== "client_viewer" && user.role !== "account_manager" && (
                     <Dropdown.Item asChild>
                       <Link href="/settings/users" className="block rounded-md px-2 py-1.5 text-sm outline-none hover:bg-hover">Two-step sign-in</Link>
                     </Dropdown.Item>

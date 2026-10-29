@@ -68,7 +68,7 @@ export async function getMarketingPage(access?: MarketingAccess) {
           where: { status: { in: ["verified", "accepted", "declined", "dismissed"] } },
           orderBy: { createdAt: "desc" },
           take: 50,
-          include: { ad: { select: { name: true } } },
+          include: { ad: { select: { name: true } }, campaign: { select: { budgetSetBy: { select: { name: true } } } } },
         }),
         prisma.managerDigest.findMany({ where: { userId: access.userId }, orderBy: { createdAt: "desc" }, take: 12 }),
       ])
@@ -170,6 +170,7 @@ export async function getMarketingPage(access?: MarketingAccess) {
         decidedAt: rec.decidedAt?.toISOString() ?? null,
         decisionNote: rec.decisionNote,
         verifierNote: rec.verifierNote,
+        setByName: rec.campaign?.budgetSetBy?.name ?? null,
         currentBudgetAmount: rec.currentBudgetAmount ? dec(rec.currentBudgetAmount) : null,
         proposedBudgetAmount: rec.proposedBudgetAmount ? dec(rec.proposedBudgetAmount) : null,
         proposedCurrency: rec.proposedCurrency,
@@ -186,11 +187,28 @@ export async function getMarketingPage(access?: MarketingAccess) {
   };
 }
 
-export async function loadClientPerformance(clientName: string, meta?: { sharedBy?: string; expires?: string }) {
+export function clientRange(range: string | undefined, now = new Date()) {
+  const end = new Date(now);
+  const start = new Date(now);
+  if (range === "30") start.setUTCDate(start.getUTCDate() - 30);
+  else if (range === "month") start.setUTCDate(1);
+  else if (range === "last-month") {
+    start.setUTCMonth(start.getUTCMonth() - 1, 1);
+    end.setUTCDate(0);
+  } else start.setUTCDate(start.getUTCDate() - 7);
+  const label = range === "30" ? "Last 30 days" : range === "month" ? "This month" : range === "last-month" ? "Last month" : "Last 7 days";
+  return { start, end, label };
+}
+
+export async function loadClientPerformance(clientName: string, meta?: { sharedBy?: string; expires?: string; range?: string }) {
+  const window = clientRange(meta?.range);
   const metrics = await prisma.dailyMetric.findMany({
+    where: { date: { gte: window.start, lte: window.end } },
     orderBy: [{ date: "desc" }],
     take: 200,
     select: {
+      date: true,
+      ingestedAt: true,
       impressions: true,
       platformLeads: true,
       platformConversions: true,
@@ -202,6 +220,7 @@ export async function loadClientPerformance(clientName: string, meta?: { sharedB
   let adViews = 0;
   let leads = 0;
   let booked = 0;
+  let latest = window.end;
   for (const metric of metrics) {
     const name = metric.campaign?.name || "Campaign";
     const row = byCampaign.get(name) ?? { name, channel: metric.platform === "meta" ? "Meta" : metric.platform, leads: 0, booked: 0 };
@@ -211,7 +230,9 @@ export async function loadClientPerformance(clientName: string, meta?: { sharedB
     adViews += Number(metric.impressions);
     leads += dec(metric.platformLeads);
     booked += dec(metric.platformConversions);
+    if (metric.ingestedAt > latest) latest = metric.ingestedAt;
   }
+  const clock = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York", timeZoneName: "short" }).format(latest);
   return buildClientShare({
     client: clientName,
     adViews,
@@ -220,6 +241,8 @@ export async function loadClientPerformance(clientName: string, meta?: { sharedB
     campaigns: [...byCampaign.values()],
     sharedBy: meta?.sharedBy,
     expires: meta?.expires,
+    rangeLabel: window.label,
+    updated: `Updated ${clock}`,
   });
 }
 

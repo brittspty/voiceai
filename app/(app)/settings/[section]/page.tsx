@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ConfirmButton, ConfirmSubmitButton } from "@/components/confirm-dialog";
 import { GoLivePanel } from "@/components/go-live-panel";
 import { InviteForm } from "@/components/invite-form";
@@ -8,7 +8,7 @@ import { PageTitle } from "@/components/shell";
 import { TestConsole } from "@/components/test-console";
 import { TotpSetup } from "@/components/totp-setup";
 import { VoicePicker } from "@/components/voice-picker";
-import { requireUser, isOwner, canWrite, isSuperAdmin } from "@/lib/auth";
+import { requireUser, isOwner, canWrite, isSuperAdmin, canOpenOperatorSettings, OPERATOR_SETTINGS } from "@/lib/auth";
 import { resolveBrandColor, resolveMark } from "@/lib/brand";
 import { actorLabel, CONSENT_OPTIONS, humanFieldLabel, integrationKeyId, presentIntegration } from "@/lib/customer-copy";
 import { prisma } from "@/lib/db";
@@ -61,6 +61,8 @@ export default async function SettingsSection({ params, searchParams }: { params
   const title = TITLES[rawSection];
   if (!title) notFound();
   const user = await requireUser();
+  if (user.role === "client_viewer") redirect("/marketing/client");
+  if ((OPERATOR_SETTINGS as readonly string[]).includes(section) && !canOpenOperatorSettings(user.role)) redirect("/settings/calling");
   const bundle = await getSettingsBundle();
   return (
     <div>

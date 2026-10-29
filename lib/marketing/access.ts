@@ -51,6 +51,29 @@ export function plannedSuperAdmins(env: Env = process.env) {
   }));
 }
 
+export function roleLabel(role: string) {
+  const labels: Record<string, string> = {
+    super_admin: "Super admin",
+    account_manager: "Account manager",
+    client_viewer: "Client viewer",
+    owner: "Owner",
+    admin: "Admin",
+    viewer: "Viewer",
+  };
+  return labels[role] || role;
+}
+
+export function passwordIssues(password: string, email = "") {
+  const issues: string[] = [];
+  if (password.length < 12) issues.push("Use at least 12 characters.");
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+    issues.push("Use upper and lower case letters and a number.");
+  }
+  const local = email.split("@")[0]?.toLowerCase();
+  if (local && local.length > 2 && password.toLowerCase().includes(local)) issues.push("Don't use the email name in the password.");
+  return issues;
+}
+
 export function isSuperAdmin(user: { role: string; email: string }, env: Env = process.env) {
   if (user.role === "super_admin") return true;
   return superAdminEmails(env).includes(user.email.trim().toLowerCase());

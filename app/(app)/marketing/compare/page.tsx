@@ -7,6 +7,10 @@ import { loadMarketingAccess } from "@/lib/marketing/queries";
 
 export const dynamic = "force-dynamic";
 
+function dollars(amount: number) {
+  return amount.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+
 export default async function ComparePage({ searchParams }: { searchParams: Promise<{ flagged?: string; q?: string }> }) {
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
@@ -42,7 +46,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
         <div className="rounded-lg bg-canvas p-3">Clients<b className="block text-xl">{compared.clients}</b></div>
         <div className="rounded-lg bg-canvas p-3">Booked calls<b className="block text-xl">{compared.booked}</b></div>
         <div className="rounded-lg bg-canvas p-3">Flagged<b className="block text-xl">{compared.flagged}</b></div>
-        <div className="rounded-lg bg-canvas p-3">Median cost per booked call<b className="block text-xl">{compared.median ? compared.median.toFixed(0) : "—"}</b></div>
+        <div className="rounded-lg bg-canvas p-3">Median cost per booked call<b className="block text-xl">{compared.median ? dollars(compared.median) : "—"}</b></div>
       </div>
       {!rows.length && <p className="mt-4 text-sm">No clients match these filters. <Link href="/marketing/compare">Clear filters</Link></p>}
       <div className="mt-4 overflow-x-auto rounded-xl border border-line bg-card">
@@ -60,9 +64,9 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
                 <td className="px-3 py-2">{row.flag}{row.reason ? ` · ${row.reason}` : ""}</td>
                 <td className="px-3 py-2">{row.name}</td>
                 <td className="px-3 py-2">{row.manager}</td>
-                <td className="px-3 py-2">{row.spend.toFixed(0)}</td>
+                <td className="px-3 py-2">{dollars(row.spend)}</td>
                 <td className="px-3 py-2">{row.booked}</td>
-                <td className="px-3 py-2">{row.costPerBooked ? row.costPerBooked.toFixed(0) : "—"}</td>
+                <td className="px-3 py-2">{row.costPerBooked ? dollars(row.costPerBooked) : "—"}</td>
                 <td className="px-3 py-2">{row.openDecisions}</td>
               </tr>
             ))}

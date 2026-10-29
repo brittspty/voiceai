@@ -878,8 +878,9 @@ model ClientShareLink {
   id          String    @id @default(cuid())
   workspaceId String
   tokenHash   String    @unique
-  label       String    @default("")
-  createdById String
+  label        String   @default("")
+  passcodeHash String?
+  createdById  String
   createdBy   User      @relation(fields: [createdById], references: [id])
   expiresAt   DateTime?
   revokedAt   DateTime?

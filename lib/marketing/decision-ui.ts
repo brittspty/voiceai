@@ -25,6 +25,7 @@ export type DecisionInput = {
   proposedCurrency: string | null;
   proposedBudgetPeriod: string | null;
   verifierNote?: string;
+  setByName?: string | null;
 };
 
 export function confidenceLabel(sampleSize: number) {
@@ -41,21 +42,39 @@ export function cardExpiry(input: DecisionInput, now: Date) {
   return { ends, expired: now.getTime() > ends, urgent };
 }
 
+function usd(amount: number) {
+  return amount.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: Number.isInteger(amount) ? 0 : 2 });
+}
+
 export function budgetCardCopy(input: DecisionInput) {
   const current = input.currentBudgetAmount ?? 0;
   const next = input.proposedBudgetAmount ?? current;
   const delta = next - current;
   const pct = current ? Math.round((delta / current) * 100) : 0;
-  const sign = delta >= 0 ? "+" : "";
+  const unit = input.proposedBudgetPeriod === "lifetime" ? " lifetime" : "/day";
+  const sign = delta >= 0 ? "+" : "−";
   return {
     tag: "Budget change · You make this change",
     headline: input.title,
     why: input.summary,
-    current: current ? `${current.toFixed(0)} per ${input.proposedBudgetPeriod || "day"}` : "Not set",
-    recommended: next ? `${next.toFixed(0)} per ${input.proposedBudgetPeriod || "day"}` : "—",
-    change: `${sign}${delta.toFixed(0)} (${sign}${pct}%)`,
+    current: `${usd(current)}${unit}`,
+    recommended: `${usd(next)}${unit}`,
+    change: `${sign}${usd(Math.abs(delta))} (${delta >= 0 ? "+" : ""}${pct}%)`,
+    setBy: input.setByName ? `set by ${input.setByName}` : "No one has set this yet",
     fixed: BUDGET_FIXED_LINE,
   };
+}
+
+export function expiryLabel(ends: number, now: number) {
+  const left = ends - now;
+  if (left <= 0) return "Expired";
+  const hours = Math.floor(left / 3_600_000);
+  const minutes = Math.floor((left % 3_600_000) / 60_000);
+  return `expires in ${hours}h ${minutes}m`;
+}
+
+export function budgetNeedsSuperAdmin(proposed: number | null, cap: number) {
+  return proposed !== null && proposed > cap;
 }
 
 export function decisionVisibleText(input: DecisionInput) {
