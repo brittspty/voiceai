@@ -3,14 +3,16 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
-import { PRODUCT_NAME } from "@/lib/client-config";
 
 export type LoginBrand = {
   companyName: string;
   brandColor: string;
   logoUrl: string;
   mark: string;
+  productName: string;
+  tagline: string;
 };
 
 export type DemoHint = {
@@ -38,12 +40,15 @@ function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }
   return (
     <div className="grid min-h-screen place-items-center bg-canvas px-4">
       <div className="w-full max-w-sm rounded-2xl border border-line bg-card p-6 shadow-[var(--shadow)]">
-        <div className="mb-5 flex items-center gap-2.5">
-          <BrandMark brandColor={brand.brandColor} logoUrl={brand.logoUrl} mark={brand.mark} letter />
-          <div>
-            <div className="text-sm font-semibold">{PRODUCT_NAME}</div>
-            <div className="text-xs text-muted">{brand.companyName}</div>
+        <div className="mb-5">
+          <div className="flex items-center gap-2.5">
+            <BrandMark brandColor={brand.brandColor} logoUrl={brand.logoUrl} mark={brand.mark} letter alt={brand.productName} />
+            <div>
+              <h1 className="text-sm font-semibold">Sign in to {brand.productName}</h1>
+              <div className="text-xs text-zinc-600 dark:text-zinc-300">{brand.companyName}</div>
+            </div>
           </div>
+          <p className="mt-3 text-sm leading-6 text-zinc-700 dark:text-zinc-300">{brand.tagline}</p>
         </div>
         {!ticket ? (
           <form
@@ -68,10 +73,11 @@ function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }
               router.refresh();
             }}
           >
-            <label className="block text-sm">Email<input name="email" type="email" required className="mt-1 h-10 w-full rounded-lg border border-line px-3" /></label>
-            <label className="block text-sm">Password<input name="password" type="password" required className="mt-1 h-10 w-full rounded-lg border border-line px-3" /></label>
-            {error && <p className="text-sm text-[#d14343]">{error}</p>}
-            <button disabled={pending} className="h-10 w-full rounded-full bg-ink text-sm text-white dark:bg-white dark:text-black">Continue</button>
+            <label className="block text-sm">Email<input name="email" type="email" autoComplete="email" required className="mt-1 h-10 w-full rounded-lg border border-line px-3" /></label>
+            <label className="block text-sm">Password<input name="password" type="password" autoComplete="current-password" required className="mt-1 h-10 w-full rounded-lg border border-line px-3" /></label>
+            <p className="text-sm"><Link href="/forgot-password" className="underline">Forgot password?</Link></p>
+            {error && <p className="text-sm text-[#9f1239]">{error}</p>}
+            <button disabled={pending} className="h-10 w-full rounded-full bg-ink text-sm text-white dark:bg-white dark:text-black">{pending ? "Signing in…" : "Sign in"}</button>
           </form>
         ) : (
           <form
@@ -99,6 +105,7 @@ function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }
             <button disabled={pending} className="h-10 w-full rounded-full bg-ink text-sm text-white dark:bg-white dark:text-black">Verify</button>
           </form>
         )}
+        <p className="mt-4 text-sm text-zinc-700 dark:text-zinc-300">New to VoiceOps? <Link href="/contact" className="font-medium underline">Request access</Link>. We&apos;ll set you up within 1 business day.</p>
         {hint && (
           <div className="mt-5 rounded-lg bg-chip p-3 text-xs text-muted">
             <div>Demo owner: {hint.ownerEmail}</div>
@@ -106,6 +113,7 @@ function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }
             <div className="mt-1">Admin: {hint.adminEmail}</div>
           </div>
         )}
+        <p className="mt-5 text-xs text-zinc-600 dark:text-zinc-300">© Specificity Inc · <Link className="underline" href="/privacy">Privacy</Link> · <Link className="underline" href="/terms">Terms</Link> · <Link className="underline" href="/contact">Support</Link></p>
       </div>
     </div>
   );

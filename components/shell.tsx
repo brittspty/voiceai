@@ -20,10 +20,12 @@ const NAV = [
 export function AppShell({
   org,
   user,
+  mode,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
   user: { name: string; email: string; role: string };
+  mode: { testMode: boolean; agentName: string; productName: string };
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -73,12 +75,7 @@ export function AppShell({
       <div className="mt-auto px-2 pb-4">
         <Link href="/docs" className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-zinc-600 hover:bg-hover dark:text-zinc-300", pathname === "/docs" && "bg-hover text-ink")}>
           <FileText className="h-4 w-4" />
-          {!collapsed && (
-            <>
-              Docs
-              <svg className="ml-auto h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M7 17 17 7M9 7h8v8" /></svg>
-            </>
-          )}
+          {!collapsed && "Help"}
         </Link>
       </div>
     </div>
@@ -94,17 +91,27 @@ export function AppShell({
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-line bg-canvas/95 px-4 backdrop-blur">
+        <header className="sticky top-0 z-20 flex min-h-14 flex-wrap items-center gap-2 border-b border-line bg-canvas/95 px-4 py-2 backdrop-blur">
           <button className="rounded-md p-1.5 text-muted hover:bg-hover" onClick={() => (narrow ? setOpen(true) : setCollapsed((v) => !v))} aria-label="Toggle sidebar">
             <PanelLeft className="h-4 w-4" />
           </button>
-          <div className="text-sm font-medium">Voice Operations</div>
+          <div className="text-sm font-medium">{mode.productName}</div>
+          <Link
+            href="/settings/production"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+              mode.testMode ? "bg-amber-100 text-amber-950" : "bg-emerald-100 text-emerald-950",
+            )}
+          >
+            <span aria-hidden="true">●</span>
+            {mode.testMode ? "Test mode: no real calls" : `Live: ${mode.agentName} is calling leads`}
+          </Link>
           <div className="ml-auto flex items-center gap-1">
-            <button className="rounded-full p-2 text-muted hover:bg-hover" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Toggle color theme">
+            <button className="rounded-full p-2 text-muted hover:bg-hover" title="Switch theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Switch theme">
               <Sun className="h-4 w-4 dark:hidden" />
               <Moon className="hidden h-4 w-4 dark:block" />
             </button>
-            <button className="rounded-full p-2 text-muted hover:bg-hover" onClick={() => router.refresh()} aria-label="Refresh">
+            <button className="rounded-full p-2 text-muted hover:bg-hover" title="Refresh data" onClick={() => router.refresh()} aria-label="Refresh data">
               <RefreshCw className="h-4 w-4" />
             </button>
             <Dropdown.Root>
@@ -130,6 +137,9 @@ export function AppShell({
           </div>
         </header>
         <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
+        <footer className="border-t border-line px-4 py-3 text-xs text-zinc-600 dark:text-zinc-300 md:px-8">
+          © {org.name} · <Link className="underline" href="/privacy">Privacy</Link> · <Link className="underline" href="/terms">Terms</Link> · <Link className="underline" href="/contact">Support</Link>
+        </footer>
       </div>
     </div>
   );

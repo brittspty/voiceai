@@ -1,6 +1,6 @@
 export type Env = Record<string, string | undefined>;
 
-export const PRODUCT_NAME = "Voice Operations";
+export const PRODUCT_NAME = "VoiceOps";
 export const DEFAULT_BRAND_COLOR = "#2563eb";
 export const DEFAULT_MARK = "V";
 export const DEFAULT_TIMEZONE = "America/New_York";

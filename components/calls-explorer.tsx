@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Suspense } from "react";
 import { CallDrawer, type CallRow } from "@/components/call-drawer";
@@ -33,8 +34,9 @@ export function CallsExplorer({ rows, total, page, perPage, offices, mode = "all
           { param: "consent", label: "Consent", options: [{ value: "high", label: "High" }, { value: "medium", label: "Medium" }, { value: "low", label: "Low" }, { value: "none", label: "None" }] },
         ]}
         segments={[{ param: "tests", label: "Test calls", options: [{ value: "any", label: "Any" }, { value: "hidden", label: "Hidden" }, { value: "shown", label: "Shown" }] }]}
-        emptyTitle="No results"
-        emptyBody="Try adjusting your filters or search."
+        emptyTitle="No calls yet"
+        emptyBody={mode === "voice" ? "Calls Avery places will show up here, including test calls." : "In test mode, only test calls show up here."}
+        emptyAction={<Link href="/settings/test-console" className="inline-flex h-9 items-center rounded-full bg-ink px-3 text-sm text-white dark:bg-white dark:text-black">Place a test call</Link>}
         onRow={setOpen}
         columns={mode === "voice" ? [
           { id: "time", header: "TIME", cell: (row) => <span className="text-muted">{formatDateTime(row.time)}</span> },

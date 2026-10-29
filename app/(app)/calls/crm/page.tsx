@@ -70,7 +70,8 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-line bg-card p-4 shadow-[var(--shadow)]">
           <h2 className="font-medium">Tags</h2>
-          <p className="text-sm text-muted">Contact tags mirrored from the CRM. Read-only here — refreshing pulls from the CRM and new writes to it. Last refreshed {office?.syncedAt ? timeAgo(office.syncedAt) : "not yet"}.</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">Tags Avery adds: <span className="mx-1 rounded-full bg-chip px-2 py-0.5 text-xs">called</span><span className="mx-1 rounded-full bg-chip px-2 py-0.5 text-xs">booked</span><span className="mx-1 rounded-full bg-chip px-2 py-0.5 text-xs">do-not-call</span></p>
+          <p className="mt-1 text-sm text-muted">Last refreshed {office?.syncedAt ? timeAgo(office.syncedAt) : "not yet"}.</p>
           <div className="mt-3 flex gap-2">
             <form className="flex-1"><input name="q" defaultValue={sp.q || ""} placeholder="Search tags" className="h-9 w-full rounded-lg border border-line px-3 text-sm" /></form>
             {office && <form action={async () => { "use server"; await refreshCalendar(office.id); }}><button className="h-9 rounded-lg border border-line px-3 text-sm">↻ Refresh from GoHighLevel</button></form>}

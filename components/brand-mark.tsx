@@ -3,12 +3,17 @@ export function BrandMark({
   logoUrl,
   mark,
   letter = false,
+  alt = "VoiceOps",
 }: {
   brandColor: string;
   logoUrl?: string;
   mark: string;
   letter?: boolean;
+  alt?: string;
 }) {
+  if (logoUrl?.startsWith("/brand/")) {
+    return <img src={logoUrl} alt={alt} className="h-9 w-auto max-w-[150px] rounded-md bg-black object-contain px-1.5 py-1" />;
+  }
   if (logoUrl) {
     return (
       <div className="grid h-8 w-8 place-items-center overflow-hidden rounded-lg" style={{ backgroundColor: brandColor }}>

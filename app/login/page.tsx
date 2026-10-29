@@ -1,5 +1,5 @@
 import { LoginScreen } from "@/components/login-form";
-import { loadBrand } from "@/lib/brand";
+import { loadBrand, PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
 import { clientConfig } from "@/lib/client-config";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export default async function LoginPage() {
     : null;
   return (
     <LoginScreen
-      brand={{ companyName: brand.companyName, brandColor: brand.brandColor, logoUrl: brand.logoUrl, mark: brand.mark }}
+      brand={{ companyName: brand.companyName, brandColor: brand.brandColor, logoUrl: brand.logoUrl, mark: brand.mark, productName: PRODUCT_NAME, tagline: PRODUCT_TAGLINE }}
       hint={hint}
     />
   );

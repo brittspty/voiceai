@@ -1,30 +1,54 @@
+import Link from "next/link";
 import { PageTitle } from "@/components/shell";
-import { appUrl } from "@/lib/env";
 import { getOrg } from "@/lib/queries";
 
+export const metadata = { title: "Help" };
+
+const GUIDES = [
+  {
+    title: "Connect GoHighLevel",
+    body: "Avery reads new leads from GoHighLevel and writes call notes back. Open Connections and ask Specificity to link your location if it says Not connected.",
+    href: "/settings/integrations",
+    action: "Open connections",
+  },
+  {
+    title: "Upload a do-not-call list",
+    body: "Add a number, or paste a list with one phone number per line. Avery will not call those numbers. The national do-not-call list is checked as well.",
+    href: "/calls/do-not-call",
+    action: "Open the list",
+  },
+  {
+    title: "What test mode means",
+    body: "The amber status says Test mode: no real calls. Avery only dials test numbers. Real leads are called after you finish the go-live checklist and type GO LIVE.",
+    href: "/settings/production",
+    action: "Open the checklist",
+  },
+  {
+    title: "Read your results",
+    body: "Overview shows how many people answered and how many meetings were booked. Use the period menu for today, 7 days, or 30 days. Open a call to read the notes.",
+    href: "/",
+    action: "Go to overview",
+  },
+];
+
 export default async function DocsPage() {
-  const [base, org] = [appUrl(), await getOrg()];
+  const org = await getOrg();
   return (
     <div className="max-w-3xl">
-      <PageTitle title="Docs" subtitle={`How this Voice Operations workspace is wired for ${org.name}. Each client runs on its own server.`} />
-      <div className="space-y-4 text-sm leading-6">
-        <section className="rounded-xl border border-line bg-card p-4">
-          <h2 className="font-medium">What it does</h2>
-          <p className="mt-1 text-muted">An outbound voice agent calls leads from GoHighLevel, speaks through ElevenLabs over a Twilio number, and books meetings back onto the office calendar. Every dial passes consent, do-not-call, local calling hours, a daily cap, and a retry limit.</p>
-        </section>
-        <section className="rounded-xl border border-line bg-card p-4">
-          <h2 className="font-medium">Webhooks</h2>
-          <ul className="mt-2 space-y-1 font-mono text-xs">
-            <li>{base}/api/webhooks/ghl</li>
-            <li>{base}/api/webhooks/elevenlabs</li>
-            <li>{base}/api/webhooks/twilio</li>
-          </ul>
-          <p className="mt-2 text-muted">Sign the raw body with HMAC-SHA256 and send it as <span className="font-mono">x-voiceops-signature</span>, or send the shared secret as <span className="font-mono">x-webhook-secret</span>. In mock mode, unsigned requests are accepted.</p>
-        </section>
-        <section className="rounded-xl border border-line bg-card p-4">
-          <h2 className="font-medium">Test and live</h2>
-          <p className="mt-1 text-muted">Test mode is on by default. The Test console runs the same pipeline against mock adapters. Set INTEGRATIONS_MODE=live and turn test mode off only when the production checklist is green. See DEPLOY-AWS.md for the single-server pilot.</p>
-        </section>
+      <PageTitle title="Help" subtitle={`How to use VoiceOps at ${org.name}. Avery is your AI caller.`} />
+      <div className="space-y-3">
+        {GUIDES.map((guide) => (
+          <section key={guide.title} className="rounded-xl border border-line bg-card p-4">
+            <h2 className="font-medium">{guide.title}</h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{guide.body}</p>
+            <Link href={guide.href} className="mt-2 inline-flex text-sm font-medium underline">{guide.action}</Link>
+          </section>
+        ))}
+        <details className="rounded-xl border border-line bg-card p-4 text-sm">
+          <summary className="font-medium">For Specificity support</summary>
+          <p className="mt-2 text-zinc-600 dark:text-zinc-300">Webhook addresses, deployment notes, and failed jobs are for the Specificity team. Customers do not need them to go live.</p>
+          <Link href="/settings/failed-jobs" className="mt-2 inline-flex underline">Failed jobs</Link>
+        </details>
       </div>
     </div>
   );

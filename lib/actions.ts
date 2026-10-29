@@ -132,10 +132,14 @@ export async function importDnc(csv: string) {
   assertWrite(user.role);
   const lines = csv.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   let count = 0;
+  let skipped = 0;
   for (const line of lines) {
     const [phoneRaw, reason] = line.split(/[,;\t]/);
     const phone = normalizePhone(phoneRaw || "");
-    if (!phone) continue;
+    if (!phone) {
+      skipped += 1;
+      continue;
+    }
     await prisma.doNotCall.create({
       data: { phone, reason: reason?.trim() || "Imported", source: "Import", addedById: user.id, addedByName: user.name },
     });
@@ -143,7 +147,7 @@ export async function importDnc(csv: string) {
   }
   await audit(user, `Imported ${count} do-not-call numbers`, { type: "dnc", label: `${count} numbers` });
   revalidatePath("/calls/do-not-call");
-  return { count };
+  return { count, skipped };
 }
 
 export async function setDncActive(id: string, active: boolean) {
@@ -192,7 +196,7 @@ export async function saveWorkspace(input: { name: string; subtitle: string; tim
     throw new Error("Use an IANA timezone such as America/New_York.");
   }
   const brandColor = parseBrandColor(input.brandColor);
-  if (!brandColor) throw new Error("Use a hex color such as #2563eb.");
+  if (!brandColor) throw new Error("Use a hex color such as #FF5800.");
   const logoUrl = parseLogoUrl(input.logoUrl);
   if (logoUrl === null) throw new Error("Logo URL must be an http or https address.");
   await prisma.org.update({

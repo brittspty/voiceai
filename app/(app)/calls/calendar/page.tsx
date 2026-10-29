@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { refreshCalendar } from "@/lib/actions";
 import { addDaysISO, formatHHMM, parseHHMM, zonedTimeToUtc } from "@/lib/time";
-import { getCalendar } from "@/lib/queries";
+import { calendarSyncState, getCalendar } from "@/lib/queries";
 import { timeAgo } from "@/lib/format";
 
 const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17];
@@ -11,6 +11,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const data = await getCalendar(sp.office, sp.week);
   if (!data.office) return <p>Add an office to see the calendar.</p>;
   const office = data.office;
+  const { stale, staleDays } = calendarSyncState(office.syncedAt);
   const prev = addDaysISO(data.weekStart, -7);
   const next = addDaysISO(data.weekStart, 7);
   const endLabel = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric" }).format(zonedTimeToUtc(`${data.days[6]}T12:00:00`, data.tz));
@@ -30,6 +31,14 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         <Link className="rounded-md border border-line px-2 py-1 text-sm" href={`/calls/calendar?office=${office.id}&week=${next}`}>›</Link>
         <div className="ml-auto text-sm font-medium">{startLabel} – {endLabel}</div>
       </div>
+      {stale && (
+        <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Calendar has not synced{staleDays ? ` in ${staleDays} days` : ""}. 
+          <form className="inline" action={async () => { "use server"; await refreshCalendar(office.id); }}>
+            <button className="ml-1 font-medium underline">Sync now</button>
+          </form>
+        </div>
+      )}
       <div className="overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow)]">
         <div className="flex items-center justify-between border-b border-line px-4 py-3 text-sm">
           <div>

@@ -10,7 +10,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
   const [{ docs, selected }, user] = await Promise.all([listKnowledge(doc), requireUser()]);
   return (
     <div>
-      <PageTitle title="Knowledge" subtitle="What the voice agent can answer from. Add a document, keep it as a draft until it reads right, then make it live." />
+      <PageTitle title="Knowledge" subtitle="FAQs, prices, and service areas Avery can use on a call. Keep a draft until it reads right, then publish it." />
       {!selected && (
         <>
           <div className="mb-4 flex items-center gap-2">
@@ -29,11 +29,12 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
               </Link>
             ))}
           </div>
-          <div className="mt-6 rounded-xl border border-dashed border-line px-6 py-16 text-center">
-            <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-chip text-muted">☰</div>
-            <div className="mt-3 font-medium">Nothing open yet</div>
-            <p className="mt-1 text-sm text-muted">Pick a document from the row above to read it, or add the first one.</p>
-          </div>
+          {docs.length === 0 && (
+            <div className="mt-6 rounded-xl border border-dashed border-line px-6 py-16 text-center">
+              <div className="font-medium">No documents yet</div>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">Add FAQs, prices, or service areas so Avery can answer questions.</p>
+            </div>
+          )}
         </>
       )}
       {selected && (
