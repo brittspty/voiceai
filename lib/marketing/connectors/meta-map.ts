@@ -510,6 +510,7 @@ export function mergeSnapshots(parts: NormalizedSnapshot[]): NormalizedSnapshot 
   const merged = emptySnapshot();
   const metricKeys = new Set<string>();
   const hourlyKeys = new Set<string>();
+  const searchTermKeys = new Set<string>();
   const entityKeys = {
     accounts: new Set<string>(),
     campaigns: new Set<string>(),
@@ -582,6 +583,12 @@ export function mergeSnapshots(parts: NormalizedSnapshot[]): NormalizedSnapshot 
       if (hourlyKeys.has(key)) continue;
       hourlyKeys.add(key);
       merged.hourly.push(row);
+    }
+    for (const row of part.searchTerms ?? []) {
+      const key = `${row.date}|${row.platform}|${row.campaignExternalId}|${row.adGroupExternalId}|${row.term}|${row.matchType}`;
+      if (searchTermKeys.has(key)) continue;
+      searchTermKeys.add(key);
+      merged.searchTerms.push(row);
     }
     for (const row of part.metrics) {
       const key = `${row.date}|${row.platform}|${row.adExternalId}|${row.segmentKind}|${row.segmentKey}|${row.attributionWindow}`;

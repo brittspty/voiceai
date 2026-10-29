@@ -76,6 +76,29 @@ export function dailyMetricSelect(seesCost: boolean): Prisma.DailyMetricSelect {
   };
 }
 
+export function searchTermSelect(seesCost: boolean): Prisma.SearchTermMetricSelect {
+  return {
+    id: true,
+    date: true,
+    term: true,
+    matchType: true,
+    status: true,
+    impressions: true,
+    clicks: true,
+    conversions: true,
+    platform: true,
+    campaign: {
+      select: {
+        id: true,
+        name: true,
+        adAccountId: true,
+        adAccount: { select: { name: true } },
+      },
+    },
+    ...(seesCost ? { spend: true, currency: true } : {}),
+  };
+}
+
 export function metricSum(seesCost: boolean) {
   return seesCost
     ? { spend: true as const, impressions: true as const, clicks: true as const, platformLeads: true as const }
@@ -198,6 +221,7 @@ export function redactMarketingPage<T extends {
   alerts: Record<string, unknown>[];
   recommendations: Record<string, unknown>[];
   digests: { id: string; createdAt: string; delivery: string; payload: unknown }[];
+  searchTerms?: Record<string, unknown>[];
 }>(page: T, seesCost: boolean): T {
   if (seesCost) return page;
   return {
@@ -213,5 +237,6 @@ export function redactMarketingPage<T extends {
       const cleaned = digestWithoutCost(digest);
       return cleaned ? [cleaned] : [];
     }),
+    searchTerms: (page.searchTerms ?? []).map((row) => stripCostKeys(row)),
   };
 }

@@ -17,6 +17,14 @@ export function minorToMajor(minor: string | number | null | undefined, currency
   return major.toFixed(4);
 }
 
+/** Google Ads amounts are micros: 1_000_000 micros = 1 currency unit, including JPY. */
+export function microsToMajor(micros: string | number | null | undefined) {
+  if (micros === null || micros === undefined || micros === "") return null;
+  const amount = typeof micros === "number" ? micros : Number(micros);
+  if (!Number.isFinite(amount)) return null;
+  return (amount / 1_000_000).toFixed(4);
+}
+
 export function decimalString(value: unknown) {
   const amount = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(amount)) return "0.0000";

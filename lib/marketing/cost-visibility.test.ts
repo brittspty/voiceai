@@ -12,6 +12,7 @@ import {
   recommendationSelect,
   recommendationWhere,
   redactMarketingPage,
+  searchTermSelect,
 } from "./cost-visibility";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
@@ -43,6 +44,7 @@ function fixture() {
       },
     ],
     rows: [{ id: "m", ad: "Ad", currency: "USD", spend: 12.5, impressions: 1000, clicks: 40, reach: 800, leads: 4 }],
+    searchTerms: [{ id: "s", term: "roof repair", matchType: "Phrase", currency: "USD", spend: 4.2, impressions: 10, clicks: 1, conversions: 0 }],
     totals: [{ currency: "USD", spend: 12.5, impressions: 1000, clicks: 40, leads: 4 }],
     alerts: [
       { id: "cost", code: "cpc_off", metric: "cpc", title: "Spring promo costs more", summary: "This ad costs more than your other ads." },
@@ -150,7 +152,11 @@ test("cost queries omit spend and budget columns unless the viewer is staff", ()
   assert.match(queries, /alertWhere\(seesCost\)/);
   assert.match(queries, /recommendationWhere\(seesCost\)/);
   assert.match(queries, /redactMarketingPage\(/);
+  assert.match(queries, /searchTermSelect\(seesCost\)/);
   assert.equal(queries.includes("spend: true"), false);
+  assert.equal("spend" in searchTermSelect(false), false);
+  assert.equal("currency" in searchTermSelect(false), false);
+  assert.equal(searchTermSelect(true).spend, true);
   const compare = readFileSync(path.join(ROOT, "app/api/marketing/compare/route.ts"), "utf8");
   assert.ok(compare.indexOf('kind !== "super_admin"') >= 0);
   assert.ok(compare.indexOf('kind !== "super_admin"') < compare.indexOf("spend: true"));
@@ -164,6 +170,7 @@ test("only super admins and account managers receive cost fields", () => {
     assert.equal(access.seesCost, true, role);
     const page = redactMarketingPage(fixture(), access.seesCost);
     assert.equal(page.rows[0]?.spend, 12.5, role);
+    assert.equal(page.searchTerms?.[0]?.spend, 4.2, role);
     assert.equal(page.campaigns[0]?.budgetAmount, 50, role);
     assert.equal(page.recommendations.some((row) => row.type === "budget_change"), true, role);
     assert.equal(page.totals[0]?.spend, 12.5, role);
@@ -179,6 +186,9 @@ test("only super admins and account managers receive cost fields", () => {
     assert.equal(page.rows[0]?.clicks, 40, role);
     assert.equal(page.rows[0]?.leads, 4, role);
     assert.equal("spend" in (page.rows[0] ?? {}), false, role);
+    assert.equal("spend" in (page.searchTerms?.[0] ?? {}), false, role);
+    assert.equal(page.searchTerms?.[0]?.term, "roof repair", role);
+    assert.equal(page.searchTerms?.[0]?.clicks, 1, role);
     assert.equal(page.recommendations.map((row) => row.type).join(), "traffic", role);
     assert.equal(page.alerts.map((row) => row.id).join(), "clicks", role);
     assert.equal(page.digests.length, 1, role);

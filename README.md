@@ -91,7 +91,7 @@ Failed webhook handling and failed CRM writes land in **Settings → Failed jobs
 
 ## Marketing data layer
 
-Read-only ad performance for this deployment. The canonical tables are platform-agnostic (accounts, campaigns, ad sets, ads, creatives and versions, audiences, daily metrics, sync runs). Meta payloads are also stored in `MarketingRawRecord` so a later source can be added without rewriting those tables. Google Ads, TikTok, and LinkedIn are reserved on the platform enum; only Meta is connected.
+Read-only ad performance for this deployment. The canonical tables are platform-agnostic (accounts, campaigns, ad sets, ads, creatives and versions, audiences, daily metrics, sync runs). Meta and Google Ads payloads are also stored in `MarketingRawRecord`. Google search terms land in `SearchTermMetric` because a search term is not an ad-day row. TikTok and LinkedIn stay reserved on the platform enum.
 
 This app is still one database per client. `workspaceId` is stored on every marketing row and defaults to `org` (the same id as `Org`). It is not used to separate clients inside one database. Do not point two businesses at the same Postgres.
 
@@ -128,7 +128,32 @@ A live sync needs a Meta system user token and the app that issued it:
 
 When `META_AD_ACCOUNT_IDS` is set, that list is the only allow-list. When it is empty, the sync uses `AdAccount` rows with `syncEnabled` still true. Clearing the env var does not delete history. Set `MARKETING_SYNC_MODE=off` to stop all syncs. Accounts removed from the allow-list stay in the database and are not pulled while the env list is non-empty.
 
-Set the same variables on the app and the worker, then restart the worker. `npm run marketing:sync` runs one sync in the foreground using `MARKETING_SYNC_MODE` (mock fixtures or a live pull).
+Set the same variables on the app and the worker, then restart the worker. `npm run marketing:sync` runs the Meta sync and the Google Ads sync. Google Ads does nothing unless `MARKETING_GOOGLE_ADS=on`.
+
+### Google Ads
+
+The connector is off unless `MARKETING_GOOGLE_ADS` is `on`. With the switch on and credentials missing, the sync skips and does not raise. `MARKETING_SYNC_MODE=mock` loads labeled fixtures and does not call Google, so the marketing screen can be reviewed before a developer token exists.
+
+Google's OAuth scope (`https://www.googleapis.com/auth/adwords`) can read and write. This app does not use that write power. The HTTP client allows only `GoogleAdsService` `search` and `searchStream`. Every mutate method, including campaign budgets, ads, criteria, and conversion uploads, is rejected before `fetch` runs.
+
+| Variable | Use |
+| --- | --- |
+| `MARKETING_GOOGLE_ADS` | `off` (default). `on` allows a sync. Turning it off is the rollback: restart the app and the worker, and Google is not called. Rows already stored stay |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Developer token from the Google Ads API center. Basic access is enough to read. Never written to the database |
+| `GOOGLE_ADS_CLIENT_ID` | OAuth client id |
+| `GOOGLE_ADS_CLIENT_SECRET` | OAuth client secret. Never written to the database |
+| `GOOGLE_ADS_REFRESH_TOKEN` | Refresh token for the Google account that can see the manager account. Stored only as the pointer `env:GOOGLE_ADS_REFRESH_TOKEN` |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | 10-digit manager (MCC) id, with or without dashes. Sent as `login-customer-id` |
+| `GOOGLE_ADS_CUSTOMER_IDS` | Optional comma-separated client account ids. When empty, the sync lists non-manager accounts under the login customer id |
+| `GOOGLE_ADS_API_VERSION` | Default `v21` |
+
+```bash
+MARKETING_GOOGLE_ADS=on MARKETING_SYNC_MODE=mock npm run google-ads:sync
+```
+
+A live pull uses the same command with `MARKETING_SYNC_MODE=live` and the credentials above. It reads campaigns, ad groups, ads, daily ad metrics, and search terms. It does not change the Google Ads account.
+
+To roll back without a deploy, set `MARKETING_GOOGLE_ADS=off` (or remove it) on the app and the worker and restart both. To roll back the code, revert this change. There is no mutate call to undo in Google Ads.
 
 To validate a real token outside this environment, run the read-only Meta CLI. It calls Graph with `appsecret_proof`, prints pulled row counts and any API errors as JSON, and writes the database unless `--dry-run` is set:
 
@@ -162,7 +187,7 @@ Daily rows are unique on workspace, date, platform, ad, audience segment, and at
 
 ### Deferred
 
-Lead, call, and booking joins stay out of this module so dialing and consent are unchanged. Also deferred: targeting history (current include and exclude links are stored), a date dimension, campaign-name parsing, age/gender/placement breakdowns, currency conversion, an OAuth connect button, and the Google, TikTok, and LinkedIn connectors.
+Lead, call, and booking joins stay out of this module so dialing and consent are unchanged. Also deferred: targeting history (current include and exclude links are stored), a date dimension, campaign-name parsing, age/gender/placement breakdowns, currency conversion, an OAuth connect button, and the TikTok and LinkedIn connectors. Google Ads search and searchStream are connected behind `MARKETING_GOOGLE_ADS`.
 
 ## Switch from test to live
 

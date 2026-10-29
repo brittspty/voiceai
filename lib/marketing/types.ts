@@ -165,6 +165,22 @@ export type NormalizedRaw = {
   payload: unknown;
 };
 
+/** A search term on one day. Google Ads only. Spend is a cost field. */
+export type NormalizedSearchTerm = {
+  platform: AdPlatform;
+  date: string;
+  campaignExternalId: string;
+  adGroupExternalId: string;
+  term: string;
+  matchType: string;
+  status: string;
+  currency: string;
+  spend: string;
+  impressions: string;
+  clicks: string;
+  conversions: string;
+};
+
 export type NormalizedSnapshot = {
   accounts: NormalizedAccount[];
   campaigns: NormalizedCampaign[];
@@ -176,6 +192,7 @@ export type NormalizedSnapshot = {
   segments: NormalizedSegment[];
   metrics: NormalizedMetric[];
   hourly: NormalizedHourly[];
+  searchTerms: NormalizedSearchTerm[];
   raw: NormalizedRaw[];
   warnings: string[];
 };
@@ -192,6 +209,7 @@ export function emptySnapshot(): NormalizedSnapshot {
     segments: [],
     metrics: [],
     hourly: [],
+    searchTerms: [],
     raw: [],
     warnings: [],
   };

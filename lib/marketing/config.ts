@@ -168,6 +168,87 @@ export function verticalBenchmarks(env: Env = process.env): Record<string, Bench
   }
 }
 
+export const GOOGLE_ADS_REQUIRED = [
+  "GOOGLE_ADS_DEVELOPER_TOKEN",
+  "GOOGLE_ADS_CLIENT_ID",
+  "GOOGLE_ADS_CLIENT_SECRET",
+  "GOOGLE_ADS_REFRESH_TOKEN",
+  "GOOGLE_ADS_LOGIN_CUSTOMER_ID",
+] as const;
+
+export type GoogleAdsCredentialName = (typeof GOOGLE_ADS_REQUIRED)[number];
+
+/** Off unless MARKETING_GOOGLE_ADS is explicitly on. */
+export function googleAdsEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_GOOGLE_ADS");
+}
+
+/** Accepts `1234567890` or `123-456-7890`. Returns "" when it is not a 10-digit id. */
+export function normalizeCustomerId(raw: string) {
+  const digits = raw.trim().replace(/-/g, "");
+  return /^\d{10}$/.test(digits) ? digits : "";
+}
+
+/** Comma-separated Google Ads customer ids. Empty input is empty. */
+export function parseCustomerIds(raw: string | undefined) {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const part of (raw || "").split(",")) {
+    const id = normalizeCustomerId(part);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+export function googleAdsApiVersion(env: Env) {
+  const raw = (env.GOOGLE_ADS_API_VERSION || "v21").trim();
+  return /^v\d+$/.test(raw) ? raw : "v21";
+}
+
+export type GoogleAdsDecision =
+  | { action: "skip"; reason: string }
+  | { action: "mock" }
+  | {
+      action: "live";
+      developerToken: string;
+      clientId: string;
+      clientSecret: string;
+      refreshToken: string;
+      loginCustomerId: string;
+      customerIds: string[];
+      apiVersion: string;
+    };
+
+/**
+ * Google Ads sync does nothing unless MARKETING_GOOGLE_ADS is on.
+ * Missing credentials skip. They do not throw.
+ */
+export function decideGoogleAdsSync(env: Env): GoogleAdsDecision {
+  if (!googleAdsEnabled(env)) return { action: "skip", reason: "MARKETING_GOOGLE_ADS is off" };
+  const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
+  if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };
+  if (mode === "mock") return { action: "mock" };
+  if (mode !== "auto" && mode !== "live") {
+    return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
+  }
+  const missing = GOOGLE_ADS_REQUIRED.filter((name) => !(env[name] || "").trim());
+  if (missing.length) return { action: "skip", reason: `missing ${missing.join(", ")}` };
+  const loginCustomerId = normalizeCustomerId(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || "");
+  if (!loginCustomerId) return { action: "skip", reason: "GOOGLE_ADS_LOGIN_CUSTOMER_ID is not a 10-digit customer id" };
+  return {
+    action: "live",
+    developerToken: env.GOOGLE_ADS_DEVELOPER_TOKEN!.trim(),
+    clientId: env.GOOGLE_ADS_CLIENT_ID!.trim(),
+    clientSecret: env.GOOGLE_ADS_CLIENT_SECRET!.trim(),
+    refreshToken: env.GOOGLE_ADS_REFRESH_TOKEN!.trim(),
+    loginCustomerId,
+    customerIds: parseCustomerIds(env.GOOGLE_ADS_CUSTOMER_IDS),
+    apiVersion: googleAdsApiVersion(env),
+  };
+}
+
 export function decideSync(env: Env): SyncDecision {
   const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
   if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };

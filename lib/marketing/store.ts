@@ -42,6 +42,13 @@ export type HourlyWrite = {
   conversions: string;
 };
 
+export type SearchTermWrite = NormalizedSnapshot["searchTerms"][number] & {
+  workspaceId: string;
+  campaignId: string | null;
+  adGroupId: string | null;
+  sourcePullId: string;
+};
+
 export type RunFinish = {
   status: SyncStatus;
   rowsRead: number;
@@ -99,6 +106,7 @@ export type MarketingStore = {
     externalId: string,
   ): Promise<{ id: string; adGroupId: string; campaignId: string } | null>;
   upsertHourly(input: HourlyWrite): Promise<void>;
+  upsertSearchTerm(input: SearchTermWrite): Promise<void>;
 };
 
 type MemoryVersion = VersionRow & { creativeId: string; fingerprint: string; fields: NormalizedSnapshot["creatives"][number] };
@@ -121,6 +129,8 @@ export type MemoryDump = {
   versionLabels: Record<string, string>;
   metricPulls: Record<string, string>;
   names: Record<string, string>;
+  searchTerms: number;
+  searchTermSpend: Record<string, string>;
 };
 
 export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump; setRunStartedAt: (id: string, at: Date) => void } {
@@ -150,6 +160,7 @@ export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump; 
   }[] = [];
   const adContexts = new Map<string, { id: string; adGroupId: string }>();
   const adGroupCampaigns = new Map<string, string>();
+  const searchTerms = new Map<string, { spend: string; sourcePullId: string }>();
 
   const store: MarketingStore & { dump: () => MemoryDump; setRunStartedAt: (id: string, at: Date) => void } = {
     async upsertConnection(input) {
@@ -203,6 +214,10 @@ export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump; 
       return { id: ad.id, adGroupId: ad.adGroupId, campaignId };
     },
     async upsertHourly() {},
+    async upsertSearchTerm(input) {
+      const key = `${input.platform}|${input.date}|${input.campaignExternalId}|${input.adGroupExternalId}|${input.term}|${input.matchType}`;
+      searchTerms.set(key, { spend: input.spend, sourcePullId: input.sourcePullId });
+    },
     setRunStartedAt(id: string, at: Date) {
       const run = runs.find((item) => item.id === id);
       if (run) run.startedAt = at;
@@ -346,6 +361,8 @@ export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump; 
         versionLabels,
         metricPulls,
         names: Object.fromEntries(names),
+        searchTerms: searchTerms.size,
+        searchTermSpend: Object.fromEntries([...searchTerms.entries()].map(([key, row]) => [key, row.spend])),
       };
     },
   };

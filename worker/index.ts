@@ -2,6 +2,7 @@ import { prisma } from "../lib/db";
 import { runJob } from "../lib/dialer";
 import { digestEnabled, monitorEnabled } from "../lib/marketing/config";
 import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
+import { runGoogleAdsSync } from "../lib/marketing/google-sync";
 import { marketingSyncIntervalMs, runMarketingSync } from "../lib/marketing/sync";
 import { claimJob, failOrRetry } from "../lib/queue";
 import { createRedis } from "../lib/redis";
@@ -37,6 +38,14 @@ function startMarketingSync() {
       if (monitorEnabled() && result.status === "succeeded") {
         const monitored = await runStoredMonitor();
         if (monitored.status === "ran") console.log(`[worker] marketing monitor alerts ${monitored.alerts}`);
+      }
+      try {
+        const google = await runGoogleAdsSync();
+        if (google.status !== "skipped") {
+          console.log(`[worker] google ads sync ${google.status}${google.error ? `: ${google.error}` : ""}`);
+        }
+      } catch (error) {
+        console.error("[worker] google ads sync failed", error);
       }
     } catch (error) {
       console.error("[worker] marketing sync failed", error);
