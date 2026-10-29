@@ -1,4 +1,6 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { extractAttribution, parseOpportunity, type ParsedOpportunity } from "./marketing/offline/click-ids";
+import type { Attribution } from "./marketing/offline/types";
 import { readGhlSubmittedAt, readLandingStamp } from "./marketing/speed-to-lead";
 import { normalizePhone } from "./phone";
 
@@ -31,7 +33,9 @@ export type GhlEvent =
       sessionKey?: string;
       leadSource?: string;
       message: string;
+      attribution: Attribution;
     }
+  | ({ kind: "opportunity" } & ParsedOpportunity)
   | {
       kind: "appointment";
       event: string;
@@ -51,6 +55,10 @@ export function parseGhl(body: unknown): GhlEvent {
   const appointment = asRecord(root.appointment ?? root.calendar ?? {});
   const phone = normalizePhone(String(contact.phone || contact.phoneNumber || root.phone || ""));
   const start = String(appointment.startTime || appointment.start_time || root.startTime || "");
+  if (!/appointment/i.test(event)) {
+    const opportunity = parseOpportunity(body);
+    if (opportunity) return { kind: "opportunity", ...opportunity };
+  }
   if (/appointment/i.test(event) || start) {
     return {
       kind: "appointment",
@@ -84,6 +92,7 @@ export function parseGhl(body: unknown): GhlEvent {
     sessionKey: landing.sessionKey || undefined,
     leadSource: landing.leadSource || undefined,
     message: [str(contact.message), str(contact.note), str(root.message), str(root.note)].filter(Boolean).join(" "),
+    attribution: extractAttribution(root, contact),
   };
 }
 

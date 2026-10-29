@@ -8,48 +8,22 @@ import { SYSTEM_ACTOR } from "./types";
 import { buildTranscript } from "./transcript";
 import type { ElevenEvent, GhlEvent, TwilioEvent } from "./webhook-parse";
 import { mapVendorOutcome, parseGhl } from "./webhook-parse";
+import { offlineConversionsEnabled } from "./marketing/config";
 import { scoreFormLeadIfEnabled } from "./marketing/lead-score/store";
-import { noteVoiceTouch, recordSpeedLead } from "./marketing/speed-to-lead-store";
+import { attributionColumns } from "./marketing/offline/click-ids";
+import { recordConversionOpportunity, saveContactAttribution } from "./marketing/offline/persist";
 import { errorText } from "./marketing/speed-to-lead";
+import { noteVoiceTouch, recordSpeedLead } from "./marketing/speed-to-lead-store";
 import { normalizePhone } from "./phone";
 
-export async function applyGhlEvent(event: GhlEvent) {
-  if (event.kind === "ignore") return { ok: true, ignored: true };
-  if (event.kind === "appointment") {
-    const contact = event.contactGhlId
-      ? await prisma.contact.findFirst({ where: { ghlContactId: event.contactGhlId } })
-      : event.phone
-        ? await prisma.contact.findFirst({ where: { phone: event.phone } })
-        : null;
-    const office = await prisma.office.findFirst({ where: { status: "active" }, orderBy: { createdAt: "asc" } });
-    const org = await prisma.org.findUnique({ where: { id: "org" } });
-    if (contact && office) {
-      await prisma.appointment.upsert({
-        where: { id: event.ghlId ? `appt_${event.ghlId}` : `appt_${contact.id}_${event.startTime}` },
-        update: { status: event.status === "cancelled" ? "cancelled" : "confirmed" },
-        create: {
-          id: event.ghlId ? `appt_${event.ghlId}` : undefined,
-          contactId: contact.id,
-          officeId: office.id,
-          advisorName: org?.agentName || clientConfig().agentName,
-          startsAt: new Date(event.startTime),
-          endsAt: new Date(new Date(event.startTime).getTime() + 30 * 60 * 1000),
-          format: "phone",
-          status: event.status === "cancelled" ? "cancelled" : "confirmed",
-          ghlEventId: event.ghlId,
-        },
-      });
-    }
-    await audit(SYSTEM_ACTOR, "Received an appointment event from GoHighLevel", { type: "appointment", label: event.event });
-    return { ok: true };
-  }
-
-  if (!event.phone) return { ok: true, ignored: true };
+async function syncGhlContact(event: Extract<GhlEvent, { kind: "contact" }>) {
+  if (!event.phone) return { ok: true as const, ignored: true as const };
   const phone = normalizePhone(event.phone);
   const existing = event.ghlId
     ? await prisma.contact.findFirst({ where: { ghlContactId: event.ghlId } })
     : await prisma.contact.findFirst({ where: { phone } });
   const office = await prisma.office.findFirst({ where: { type: "virtual", status: "active" } });
+  const clickIds = offlineConversionsEnabled() ? attributionColumns(event.attribution) : {};
   const contact =
     existing ??
     (await prisma.contact.create({
@@ -62,8 +36,10 @@ export async function applyGhlEvent(event: GhlEvent) {
         source: "GoHighLevel",
         ghlContactId: event.ghlId,
         timezone: event.timezone || office?.timezone || clientConfig().timezone,
+        ...clickIds,
       },
     }));
+  if (existing && offlineConversionsEnabled()) await saveContactAttribution(existing.id, event.attribution);
   await audit(SYSTEM_ACTOR, "Synced a lead from GoHighLevel", { type: "contact", id: contact.id, label: contact.name });
   await recordSpeedLead({
     contactId: contact.id,
@@ -100,7 +76,66 @@ export async function applyGhlEvent(event: GhlEvent) {
     message: event.message,
     source: contact.source,
   });
-  return { ok: true, contactId: contact.id };
+  return { ok: true as const, contactId: contact.id };
+}
+
+export async function applyGhlEvent(event: GhlEvent) {
+  if (event.kind === "ignore") return { ok: true, ignored: true };
+  if (event.kind === "opportunity") {
+    const applied = event.contact.phone
+      ? await syncGhlContact({
+          kind: "contact",
+          event: event.event,
+          ghlId: event.contact.ghlId || undefined,
+          name: event.contact.name || "New lead",
+          phone: event.contact.phone,
+          email: event.contact.email || undefined,
+          tags: [],
+          message: "",
+          attribution: event.attribution,
+        })
+      : { ok: true as const };
+    const contactId = "contactId" in applied ? applied.contactId : undefined;
+    if (offlineConversionsEnabled()) {
+      await recordConversionOpportunity({
+        opportunity: event,
+        contactId: contactId ?? null,
+        email: event.contact.email,
+        phone: event.contact.phone,
+      });
+    }
+    return { ok: true, contactId };
+  }
+  if (event.kind === "appointment") {
+    const contact = event.contactGhlId
+      ? await prisma.contact.findFirst({ where: { ghlContactId: event.contactGhlId } })
+      : event.phone
+        ? await prisma.contact.findFirst({ where: { phone: event.phone } })
+        : null;
+    const office = await prisma.office.findFirst({ where: { status: "active" }, orderBy: { createdAt: "asc" } });
+    const org = await prisma.org.findUnique({ where: { id: "org" } });
+    if (contact && office) {
+      await prisma.appointment.upsert({
+        where: { id: event.ghlId ? `appt_${event.ghlId}` : `appt_${contact.id}_${event.startTime}` },
+        update: { status: event.status === "cancelled" ? "cancelled" : "confirmed" },
+        create: {
+          id: event.ghlId ? `appt_${event.ghlId}` : undefined,
+          contactId: contact.id,
+          officeId: office.id,
+          advisorName: org?.agentName || clientConfig().agentName,
+          startsAt: new Date(event.startTime),
+          endsAt: new Date(new Date(event.startTime).getTime() + 30 * 60 * 1000),
+          format: "phone",
+          status: event.status === "cancelled" ? "cancelled" : "confirmed",
+          ghlEventId: event.ghlId,
+        },
+      });
+    }
+    await audit(SYSTEM_ACTOR, "Received an appointment event from GoHighLevel", { type: "appointment", label: event.event });
+    return { ok: true };
+  }
+
+  return syncGhlContact(event);
 }
 
 export async function applyElevenEvent(event: ElevenEvent) {

@@ -207,14 +207,28 @@ model Contact {
   source       String
   ghlContactId String?
   timezone     String        @default("America/New_York")
+  fbclid       String        @default("")
+  fbc          String        @default("")
+  fbp          String        @default("")
+  gclid        String        @default("")
+  gbraid       String        @default("")
+  wbraid       String        @default("")
+  utmSource    String        @default("")
+  utmMedium    String        @default("")
+  utmCampaign  String        @default("")
+  utmTerm      String        @default("")
+  utmContent   String        @default("")
   createdAt    DateTime      @default(now())
-  calls         Call[]
-  appointments  Appointment[]
-  leadResponses LeadResponse[]
-  leadScore     LeadScore?
+  calls            Call[]
+  appointments     Appointment[]
+  leadResponses    LeadResponse[]
+  leadScore        LeadScore?
+  conversionEvents ConversionEvent[]
 
   @@index([phone])
   @@index([ghlContactId])
+  @@index([gclid])
+  @@index([fbclid])
 }
 
 model DoNotCall {
@@ -1035,6 +1049,170 @@ model ManagerDigest {
   createdAt   DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+enum ConversionStageKind {
+  qualified
+  booked
+  sold
+}
+
+enum ConversionPlatform {
+  meta
+  google_ads
+}
+
+enum ConversionUploadStatus {
+  dry_run
+  sent
+  failed
+  skipped
+}
+
+enum ConversionDecisionStatus {
+  pending
+  accepted
+  declined
+  later
+}
+
+/// One GoHighLevel location whose booked and sold stages can be sent back to ads.
+/// enabledAt is set only after the yes card is approved and the undo window closes.
+model ConversionClient {
+  id            String    @id @default(cuid())
+  workspaceId   String    @default("org")
+  name          String
+  ghlLocationId String    @default("")
+  enabledAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  stages        ConversionStageMap[]
+  events        ConversionEvent[]
+  decisions     ConversionDecision[]
+  issues        ConversionIssue[]
+  alerts        ConversionAlert[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+  @@index([ghlLocationId])
+}
+
+model ConversionStageMap {
+  id            String              @id @default(cuid())
+  clientId      String
+  client        ConversionClient    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  ghlStageId    String              @default("")
+  ghlStageName  String
+  kind          ConversionStageKind
+  valueCents    Int?
+  currency      String              @default("USD")
+  metaEventName String
+  googleAction  String              @default("")
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@unique([clientId, ghlStageId, ghlStageName])
+  @@index([clientId])
+}
+
+model ConversionEvent {
+  id              String              @id @default(cuid())
+  clientId        String
+  client          ConversionClient    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  contactId       String?
+  contact         Contact?            @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  source          String
+  externalId      String
+  kind            ConversionStageKind
+  stageName       String
+  valueCents      Int?
+  currency        String              @default("USD")
+  fbclid          String              @default("")
+  fbc             String              @default("")
+  fbp             String              @default("")
+  gclid           String              @default("")
+  gbraid          String              @default("")
+  wbraid          String              @default("")
+  utmSource       String              @default("")
+  utmMedium       String              @default("")
+  utmCampaign     String              @default("")
+  utmTerm         String              @default("")
+  utmContent      String              @default("")
+  emailHashMeta   String              @default("")
+  emailHashGoogle String              @default("")
+  phoneHashMeta   String              @default("")
+  phoneHashGoogle String              @default("")
+  occurredAt      DateTime
+  createdAt       DateTime            @default(now())
+  uploads         ConversionUpload[]
+
+  @@unique([clientId, externalId, kind])
+  @@index([clientId, occurredAt])
+  @@index([contactId])
+}
+
+model ConversionUpload {
+  id           String                 @id @default(cuid())
+  eventId      String
+  event        ConversionEvent        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  platform     ConversionPlatform
+  status       ConversionUploadStatus
+  payload      Json
+  response     Json?
+  attempts     Int                    @default(0)
+  errorCode    String                 @default("")
+  errorMessage String                 @default("")
+  createdAt    DateTime               @default(now())
+  sentAt       DateTime?
+
+  @@unique([eventId, platform])
+  @@index([platform, status, createdAt])
+}
+
+model ConversionDecision {
+  id          String                   @id @default(cuid())
+  clientId    String
+  client      ConversionClient         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  status      ConversionDecisionStatus @default(pending)
+  expiresAt   DateTime
+  decidedById String?
+  decidedAt   DateTime?
+  undoUntil   DateTime?
+  createdAt   DateTime                 @default(now())
+
+  @@index([clientId, createdAt])
+}
+
+/// Count-only problems. No contact details and no payloads.
+model ConversionIssue {
+  id         String           @id @default(cuid())
+  clientId   String
+  client     ConversionClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  code       String
+  platform   String           @default("")
+  occurredAt DateTime
+  createdAt  DateTime         @default(now())
+
+  @@index([clientId, occurredAt])
+}
+
+model ConversionAlert {
+  id         String           @id @default(cuid())
+  clientId   String
+  client     ConversionClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  platform   ConversionPlatform
+  severity   AlertSeverity
+  code       String
+  dedupeKey  String
+  title      String
+  summary    String
+  firedAt    DateTime
+  resolvedAt DateTime?
+  mutedUntil DateTime?
+  createdAt  DateTime         @default(now())
+
+  @@index([dedupeKey, firedAt])
+  @@index([clientId])
 }
 
 model AdHourlyMetric {
