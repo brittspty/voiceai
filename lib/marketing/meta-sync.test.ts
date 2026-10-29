@@ -73,7 +73,7 @@ test("rate-limit error codes back off and then succeed", async () => {
       }
       return Response.json({ id: "ok" });
     };
-    const body = await graphGet(graph({ fetchImpl, sleep: async (ms) => waits.push(ms) }));
+    const body = await graphGet(graph({ fetchImpl, sleep: async (ms) => { waits.push(ms); } }));
     assert.equal((body as { id: string }).id, "ok");
     assert.equal(calls, 2);
     assert.equal(waits[0], 2000);
@@ -102,7 +102,7 @@ test("code 17 without Retry-After or a regain estimate waits on a longer backoff
     return Response.json({ id: "ok" });
   };
   const body = await graphGet({
-    ...graph({ fetchImpl, sleep: async (ms) => waits.push(ms) }),
+    ...graph({ fetchImpl, sleep: async (ms) => { waits.push(ms); } }),
     log: (line) => lines.push(line),
   });
   assert.equal((body as { id: string }).id, "ok");
@@ -130,7 +130,7 @@ test("code 17 without Retry-After or a regain estimate waits on a longer backoff
     }
     return Response.json({ id: "ok" });
   };
-  await graphGet(graph({ fetchImpl: regain, sleep: async (ms) => regainWaits.push(ms) }));
+  await graphGet(graph({ fetchImpl: regain, sleep: async (ms) => { regainWaits.push(ms); } }));
   assert.equal(regainWaits[0], 120_000);
 });
 
@@ -176,7 +176,7 @@ test("a high usage header is applied after a successful response", async () => {
         }),
       },
     });
-  await graphGet(graph({ fetchImpl, sleep: async (ms) => waits.push(ms) }));
+  await graphGet(graph({ fetchImpl, sleep: async (ms) => { waits.push(ms); } }));
   assert.deepEqual(waits, [5_000]);
 });
 
@@ -388,7 +388,7 @@ test("async insight polls back off from 5s to 30s", async () => {
     until: "2026-10-07",
     attributionWindows: ["7d_click"],
     fetchImpl,
-    sleep: async (ms) => waits.push(ms),
+    sleep: async (ms) => { waits.push(ms); },
     log: () => {},
   });
   assert.deepEqual(waits, [5_000, 10_000, 20_000, 30_000]);
