@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { compareClients } from "@/lib/marketing/compare";
@@ -8,13 +8,13 @@ import { loadMarketingAccess } from "@/lib/marketing/queries";
 export const dynamic = "force-dynamic";
 
 function dollars(amount: number) {
-  return amount.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  return amount.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default async function ComparePage({ searchParams }: { searchParams: Promise<{ flagged?: string; q?: string }> }) {
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
-  if (access.kind !== "super_admin") redirect("/marketing");
+  if (access.kind !== "super_admin") return <NoAccess title="All clients" />;
   const query = await searchParams;
   const [org, metrics, alerts, openDecisions] = await Promise.all([
     prisma.org.findUnique({ where: { id: "org" }, select: { name: true } }),
@@ -36,11 +36,10 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   return (
     <div>
       <h1 className="text-2xl font-semibold">All clients</h1>
-      <p className="mt-1 text-sm text-muted">This database holds one client. The table is the cross-client view for super admins.</p>
       <form className="mt-4 flex flex-wrap gap-2 text-sm" method="get">
         <label>Flagged only <input type="checkbox" name="flagged" value="1" defaultChecked={query.flagged === "1"} /></label>
         <input name="q" defaultValue={query.q || ""} aria-label="Search clients" placeholder="Search clients" className="h-11 rounded-lg border border-line px-3" />
-        <button className="min-h-11 rounded-lg bg-brand px-4 font-semibold text-ink">Filter</button>
+        <button className="min-h-11 rounded-lg bg-brand px-4 font-semibold text-on-brand">Filter</button>
       </form>
       <div className="mt-4 grid gap-3 sm:grid-cols-4">
         <div className="rounded-lg bg-canvas p-3">Clients<b className="block text-xl">{compared.clients}</b></div>
@@ -73,7 +72,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
           </tbody>
         </table>
       </div>
-      <p className="mt-3 text-sm text-muted">Outlier means more than twice the median cost per booked call, and only after 500 in spend. <a className="text-brand-ink" href="/api/marketing/compare">Download CSV</a></p>
+      <p className="mt-3 text-sm text-muted">Outlier means more than twice the median cost per booked call, and only after $500 in spend. <a className="text-brand-ink" href="/api/marketing/compare">Download CSV</a></p>
     </div>
   );
 }

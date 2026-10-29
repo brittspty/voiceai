@@ -6,12 +6,14 @@ import {
   cardExpiry,
   confidenceLabel,
   expiryLabel,
+  plainCardLine,
+  windowLabel,
   type DecisionInput,
 } from "@/lib/marketing/decision-ui";
 
 function Button({ children, primary = false, label }: { children: React.ReactNode; primary?: boolean; label: string }) {
   return (
-    <button aria-label={label} className={`min-h-11 rounded-lg px-5 text-base font-semibold ${primary ? "bg-brand text-ink" : "border border-line bg-card text-ink"}`}>
+    <button aria-label={label} className={`min-h-11 rounded-lg px-5 text-base font-semibold ${primary ? "bg-brand text-on-brand" : "border border-line bg-card text-ink"}`}>
       {children}
     </button>
   );
@@ -29,13 +31,14 @@ export function DecisionQueue({
   budgetCap?: number;
 }) {
   const now = new Date();
-  const waiting = cards.filter((card) => card.status === "verified" && canApproveCard(card, now));
+  const pending = cards.filter((card) => card.status === "verified" && canApproveCard(card, now));
+  const done = cards.filter((card) => !pending.includes(card));
   return (
     <section>
       <h2 className="mb-1 font-semibold">Decisions</h2>
-      <p className="mb-3 text-sm text-muted">{waiting.length ? `${waiting.length} waiting for you` : "You're all caught up. New decisions show up here and in your hourly summary."}</p>
+      <p className="mb-3 text-sm text-muted">{pending.length ? `${pending.length} waiting for you` : "You're all caught up. New decisions show up here and in your hourly summary."}</p>
       <div className="space-y-4">
-        {cards.map((card) => {
+        {pending.map((card) => {
           const expiry = cardExpiry(card, now);
           const budget = card.type === "budget_change" ? budgetCardCopy(card) : null;
           const approved = card.status === "accepted";
@@ -50,8 +53,8 @@ export function DecisionQueue({
                 <span>{needsAdmin ? "Needs a super admin's OK" : expiry.expired ? "Expired" : card.status === "declined" ? "Declined" : approved ? "Approved" : "Pending"}</span>
                 <span>{expiryLabel(expiry.ends, now.getTime())}</span>
               </div>
-              <h3 id={`decision-${card.id}`} className="mt-2 text-lg font-semibold">{budget ? budget.headline : card.title}</h3>
-              <p className="mt-1">{budget ? budget.why : card.summary}</p>
+              <h3 id={`decision-${card.id}`} className="mt-2 text-lg font-semibold">{budget ? budget.headline : plainCardLine(card)}</h3>
+              <p className="mt-1">{budget ? budget.why : plainCardLine(card)}</p>
               {budget && (
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <div className="rounded-lg bg-canvas p-3">
@@ -68,12 +71,14 @@ export function DecisionQueue({
               )}
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <div className="rounded-lg bg-canvas p-3 text-sm">Confidence<b className="block text-xl">{confidenceLabel(card.sampleSize)}</b></div>
-                <div className="rounded-lg bg-canvas p-3 text-sm">Window<b className="block text-xl">{card.windowStart || "—"} to {card.windowEnd || "—"}</b></div>
+                {windowLabel(card.windowStart, card.windowEnd) && (
+                  <div className="rounded-lg bg-canvas p-3 text-sm">Window<b className="block text-xl">{windowLabel(card.windowStart, card.windowEnd)}</b></div>
+                )}
               </div>
               <details className="mt-3 text-sm">
                 <summary>Show evidence</summary>
                 <p className="mt-2 text-muted">
-                  {card.metric} moved from {card.baseline} to {card.observed}. {card.sourceCount} source rows. {card.verifierNote || "A second check confirmed this."}
+                  {plainCardLine(card)} {card.sourceCount} source rows. {card.verifierNote || "A second check confirmed this."}
                 </p>
               </details>
               {budget && <p className="mt-3 text-sm text-muted">{budget.fixed}</p>}
@@ -134,6 +139,13 @@ export function DecisionQueue({
             </article>
           );
         })}
+        {done.length > 0 && <h3 className="pt-2 text-sm font-semibold uppercase text-muted">Done today</h3>}
+        {done.map((card) => (
+          <article key={card.id} className="rounded-xl border border-line bg-card p-4">
+            <p className="text-sm text-muted">{card.status === "declined" ? "Declined" : card.status === "accepted" ? "Approved" : "Finished"}</p>
+            <h3 className="mt-1 font-semibold">{card.type === "budget_change" ? card.title : plainCardLine(card)}</h3>
+          </article>
+        ))}
       </div>
     </section>
   );

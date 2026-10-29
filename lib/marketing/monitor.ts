@@ -202,15 +202,19 @@ export function evaluateAds(input: {
       const offBench = benchmarkWorse(metric, observedValue, bench[metric]);
       if (!offBaseline && !offBench) continue;
       if ((metric === "cpa" || metric === "cpl") && observed.conversions + observed.leads === 0) continue;
-      const label = metric === "ctr" ? "click rate" : metric === "cpl" ? "cost per lead" : metric.toUpperCase();
+      const label = metric === "ctr" ? "clicks" : metric === "cpl" || metric === "cpa" ? "results" : "cost";
+      const plain =
+        metric === "ctr"
+          ? "Fewer clicks than your other ads."
+          : "This ad costs more than your other ads.";
       push({
         ...common,
         type: "performance",
         code: `${metric}_off`,
         severity: offBaseline && offBench ? "critical" : "warning",
-        title: `${sample.adName} is behind on ${label}`,
-        summary: `${sample.adName} looks weaker than the other ads we compared it with. This is a flag, not a change.`,
-        rationale: "Compared with the trailing baseline and the vertical benchmark when one is set.",
+        title: `${sample.adName}: ${plain.replace(/\.$/, "")}`,
+        summary: `${plain} This is a note, not a change.`,
+        rationale: `Compared with your other ads on ${label}.`,
         metric,
         baseline: num(baselineValue),
         observed: num(observedValue),

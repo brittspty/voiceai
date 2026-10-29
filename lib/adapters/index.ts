@@ -122,12 +122,14 @@ export function getPorts(testMode: boolean): { voice: VoicePort; crm: CrmPort; m
   return mocked ? { voice: mockVoice, crm: mockCrm, mocked: true } : { voice: liveVoice, crm: liveCrm, mocked: false };
 }
 
+export function shownIntegrationStatus(input: { status: string; keysSet: boolean; live: boolean }) {
+  if (input.live && input.keysSet && input.status === "healthy") return "Healthy";
+  return "Not connected";
+}
+
 export async function checkGhl(): Promise<{ status: "healthy" | "down" | "unconfigured"; latencyMs: number | null; detail: string }> {
-  if (integrationsMode() !== "live") {
-    return { status: "healthy", latencyMs: 1390, detail: "Lead sync" };
-  }
-  if (!process.env.GHL_API_KEY || !process.env.GHL_LOCATION_ID) {
-    return { status: "unconfigured", latencyMs: null, detail: "Missing API key or location id" };
+  if (integrationsMode() !== "live" || !process.env.GHL_API_KEY || !process.env.GHL_LOCATION_ID) {
+    return { status: "unconfigured", latencyMs: null, detail: "Not connected" };
   }
   const started = Date.now();
   try {
@@ -139,8 +141,9 @@ export async function checkGhl(): Promise<{ status: "healthy" | "down" | "unconf
 }
 
 export async function checkEleven(): Promise<{ status: "healthy" | "down" | "unconfigured"; latencyMs: number | null; detail: string }> {
-  if (integrationsMode() !== "live") return { status: "healthy", latencyMs: 240, detail: "Conversational AI" };
-  if (!process.env.ELEVENLABS_API_KEY) return { status: "unconfigured", latencyMs: null, detail: "Missing API key" };
+  if (integrationsMode() !== "live" || !process.env.ELEVENLABS_API_KEY) {
+    return { status: "unconfigured", latencyMs: null, detail: "Not connected" };
+  }
   const started = Date.now();
   try {
     const res = await fetch("https://api.elevenlabs.io/v1/user", { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY } });
@@ -152,11 +155,10 @@ export async function checkEleven(): Promise<{ status: "healthy" | "down" | "unc
 }
 
 export async function checkTwilio(): Promise<{ status: "healthy" | "down" | "unconfigured"; latencyMs: number | null; detail: string }> {
-  if (integrationsMode() !== "live") return { status: "healthy", latencyMs: 180, detail: "Phone carrier" };
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
-  if (!sid || !token || !process.env.TWILIO_PHONE_NUMBER) {
-    return { status: "unconfigured", latencyMs: null, detail: "Missing SID, token, or number" };
+  if (integrationsMode() !== "live" || !sid || !token || !process.env.TWILIO_PHONE_NUMBER) {
+    return { status: "unconfigured", latencyMs: null, detail: "Not connected" };
   }
   const started = Date.now();
   try {

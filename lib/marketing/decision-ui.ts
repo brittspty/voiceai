@@ -77,6 +77,24 @@ export function budgetNeedsSuperAdmin(proposed: number | null, cap: number) {
   return proposed !== null && proposed > cap;
 }
 
+export function windowLabel(start?: string, end?: string) {
+  if (!start || !end) return "";
+  return `${start} to ${end}`;
+}
+
+export function plainCardLine(input: Pick<DecisionInput, "metric" | "title" | "summary" | "baseline" | "observed">) {
+  const base = Number(input.baseline);
+  const seen = Number(input.observed);
+  const fellByHalf = Number.isFinite(base) && Number.isFinite(seen) && base > 0 && seen > 0 && seen <= base * 0.6;
+  if (input.metric === "ctr" || /click/i.test(input.title)) {
+    return fellByHalf ? "Fewer clicks than your other ads. Clicks fell by about half." : "Fewer clicks than your other ads.";
+  }
+  if (input.metric === "cpc" || input.metric === "cpm" || input.metric === "cpa" || input.metric === "cpl") {
+    return "This ad costs more than your other ads.";
+  }
+  return input.summary.replace(/vs siblings/gi, "than your other ads").replace(/half baseline/gi, "about half");
+}
+
 export function decisionVisibleText(input: DecisionInput) {
   if (input.type === "budget_change") {
     const copy = budgetCardCopy(input);

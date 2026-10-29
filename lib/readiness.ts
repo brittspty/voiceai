@@ -35,7 +35,7 @@ export function readinessItems(input: ReadinessInput): ReadinessItem[] {
       id: "mode",
       label: "Integrations are set to live",
       ok: input.integrationsMode === "live",
-      hint: "Set INTEGRATIONS_MODE=live on the app and the worker.",
+      hint: "Switch integrations to live on the app and the worker.",
     },
     {
       id: "schedule",
@@ -47,19 +47,19 @@ export function readinessItems(input: ReadinessInput): ReadinessItem[] {
       id: "ghl",
       label: "GoHighLevel API key and location are set",
       ok: input.hasGhlKey && input.hasGhlLocation,
-      hint: "GHL_API_KEY and GHL_LOCATION_ID.",
+      hint: "Add the GoHighLevel key and location.",
     },
     {
       id: "eleven",
       label: "ElevenLabs key and agent id are set",
       ok: input.hasElevenKey && input.hasElevenAgent,
-      hint: "Obtain a fresh ElevenLabs key privately. Set ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID.",
+      hint: "Add a fresh voice key and the agent, privately.",
     },
     {
       id: "twilio",
       label: "Twilio SID, token, and number are set",
       ok: input.hasTwilioSid && input.hasTwilioToken && input.hasTwilioNumber,
-      hint: "Rotate the Twilio auth token before go-live. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER.",
+      hint: "Add the phone account, a rotated token, and the calling number.",
     },
     {
       id: "agent",
@@ -119,7 +119,7 @@ export function readinessItems(input: ReadinessInput): ReadinessItem[] {
       id: "webhooks",
       label: "Webhook secrets are set",
       ok: input.webhookSecrets,
-      hint: "GHL_WEBHOOK_SECRET, ELEVENLABS_WEBHOOK_SECRET, and TWILIO_AUTH_TOKEN.",
+      hint: "Add the shared secrets for each webhook.",
     },
   ];
 }

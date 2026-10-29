@@ -161,9 +161,9 @@ async function main() {
   const live = process.env.INTEGRATIONS_MODE === "live";
   await prisma.integrationCheck.createMany({
     data: [
-      integrationRow("ghl", "GoHighLevel", "Lead sync", !live || Boolean(process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID), 1390),
-      integrationRow("elevenlabs", "ElevenLabs", "Conversational AI", !live || Boolean(process.env.ELEVENLABS_API_KEY), 240),
-      integrationRow("twilio", "Twilio", "Phone carrier", !live || Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER), 180),
+      integrationRow("ghl", "GoHighLevel", "Lead sync", live && Boolean(process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID), 1390),
+      integrationRow("elevenlabs", "ElevenLabs", "Conversational AI", live && Boolean(process.env.ELEVENLABS_API_KEY), 240),
+      integrationRow("twilio", "Twilio", "Phone carrier", live && Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER), 180),
     ],
   });
 
@@ -195,10 +195,8 @@ async function main() {
   for (const line of seedStartupLines(cfg)) console.log(line);
 }
 
-function integrationRow(provider: string, label: string, detail: string, configured: boolean, mockLatency: number) {
-  const live = process.env.INTEGRATIONS_MODE === "live";
-  if (!live) return { provider, label, detail, status: "healthy" as const, latencyMs: mockLatency, checkedAt: new Date(Date.now() - 12 * 60 * 1000) };
-  if (!configured) return { provider, label, detail: "Not configured", status: "unconfigured" as const, latencyMs: null, checkedAt: new Date() };
+function integrationRow(provider: string, label: string, detail: string, configured: boolean, _mockLatency: number) {
+  if (!configured) return { provider, label, detail: "Not connected", status: "unconfigured" as const, latencyMs: null, checkedAt: new Date() };
   return { provider, label, detail: "Not checked yet", status: "unconfigured" as const, latencyMs: null, checkedAt: new Date() };
 }
 

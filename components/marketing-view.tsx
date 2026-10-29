@@ -3,7 +3,7 @@ import { HourlySummary } from "@/components/hourly-summary";
 import { ShareLinkButton } from "@/components/share-link-button";
 import { Pill } from "@/components/pills";
 import { PageTitle } from "@/components/shell";
-import { saveCampaignBudget } from "@/lib/marketing/human-actions";
+import { BudgetEditor } from "@/components/budget-editor";
 import { formatDateTime } from "@/lib/format";
 
 type AccountRow = {
@@ -184,7 +184,11 @@ export function MarketingView(props: {
     <div>
       <PageTitle
         title="Marketing"
-        subtitle="Ad accounts, campaigns, and daily performance. Read only. Reach is shown per row and is not added up."
+        subtitle={
+          props.flags?.canEditBudget
+            ? "Ad accounts, campaigns, and daily performance. Reach is shown per row and is not added up."
+            : "Ad accounts, campaigns, and daily performance. Read only. Reach is shown per row and is not added up."
+        }
       />
       {props.mock && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card px-4 py-3 text-sm">
@@ -273,17 +277,12 @@ export function MarketingView(props: {
                       <div className="text-xs text-muted">Platform reported {money(campaign.reportedBudgetAmount, campaign.currency)}</div>
                     )}
                     {props.flags?.canEditBudget && campaign.budgetAmount !== null && campaign.budgetType !== "none" && (
-                      <form action={saveCampaignBudget} className="mt-2 flex flex-wrap gap-1">
-                        <input type="hidden" name="campaignId" value={campaign.id} />
-                        <input type="hidden" name="adAccountId" value={campaign.accountId} />
-                        <input name="amount" type="number" min="0" step="0.01" placeholder="Amount" className="h-8 w-24 rounded-md border border-line px-2 text-xs" />
-                        <select name="period" className="h-8 rounded-md border border-line bg-card px-1 text-xs" defaultValue={campaign.budgetType === "lifetime" ? "lifetime" : "daily"}>
-                          <option value="daily">Daily</option>
-                          <option value="lifetime">Lifetime</option>
-                        </select>
-                        <input name="currency" defaultValue={campaign.budgetCurrency || campaign.currency} className="h-8 w-16 rounded-md border border-line px-2 text-xs" />
-                        <button className="h-8 rounded-full bg-ink px-2 text-xs text-on-ink">Save</button>
-                      </form>
+                      <BudgetEditor
+                        campaignId={campaign.id}
+                        adAccountId={campaign.accountId}
+                        period={campaign.budgetType}
+                        currency={campaign.budgetCurrency || campaign.currency}
+                      />
                     )}
                   </td>
                   <td className="px-4 py-3">{campaign.adGroups}</td>

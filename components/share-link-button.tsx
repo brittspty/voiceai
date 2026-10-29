@@ -33,7 +33,18 @@ export function ShareLinkButton() {
         <button className="h-9 rounded-full bg-ink px-3 text-on-ink">Create link</button>
       </div>
       {error && <p className="text-danger">{error}</p>}
-      {link && <p className="break-all text-muted">Copy this link now. It is shown once. {link}</p>}
+      {link && (
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="break-all text-muted">{link}</p>
+          <button
+            type="button"
+            className="min-h-11 rounded-lg bg-brand px-4 font-semibold text-on-brand"
+            onClick={() => void navigator.clipboard.writeText(link)}
+          >
+            Copy
+          </button>
+        </div>
+      )}
     </form>
   );
 }

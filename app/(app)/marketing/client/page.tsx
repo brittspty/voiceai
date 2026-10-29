@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import { ClientPerformance } from "@/components/client-performance";
+import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { loadClientPerformance, loadMarketingAccess, recordClientView } from "@/lib/marketing/queries";
@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 export default async function ClientMarketingPage() {
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
-  if (access.kind !== "client_viewer" || !access.workspaceId) redirect("/marketing");
+  if (user.role !== "client_viewer") return <NoAccess title="Results" />;
+  if (access.kind !== "client_viewer" || !access.workspaceId) return <NoAccess title="Results" />;
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
   const payload = await loadClientPerformance(org?.name || "Performance");
   const meta = requestClientMeta(await headers());

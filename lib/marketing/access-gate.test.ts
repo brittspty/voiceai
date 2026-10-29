@@ -4,8 +4,12 @@ import path from "node:path";
 import test from "node:test";
 import { canOpenOperatorSettings } from "../auth";
 import { passwordIssues, roleLabel } from "./access";
+import { shownIntegrationStatus } from "../adapters";
+import { publicHttpsBase } from "../env";
+import { readinessItems, type ReadinessInput } from "../readiness";
 import { clientViewerAllowed } from "./client-gate";
 import { clientViewersEnabled } from "./config";
+import { plainCardLine } from "./decision-ui";
 import { budgetCardCopy, budgetNeedsSuperAdmin } from "./decision-ui";
 import { buildClientShare, clientShareHasMoney } from "./client-view";
 import { checkSharePasscode, defaultShareExpiry, hashPasscode, SHARE_LINK_DEFAULT_MS } from "./share-link";
@@ -104,6 +108,39 @@ test("share links expire in 30 days and a passcode locks after five tries", () =
   const locked = checkSharePasscode("link-a", "000000", hash, now.getTime());
   assert.equal(locked.locked, true);
   assert.equal(checkSharePasscode("link-a", "246810", hash, now.getTime()).ok, false);
+});
+
+test("public links use https and integrations are not healthy without a live check", () => {
+  assert.equal(publicHttpsBase({ APP_URL: "http://127.0.0.1:43109" }), null);
+  assert.equal(publicHttpsBase({ APP_URL: "http://voiceai.specificityinc.com" }), "https://voiceai.specificityinc.com");
+  assert.equal(shownIntegrationStatus({ status: "healthy", keysSet: false, live: false }), "Not connected");
+  assert.equal(shownIntegrationStatus({ status: "healthy", keysSet: true, live: true }), "Healthy");
+  const hints = readinessItems({
+    testMode: true,
+    scheduleEnabled: false,
+    integrationsMode: "mock",
+    hasGhlKey: false,
+    hasGhlLocation: false,
+    hasElevenKey: false,
+    hasElevenAgent: false,
+    hasTwilioSid: false,
+    hasTwilioToken: false,
+    hasTwilioNumber: false,
+    agentPublished: false,
+    voicePublished: false,
+    rulesPublished: false,
+    requireConsent: true,
+    enforceDnc: true,
+    enforceHours: true,
+    liveKnowledge: false,
+    officeReady: false,
+    anyTotp: false,
+    webhookSecrets: false,
+  } satisfies ReadinessInput).map((item) => item.hint).join(" ");
+  assert.equal(/[A-Z][A-Z0-9_]{2,}=|[A-Z][A-Z0-9]*_[A-Z0-9_]+/.test(hints), false);
+  const line = plainCardLine({ metric: "ctr", title: "Weak click rate vs siblings", summary: "Half baseline", baseline: "0.04", observed: "0.02" });
+  assert.equal(/siblings|baseline/i.test(line), false);
+  assert.match(line, /Fewer clicks than your other ads/);
 });
 
 test("a budget card shows dollars and still does not write a budget", () => {

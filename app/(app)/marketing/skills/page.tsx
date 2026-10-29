@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
 import { decideSkillOffer } from "@/lib/marketing/human-actions";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function SkillsPage() {
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
-  if (access.kind !== "super_admin") redirect("/marketing");
+  if (access.kind !== "super_admin") return <NoAccess title="New skill offered" />;
   const skill = OFFERED_SKILL;
   const safe = skillIsSafe(skill);
   return (
@@ -32,7 +32,7 @@ export default async function SkillsPage() {
           <div className="mt-4 flex flex-wrap gap-2">
             <form action={decideSkillOffer}>
               <input type="hidden" name="choice" value="yes" />
-              <button className="min-h-11 rounded-lg bg-brand px-5 font-semibold text-ink">Yes, add skill</button>
+              <button className="min-h-11 rounded-lg bg-brand px-5 font-semibold text-on-brand">Yes, add skill</button>
             </form>
             <form action={decideSkillOffer}>
               <input type="hidden" name="choice" value="no" />

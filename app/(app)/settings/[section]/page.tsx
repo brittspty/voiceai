@@ -12,7 +12,7 @@ import { requireUser, isOwner, canWrite, isSuperAdmin, canOpenOperatorSettings, 
 import { resolveBrandColor, resolveMark } from "@/lib/brand";
 import { actorLabel, CONSENT_OPTIONS, humanFieldLabel, integrationKeyId, presentIntegration } from "@/lib/customer-copy";
 import { prisma } from "@/lib/db";
-import { appUrl } from "@/lib/env";
+import { publicHttpsBase } from "@/lib/env";
 import { formatDateTime, timeAgo } from "@/lib/format";
 import { maskPhone } from "@/lib/phone";
 import { type SP } from "@/lib/params";
@@ -434,7 +434,8 @@ function Integrations({
   readiness: { id: string; ok: boolean }[];
 }) {
   const stale = checks.some((check) => presentIntegration({ ...check, testMode, keysReady: false }).stale);
-  const toneClass = { gray: "bg-zinc-100 text-zinc-700", green: "bg-[#e7f6ee] text-[#166534]", red: "bg-red-100 text-[#9f1239]", amber: "bg-amber-100 text-amber-950" };
+  const toneClass = { gray: "bg-chip text-muted", green: "bg-success-soft text-success", red: "bg-danger-soft text-danger", amber: "bg-warning-soft text-warning" };
+  const base = publicHttpsBase();
   return (
     <div>
       <IntegrationsRefresh stale={stale} />
@@ -456,11 +457,15 @@ function Integrations({
       </div>
       <details className="mt-4 text-sm text-muted">
         <summary>For Specificity support</summary>
-        <ul className="mt-2 space-y-1 font-mono text-xs">
-          <li>{appUrl()}/api/webhooks/ghl</li>
-          <li>{appUrl()}/api/webhooks/elevenlabs</li>
-          <li>{appUrl()}/api/webhooks/twilio</li>
-        </ul>
+        {base ? (
+          <ul className="mt-2 space-y-1 font-mono text-xs">
+            <li>{base}/api/webhooks/ghl</li>
+            <li>{base}/api/webhooks/elevenlabs</li>
+            <li>{base}/api/webhooks/twilio</li>
+          </ul>
+        ) : (
+          <p className="mt-2">The public site address is not set yet.</p>
+        )}
       </details>
     </div>
   );

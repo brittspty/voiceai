@@ -47,7 +47,7 @@ export function HourlySummary({
               <tbody>
                 {recommendations.map((row) => (
                   <tr key={row.id || row.title} className="border-b border-line">
-                    <td className="py-2">{row.title}{row.title?.toLowerCase().includes("budget") ? " · recommended (you set it)" : ""}</td>
+                    <td className="py-2">{row.title}{row.title?.toLowerCase().includes("budget") ? " · You set this" : ""}</td>
                     <td className="py-2"><Link className="text-brand-ink" href="#queue">Review</Link></td>
                   </tr>
                 ))}
