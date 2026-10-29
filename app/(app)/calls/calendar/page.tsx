@@ -62,9 +62,9 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           </form>
         </div>
         <div className="flex gap-4 border-b border-line px-4 py-2 text-xs text-muted">
-          <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm border border-[#8dcea8] bg-[#e7f6ee]" /> Open for booking</span>
+          <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm border border-success bg-success-soft" /> Open for booking</span>
           <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-hatch border border-line" /> Busy in GoHighLevel</span>
-          <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-[#dbeafe]" /> Booked by {data.org.agentName}</span>
+          <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-info-soft" /> Booked by {data.org.agentName}</span>
         </div>
         <div className="grid grid-cols-[64px_repeat(7,minmax(0,1fr))] text-xs">
           <div />
@@ -82,10 +82,10 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                 const hours = office.hours.find((h) => h.weekday === weekday);
                 const open = hours && !hours.closed && hour * 60 >= parseHHMM(hours.openTime) && hour * 60 < parseHHMM(hours.closeTime);
                 return (
-                  <div key={`${iso}-${hour}`} className={`relative h-12 border-l border-t border-line ${open ? "bg-[#e7f6ee]" : "bg-hatch"}`}>
+                  <div key={`${iso}-${hour}`} className={`relative h-12 border-l border-t border-line ${open ? "bg-success-soft" : "bg-hatch"}`}>
                     {hour === 13 && !open && <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-card px-2 py-0.5 text-[10px] text-muted shadow">Closed</span>}
                     {open && hour === parseHHMM(hours?.openTime || "10:00") / 60 && (
-                      <span className="absolute left-2 top-1 text-[10px] font-medium text-[#187a42]">Open<br />{clockLabel(hours?.openTime || "")} – {clockLabel(hours?.closeTime || "")}</span>
+                      <span className="absolute left-2 top-1 text-[10px] font-medium text-success">Open<br />{clockLabel(hours?.openTime || "")} – {clockLabel(hours?.closeTime || "")}</span>
                     )}
                   </div>
                 );

@@ -173,7 +173,7 @@ function Branding({ owner, bundle }: { owner: boolean; bundle: Awaited<ReturnTyp
         <label className="block text-sm">Mark<input name="mark" defaultValue={resolveMark(bundle.org.mark)} maxLength={2} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
         <label className="block text-sm">Logo URL<input name="logoUrl" defaultValue={bundle.org.logoUrl} placeholder="Leave blank for the Specificity logo" disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
       </div>
-      <p className="text-xs text-muted">Leave the logo blank to use the Specificity logo. The color is #FF5800 unless you set another hex color.</p>
+      <p className="text-xs text-muted">Leave the logo blank to use the Specificity logo. The color stays the Specificity orange unless you set another one.</p>
       {owner ? <button className="btn-brand rounded-full px-3 py-1.5 text-sm">Save branding</button> : <p className="text-sm text-muted">Only an owner can edit branding.</p>}
     </form>
   );

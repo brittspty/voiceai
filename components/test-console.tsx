@@ -88,7 +88,7 @@ export function TestConsole({ canWrite = true, offices, contacts }: { canWrite?:
             <option value="failed">Failed</option>
           </select>
         </label>
-        {error && <p className="text-sm text-[#d14343]">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex gap-2">
           <button type="button" className="rounded-full border border-line px-3 py-1.5 text-sm" disabled={pending} onClick={(event) => run(event.currentTarget.form, "preflight")}>Run preflight</button>
           <button type="button" className="btn-brand rounded-full px-3 py-1.5 text-sm disabled:opacity-50" disabled={pending || Boolean(checks && checks.some((c) => !c.passed))} onClick={(event) => run(event.currentTarget.form, "call")}>Place test call</button>
@@ -100,7 +100,7 @@ export function TestConsole({ canWrite = true, offices, contacts }: { canWrite?:
         {!checks && <p className="mt-2 text-sm text-muted">Run the checks before you dial.</p>}
         <ul className="mt-3 space-y-2 text-sm">
           {checks?.map((check) => (
-            <li key={check.id}><span className={check.passed ? "text-[#187a42]" : "text-[#d14343]"}>{check.passed ? "Pass" : "Block"}</span> · {check.detail}</li>
+            <li key={check.id}><span className={check.passed ? "text-success" : "text-danger"}>{check.passed ? "Pass" : "Block"}</span> · {check.detail}</li>
           ))}
         </ul>
         {call && (

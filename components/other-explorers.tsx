@@ -89,7 +89,7 @@ export function DncExplorer({
   const [summary, setSummary] = useState<string | null>(null);
   return (
     <div>
-      {error && <p className="mb-3 text-sm text-[#9f1239]" role="alert">{error}</p>}
+      {error && <p className="mb-3 text-sm text-danger" role="alert">{error}</p>}
       {summary && <p className="mb-3 text-sm text-emerald-800" role="status">{summary}</p>}
       <div className="mb-4 grid gap-3 rounded-xl border border-line bg-card p-4 md:grid-cols-2">
         <form action={async (formData) => { try { const result = await importDnc(String(formData.get("csv") || "")); setError(null); setSummary(`${result.count} added, ${result.skipped} skipped (invalid).`); } catch (e) { setSummary(null); setError(e instanceof Error ? e.message : "Import failed"); } }} className="space-y-2">

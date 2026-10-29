@@ -43,7 +43,7 @@ export function InviteForm() {
       <div className="flex items-end">
         <button className="btn-brand h-10 rounded-full px-4 text-sm">Send invite</button>
       </div>
-      {error && <p className="text-sm text-[#9f1239] sm:col-span-2">{error}</p>}
+      {error && <p className="text-sm text-danger sm:col-span-2">{error}</p>}
       {message && <p className="text-sm sm:col-span-2" role="status">{message}</p>}
       {link && <p className="break-all text-sm sm:col-span-2"><span className="text-muted">Invite link: </span>{link}</p>}
     </form>

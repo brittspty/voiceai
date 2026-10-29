@@ -38,7 +38,7 @@ export function AcceptInviteForm({ token, wordmark }: { token: string; wordmark:
             <label className="block text-sm">Confirm password
               <input name="confirm" type="password" required autoComplete="new-password" minLength={10} className="mt-1 h-10 w-full rounded-lg border border-line px-3" />
             </label>
-            {error && <p className="text-sm text-[#9f1239]">{error}</p>}
+            {error && <p className="text-sm text-danger">{error}</p>}
             <button className="btn-brand h-10 w-full rounded-full text-sm">Set password</button>
           </form>
         )}

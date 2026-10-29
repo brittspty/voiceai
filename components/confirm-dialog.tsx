@@ -49,13 +49,13 @@ export function ConfirmButton({
           >
             <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
             <p className="mt-2 text-sm leading-6 text-muted">{body}</p>
-            {error && <p className="mt-2 text-sm text-[#9f1239]">{error}</p>}
+            {error && <p className="mt-2 text-sm text-danger">{error}</p>}
             <div className="mt-4 flex justify-end gap-2">
               <button ref={cancelRef} type="button" className="h-10 rounded-full border border-line px-4 text-sm" onClick={() => setOpen(false)}>Cancel</button>
               <button
                 type="button"
                 disabled={pending}
-                className={`h-10 rounded-full px-4 text-sm ${danger ? "bg-[#9f1239] text-white" : "btn-brand"}`}
+                className={`h-10 rounded-full px-4 text-sm ${danger ? "bg-danger text-on-ink" : "btn-brand"}`}
                 onClick={async () => {
                   setPending(true);
                   setError(null);

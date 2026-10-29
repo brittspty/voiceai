@@ -68,7 +68,7 @@ export function VoicePicker({
           )}
         </p>
       )}
-      {error && <p className="text-sm text-[#9f1239]">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
       <div className="grid gap-3 md:grid-cols-2">
         {voices.map((voice) => {
           const isLive = live?.voiceId === voice.id;
@@ -79,7 +79,7 @@ export function VoicePicker({
                   <div className="font-medium">{voice.name}</div>
                   <div className="text-sm text-zinc-600 dark:text-zinc-300">{voice.description}</div>
                 </div>
-                {isLive && <span className="rounded-full bg-[#e7f6ee] px-2 py-0.5 text-xs text-[#166534]">Live</span>}
+                {isLive && <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs text-success">Live</span>}
               </div>
               <p className="mt-3 text-xs text-muted">Opening line: {line}</p>
               <div className="mt-3 flex gap-2">
