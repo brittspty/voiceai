@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { readLandingStamp } from "./marketing/speed-to-lead";
 import { normalizePhone } from "./phone";
 
 export function signBody(secret: string, body: string) {
@@ -25,6 +26,9 @@ export type GhlEvent =
       email?: string;
       tags: string[];
       timezone?: string;
+      landedAt?: string;
+      sessionKey?: string;
+      leadSource?: string;
     }
   | {
       kind: "appointment";
@@ -62,6 +66,7 @@ export function parseGhl(body: unknown): GhlEvent {
   const last = str(contact.lastName);
   const name = str(contact.name || contact.fullName || contact.contactName) || [first, last].filter(Boolean).join(" ") || "New lead";
   const tags = Array.isArray(contact.tags) ? contact.tags.map((t) => String(t)) : [];
+  const landing = readLandingStamp(body);
   return {
     kind: "contact",
     event,
@@ -71,6 +76,9 @@ export function parseGhl(body: unknown): GhlEvent {
     email: str(contact.email),
     tags,
     timezone: str(contact.timezone || contact.timeZone),
+    landedAt: landing.landedAt?.toISOString(),
+    sessionKey: landing.sessionKey || undefined,
+    leadSource: landing.leadSource || undefined,
   };
 }
 

@@ -5,6 +5,7 @@ import {
   baselineDays,
   digestEnabled,
   monitorEnabled,
+  speedToLeadEnabled,
   recommendationMinClicks,
   recommendationMinImpressions,
   verticalBenchmarks,
@@ -12,6 +13,7 @@ import {
 import { buildManagerDigest } from "./digest";
 import { evaluateAds, type HourPoint, type HumanBudget, type MetricPoint } from "./monitor";
 import { verifyRecommendation } from "./recommendations";
+import { speedDigestItems } from "./speed-to-lead-store";
 import { addDaysISO, zonedISODate } from "../time";
 
 function dec(value: { toString(): string } | number | null | undefined) {
@@ -149,10 +151,17 @@ export async function runStoredMonitor(now = new Date()) {
 export async function runStoredDigests(now = new Date()) {
   if (!digestEnabled()) return { status: "skipped" as const };
   const periodStart = new Date(now.getTime() - 60 * 60 * 1000);
+  const speed = speedToLeadEnabled() ? await speedDigestItems(periodStart) : { alerts: [], recommendations: [] };
   const [managers, alerts, recommendations] = await Promise.all([
     prisma.user.findMany({ where: { role: "account_manager" }, include: { marketingScopes: true } }),
     prisma.adAlert.findMany({ where: { createdAt: { gte: periodStart } } }),
-    prisma.recommendation.findMany({ where: { status: "verified", verifiedAt: { gte: periodStart } } }),
+    prisma.recommendation.findMany({
+      where: {
+        status: "verified",
+        verifiedAt: { gte: periodStart },
+        ...(speedToLeadEnabled() ? { type: { not: "speed_to_lead" as const } } : {}),
+      },
+    }),
   ]);
   let written = 0;
   for (const manager of managers) {
@@ -167,8 +176,8 @@ export async function runStoredDigests(now = new Date()) {
       accountIds: access.accounts,
       periodStart,
       periodEnd: now,
-      alerts: alerts.map((alert) => ({ id: alert.id, title: alert.title, summary: alert.summary, accountId: alert.adAccountId })),
-      recommendations: recommendations.map((rec) => ({ id: rec.id, title: rec.title, summary: rec.summary, accountId: rec.adAccountId || "" })),
+      alerts: [...alerts.map((alert) => ({ id: alert.id, title: alert.title, summary: alert.summary, accountId: alert.adAccountId })), ...speed.alerts],
+      recommendations: [...recommendations.map((rec) => ({ id: rec.id, title: rec.title, summary: rec.summary, accountId: rec.adAccountId || "" })), ...speed.recommendations],
     });
     if (!draft) continue;
     await prisma.managerDigest.create({
@@ -181,6 +190,31 @@ export async function runStoredDigests(now = new Date()) {
       },
     });
     written += 1;
+  }
+  if (speed.alerts.length || speed.recommendations.length) {
+    const admins = await prisma.user.findMany({ where: { role: "super_admin" } });
+    for (const admin of admins) {
+      if (managers.some((manager) => manager.id === admin.id)) continue;
+      const draft = buildManagerDigest({
+        userId: admin.id,
+        accountIds: [],
+        alerts: speed.alerts,
+        recommendations: speed.recommendations,
+        periodStart,
+        periodEnd: now,
+      });
+      if (!draft) continue;
+      await prisma.managerDigest.create({
+        data: {
+          userId: draft.userId,
+          periodStart: draft.periodStart,
+          periodEnd: draft.periodEnd,
+          payload: draft.payload,
+          delivery: draft.delivery,
+        },
+      });
+      written += 1;
+    }
   }
   return { status: "ran" as const, written };
 }

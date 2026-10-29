@@ -21,6 +21,13 @@ Plain-language copy, empty states, and Specificity branding on the voice and set
 - Primary buttons use dark text on #FF5800. The brand default is that orange and the Specificity mark, not blue or "V".
 - The voice log no longer links to ElevenLabs. Help no longer claims a national do-not-call check. Request access has its own form.
 
+### Speed-to-lead
+
+- Behind `MARKETING_SPEED_TO_LEAD`, which defaults to off. While it is off, leads, calls, digests, client pages, and share links behave as they did before.
+- The clock starts at the page landing time (a landing event or a hidden form field). If that time is missing, it uses the form submit time or the call start and says so, for example "from form submit".
+- Each client has a response target. The default is 30 seconds. A worker sweep flags a lead that is still unanswered at the target, then again at 15 minutes, and resolves the alert when someone or Avery makes contact. The staff marketing page shows the median, the percent answered inside the target, and the slowest leads.
+- The migration only adds tables and a recommendation type. It does not change budgets, ads, or voice test mode.
+
 ### Marketing operations
 
 - Human campaign budgets (amount, daily or lifetime, currency, who set it, when) with an audit row for each change. Only a signed-in super admin, or an account manager for that campaign, can save one. Sync, the monitor, and worker jobs do not write it. Accepting a budget suggestion records the decision and does not write the budget or call an ad platform.

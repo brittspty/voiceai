@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, BookOpen, FileText, LayoutDashboard, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun } from "lucide-react";
+import { BarChart3, BookOpen, FileText, LayoutDashboard, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
@@ -22,11 +22,13 @@ export function AppShell({
   org,
   user,
   mode,
+  showSpeedToLead = false,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
   user: { name: string; email: string; role: string };
   mode: { testMode: boolean; agentName: string; wordmark: string; tagline: string };
+  showSpeedToLead?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -43,7 +45,15 @@ export function AppShell({
     return () => media.removeEventListener("change", apply);
   }, []);
 
-  const itemActive = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href === "/settings/calling" ? "/settings" : href));
+  const itemActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    if (href === "/marketing") return pathname === "/marketing" || (pathname.startsWith("/marketing/") && !pathname.startsWith("/marketing/speed-to-lead"));
+    const base = href === "/settings/calling" ? "/settings" : href;
+    return pathname === href || pathname.startsWith(base);
+  };
+  const staffNav = showSpeedToLead
+    ? [NAV[0], NAV[1], { href: "/marketing/speed-to-lead", label: "Speed-to-lead", icon: Timer }, ...NAV.slice(2)]
+    : NAV;
 
   const nav = (
     <div className="flex h-full flex-col">
@@ -52,7 +62,7 @@ export function AppShell({
         {!collapsed && <div className="text-sm font-semibold">{mode.wordmark}</div>}
       </div>
       <nav className="flex flex-col gap-0.5 px-2">
-        {(user.role === "client_viewer" ? [{ href: "/marketing/client", label: "Performance", icon: BarChart3 }] : NAV).map((item) => {
+        {(user.role === "client_viewer" ? [{ href: "/marketing/client", label: "Performance", icon: BarChart3 }] : staffNav).map((item) => {
           const Icon = item.icon;
           const active = itemActive(item.href);
           return (

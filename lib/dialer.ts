@@ -10,6 +10,7 @@ import { getPublishedPolicy } from "./policy";
 import { digitsOnly } from "./phone";
 import { enqueue } from "./queue";
 import { SYSTEM_ACTOR, type CallOutcomeName, type TimelineEvent, type TranscriptLine } from "./types";
+import { noteVoiceTouch } from "./marketing/speed-to-lead-store";
 import { zonedDayBounds } from "./time";
 
 function sleep(ms: number) {
@@ -226,6 +227,12 @@ export async function finishCall(
     payload: { crmUpdateId: update.id },
   });
   await audit(SYSTEM_ACTOR, "Finished a call and queued the CRM update", { type: "call", id: call.id, label: call.contact.name });
+  const connected = result.durationSec > 0 && result.outcome !== "failed" && result.outcome !== "no_answer";
+  if (connected) {
+    await noteVoiceTouch({ contactId: call.contactId, at: call.startedAt ?? new Date(), callId: call.id }).catch((error) => {
+      console.error("[speed-to-lead] voice touch was not recorded", error);
+    });
+  }
 }
 
 export async function processCrmJob(job: { payload: unknown; attempts: number }) {

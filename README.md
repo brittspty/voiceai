@@ -123,6 +123,7 @@ A live sync needs a Meta system user token and the app that issued it:
 | `MARKETING_DIGEST` | `off` (default). `on` stores an hourly summary for each account manager. It does not send it |
 | `MARKETING_DIGEST_DELIVERY` | `off` (default). Email and SMS are not sent in this version |
 | `MARKETING_CLIENT_LINKS` | `off` (default). `on` lets a super admin or account manager create a client share link |
+| `MARKETING_SPEED_TO_LEAD` | `off` (default). `on` records how many seconds each new lead waits for a person or Avery, and alerts when the client target is missed. The target starts at 30 seconds. It does not place calls or change ads. Turn it off to stop new measurements; existing rows stay put |
 | `MARKETING_SUPER_ADMIN_EMAILS` | Comma-separated emails treated as super admins. Default placeholders: Jason, Brittany, and Chris |
 | `DATABASE_URL` | Postgres URL the CLI writes to. Required for `npm run meta:sync` unless you pass `--dry-run` |
 
