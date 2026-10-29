@@ -19,12 +19,12 @@ export type DecisionInput = {
   sourceCount: number;
   createdAt?: string;
   decidedAt?: string | null;
-  decisionNote?: string;
-  currentBudgetAmount: number | null;
-  proposedBudgetAmount: number | null;
-  proposedCurrency: string | null;
-  proposedBudgetPeriod: string | null;
-  verifierNote?: string;
+  decisionNote?: string | null;
+  currentBudgetAmount?: number | null;
+  proposedBudgetAmount?: number | null;
+  proposedCurrency?: string | null;
+  proposedBudgetPeriod?: string | null;
+  verifierNote?: string | null;
   setByName?: string | null;
 };
 
@@ -73,8 +73,8 @@ export function expiryLabel(ends: number, now: number) {
   return `expires in ${hours}h ${minutes}m`;
 }
 
-export function budgetNeedsSuperAdmin(proposed: number | null, cap: number) {
-  return proposed !== null && proposed > cap;
+export function budgetNeedsSuperAdmin(proposed: number | null | undefined, cap: number) {
+  return proposed != null && proposed > cap;
 }
 
 export function windowLabel(start?: string, end?: string) {

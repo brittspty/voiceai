@@ -24,13 +24,13 @@ type CampaignRow = {
   account: string;
   objective: string;
   status: string;
-  budgetType: string;
-  budgetAmount: number | null;
-  budgetCurrency: string;
-  budgetSetAt: string | null;
-  reportedBudgetType: string;
-  reportedBudgetAmount: number | null;
-  currency: string;
+  budgetType?: string | null;
+  budgetAmount?: number | null;
+  budgetCurrency?: string | null;
+  budgetSetAt?: string | null;
+  reportedBudgetType?: string | null;
+  reportedBudgetAmount?: number | null;
+  currency?: string | null;
   adGroups: number;
 };
 
@@ -51,12 +51,12 @@ type RecommendationRow = {
   sourceCount: number;
   createdAt?: string;
   decidedAt?: string | null;
-  decisionNote?: string;
-  verifierNote?: string;
-  currentBudgetAmount: number | null;
-  proposedBudgetAmount: number | null;
-  proposedCurrency: string | null;
-  proposedBudgetPeriod: string | null;
+  decisionNote?: string | null;
+  verifierNote?: string | null;
+  currentBudgetAmount?: number | null;
+  proposedBudgetAmount?: number | null;
+  proposedCurrency?: string | null;
+  proposedBudgetPeriod?: string | null;
   campaignId: string | null;
   adAccountId: string | null;
 };
@@ -68,8 +68,8 @@ type MetricRow = {
   account: string;
   campaign: string;
   ad: string;
-  currency: string;
-  spend: number;
+  currency?: string | null;
+  spend?: number;
   impressions: number;
   clicks: number;
   reach: number;
@@ -89,7 +89,7 @@ type LastRun = {
   until: string | null;
 };
 
-type Total = { currency: string; spend: number; impressions: number; clicks: number; leads: number };
+type Total = { currency?: string; spend?: number; impressions: number; clicks: number; leads: number };
 
 const PLATFORM_LABEL: Record<string, string> = {
   meta: "Meta",
@@ -139,9 +139,9 @@ function cpc(spend: number, clicks: number, currency: string) {
 }
 
 function budget(row: CampaignRow) {
-  if (row.budgetAmount === null || row.budgetType === "none") return "Not set";
+  if (row.budgetAmount == null || row.budgetType === "none" || !row.budgetType) return "Not set";
   const suffix = row.budgetType === "daily" ? " / day" : " lifetime";
-  return `${money(row.budgetAmount, row.budgetCurrency || row.currency)}${suffix}`;
+  return `${money(row.budgetAmount, row.budgetCurrency || row.currency || "USD")}${suffix}`;
 }
 
 function Table({ headers, children }: { headers: string[]; children: React.ReactNode }) {
@@ -175,11 +175,16 @@ export function MarketingView(props: {
   alerts?: AlertRow[];
   recommendations?: RecommendationRow[];
   digests?: DigestRow[];
-  flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; isSuperAdmin?: boolean; budgetCap?: number };
+  flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number };
 }) {
+  const seesCost = Boolean(props.flags?.seesCost);
   const impressions = props.totals.reduce((sum, row) => sum + row.impressions, 0);
   const clicks = props.totals.reduce((sum, row) => sum + row.clicks, 0);
   const leads = props.totals.reduce((sum, row) => sum + row.leads, 0);
+  const campaignHeaders = seesCost ? ["Campaign", "Account", "Objective", "Status", "Your budget", "Ad sets"] : ["Campaign", "Account", "Objective", "Status", "Ad sets"];
+  const metricHeaders = seesCost
+    ? ["Date", "Account", "Campaign", "Ad", "Spend", "Impr.", "Clicks", "CTR", "CPC", "Reach", "Leads"]
+    : ["Date", "Account", "Campaign", "Ad", "Impr.", "Clicks", "CTR", "Reach", "Leads"];
   return (
     <div>
       <PageTitle
@@ -221,12 +226,13 @@ export function MarketingView(props: {
         <div className="space-y-6">
           {props.totals.length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {props.totals.map((total) => (
-                <div key={total.currency} className="rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
-                  <div className="text-xs text-muted">Spend · {total.currency}</div>
-                  <div className="mt-1 text-xl font-semibold">{money(total.spend, total.currency)}</div>
-                </div>
-              ))}
+              {seesCost &&
+                props.totals.map((total) => (
+                  <div key={total.currency} className="rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
+                    <div className="text-xs text-muted">Spend · {total.currency}</div>
+                    <div className="mt-1 text-xl font-semibold">{money(total.spend ?? 0, total.currency || "USD")}</div>
+                  </div>
+                ))}
               <div className="rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
                 <div className="text-xs text-muted">Impressions</div>
                 <div className="mt-1 text-xl font-semibold">{count(impressions)}</div>
@@ -262,7 +268,7 @@ export function MarketingView(props: {
 
           <section>
             <h2 className="mb-2 font-medium">Campaigns</h2>
-            <Table headers={["Campaign", "Account", "Objective", "Status", "Your budget", "Ad sets"]}>
+            <Table headers={campaignHeaders}>
               {props.campaigns.map((campaign) => (
                 <tr key={campaign.id} className="border-b border-line last:border-0">
                   <td className="px-4 py-3 font-medium">{campaign.name}</td>
@@ -271,26 +277,28 @@ export function MarketingView(props: {
                   <td className="px-4 py-3">
                     <Pill tone={tone(campaign.status)}>{label(campaign.status)}</Pill>
                   </td>
-                  <td className="px-4 py-3">
-                    <div>{budget(campaign)}</div>
-                    {campaign.reportedBudgetAmount !== null && campaign.reportedBudgetType !== "none" && (
-                      <div className="text-xs text-muted">Platform reported {money(campaign.reportedBudgetAmount, campaign.currency)}</div>
-                    )}
-                    {props.flags?.canEditBudget && campaign.budgetAmount !== null && campaign.budgetType !== "none" && (
-                      <BudgetEditor
-                        campaignId={campaign.id}
-                        adAccountId={campaign.accountId}
-                        period={campaign.budgetType}
-                        currency={campaign.budgetCurrency || campaign.currency}
-                      />
-                    )}
-                  </td>
+                  {seesCost && (
+                    <td className="px-4 py-3">
+                      <div>{budget(campaign)}</div>
+                      {campaign.reportedBudgetAmount != null && campaign.reportedBudgetType !== "none" && (
+                        <div className="text-xs text-muted">Platform reported {money(campaign.reportedBudgetAmount, campaign.currency || "USD")}</div>
+                      )}
+                      {props.flags?.canEditBudget && campaign.budgetAmount != null && campaign.budgetType && campaign.budgetType !== "none" && (
+                        <BudgetEditor
+                          campaignId={campaign.id}
+                          adAccountId={campaign.accountId}
+                          period={campaign.budgetType}
+                          currency={campaign.budgetCurrency || campaign.currency || "USD"}
+                        />
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-3">{campaign.adGroups}</td>
                 </tr>
               ))}
               {!props.campaigns.length && (
                 <tr>
-                  <td className="px-4 py-6 text-muted" colSpan={6}>
+                  <td className="px-4 py-6 text-muted" colSpan={campaignHeaders.length}>
                     No campaigns synced yet.
                   </td>
                 </tr>
@@ -300,25 +308,25 @@ export function MarketingView(props: {
 
           <section>
             <h2 className="mb-2 font-medium">Daily performance</h2>
-            <Table headers={["Date", "Account", "Campaign", "Ad", "Spend", "Impr.", "Clicks", "CTR", "CPC", "Reach", "Leads"]}>
+            <Table headers={metricHeaders}>
               {props.rows.map((row) => (
                 <tr key={row.id} className="border-b border-line last:border-0">
                   <td className="px-4 py-3 text-muted">{formatIso(row.date)}</td>
                   <td className="px-4 py-3">{row.account}</td>
                   <td className="px-4 py-3">{row.campaign}</td>
                   <td className="px-4 py-3">{row.ad}</td>
-                  <td className="px-4 py-3">{money(row.spend, row.currency)}</td>
+                  {seesCost && <td className="px-4 py-3">{money(row.spend ?? 0, row.currency || "USD")}</td>}
                   <td className="px-4 py-3">{count(row.impressions)}</td>
                   <td className="px-4 py-3">{count(row.clicks)}</td>
                   <td className="px-4 py-3">{rate(row.clicks, row.impressions)}</td>
-                  <td className="px-4 py-3">{cpc(row.spend, row.clicks, row.currency)}</td>
+                  {seesCost && <td className="px-4 py-3">{cpc(row.spend ?? 0, row.clicks, row.currency || "USD")}</td>}
                   <td className="px-4 py-3">{count(row.reach)}</td>
                   <td className="px-4 py-3">{count(row.leads)}</td>
                 </tr>
               ))}
               {!props.rows.length && (
                 <tr>
-                  <td className="px-4 py-6 text-muted" colSpan={11}>
+                  <td className="px-4 py-6 text-muted" colSpan={metricHeaders.length}>
                     No daily rows yet.
                   </td>
                 </tr>
@@ -329,7 +337,12 @@ export function MarketingView(props: {
 
           <div id="queue">
             {props.flags?.monitor ? (
-              <DecisionQueue cards={props.recommendations ?? []} canAct={Boolean(props.flags.canEditBudget)} isSuperAdmin={props.flags.isSuperAdmin} budgetCap={props.flags.budgetCap} />
+              <DecisionQueue
+                cards={(props.recommendations ?? []).filter((card) => seesCost || (card.type !== "budget_change" && card.type !== "roi" && !["cpc", "cpm", "cpa", "cpl", "budget", "roi", "spend", "cost"].includes(card.metric)))}
+                canAct={Boolean(props.flags.canEditBudget)}
+                isSuperAdmin={props.flags.isSuperAdmin}
+                budgetCap={props.flags.budgetCap}
+              />
             ) : (
               <p className="text-sm text-muted">Decision cards are turned off.</p>
             )}

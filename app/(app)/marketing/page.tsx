@@ -19,10 +19,10 @@ export default async function MarketingPage() {
         monitor: monitorEnabled(),
         digest: digestEnabled(),
         clientLinks: clientLinksEnabled(),
-        canEditBudget: access.canEditBudget,
+        canEditBudget: access.canEditBudget && access.seesCost,
         canCreateShareLink: access.canCreateShareLink,
-        isSuperAdmin: access.kind === "super_admin",
-        budgetCap: amBudgetCapUsd(),
+        seesCost: access.seesCost,
+        ...(access.seesCost ? { isSuperAdmin: access.kind === "super_admin", budgetCap: amBudgetCapUsd() } : {}),
       }}
     />
   );
