@@ -1,5 +1,6 @@
 import { prisma } from "../lib/db";
 import { runJob } from "../lib/dialer";
+import { marketingSyncIntervalMs, runMarketingSync } from "../lib/marketing/sync";
 import { claimJob, failOrRetry } from "../lib/queue";
 import { createRedis } from "../lib/redis";
 
@@ -21,8 +22,30 @@ async function tick() {
   return true;
 }
 
+function startMarketingSync() {
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const result = await runMarketingSync();
+      if (result.status !== "skipped") {
+        console.log(`[worker] marketing sync ${result.status}${result.error ? `: ${result.error}` : ""}`);
+      }
+    } catch (error) {
+      console.error("[worker] marketing sync failed", error);
+    } finally {
+      running = false;
+    }
+  };
+  void tick();
+  const timer = setInterval(() => void tick(), marketingSyncIntervalMs());
+  return () => clearInterval(timer);
+}
+
 async function main() {
   console.log("[worker] voice operations dialer started");
+  const stopMarketing = startMarketingSync();
   const redis = createRedis();
   let connected = false;
   try {
@@ -51,6 +74,7 @@ async function main() {
       await new Promise((resolve) => setTimeout(resolve, 1500));
     }
   }
+  stopMarketing();
   redis.disconnect();
   await prisma.$disconnect();
 }

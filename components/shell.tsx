@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BookOpen, FileText, LayoutDashboard, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun } from "lucide-react";
+import { BarChart3, BookOpen, FileText, LayoutDashboard, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
@@ -11,6 +11,7 @@ import { cn } from "@/lib/cn";
 
 const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/marketing", label: "Marketing", icon: BarChart3 },
   { href: "/calls", label: "Calls", icon: Phone },
   { href: "/knowledge", label: "Knowledge", icon: BookOpen },
   { href: "/settings/calling", label: "Settings", icon: Settings },
