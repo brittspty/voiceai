@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { clientShareCsv } from "@/lib/marketing/client-view";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
-import { hashShareToken, passcodeCookieValue, shareLinkState } from "@/lib/marketing/share-link";
+import { hashShareToken, passcodePrompt, SHARE_PASS_COOKIE, shareAccessDecision, shareLinkState } from "@/lib/marketing/share-link";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ function Frame({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default async function SharePage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ export?: string; range?: string }> }) {
+export default async function SharePage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ export?: string; range?: string; code?: string }> }) {
   const { token } = await params;
   const query = await searchParams;
   let link: Awaited<ReturnType<typeof prisma.clientShareLink.findUnique>> & { createdBy?: { name: string } } | null = null;
@@ -42,22 +42,24 @@ export default async function SharePage({ params, searchParams }: { params: Prom
       <p className="px-4 py-10 text-lg">This link isn&apos;t valid. Ask {manager} for a new one.</p>
     </Frame>
   );
-  const state = shareLinkState(link, new Date());
-  if (state === "disabled" || state === "expired" || state === "revoked" || state === "missing" || !link) return invalid;
-  if (link.passcodeHash) {
-    const jar = await cookies();
-    const ok = jar.get("voiceops_share_pass")?.value === passcodeCookieValue(link.id, link.passcodeHash);
-    if (!ok) {
-      return (
-        <Frame>
-          <form className="mx-auto max-w-sm space-y-3 px-4 py-8" method="post" action={`/api/share/${token}/passcode`}>
-            <p>This link needs a code.</p>
-            <input name="code" inputMode="numeric" autoComplete="one-time-code" className="h-11 w-full rounded-lg border border-line px-3" aria-label="Passcode" />
-            <button className="min-h-11 rounded-lg bg-brand px-4 font-semibold text-on-brand">Continue</button>
-          </form>
-        </Frame>
-      );
-    }
+  const jar = await cookies();
+  const decision = shareAccessDecision({
+    state: shareLinkState(link, new Date()),
+    linkId: link?.id ?? "",
+    passcodeHash: link?.passcodeHash ?? null,
+    cookie: jar.get(SHARE_PASS_COOKIE)?.value,
+  });
+  if (decision === "disabled" || decision === "not_found" || !link) return invalid;
+  if (decision === "passcode") {
+    return (
+      <Frame>
+        <form className="mx-auto max-w-sm space-y-3 px-4 py-8" method="post" action={`/api/share/${token}/passcode`}>
+          <p>{passcodePrompt(query.code)}</p>
+          <input name="code" inputMode="numeric" autoComplete="one-time-code" className="h-11 w-full rounded-lg border border-line px-3" aria-label="Passcode" />
+          <button className="min-h-11 rounded-lg bg-brand px-4 font-semibold text-on-brand">Continue</button>
+        </form>
+      </Frame>
+    );
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
   const expires = link.expiresAt ? `expires ${link.expiresAt.toISOString().slice(0, 10)}` : "";

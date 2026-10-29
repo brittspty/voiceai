@@ -12,6 +12,7 @@ import { getSettingsBundle } from "./queries";
 import { TEST_STRIP_COOKIE } from "./ui-prefs";
 import { audit } from "./audit";
 import { canOpenOperatorSettings, canWrite, isOwner, isSuperAdmin, requireStaffUser, requireUser } from "./auth";
+import { denyAccess } from "./deny";
 import { appUrl } from "./env";
 import { sendInviteEmail } from "./mail";
 import { createHash, randomBytes } from "node:crypto";
@@ -26,11 +27,11 @@ import type { CallOutcomeName, CallingPolicy } from "./types";
 import { DEFAULT_POLICY } from "./types";
 
 function assertWrite(role: Role) {
-  if (!canWrite(role)) throw new Error("You have view-only access.");
+  if (!canWrite(role)) denyAccess();
 }
 
 function assertOwner(role: Role) {
-  if (!isOwner(role)) throw new Error("Only an owner can do that.");
+  if (!isOwner(role)) denyAccess();
 }
 
 export async function preflightCall(input: { contactId?: string; phone?: string; consent?: Consent; timeZone?: string }) {
@@ -300,7 +301,7 @@ export async function publishRules(config: CallingPolicy) {
 
 export async function updateSwitches(input: { requireConsent: boolean; enforceDnc: boolean; enforceCallingHours: boolean; testMode: boolean; scheduleEnabled: boolean; confirm?: string }) {
   const user = await requireStaffUser();
-  if (!canOpenOperatorSettings(user.role)) throw new Error("Only an owner or super admin can do that.");
+  if (!canOpenOperatorSettings(user.role)) denyAccess();
   const org = await prisma.org.findUnique({ where: { id: "org" } });
   if (!org) throw new Error("Organization is not seeded");
   if (org.testMode && !input.testMode) {
@@ -383,7 +384,7 @@ function hashInviteToken(token: string) {
 
 export async function inviteTeammate(input: { name: string; email: string; role: Role }) {
   const user = await requireStaffUser();
-  if (!canOpenOperatorSettings(user.role)) throw new Error("Only an owner or super admin can do that.");
+  if (!canOpenOperatorSettings(user.role)) denyAccess();
   if (input.role !== "owner" && input.role !== "admin" && input.role !== "viewer") {
     throw new Error("That role is assigned separately.");
   }
@@ -460,7 +461,7 @@ export async function disableTotp(userId: string) {
 
 export async function refreshIntegrations() {
   const user = await requireStaffUser();
-  if (!canOpenOperatorSettings(user.role)) throw new Error("Only an owner or super admin can do that.");
+  if (!canOpenOperatorSettings(user.role)) denyAccess();
   const checks = [
     { provider: "ghl", label: "GoHighLevel", ...(await checkGhl()) },
     { provider: "elevenlabs", label: "ElevenLabs", ...(await checkEleven()) },
@@ -518,7 +519,7 @@ export async function discardJob(id: string) {
 
 export async function saveMapping(id: string, ghlField: string, enabled: boolean) {
   const user = await requireStaffUser();
-  if (!isSuperAdmin(user.role)) throw new Error("Only Specificity can change CRM keys.");
+  if (!isSuperAdmin(user.role)) denyAccess();
   const row = await prisma.fieldMapping.update({ where: { id }, data: { ghlField, enabled } });
   await audit(user, "Updated a CRM field mapping", { type: "field_mapping", id, label: row.internalField });
   revalidatePath("/settings/capabilities");

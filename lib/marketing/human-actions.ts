@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { audit } from "../audit";
 import { requireStaffUser } from "../auth";
+import { denyAccess } from "../deny";
 import { prisma } from "../db";
 import { setCampaignBudget } from "./budget";
 import { prismaBudgetStore } from "./budget-store";
@@ -18,6 +19,7 @@ import { WORKSPACE_ID } from "./types";
 export async function saveCampaignBudget(formData: FormData) {
   const user = await requireStaffUser();
   const access = await loadMarketingAccess(user);
+  if (!access.canEditBudget) denyAccess();
   await setCampaignBudget(
     { kind: "human", access },
     {
@@ -40,8 +42,8 @@ export async function decideMarketingRecommendation(formData: FormData) {
   const decision = String(formData.get("decision") || "dismiss");
   const rec = await prisma.recommendation.findUnique({ where: { id } });
   if (!rec) throw new Error("That suggestion was not found.");
-  if (access.kind === "client_viewer" || access.kind === "none" || !access.seesAlerts && access.kind !== "account_manager") {
-    throw new Error("You can't decide this.");
+  if (access.kind === "client_viewer" || access.kind === "none" || (!access.seesAlerts && access.kind !== "account_manager")) {
+    denyAccess();
   }
   if (decision === "later") {
     await prisma.recommendation.update({
@@ -112,7 +114,7 @@ export async function decideMarketingRecommendation(formData: FormData) {
 export async function decideSkillOffer(formData: FormData) {
   const user = await requireStaffUser();
   const access = await loadMarketingAccess(user);
-  if (access.kind !== "super_admin") throw new Error("Super admins only.");
+  if (access.kind !== "super_admin") denyAccess();
   if (!skillIsSafe(OFFERED_SKILL)) throw new Error("This skill cannot be added.");
   const choice = String(formData.get("choice") || "no");
   await audit(user, choice === "yes" ? "Added a skill" : "Skipped a skill", { type: "skill", label: OFFERED_SKILL.name });
@@ -145,9 +147,7 @@ export async function createClientViewer(input: { name: string; email: string; p
   const user = await requireStaffUser();
   if (!clientViewersEnabled()) throw new Error("Client viewer invites are turned off.");
   const access = await loadMarketingAccess(user);
-  if (access.kind !== "super_admin" && access.kind !== "account_manager") {
-    throw new Error("You can't add a client viewer.");
-  }
+  if (access.kind !== "super_admin" && access.kind !== "account_manager") denyAccess();
   const issues = passwordIssues(input.password, input.email);
   if (issues.length) throw new Error(issues[0]);
   const created = await prisma.user.create({

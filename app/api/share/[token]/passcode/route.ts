@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { appUrl } from "@/lib/env";
-import { checkSharePasscode, hashShareToken, passcodeCookieValue, shareLinkState } from "@/lib/marketing/share-link";
+import { checkSharePasscode, hashShareToken, passcodeCookieValue, SHARE_PASS_COOKIE, shareLinkState } from "@/lib/marketing/share-link";
 
 export async function POST(request: Request, context: { params: Promise<{ token: string }> }) {
   const { token } = await context.params;
@@ -18,7 +18,7 @@ export async function POST(request: Request, context: { params: Promise<{ token:
     return NextResponse.redirect(back, 303);
   }
   const response = NextResponse.redirect(new URL(`/share/${token}`, appUrl()), 303);
-  response.cookies.set("voiceops_share_pass", passcodeCookieValue(link.id, link.passcodeHash), {
+  response.cookies.set(SHARE_PASS_COOKIE, passcodeCookieValue(link.id, link.passcodeHash), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -26,5 +26,6 @@ export async function POST(request: Request, context: { params: Promise<{ token:
     maxAge: 60 * 60 * 12,
   });
   response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  response.headers.set("Referrer-Policy", "no-referrer");
   return response;
 }

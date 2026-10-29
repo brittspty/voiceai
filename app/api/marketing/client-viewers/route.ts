@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { isAccessDenied } from "@/lib/deny";
 import { createClientViewer } from "@/lib/marketing/human-actions";
 
 export async function POST(request: Request) {
@@ -14,6 +15,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ id: created.id, email: created.email });
   } catch (error) {
+    if (isAccessDenied(error)) return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     const message = error instanceof Error ? error.message : "Could not add the viewer";
     const status = /can't|Not allowed/i.test(message) ? 403 : 400;
     return NextResponse.json({ error: message }, { status });

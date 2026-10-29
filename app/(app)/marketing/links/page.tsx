@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { clientLinksEnabled } from "@/lib/marketing/config";
 import { revokeShareLink } from "@/lib/marketing/human-actions";
+import { shareLinkLabel } from "@/lib/marketing/share-link";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { prisma } from "@/lib/db";
 
@@ -23,7 +24,7 @@ export default async function ShareLinksPage() {
             <div>
               <div className="font-medium">{link.label || "Client link"}</div>
               <p className="text-sm text-muted">
-                {link.revokedAt ? "Revoked" : link.expiresAt ? `Expires ${link.expiresAt.toISOString().slice(0, 10)}` : "No expiry"}
+                {shareLinkLabel(link)}
                 {link.passcodeHash ? " · Passcode on" : ""}
               </p>
             </div>

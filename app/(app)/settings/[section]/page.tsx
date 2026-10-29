@@ -447,7 +447,7 @@ function Integrations({
             <div key={check.provider} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
               <div>
                 <div className="font-medium">{check.label}</div>
-                <div className="text-sm text-zinc-600 dark:text-zinc-300">{shown.sentence}</div>
+                {shown.sentence !== shown.status && <div className="text-sm text-zinc-600 dark:text-zinc-300">{shown.sentence}</div>}
                 <div className="mt-1 text-xs text-muted">{check.checkedAt ? `Checked ${timeAgo(check.checkedAt)}` : "Not checked yet"}</div>
               </div>
               <span className={`rounded-full px-2 py-0.5 text-xs ${toneClass[shown.tone]}`}>{shown.status}</span>

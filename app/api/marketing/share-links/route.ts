@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { isAccessDenied } from "@/lib/deny";
 import { createShareLink } from "@/lib/marketing/human-actions";
 import { publicHttpsBase } from "@/lib/env";
 
@@ -13,6 +14,7 @@ export async function POST(request: Request) {
     const created = await createShareLink({ label: body.label, expiresAt: body.expiresAt, passcode: body.passcode });
     return NextResponse.json({ url: `${base}/share/${created.token}` });
   } catch (error) {
+    if (isAccessDenied(error)) return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     const message = error instanceof Error ? error.message : "Could not create the link";
     const status = /turned off|can't|outside/i.test(message) ? 403 : 400;
     return NextResponse.json({ error: message }, { status });

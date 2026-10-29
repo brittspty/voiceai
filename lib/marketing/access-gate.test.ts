@@ -3,7 +3,9 @@ import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { canOpenOperatorSettings } from "../auth";
+import { readFileSync } from "node:fs";
 import { passwordIssues, roleLabel } from "./access";
+import { permissionStatus } from "../auth";
 import { shownIntegrationStatus } from "../adapters";
 import { publicHttpsBase } from "../env";
 import { readinessItems, type ReadinessInput } from "../readiness";
@@ -12,7 +14,7 @@ import { clientViewersEnabled } from "./config";
 import { plainCardLine } from "./decision-ui";
 import { budgetCardCopy, budgetNeedsSuperAdmin } from "./decision-ui";
 import { buildClientShare, clientShareHasMoney } from "./client-view";
-import { checkSharePasscode, defaultShareExpiry, hashPasscode, SHARE_LINK_DEFAULT_MS } from "./share-link";
+import { checkSharePasscode, defaultShareExpiry, hashPasscode, passcodeCookieValue, passcodePrompt, SHARE_LINK_DEFAULT_MS, shareAccessDecision, shareLinkLabel } from "./share-link";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
@@ -79,6 +81,18 @@ test("a client viewer is blocked from every internal route", () => {
   }
 });
 
+test("a viewer write is refused as 403", () => {
+  assert.equal(permissionStatus("viewer"), 403);
+  assert.equal(permissionStatus("client_viewer"), 403);
+  assert.equal(permissionStatus("owner"), null);
+  assert.equal(permissionStatus("admin"), null);
+  const actions = readFileSync(path.join(ROOT, "lib/actions.ts"), "utf8");
+  assert.match(actions, /denyAccess\(\)/);
+  assert.equal(actions.includes("You have view-only access."), false);
+  const settings = readFileSync(path.join(ROOT, "app/(app)/settings/[section]/page.tsx"), "utf8");
+  assert.equal(settings.includes('{healthy ? check.detail : "Not connected"}'), false);
+});
+
 test("operator settings stay with the owner and super admin", () => {
   assert.equal(canOpenOperatorSettings("owner"), true);
   assert.equal(canOpenOperatorSettings("super_admin"), true);
@@ -108,6 +122,23 @@ test("share links expire in 30 days and a passcode locks after five tries", () =
   const locked = checkSharePasscode("link-a", "000000", hash, now.getTime());
   assert.equal(locked.locked, true);
   assert.equal(checkSharePasscode("link-a", "246810", hash, now.getTime()).ok, false);
+  const passcodeHash = hashPasscode("246810");
+  const cookie = passcodeCookieValue("link-a", passcodeHash);
+  assert.equal(shareAccessDecision({ state: "ok", linkId: "link-a", passcodeHash, cookie: undefined }), "passcode");
+  assert.equal(shareAccessDecision({ state: "ok", linkId: "link-a", passcodeHash, cookie: "nope" }), "passcode");
+  assert.equal(shareAccessDecision({ state: "ok", linkId: "link-a", passcodeHash, cookie }), "ok");
+  assert.equal(shareAccessDecision({ state: "ok", linkId: "link-a", passcodeHash: null, cookie: undefined }), "ok");
+  assert.equal(shareAccessDecision({ state: "expired", linkId: "link-a", passcodeHash, cookie }), "not_found");
+  assert.equal(passcodePrompt("wrong"), "That code is wrong. Try again.");
+  assert.equal(passcodePrompt("locked"), "Too many tries. This link is locked for 15 minutes.");
+  assert.equal(shareLinkLabel({ revokedAt: null, expiresAt: new Date("2026-10-01T00:00:00.000Z") }, now), "Expired");
+  assert.match(shareLinkLabel({ revokedAt: null, expiresAt: new Date("2026-12-01T00:00:00.000Z") }, now), /^Expires /);
+  const shareApi = readFileSync(path.join(ROOT, "app/api/share/[token]/route.ts"), "utf8");
+  const shareExport = readFileSync(path.join(ROOT, "app/api/share/[token]/export/route.ts"), "utf8");
+  assert.ok(shareApi.indexOf("shareAccessDecision({") < shareApi.indexOf("await loadClientPerformance"));
+  assert.match(shareExport, /export \{ GET \} from "\.\.\/route"/);
+  assert.match(readFileSync(path.join(ROOT, "next.config.ts"), "utf8"), /Referrer-Policy/);
+  assert.match(readFileSync(path.join(ROOT, "proxy.ts"), "utf8"), /Referrer-Policy/);
 });
 
 test("public links use https and integrations are not healthy without a live check", () => {
@@ -167,6 +198,9 @@ test("a budget card shows dollars and still does not write a budget", () => {
   assert.equal(copy.current, "$50/day");
   assert.equal(copy.recommended, "$80/day");
   assert.equal(copy.setBy, "set by Dana R.");
+  const unnamed = budgetCardCopy({ ...copy, id: "1", type: "budget_change", status: "verified", title: copy.headline, summary: copy.why, rationale: "", metric: "budget", baseline: "50", observed: "50", windowStart: "", windowEnd: "", sampleSize: 10, sourceCount: 1, currentBudgetAmount: 50, proposedBudgetAmount: 40, proposedCurrency: "USD", proposedBudgetPeriod: "daily", setByName: null });
+  assert.equal(unnamed.setBy, "");
+  assert.equal(unnamed.setBy.includes("No one has set this yet"), false);
   assert.match(copy.fixed, /will not change this budget/);
   assert.equal(budgetNeedsSuperAdmin(80, 50), true);
   assert.equal(budgetNeedsSuperAdmin(40, 50), false);

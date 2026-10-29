@@ -11,6 +11,7 @@ function withPath(request: NextRequest) {
   const response = NextResponse.next({ request: { headers } });
   if (request.nextUrl.pathname.startsWith("/share") || request.nextUrl.pathname.startsWith("/api/share")) {
     response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    response.headers.set("Referrer-Policy", "no-referrer");
   }
   return response;
 }

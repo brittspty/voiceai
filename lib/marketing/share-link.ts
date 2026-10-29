@@ -10,8 +10,36 @@ export function defaultShareExpiry(now = new Date()) {
 
 const passcodeFails = new Map<string, { n: number; lockedUntil: number }>();
 
+export const SHARE_PASS_COOKIE = "voiceops_share_pass";
+
 export function passcodeCookieValue(linkId: string, passcodeHash: string) {
   return hashShareToken(`${linkId}:${passcodeHash}`);
+}
+
+export function passcodePrompt(code: string | undefined) {
+  if (code === "locked") return "Too many tries. This link is locked for 15 minutes.";
+  if (code === "wrong") return "That code is wrong. Try again.";
+  return "This link needs a code.";
+}
+
+/** Server-side gate for the share page and both share APIs. A passcode is not optional once it is set. */
+export function shareAccessDecision(input: {
+  state: ReturnType<typeof shareLinkState>;
+  linkId: string;
+  passcodeHash: string | null;
+  cookie: string | undefined;
+}) {
+  if (input.state === "disabled") return "disabled" as const;
+  if (input.state !== "ok") return "not_found" as const;
+  if (input.passcodeHash && input.cookie !== passcodeCookieValue(input.linkId, input.passcodeHash)) return "passcode" as const;
+  return "ok" as const;
+}
+
+export function shareLinkLabel(link: { revokedAt: Date | null; expiresAt: Date | null }, now = new Date()) {
+  if (link.revokedAt) return "Revoked";
+  if (link.expiresAt && link.expiresAt.getTime() <= now.getTime()) return "Expired";
+  if (link.expiresAt) return `Expires ${link.expiresAt.toISOString().slice(0, 10)}`;
+  return "No expiry";
 }
 
 export function hashPasscode(code: string) {

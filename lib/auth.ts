@@ -55,8 +55,17 @@ export function canOpenOperatorSettings(role: string) {
   return role === "owner" || role === "super_admin";
 }
 
+/** Viewers cannot perform writes. Callers turn this into a 403 instead of an uncaught error. */
+export function permissionStatus(role: string): 403 | null {
+  if (role === "viewer" || role === "client_viewer") return 403;
+  return null;
+}
+
 export async function requireStaffUser() {
   const user = await requireUser();
-  if (user.role === "client_viewer") throw new Error("You can only view your results.");
+  if (permissionStatus(user.role) === 403) {
+    const { denyAccess } = await import("./deny");
+    denyAccess();
+  }
   return user;
 }

@@ -60,7 +60,7 @@ export function budgetCardCopy(input: DecisionInput) {
     current: `${usd(current)}${unit}`,
     recommended: `${usd(next)}${unit}`,
     change: `${sign}${usd(Math.abs(delta))} (${delta >= 0 ? "+" : ""}${pct}%)`,
-    setBy: input.setByName ? `set by ${input.setByName}` : "No one has set this yet",
+    setBy: input.setByName ? `set by ${input.setByName}` : input.currentBudgetAmount != null ? "" : "No one has set this yet",
     fixed: BUDGET_FIXED_LINE,
   };
 }
