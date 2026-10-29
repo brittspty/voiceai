@@ -17,7 +17,8 @@ const TABS = [
 export function CallsTabs() {
   const pathname = usePathname();
   return (
-    <div className="mb-4 flex gap-1 overflow-x-auto rounded-full bg-chip p-1 text-sm">
+    <div className="relative mb-4">
+    <div className="flex gap-1 overflow-x-auto rounded-full bg-chip p-1 text-sm">
       {TABS.map(([href, label]) => {
         const active = href === "/calls" ? pathname === "/calls" : pathname.startsWith(href);
         return (
@@ -26,6 +27,8 @@ export function CallsTabs() {
           </Link>
         );
       })}
+    </div>
+    <div className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-full bg-gradient-to-l from-chip to-transparent sm:hidden" aria-hidden="true" />
     </div>
   );
 }

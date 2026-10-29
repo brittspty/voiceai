@@ -27,6 +27,8 @@ export function Explorer<T extends { id: string }>({
   perPage,
   emptyTitle,
   emptyBody,
+  emptyAction,
+  stackOnMobile = false,
   actions,
   onRow,
   trailing,
@@ -43,6 +45,8 @@ export function Explorer<T extends { id: string }>({
   perPage: number;
   emptyTitle: string;
   emptyBody: string;
+  emptyAction?: React.ReactNode;
+  stackOnMobile?: boolean;
   actions?: React.ReactNode;
   onRow?: (row: T) => void;
   trailing?: (row: T) => React.ReactNode;
@@ -125,10 +129,12 @@ export function Explorer<T extends { id: string }>({
       <div className="flex flex-wrap items-center gap-2">
         <label className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+          <span className="sr-only">{searchPlaceholder}</span>
           <input
             value={q}
             onChange={(event) => setQ(event.target.value)}
             placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
             className="h-9 w-64 rounded-lg border border-line bg-card pl-8 pr-3 text-sm outline-none focus:border-zinc-400"
           />
         </label>
@@ -168,13 +174,28 @@ export function Explorer<T extends { id: string }>({
           )}
         </div>
       )}
-      <div className="mt-4 overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow)]">
+      {stackOnMobile && rows.length > 0 && (
+        <div className="mt-4 space-y-3 sm:hidden">
+          {rows.map((row) => (
+            <div key={row.id} className="rounded-xl border border-line bg-card p-4 text-sm shadow-[var(--shadow)]" onClick={() => onRow?.(row)}>
+              {visible.map((column) => (
+                <div key={column.id} className="flex items-start justify-between gap-3 py-1">
+                  <span className="text-xs uppercase tracking-wide text-muted">{column.header}</span>
+                  <span className="text-right">{column.cell(row)}</span>
+                </div>
+              ))}
+              {trailing && <div className="mt-2 text-right" onClick={(event) => event.stopPropagation()}>{trailing(row)}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className={cn("mt-4 overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow)]", stackOnMobile && rows.length > 0 && "hidden sm:block")}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead>
               <tr className="border-b border-line text-[11px] tracking-wide text-muted">
                 {visible.map((column) => (
-                  <th key={column.id} className={cn("px-4 py-3 font-medium", column.className)}>{column.header}</th>
+                  <th key={column.id} scope="col" className={cn("px-4 py-3 font-medium", column.className)}>{column.header}</th>
                 ))}
                 {trailing && <th className="px-4 py-3" />}
               </tr>
@@ -192,10 +213,16 @@ export function Explorer<T extends { id: string }>({
           </table>
         </div>
         {rows.length === 0 && (
-          <div className="px-6 py-16 text-center">
-            <div className="font-medium">{emptyTitle}</div>
-            <p className="mt-1 text-sm text-muted">{emptyBody}</p>
-          </div>
+          <EmptyState
+            filtered={[...menus.map((menu) => menu.param), ...segments.map((segment) => segment.param), "q", "from", "to"].some((key) => {
+              const value = sp.get(key);
+              return Boolean(value && value !== "any");
+            })}
+            title={emptyTitle}
+            body={emptyBody}
+            action={emptyAction}
+            onClear={() => router.push(pathname)}
+          />
         )}
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
@@ -211,6 +238,25 @@ export function Explorer<T extends { id: string }>({
           <a className={cn("rounded-md border border-line px-2 py-1", page >= pages && "pointer-events-none opacity-40")} href={pageHref(pages)}>»</a>
         </div>
       </div>
+    </div>
+  );
+}
+
+function EmptyState({ filtered, title, body, action, onClear }: { filtered: boolean; title: string; body: string; action?: React.ReactNode; onClear: () => void }) {
+  if (filtered) {
+    return (
+      <div className="px-6 py-16 text-center">
+        <div className="font-medium">No results match these filters</div>
+        <p className="mt-1 text-sm text-muted">Try a wider date range or clear filters.</p>
+        <button type="button" className="mt-3 inline-flex h-9 items-center rounded-full border border-line px-3 text-sm" onClick={onClear}>Clear filters</button>
+      </div>
+    );
+  }
+  return (
+    <div className="px-6 py-16 text-center">
+      <div className="font-medium">{title}</div>
+      <p className="mx-auto mt-1 max-w-md text-sm text-zinc-600 dark:text-zinc-300">{body}</p>
+      {action && <div className="mt-3">{action}</div>}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Calendar, Clock, PhoneOutgoing, Percent, Target } from "lucide-react";
+import { periodLabel } from "@/lib/customer-copy";
 import { formatDuration, formatPercent, outcomeLabel } from "@/lib/format";
 
 type Live = { queued: number; dialing: number; inProgress: number; wrapUp: number; items: { id: string; name: string; office: string; status: string }[] };
@@ -22,22 +23,23 @@ export function RangeSelect({ range }: { range: string }) {
 }
 
 export function KpiRow({ kpis }: { kpis: { dials: number; connectRate: number; meetings: number; bookingRate: number; avgLength: number | null } }) {
+  const noCalls = kpis.dials === 0;
   const cards = [
-    { label: "Dials", value: String(kpis.dials), icon: PhoneOutgoing },
-    { label: "Connect rate", value: formatPercent(kpis.connectRate), icon: Percent },
-    { label: "Meetings booked", value: String(kpis.meetings), icon: Calendar },
-    { label: "Booking rate", value: formatPercent(kpis.bookingRate), icon: Target },
-    { label: "Avg call length", value: kpis.avgLength == null ? "—" : formatDuration(kpis.avgLength), icon: Clock },
+    { label: "Dials", value: noCalls ? "No calls yet" : String(kpis.dials), hint: "Calls Avery placed", icon: PhoneOutgoing },
+    { label: "Answered", value: noCalls ? "No calls yet" : formatPercent(kpis.connectRate), hint: "Percent of calls a person picked up", icon: Percent },
+    { label: "Meetings booked", value: String(kpis.meetings), hint: "Meetings Avery booked", icon: Calendar },
+    { label: "Booking rate", value: noCalls ? "No calls yet" : formatPercent(kpis.bookingRate), hint: "Answered calls that became a meeting", icon: Target },
+    { label: "Avg call length", value: kpis.avgLength == null ? "No calls yet" : formatDuration(kpis.avgLength), hint: "Average time someone stayed on the line", icon: Clock },
   ];
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {cards.map((card) => (
-        <div key={card.label} className="rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
+        <div key={card.label} title={card.hint} className="rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
           <div className="flex items-center justify-between text-sm text-muted">
             {card.label}
-            <card.icon className="h-4 w-4" />
+            <card.icon className="h-4 w-4" aria-hidden="true" />
           </div>
-          <div className="mt-2 text-[28px] font-semibold tracking-tight">{card.value}</div>
+          <div className={`mt-2 font-semibold tracking-tight ${card.value.length > 8 ? "text-base text-zinc-500" : "text-[28px]"}`}>{card.value}</div>
         </div>
       ))}
     </div>
@@ -68,13 +70,13 @@ export function LiveNow({ initial, range }: { initial: Live; range: string }) {
   ] as const;
 
   return (
-    <section className="rounded-xl border border-line bg-card p-4 shadow-[var(--shadow)]">
+    <section className="rounded-xl border border-line bg-card p-4 shadow-[var(--shadow)]" aria-live="polite">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-medium">Live now</h2>
-          <p className="text-sm text-muted">Calls moving through the system</p>
+          <p className="text-sm text-muted">Calls moving through the system. Wrap-up means Avery is saving notes to your CRM.</p>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-muted"><span className="h-1.5 w-1.5 rounded-full bg-[#22a06b]" /> Refreshes every 4 seconds</div>
+        <div className="flex items-center gap-1.5 text-xs text-muted"><span className="h-1.5 w-1.5 rounded-full bg-[#22a06b]" aria-hidden="true" /> Updating live</div>
       </div>
       <div className="mt-4 flex flex-wrap gap-4 text-sm">
         {legend.map(([label, count, dot]) => (
@@ -94,19 +96,23 @@ export function LiveNow({ initial, range }: { initial: Live; range: string }) {
   );
 }
 
-export function DialsChart({ data }: { data: { label: string; dials: number; connects: number }[] }) {
+export function DialsChart({ data, range }: { data: { label: string; dials: number; connects: number }[]; range: string }) {
+  const period = periodLabel(range);
+  const dials = data.reduce((sum, row) => sum + row.dials, 0);
+  const connects = data.reduce((sum, row) => sum + row.connects, 0);
   return (
     <section className="rounded-xl border border-line bg-card p-4 shadow-[var(--shadow)]">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="font-medium">Dials & connects</h2>
-          <p className="text-sm text-muted">Last 7 days</p>
+          <h2 className="font-medium">Dials and answered calls</h2>
+          <p className="text-sm text-muted">{period}</p>
         </div>
         <div className="flex gap-3 text-xs text-muted">
           <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-[#3b82f6]" /> Dials</span>
-          <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-[#2eb8a0]" /> Connects</span>
+          <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-[#2eb8a0]" /> Answered</span>
         </div>
       </div>
+      <p className="sr-only">Dials and answered calls, {period}: {dials} dials, {connects} answered.</p>
       <div className="mt-3 h-56">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
@@ -129,12 +135,12 @@ export function DialsChart({ data }: { data: { label: string; dials: number; con
   );
 }
 
-export function OutcomesCard({ outcomes }: { outcomes: { outcome: string; count: number }[] }) {
+export function OutcomesCard({ outcomes, range }: { outcomes: { outcome: string; count: number }[]; range: string }) {
   const total = outcomes.reduce((sum, row) => sum + row.count, 0);
   return (
     <section className="rounded-xl border border-line bg-card p-4 shadow-[var(--shadow)]">
       <h2 className="font-medium">Outcomes</h2>
-      <p className="text-sm text-muted">How calls ended · Today</p>
+      <p className="text-sm text-muted">How calls ended · {periodLabel(range)}</p>
       {total === 0 ? (
         <Empty title="No calls yet" body="Outcomes appear here once calls complete in this period." />
       ) : (
@@ -151,12 +157,12 @@ export function OutcomesCard({ outcomes }: { outcomes: { outcome: string; count:
   );
 }
 
-export function OfficeRateCard({ offices }: { offices: { name: string; rate: number; dials: number }[] }) {
+export function OfficeRateCard({ offices, range }: { offices: { name: string; rate: number; dials: number }[]; range: string }) {
   return (
     <section className="rounded-xl border border-line bg-card p-4 shadow-[var(--shadow)]">
-      <h2 className="font-medium">Connect rate by office</h2>
-      <p className="text-sm text-muted">Today</p>
-      {offices.length === 0 ? <Empty title="No calls yet" body="Once calls start dialing, their connect rates compare here." /> : (
+      <h2 className="font-medium">Answered by location</h2>
+      <p className="text-sm text-muted">{periodLabel(range)}</p>
+      {offices.length === 0 ? <Empty title="No calls yet" body="Once Avery starts calling, you can compare locations here." /> : (
         <ul className="mt-4 space-y-3">
           {offices.map((office) => (
             <li key={office.name} className="flex items-center justify-between text-sm">
@@ -170,22 +176,22 @@ export function OfficeRateCard({ offices }: { offices: { name: string; rate: num
   );
 }
 
-export function Funnel({ funnel }: { funnel: { triggers: number; passed: number; dialed: number; connected: number; booked: number } }) {
+export function Funnel({ funnel, range }: { funnel: { triggers: number; passed: number; dialed: number; connected: number; booked: number }; range: string }) {
   const rows = [
-    ["Triggers", funnel.triggers],
-    ["Passed gates", funnel.passed],
-    ["Dialed", funnel.dialed],
-    ["Connected", funnel.connected],
-    ["Booked", funnel.booked],
+    ["New leads", funnel.triggers, "Leads that showed up to be called"],
+    ["OK to call", funnel.passed, "Had consent, not on do-not-call, inside calling hours"],
+    ["Dialed", funnel.dialed, "Calls Avery placed"],
+    ["Answered", funnel.connected, "A person picked up"],
+    ["Booked", funnel.booked, "A meeting was booked"],
   ] as const;
   const max = Math.max(1, ...rows.map((row) => row[1]));
   return (
     <section className="rounded-xl border border-line bg-card p-4 shadow-[var(--shadow)]">
       <h2 className="font-medium">Booking funnel</h2>
-      <p className="text-sm text-muted">From lead to booked meeting · Today</p>
+      <p className="text-sm text-muted">From new lead to booked meeting · {periodLabel(range)}</p>
       <ul className="mt-5 space-y-3">
-        {rows.map(([label, count]) => (
-          <li key={label} className="grid grid-cols-[110px_1fr_24px] items-center gap-3 text-sm">
+        {rows.map(([label, count, hint]) => (
+          <li key={label} title={hint} className="grid grid-cols-[110px_1fr_24px] items-center gap-3 text-sm">
             <span className="text-muted">{label}</span>
             <div className="h-2 rounded-full bg-chip"><div className="h-2 rounded-full bg-zinc-300" style={{ width: `${Math.max(count ? 4 : 0, (count / max) * 100)}%` }} /></div>
             <span className="text-right tabular-nums">{count}</span>

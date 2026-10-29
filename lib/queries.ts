@@ -76,9 +76,12 @@ export async function getOverview(range = "today") {
     byOffice.set(name, row);
   }
 
-  const chartStart = zonedTimeToUtc(`${addDaysISO(today.iso, -6)}T00:00:00`, tz);
-  const chartCalls = await prisma.call.findMany({ where: { dialedAt: { gte: chartStart, lt: today.end } } });
-  const days = Array.from({ length: 7 }, (_, i) => addDaysISO(today.iso, -6 + i));
+  const span = range === "30d" ? 30 : range === "7d" ? 7 : 1;
+  const startOffset = range === "30d" ? 29 : range === "7d" ? 6 : range === "yesterday" ? 1 : 0;
+  const days = Array.from({ length: span }, (_, i) => addDaysISO(today.iso, -startOffset + i));
+  const chartStart = zonedTimeToUtc(`${days[0]}T00:00:00`, tz);
+  const chartEnd = range === "yesterday" ? today.start : today.end;
+  const chartCalls = await prisma.call.findMany({ where: { dialedAt: { gte: chartStart, lt: chartEnd } } });
   const chart = days.map((iso) => {
     const from = zonedTimeToUtc(`${iso}T00:00:00`, tz).getTime();
     const to = zonedTimeToUtc(`${addDaysISO(iso, 1)}T00:00:00`, tz).getTime();
@@ -238,7 +241,7 @@ export async function listAppointments(sp: SP) {
       ...(to ? { lte: new Date(`${to}T23:59:59`) } : {}),
     };
   }
-  const [rows, total, matching, offices] = await Promise.all([
+  const [rows, total, confirmed, upcoming, offices] = await Promise.all([
     prisma.appointment.findMany({
       where,
       include: { contact: true, office: true },
@@ -247,11 +250,10 @@ export async function listAppointments(sp: SP) {
       take: perPage,
     }),
     prisma.appointment.count({ where }),
-    prisma.appointment.count(),
+    prisma.appointment.count({ where: { AND: [where, { status: "confirmed" }] } }),
+    prisma.appointment.count({ where: { AND: [where, { status: { not: "cancelled" }, startsAt: { gte: new Date() } }] } }),
     prisma.office.findMany({ orderBy: { name: "asc" } }),
   ]);
-  const confirmed = rows.filter((r) => r.status === "confirmed").length;
-  const upcoming = rows.filter((r) => r.startsAt.getTime() >= Date.now() && r.status !== "cancelled").length;
   return {
     rows: rows.map((r) => ({
       id: r.id,
@@ -267,7 +269,7 @@ export async function listAppointments(sp: SP) {
     page,
     perPage,
     offices,
-    kpis: { matching, confirmed, upcoming },
+    kpis: { matching: total, confirmed, upcoming },
   };
 }
 
@@ -353,6 +355,15 @@ export async function listDnc(sp: SP) {
     total,
     page,
     perPage,
+  };
+}
+
+export function calendarSyncState(syncedAt: Date | null, now = new Date()) {
+  if (!syncedAt) return { stale: true, staleDays: null as number | null };
+  const age = now.getTime() - syncedAt.getTime();
+  return {
+    stale: age > 24 * 60 * 60 * 1000,
+    staleDays: Math.max(1, Math.round(age / 86400000)),
   };
 }
 

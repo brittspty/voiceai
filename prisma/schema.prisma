@@ -133,9 +133,9 @@ model Org {
   subtitle        String
   agentName       String
   timezone        String
-  brandColor      String  @default("#2563eb")
+  brandColor      String  @default("#FF5800")
   logoUrl         String  @default("")
-  mark            String  @default("V")
+  mark            String  @default("S")
   testMode        Boolean @default(true)
   scheduleEnabled Boolean @default(false)
 }
@@ -744,6 +744,27 @@ model DailyMetric {
   @@index([date])
   @@index([campaignId])
   @@index([sourcePullId])
+}
+
+model Invite {
+  id          String   @id @default(cuid())
+  email       String
+  name        String
+  role        Role
+  tokenHash   String   @unique
+  expiresAt   DateTime
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([email])
+}
+
+model AccessRequest {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  business  String
+  createdAt DateTime @default(now())
 }
 
 model MarketingRawRecord {

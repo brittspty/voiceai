@@ -69,4 +69,4 @@ export const VOICE_CATALOG = [
 
 export type Actor = { id: string | null; name: string };
 
-export const SYSTEM_ACTOR: Actor = { id: null, name: "Voice Operations" };
+export const SYSTEM_ACTOR: Actor = { id: null, name: "System" };

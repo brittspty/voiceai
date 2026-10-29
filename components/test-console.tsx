@@ -5,7 +5,7 @@ import { preflightCall, startTestCall } from "@/lib/actions";
 import type { GateCheckView } from "@/lib/types";
 import type { CallRow } from "@/components/call-drawer";
 
-export function TestConsole({ offices, contacts }: { offices: { id: string; name: string }[]; contacts: { id: string; name: string; phone: string }[] }) {
+export function TestConsole({ canWrite = true, offices, contacts }: { canWrite?: boolean; offices: { id: string; name: string }[]; contacts: { id: string; name: string; phone: string }[] }) {
   const [checks, setChecks] = useState<GateCheckView[] | null>(null);
   const [call, setCall] = useState<CallRow | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +49,9 @@ export function TestConsole({ offices, contacts }: { offices: { id: string; name
     return () => clearInterval(timer);
   }, [call]);
 
+  if (!canWrite) {
+    return <p className="rounded-xl border border-line bg-card p-4 text-sm text-muted">You can look around, but only an owner or admin can place a test call.</p>;
+  }
   return (
     <form
       className="grid gap-4 lg:grid-cols-2"
@@ -88,7 +91,7 @@ export function TestConsole({ offices, contacts }: { offices: { id: string; name
         {error && <p className="text-sm text-[#d14343]">{error}</p>}
         <div className="flex gap-2">
           <button type="button" className="rounded-full border border-line px-3 py-1.5 text-sm" disabled={pending} onClick={(event) => run(event.currentTarget.form, "preflight")}>Run preflight</button>
-          <button type="button" className="rounded-full bg-ink px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-white dark:text-black" disabled={pending || Boolean(checks && checks.some((c) => !c.passed))} onClick={(event) => run(event.currentTarget.form, "call")}>Place test call</button>
+          <button type="button" className="btn-brand rounded-full px-3 py-1.5 text-sm disabled:opacity-50" disabled={pending || Boolean(checks && checks.some((c) => !c.passed))} onClick={(event) => run(event.currentTarget.form, "call")}>Place test call</button>
         </div>
         <p className="text-xs text-muted">Test calls use the same gates and count against the daily cap. In test mode the voice provider and CRM are mocked.</p>
       </div>

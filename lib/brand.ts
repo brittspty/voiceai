@@ -1,5 +1,22 @@
 import { clientConfig, type ClientConfig } from "./client-config";
-import { prisma } from "./db";
+
+/** Customer-facing product name. Avery is the AI caller, not the product. */
+export const PRODUCT_NAME = "VoiceOps";
+export const PRODUCT_TITLE = "VoiceOps: AI calling for service businesses";
+export const PRODUCT_TAGLINE =
+  "Avery calls your new leads in minutes, follows calling rules, and logs every call to GoHighLevel.";
+
+/** One brand name for the header, sidebar, and sign-in. Not the workspace subtitle. */
+export const BRAND_WORDMARK = "Specificity";
+export const BRAND_TAGLINE = "Identify. Engage. Convert.";
+
+/** Placeholder tokens until a workspace sets its own color and logo. */
+export const BRAND_FONT = "Poppins";
+export const PLACEHOLDER_BRAND_COLOR = "#FF5800";
+export const PLACEHOLDER_LOGO_URL = "/brand/specificity-logo-reversed.png";
+
+/** Color stored by older seeds before the Specificity placeholder existed. */
+const UNSET_BRAND_COLOR = "#2563eb";
 
 export type Brand = {
   companyName: string;
@@ -11,20 +28,43 @@ export type Brand = {
   mark: string;
 };
 
+export function resolveBrandColor(value: string | null | undefined) {
+  const color = (value || "").trim();
+  if (!color || color.toLowerCase() === UNSET_BRAND_COLOR) return PLACEHOLDER_BRAND_COLOR;
+  return color;
+}
+
+export function resolveLogoUrl(value: string | null | undefined) {
+  const url = (value || "").trim();
+  return url || PLACEHOLDER_LOGO_URL;
+}
+
+export function isBundledLogo(url: string | null | undefined) {
+  return (url || "").startsWith("/brand/");
+}
+
+/** Old seeds used "V" as an unset mark. */
+export function resolveMark(value: string | null | undefined) {
+  const mark = (value || "").trim();
+  if (!mark || mark.toUpperCase() === "V") return "S";
+  return mark.slice(0, 2);
+}
+
 export function brandFromConfig(cfg: ClientConfig = clientConfig()): Brand {
   return {
     companyName: cfg.companyName,
     subtitle: cfg.subtitle,
     agentName: cfg.agentName,
     timezone: cfg.timezone,
-    brandColor: cfg.brandColor,
-    logoUrl: cfg.logoUrl,
-    mark: cfg.mark,
+    brandColor: resolveBrandColor(cfg.brandColor),
+    logoUrl: resolveLogoUrl(cfg.logoUrl),
+    mark: resolveMark(cfg.mark),
   };
 }
 
 export async function loadBrand(): Promise<Brand> {
   try {
+    const { prisma } = await import("./db");
     const org = await prisma.org.findUnique({ where: { id: "org" } });
     if (!org) return brandFromConfig();
     const cfg = clientConfig();
@@ -33,9 +73,9 @@ export async function loadBrand(): Promise<Brand> {
       subtitle: org.subtitle,
       agentName: org.agentName,
       timezone: org.timezone,
-      brandColor: org.brandColor || cfg.brandColor,
-      logoUrl: org.logoUrl || "",
-      mark: org.mark || cfg.mark,
+      brandColor: resolveBrandColor(org.brandColor || cfg.brandColor),
+      logoUrl: resolveLogoUrl(org.logoUrl),
+      mark: resolveMark(org.mark || cfg.mark),
     };
   } catch {
     return brandFromConfig();

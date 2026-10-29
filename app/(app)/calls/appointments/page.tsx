@@ -9,9 +9,9 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
     <div>
       <div className="mb-4 grid gap-3 md:grid-cols-3">
         {[
-          ["Matching", data.kpis.matching, "across all pages"],
-          ["Confirmed", data.kpis.confirmed, "on this page"],
-          ["Upcoming", data.kpis.upcoming, "on this page"],
+          ["Matching", data.kpis.matching, "in selected period"],
+          ["Confirmed", data.kpis.confirmed, "in selected period"],
+          ["Upcoming", data.kpis.upcoming, "in selected period"],
         ].map(([label, value, hint]) => (
           <div key={String(label)} className="rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
             <div className="text-sm text-muted">{label}</div>

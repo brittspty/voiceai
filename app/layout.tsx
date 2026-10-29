@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Poppins } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
-import { PRODUCT_NAME } from "@/lib/client-config";
-import { loadBrand } from "@/lib/brand";
+import { BRAND_FONT, loadBrand, PRODUCT_TAGLINE, PRODUCT_TITLE } from "@/lib/brand";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const brandFont = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-brand", display: "swap" });
 
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await loadBrand();
   return {
-    title: PRODUCT_NAME,
-    description: `Outbound voice AI operations for ${brand.companyName}.`,
+    title: { default: PRODUCT_TITLE, template: "%s · VoiceOps" },
+    description: PRODUCT_TAGLINE,
     icons: brand.logoUrl ? { icon: brand.logoUrl } : undefined,
   };
 }
@@ -21,7 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const brand = await loadBrand();
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`} style={{ ["--brand" as string]: brand.brandColor }} suppressHydrationWarning>
+    <html lang="en" className={`${brandFont.variable} h-full antialiased`} data-font={BRAND_FONT} style={{ ["--brand" as string]: brand.brandColor }} suppressHydrationWarning>
       <body className="min-h-full font-sans">
         <ThemeProvider>{children}</ThemeProvider>
       </body>

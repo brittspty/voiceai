@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Explorer } from "@/components/explorer";
 import { ConsentPill } from "@/components/pills";
@@ -28,8 +29,9 @@ export function AppointmentsExplorer({
         { param: "format", label: "Format", options: ["phone", "video", "in_person"].map((v) => ({ value: v, label: v.replace("_", " ") })) },
       ]}
       segments={[{ param: "timing", label: "Timing", options: [{ value: "any", label: "Any" }, { value: "upcoming", label: "Upcoming" }, { value: "past", label: "Past" }] }]}
-      emptyTitle="No results"
-      emptyBody="Try adjusting your filters or search."
+      emptyTitle="No meetings booked yet"
+      emptyBody="When Avery books a meeting, it lands here and on your calendar."
+      emptyAction={<Link href="/calls/calendar" className="inline-flex h-9 items-center rounded-full bg-ink px-3 text-sm text-white dark:bg-white dark:text-black">Check calendar connection</Link>}
       columns={[
         { id: "contact", header: "CONTACT", cell: (row) => <div><div className="font-medium">{row.contact}</div><div className="text-xs text-muted">{maskPhone(row.phone)}</div></div> },
         { id: "advisor", header: "ADVISOR", cell: (row) => row.advisor },
@@ -61,8 +63,9 @@ export function ContactsExplorer({
         { param: "consent", label: "Consent", options: ["high", "medium", "low", "none"].map((v) => ({ value: v, label: v })) },
       ]}
       segments={[{ param: "dnc", label: "Do not call", options: [{ value: "any", label: "Any" }, { value: "on", label: "On the list" }, { value: "off", label: "Not on the list" }] }]}
-      emptyTitle="No contacts"
-      emptyBody="Leads show up here after a call or a GoHighLevel sync."
+      emptyTitle="No leads yet"
+      emptyBody="New GoHighLevel leads appear here automatically."
+      emptyAction={<Link href="/settings/integrations" className="inline-flex h-9 items-center rounded-full bg-ink px-3 text-sm text-white dark:bg-white dark:text-black">Connect GoHighLevel</Link>}
       columns={[
         { id: "name", header: "NAME", cell: (row) => <span className="font-medium">{row.name}</span> },
         { id: "phone", header: "PHONE", cell: (row) => maskPhone(row.phone) },
@@ -83,9 +86,30 @@ export function DncExplorer({
   total: number; page: number; perPage: number;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
   return (
     <div>
-      {error && <p className="mb-3 text-sm text-[#d14343]">{error}</p>}
+      {error && <p className="mb-3 text-sm text-[#9f1239]" role="alert">{error}</p>}
+      {summary && <p className="mb-3 text-sm text-emerald-800" role="status">{summary}</p>}
+      <div className="mb-4 grid gap-3 rounded-xl border border-line bg-card p-4 md:grid-cols-2">
+        <form action={async (formData) => { try { const result = await importDnc(String(formData.get("csv") || "")); setError(null); setSummary(`${result.count} added, ${result.skipped} skipped (invalid).`); } catch (e) { setSummary(null); setError(e instanceof Error ? e.message : "Import failed"); } }} className="space-y-2">
+          <label className="block text-sm">Upload CSV
+            <textarea name="csv" rows={3} placeholder={"2515550123, asked not to be called"} className="mt-1 w-full rounded-lg border border-line bg-card px-2 py-1 text-sm" />
+          </label>
+          <p className="text-xs text-muted">One number per line. You can add a reason after a comma.</p>
+          <button className="h-9 rounded-full border border-line bg-card px-3 text-sm">Upload CSV</button>
+        </form>
+        <form action={async (formData) => { try { await addDnc({ phone: String(formData.get("phone") || ""), reason: String(formData.get("reason") || "") }); setError(null); setSummary("Number added. Avery will not call it."); } catch (e) { setSummary(null); setError(e instanceof Error ? e.message : "Could not add"); } }} className="space-y-2">
+          <label className="block text-sm">Phone number
+            <input name="phone" placeholder="(251) 555-0123" className="mt-1 h-9 w-full rounded-lg border border-line bg-card px-2 text-sm" />
+          </label>
+          <label className="block text-sm">Reason
+            <input name="reason" placeholder="Asked not to be called" className="mt-1 h-9 w-full rounded-lg border border-line bg-card px-2 text-sm" />
+          </label>
+          <p className="text-xs text-muted">Use a 10-digit number, like (251) 555-0123.</p>
+          <button className="btn-brand h-9 rounded-full px-3 text-sm">Add a number</button>
+        </form>
+      </div>
       <Explorer
         rows={rows}
         storageKey="dnc"
@@ -96,21 +120,8 @@ export function DncExplorer({
         date
         menus={[{ param: "reason", label: "Reason", options: [] }]}
         segments={[{ param: "status", label: "Status", options: [{ value: "any", label: "Any" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }] }]}
-        emptyTitle="No results"
-        emptyBody="Try adjusting your filters or search."
-        actions={
-          <div className="flex gap-2">
-            <form action={async (formData) => { try { await importDnc(String(formData.get("csv") || "")); } catch (e) { setError(e instanceof Error ? e.message : "Import failed"); } }} className="flex gap-2">
-              <input name="csv" placeholder="phone, reason" className="h-9 w-40 rounded-lg border border-line bg-card px-2 text-sm" />
-              <button className="h-9 rounded-lg border border-line bg-card px-3 text-sm">Import</button>
-            </form>
-            <form action={async (formData) => { try { await addDnc({ phone: String(formData.get("phone") || ""), reason: String(formData.get("reason") || "") }); } catch (e) { setError(e instanceof Error ? e.message : "Could not add"); } }} className="flex gap-2">
-              <input name="phone" placeholder="Number" className="h-9 w-36 rounded-lg border border-line bg-card px-2 text-sm" />
-              <input name="reason" placeholder="Reason" className="h-9 w-32 rounded-lg border border-line bg-card px-2 text-sm" />
-              <button className="h-9 rounded-full bg-ink px-3 text-sm text-white dark:bg-white dark:text-black">Add number</button>
-            </form>
-          </div>
-        }
+        emptyTitle="Your do-not-call list is empty"
+        emptyBody="Add numbers Avery must never call."
         columns={[
           { id: "phone", header: "PHONE", cell: (row) => maskPhone(row.phone) },
           { id: "reason", header: "REASON", cell: (row) => row.reason },

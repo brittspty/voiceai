@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { ConfirmSubmitButton } from "@/components/confirm-dialog";
 import { saveKnowledge } from "@/lib/actions";
 import { timeAgo } from "@/lib/format";
 
@@ -16,7 +17,7 @@ export function KnowledgeEditor({
   const [error, setError] = useState<string | null>(null);
   if (!doc && !editing) {
     if (!canWrite) return null;
-    return <button className="mb-4 rounded-full bg-ink px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black" onClick={() => setEditing(true)}>+ Add new</button>;
+    return <button className="mb-4 rounded-full bg-ink px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black" onClick={() => setEditing(true)}>Add a document</button>;
   }
   if (doc && !editing) {
     return (
@@ -52,7 +53,7 @@ export function KnowledgeEditor({
       {error && <p className="text-sm text-[#d14343]">{error}</p>}
       <div className="flex gap-2">
         <button className="rounded-full border border-line px-3 py-1.5 text-sm" name="publish" value="no">Save draft</button>
-        <button className="rounded-full bg-ink px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black" name="publish" value="yes">Make live</button>
+        <ConfirmSubmitButton name="publish" value="yes" label="Make it live" title="Let Avery use this document?" body="Avery can answer from this document on new calls." className="rounded-full bg-ink px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black" />
       </div>
     </form>
   );

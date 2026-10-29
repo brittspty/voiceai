@@ -91,7 +91,7 @@ export function randomTotpSecret() {
   return base32Encode(bytes);
 }
 
-export function totpUri(email: string, secret: string, issuer = "Voice Operations") {
+export function totpUri(email: string, secret: string, issuer = "VoiceOps") {
   const label = encodeURIComponent(`${issuer}:${email}`);
   return `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
 }
