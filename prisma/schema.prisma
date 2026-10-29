@@ -688,6 +688,7 @@ model Ad {
   hourly            AdHourlyMetric[]
   alerts            AdAlert[]
   recommendations   Recommendation[]
+  systemPauses      SystemPausedAd[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([adGroupId])
@@ -1367,4 +1368,155 @@ model LeadScore {
 
   @@index([workspaceId, createdAt])
   @@index([overriddenById])
+// Landing page checks. One database is one client. clientKey stays "org" unless a
+// later deployment stores more than one client in this database.
+model LandingPage {
+  id           String    @id @default(cuid())
+  workspaceId  String    @default("org")
+  clientKey    String    @default("org")
+  clientLabel  String    @default("")
+  name         String
+  url          String
+  formTestUrl  String    @default("")
+  expectForm   Boolean   @default(true)
+  active       Boolean   @default(true)
+  mutedUntil   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  checks       PageCheck[]
+  incidents    PageIncident[]
+  alerts       PageMonitorAlert[]
+  pauses       SystemPausedAd[]
+  audits       AdPauseAudit[]
+
+  @@unique([workspaceId, url])
+  @@index([workspaceId, clientKey, active])
 }
+
+model PageCheck {
+  id            String      @id @default(cuid())
+  landingPageId String
+  landingPage   LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  region        String
+  status        String
+  httpStatus    Int?
+  ttfbMs        Int?
+  loadMs        Int?
+  formPresent   Boolean     @default(false)
+  formSubmitOk  Boolean?
+  pixels        Json        @default("{}")
+  detail        String      @default("")
+  checkedAt     DateTime    @default(now())
+
+  @@index([landingPageId, checkedAt])
+}
+
+model PageIncident {
+  id            String      @id @default(cuid())
+  landingPageId String
+  landingPage   LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  kind          String
+  status        String      @default("open")
+  pauseHeld     Boolean     @default(false)
+  summary       String      @default("")
+  openedAt      DateTime
+  resolvedAt    DateTime?
+
+  @@index([landingPageId, status])
+}
+
+model PageMonitorAlert {
+  id            String        @id @default(cuid())
+  workspaceId   String        @default("org")
+  landingPageId String
+  landingPage   LandingPage   @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  severity      AlertSeverity
+  code          String
+  dedupeKey     String
+  title         String
+  summary       String
+  clientSummary String        @default("")
+  audience      String        @default("staff")
+  channels      Json          @default("{}")
+  evidence      Json          @default("{}")
+  firedAt       DateTime
+  resolvedAt    DateTime?
+  createdAt     DateTime      @default(now())
+
+  @@index([dedupeKey, firedAt])
+  @@index([landingPageId, firedAt])
+}
+
+model ClientPageSetting {
+  id               String   @id @default(cuid())
+  workspaceId      String   @default("org")
+  clientKey        String
+  clientLabel      String   @default("")
+  autoPauseOptIn   Boolean  @default(false)
+  clientAlertOptIn Boolean  @default(false)
+  timezone         String   @default("America/New_York")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([workspaceId, clientKey])
+}
+
+// Pointers only. secretRef is an environment variable name. The token is never stored.
+model PageWriteCredential {
+  id                String     @id @default(cuid())
+  workspaceId       String     @default("org")
+  clientKey         String
+  platform          AdPlatform
+  secretRef         String
+  appSecretRef      String     @default("")
+  extraSecretRef    String     @default("")
+  accountExternalId String     @default("")
+  loginCustomerId   String     @default("")
+  scopes            String[]   @default([])
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@unique([workspaceId, clientKey, platform])
+}
+
+model SystemPausedAd {
+  id                String      @id @default(cuid())
+  workspaceId       String      @default("org")
+  adId              String
+  ad                Ad          @relation(fields: [adId], references: [id], onDelete: Cascade)
+  landingPageId     String
+  landingPage       LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  platform          AdPlatform
+  externalId        String
+  adGroupExternalId String      @default("")
+  customerId        String      @default("")
+  adName            String      @default("")
+  mode              String      @default("live")
+  pausedAt          DateTime
+  resumedAt         DateTime?
+
+  @@index([landingPageId, resumedAt])
+  @@index([adId, resumedAt])
+}
+
+model AdPauseAudit {
+  id            String       @id @default(cuid())
+  workspaceId   String       @default("org")
+  adId          String?
+  landingPageId String?
+  landingPage   LandingPage? @relation(fields: [landingPageId], references: [id], onDelete: SetNull)
+  platform      AdPlatform
+  externalId    String
+  adName        String       @default("")
+  action        String
+  fromStatus    String
+  toStatus      String
+  mode          String
+  actorType     String
+  actorId       String?
+  actorName     String       @default("")
+  note          String       @default("")
+  createdAt     DateTime     @default(now())
+
+  @@index([landingPageId, createdAt])
+  @@index([createdAt])

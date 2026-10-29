@@ -129,6 +129,25 @@ export function offlineConversionsLiveEnabled(env: Env = process.env) {
   return offlineConversionsEnabled(env) && flagOn(env, "MARKETING_OFFLINE_CONVERSIONS_LIVE");
 }
 
+/** Off unless MARKETING_PAGE_MONITOR is explicitly on. Checks only. */
+export function pageMonitorEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_PAGE_MONITOR");
+}
+
+/** Off unless MARKETING_PAGE_AUTOPAUSE is explicitly on. Also needs a per-client opt-in. */
+export function pageAutoPauseEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_PAGE_AUTOPAUSE");
+}
+
+/** Probe labels. A single worker alternates them. Comma-separated, at least one. */
+export function pageMonitorRegions(env: Env = process.env) {
+  const parts = (env.PAGE_MONITOR_REGIONS || "us-east,eu-west")
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => /^[a-z0-9-]{2,32}$/i.test(part));
+  return parts.length ? parts : ["us-east", "eu-west"];
+}
+
 export function amBudgetCapUsd(env: Env = process.env) {
   const parsed = Number(env.MARKETING_AM_BUDGET_CAP_USD ?? 500);
   if (!Number.isFinite(parsed) || parsed < 0) return 500;

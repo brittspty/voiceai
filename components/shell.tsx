@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, BookOpen, FileText, LayoutDashboard, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer } from "lucide-react";
+import { BarChart3, BookOpen, FileText, Globe, LayoutDashboard, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
@@ -13,9 +13,15 @@ import { cn } from "@/lib/cn";
 const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/marketing", label: "Marketing", icon: BarChart3 },
+  { href: "/sites/landing-pages", label: "Sites", icon: Globe },
   { href: "/calls", label: "Calls", icon: Phone },
   { href: "/knowledge", label: "Knowledge", icon: BookOpen },
   { href: "/settings/calling", label: "Settings", icon: Settings },
+];
+
+const CLIENT_NAV = [
+  { href: "/marketing/client", label: "Performance", icon: BarChart3 },
+  { href: "/sites/landing-pages", label: "Pages", icon: Globe },
 ];
 
 export function AppShell({
@@ -71,7 +77,7 @@ export function AppShell({
         {!collapsed && <div className="text-sm font-semibold">{mode.wordmark}</div>}
       </div>
       <nav className="flex flex-col gap-0.5 px-2">
-        {navItems.map((item) => {
+        {(user.role === "client_viewer" ? CLIENT_NAV : staffNav).map((item) => {
           const Icon = item.icon;
           const active = itemActive(item.href);
           return (

@@ -74,4 +74,10 @@ Flags default **off**:
 - Designer replaces the placeholder brand tokens.
 - UX specs for alerts, suggestions, digests, and the client view.
 - A screen to invite a client viewer (the API exists; the form does not).
-- A signed-in client viewer is limited to the client results page. Invites stay behind `MARKETING_CLIENT_VIEWERS` and need a strong password.
+- A signed-in client viewer can open client results and their landing-page status. Invites stay behind `MARKETING_CLIENT_VIEWERS` and need a strong password.
+
+### Landing page monitoring
+
+- `MARKETING_PAGE_MONITOR` (default off) checks each watched page for uptime, speed, a broken form, and a missing Meta Pixel, Google tag, or Tag Manager. A single failed check does not alert. Down alerts wait for two checks from two probe regions. Alerts are deduped, muted for 24 hours, and held in quiet hours unless they are critical.
+- `MARKETING_PAGE_AUTOPAUSE` (default off) plus a per-client opt-in pauses Meta and Google ads whose destination is the down page after 3 failed checks about a minute apart, and resumes them after 2 good checks. Every pause and resume writes an audit row. The only platform write is an ad status change from ACTIVE to PAUSED and back, and only for ads this system paused.
+- With no separate write token, the worker logs the pause it would send and does not call Meta or Google. The read token (`META_ACCESS_TOKEN`) is not a write credential. Clients see “Ads paused while your page was down” and no cost fields.
