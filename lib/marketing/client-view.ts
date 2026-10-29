@@ -1,3 +1,5 @@
+import { clientQualifiedKpis } from "./lead-score/summary";
+
 const FORBIDDEN_KEY = /spend|budget|cpc|cpm|cpa|roas|cost|cpl|currency|amount|revenue/i;
 const FORBIDDEN_TEXT = /spend|cost|cpc|cpm|cpa|budget|roas|revenue|\$/i;
 
@@ -37,6 +39,7 @@ export function buildClientShare(input: {
   expires?: string;
   rangeLabel?: string;
   updated?: string;
+  qualified?: { count: number; total: number; delta: number; period?: "week" | "period" } | null;
 }): ClientShareView {
   const campaigns = input.campaigns.map((row) => {
     const status = campaignStatus(row.booked, row.leads);
@@ -79,6 +82,7 @@ export function buildClientShare(input: {
         delta: "",
         meaning: "How many times people saw your ads.",
       },
+      ...clientQualifiedKpis(input.qualified),
     ],
     campaigns,
     updated: input.updated || "Updated just now",

@@ -114,6 +114,11 @@ export function speedToLeadEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_SPEED_TO_LEAD");
 }
 
+/** Off unless MARKETING_LEAD_SCORING is explicitly on. Rules only unless an API key is set. */
+export function leadScoringEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_LEAD_SCORING");
+}
+
 export function amBudgetCapUsd(env: Env = process.env) {
   const parsed = Number(env.MARKETING_AM_BUDGET_CAP_USD ?? 500);
   if (!Number.isFinite(parsed) || parsed < 0) return 500;

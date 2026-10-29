@@ -30,6 +30,8 @@ const COST_KEYS = new Set([
   "proposedbudgetamount",
   "proposedbudgetperiod",
   "proposedcurrency",
+  "costperqualifiedlead",
+  "cpql",
 ]);
 
 const COST_TEXT = /cost|spend|cpc|cpm|cpa|cpl|roas|\bbudget\b|revenue|\$/i;
@@ -224,7 +226,7 @@ export function redactMarketingPage<T extends {
   searchTerms?: Record<string, unknown>[];
 }>(page: T, seesCost: boolean): T {
   if (seesCost) return page;
-  return {
+  const cleaned = {
     ...page,
     campaigns: page.campaigns.map((row) => stripCostKeys(row)),
     rows: page.rows.map((row) => stripCostKeys(row)),
@@ -234,9 +236,24 @@ export function redactMarketingPage<T extends {
       .filter((row) => !isCostContent(row as { type?: string; code?: string; metric?: string; title?: string; summary?: string; rationale?: string }))
       .map((row) => stripCostKeys(row)),
     digests: page.digests.flatMap((digest) => {
-      const cleaned = digestWithoutCost(digest);
-      return cleaned ? [cleaned] : [];
+      const cleanedDigest = digestWithoutCost(digest);
+      return cleanedDigest ? [cleanedDigest] : [];
     }),
     searchTerms: (page.searchTerms ?? []).map((row) => stripCostKeys(row)),
   };
+  if ("leadQuality" in page) {
+    (cleaned as unknown as { leadQuality: unknown }).leadQuality = leadQualityWithoutCost((page as { leadQuality?: unknown }).leadQuality);
+  }
+  return cleaned;
+}
+
+function leadQualityWithoutCost(value: unknown) {
+  if (!value || typeof value !== "object") return value ?? null;
+  const next: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (COST_KEYS.has(key.toLowerCase()) || /cost|spend|cpql/i.test(key)) continue;
+    next[key] = child;
+  }
+  if (COST_TEXT.test(JSON.stringify(next))) return null;
+  return next;
 }

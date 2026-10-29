@@ -1,0 +1,51 @@
+id,kind,name,phone,email,message,transcript,duration_sec,outcome,on_dnc,expected
+f01,form,Buy Now,+14155550101,viagra-deals@mailinator.com,Cheap viagra shipped overnight,,,,false,spam
+f02,form,Winner,+14155550102,win@yopmail.com,Congratulations you won a lottery,,,,false,spam
+f03,form,Crypto King,+12125550199,btc@gmail.com,Bitcoin giveaway send a wire transfer,,,,false,spam
+f04,form,asdf,+14155550133,a@gmail.com,,,,,false,spam
+f05,form,qwerty,+12025550177,q@tempmail.com,hello,,,,false,spam
+f06,form,SEO Pro,+13055550142,seo@gmail.com,Best SEO service for your site and buy followers,,,,false,spam
+f07,form,xxx,+10000000000,x@gmail.com,click here,,,,false,spam
+f08,form,Test User,+19195550100,test@example.com,this is a test,,,,false,spam
+f09,form,Jane,+11111111111,jane@gmail.com,Need a quote,,,,false,spam
+f10,form,Bob,+19195550166,bob@guerrillamail.com,Schedule an inspection,,,,false,spam
+f11,form,Lucky,+16465550104,lucky@sharklasers.com,casino bonus act now,,,,false,spam
+f12,form,Ninja,+18885550199,n@10minutemail.com,,,,,false,spam
+f13,call,Spam Bot,+19195550102,,,Make money fast from home,40,callback_requested,false,spam
+f14,form,aaa aaa,+19175550144,a@gmail.com,interested,,,,false,spam
+f15,form,Click Here,+14045550188,click@trashmail.com,limited time offer,,,,false,spam
+f16,call,Prize,+11234567890,prize@yopmail.com,,You have won a free cruise click here,30,callback_requested,false,spam
+f17,call,Dana Ruiz,+14155550170,dana@gmail.com,,No thanks I am not interested,40,not_interested,false,unqualified
+f18,call,Sam Ortiz,+14155550171,sam@gmail.com,,Wrong number please do not call again,12,wrong_number,false,unqualified
+f19,call,Pat Cole,+14155550172,pat@gmail.com,,No answer,0,no_answer,false,unqualified
+f20,call,Kim Lee,+14155550173,kim@gmail.com,,Left a voicemail,18,voicemail,false,unqualified
+f21,call,Lee Park,+14155550174,lee@gmail.com,,The call failed,0,failed,false,unqualified
+f22,form,Morgan Lee,+14155550175,morgan@gmail.com,I want a quote,,,,true,unqualified
+f23,call,Morgan Lee,+14155550175,morgan@gmail.com,,Yes book me tomorrow,80,booked,true,unqualified
+f24,call,Riley Chen,+14155550176,riley@gmail.com,,Can you stop calling me,90,callback_requested,false,unqualified
+f25,call,Jordan Hale,+14155550177,jordan@gmail.com,,Hello,8,callback_requested,false,unqualified
+f26,call,Casey Ng,+14155550178,casey@gmail.com,,Now is bad remove me from your list,50,not_interested,false,unqualified
+f27,form,Alex Kim,+14155550179,alex@gmail.com,wrong area we are in another state,,,,false,unqualified
+f28,call,Taylor Brooks,+14155550180,taylor@gmail.com,,We are already a customer no thanks,35,not_interested,false,unqualified
+f29,call,Quinn Adams,+14155550181,quinn@gmail.com,,Just price shopping and not ready,40,callback_requested,false,unqualified
+f30,form,Existing Customer,+14155550182,existing@gmail.com,Already a customer updating an address,,,,false,unqualified
+f31,call,Short Call,+14155550183,short@gmail.com,,Hi,4,callback_requested,false,unqualified
+f32,call,Nope Jones,+14155550184,nope@gmail.com,,Do not call this number,20,not_interested,false,unqualified
+f33,form,Out Of Area,+14155550185,out@gmail.com,You do not service my zip code,,,,false,unqualified
+f34,form,Eva Ng,+19195550144,eva@example.com,Need a roof inspection this week,,,,false,qualified
+f35,form,Luis Ortega,+14155550186,luis@gmail.com,Please schedule an estimate for HVAC,,,,false,qualified
+f36,form,Priya Shah,+14155550187,priya@outlook.com,Can someone call me about a water heater install,,,,false,qualified
+f37,call,Dana Ruiz,+14155550188,dana2@gmail.com,,Yes tomorrow morning works. Please book the inspection.,120,booked,false,qualified
+f38,call,Chris Patel,+14155550189,chris@gmail.com,,I am interested in a quote for the spring tune up,95,callback_requested,false,qualified
+f39,form,Maria Gomez,+14155550190,maria@company.com,,,,,false,qualified
+f40,form,Ben Carter,+14155550191,ben@icloud.com,Free inspection please,,,,false,qualified
+f41,call,Avery Lead,+14155550192,avery@gmail.com,,That works. Come out Thursday.,70,booked,false,qualified
+f42,form,Nina Patel,+14155550193,nina@patel.co,We need a repair as soon as you can,,,,false,qualified
+f43,call,Owen Blake,+14155550194,owen@gmail.com,,Yes please I want an appointment,60,callback_requested,false,qualified
+f44,form,Grace Kim,+14155550195,grace.kim@gmail.com,Looking for a quote on a new install,,,,false,qualified
+f45,call,Hank Wells,+14155550196,hank@gmail.com,,How soon can you come out for an estimate,80,callback_requested,false,qualified
+f46,form,Sofia Alvarez,+14155550197,sofia@yahoo.com,Interested in service this week,,,,false,qualified
+f47,call,Booked Fast,+14155550198,fast@gmail.com,,Book it,12,booked,false,qualified
+f48,form,Wei Chen,+14155550199,wei@chen.com,Please call me tomorrow about an appointment,,,,false,qualified
+f49,call,Rita Shah,+14155550200,rita@gmail.com,,I need someone to look at the unit. Thursday is good.,110,callback_requested,false,qualified
+f50,form,Omar Hassan,+14155550201,omar@hassan.net,Yes send an inspector,,,,false,qualified

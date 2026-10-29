@@ -6,7 +6,7 @@ export type DigestDraft = {
   userId: string;
   periodStart: Date;
   periodEnd: Date;
-  payload: { alerts: DigestItem[]; recommendations: DigestItem[] };
+  payload: { alerts: DigestItem[]; recommendations: DigestItem[]; notes?: string[] };
   delivery: "not_sent";
 };
 
@@ -24,6 +24,7 @@ export function buildManagerDigest(input: {
   recommendations: DigestItem[];
   periodStart: Date;
   periodEnd: Date;
+  notes?: string[];
   env?: Env;
 }): DigestDraft | null {
   const env = input.env ?? process.env;
@@ -31,14 +32,15 @@ export function buildManagerDigest(input: {
   const allowed = (item: DigestItem) => item.workspace === true || input.accountIds === "all" || input.accountIds.includes(item.accountId);
   const alerts = input.alerts.filter(allowed);
   const recommendations = input.recommendations.filter(allowed);
-  if (!alerts.length && !recommendations.length) return null;
+  const notes = (input.notes ?? []).map((note) => note.trim()).filter(Boolean);
+  if (!alerts.length && !recommendations.length && !notes.length) return null;
   const plan = digestDeliveryPlan(env);
   if (plan.send) throw new Error("Digest delivery must not send.");
   return {
     userId: input.userId,
     periodStart: input.periodStart,
     periodEnd: input.periodEnd,
-    payload: { alerts, recommendations },
+    payload: notes.length ? { alerts, recommendations, notes } : { alerts, recommendations },
     delivery: "not_sent",
   };
 }

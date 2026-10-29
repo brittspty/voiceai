@@ -107,6 +107,12 @@ enum CrmUpdateStatus {
   failed
 }
 
+enum LeadLabel {
+  qualified
+  unqualified
+  spam
+}
+
 model User {
   id                 String    @id @default(cuid())
   name               String
@@ -126,6 +132,7 @@ model User {
   clientViews        ClientViewAudit[]
   digests            ManagerDigest[]
   recommendationDecisions Recommendation[] @relation("RecommendationDecision")
+  leadScoreOverrides     LeadScore[]       @relation("LeadScoreOverride")
 }
 
 model Session {
@@ -204,6 +211,7 @@ model Contact {
   calls         Call[]
   appointments  Appointment[]
   leadResponses LeadResponse[]
+  leadScore     LeadScore?
 
   @@index([phone])
   @@index([ghlContactId])
@@ -253,6 +261,7 @@ model Call {
   createdAt                DateTime       @default(now())
   updatedAt                DateTime       @updatedAt
   appointments             Appointment[]
+  leadScore                LeadScore?
 
   @@index([status])
   @@index([createdAt])
@@ -1150,4 +1159,30 @@ model SpeedNotify {
   severity    AlertSeverity
 
   @@index([workspaceId, userId, pushedAt])
+}
+
+// One row per form lead (contactId) or call transcript (callId).
+// Machine label, score, reason, and model stay put when a person overrides them.
+model LeadScore {
+  id              String     @id @default(cuid())
+  workspaceId     String     @default("org")
+  contactId       String?    @unique
+  contact         Contact?   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  callId          String?    @unique
+  call            Call?      @relation(fields: [callId], references: [id], onDelete: Cascade)
+  label           LeadLabel
+  score           Int
+  reason          String
+  model           String     @default("rules")
+  evidence        Json       @default("{}")
+  overrideLabel   LeadLabel?
+  overrideReason  String     @default("")
+  overriddenById  String?
+  overriddenBy    User?      @relation("LeadScoreOverride", fields: [overriddenById], references: [id], onDelete: SetNull)
+  overriddenAt    DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([workspaceId, createdAt])
+  @@index([overriddenById])
 }

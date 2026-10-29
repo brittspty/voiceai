@@ -4,6 +4,7 @@ import {
   alertMinImpressions,
   baselineDays,
   digestEnabled,
+  leadScoringEnabled,
   monitorEnabled,
   speedToLeadEnabled,
   recommendationMinClicks,
@@ -11,6 +12,8 @@ import {
   verticalBenchmarks,
 } from "./config";
 import { buildManagerDigest } from "./digest";
+import { leadQualityDigestNote } from "./lead-score/summary";
+import { waitingForMarkCount } from "./lead-score/store";
 import { evaluateAds, type HourPoint, type HumanBudget, type MetricPoint } from "./monitor";
 import { verifyRecommendation } from "./recommendations";
 import { speedDigestItems } from "./speed-to-lead-store";
@@ -163,6 +166,7 @@ export async function runStoredDigests(now = new Date()) {
       },
     }),
   ]);
+  const qualityNote = leadScoringEnabled() ? leadQualityDigestNote(await waitingForMarkCount()) : null;
   let written = 0;
   for (const manager of managers) {
     const access = accessFromUser(manager, manager.marketingScopes.map((row) => ({
@@ -178,6 +182,7 @@ export async function runStoredDigests(now = new Date()) {
       periodEnd: now,
       alerts: [...alerts.map((alert) => ({ id: alert.id, title: alert.title, summary: alert.summary, accountId: alert.adAccountId })), ...speed.alerts],
       recommendations: [...recommendations.map((rec) => ({ id: rec.id, title: rec.title, summary: rec.summary, accountId: rec.adAccountId || "" })), ...speed.recommendations],
+      notes: qualityNote ? [qualityNote] : [],
     });
     if (!draft) continue;
     await prisma.managerDigest.create({

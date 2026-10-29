@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { Lock } from "lucide-react";
 import { DecisionQueue } from "@/components/decision-queue";
 import { HourlySummary } from "@/components/hourly-summary";
 import { SpeedToLeadTile } from "@/components/speed-to-lead-tile";
@@ -213,6 +215,7 @@ export function MarketingView(props: {
   digests?: DigestRow[];
   flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean };
   speedToLead?: SpeedDashboardView | { error: true } | null;
+  leadQuality?: { qualified: number; total: number; rateLabel: string; trend: string; costPerQualifiedLead?: string } | null;
 }) {
   const seesCost = Boolean(props.flags?.seesCost);
   const searchTerms = props.searchTerms ?? [];
@@ -263,6 +266,42 @@ export function MarketingView(props: {
         </p>
       )}
       {props.speedToLead ? <div className="mb-6"><SpeedToLeadTile speed={props.speedToLead} /></div> : null}
+      {props.leadQuality && (
+        <section className="mb-6" aria-label="Lead quality">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 className="font-medium">Lead quality</h2>
+            <Link href="/marketing/leads" className="inline-flex min-h-11 items-center text-sm underline">
+              Review leads
+            </Link>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
+              <div className="text-xs text-muted">Qualified leads</div>
+              <div className="mt-1 text-xl font-semibold">{count(props.leadQuality.qualified)}</div>
+              <p className="mt-1 text-sm text-muted">{props.leadQuality.trend}</p>
+            </div>
+            <div className="rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
+              <div className="text-xs text-muted">Qualified rate</div>
+              <div className="mt-1 text-xl font-semibold">{props.leadQuality.rateLabel}</div>
+            </div>
+            {seesCost && props.leadQuality.costPerQualifiedLead !== undefined ? (
+              <div className="rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
+                <div className="flex items-center gap-1 text-xs text-muted">
+                  <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Staff only</span>
+                </div>
+                <div className="mt-1 text-xs text-muted">Cost per qualified lead</div>
+                <div className="mt-1 text-xl font-semibold">{props.leadQuality.costPerQualifiedLead}</div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
+                <div className="text-xs text-muted">Vs last week</div>
+                <div className="mt-1 text-xl font-semibold">{props.leadQuality.trend}</div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
       {!props.accounts.length ? (
         <div className="rounded-xl border border-line bg-card p-6 text-sm text-muted">
           No ad accounts yet. Set a Meta system user token, app id, app secret, and <span className="font-medium text-ink">META_AD_ACCOUNT_IDS</span>{" "}

@@ -8,6 +8,7 @@ import { SYSTEM_ACTOR } from "./types";
 import { buildTranscript } from "./transcript";
 import type { ElevenEvent, GhlEvent, TwilioEvent } from "./webhook-parse";
 import { mapVendorOutcome, parseGhl } from "./webhook-parse";
+import { scoreFormLeadIfEnabled } from "./marketing/lead-score/store";
 import { noteVoiceTouch, recordSpeedLead } from "./marketing/speed-to-lead-store";
 import { errorText } from "./marketing/speed-to-lead";
 import { normalizePhone } from "./phone";
@@ -91,6 +92,14 @@ export async function applyGhlEvent(event: GhlEvent) {
     });
     await enqueue({ type: "dial", callId: call.id, contactId: contact.id, payload: { callId: call.id } });
   }
+  await scoreFormLeadIfEnabled({
+    contactId: contact.id,
+    name: contact.name,
+    phone: contact.phone,
+    email: contact.email,
+    message: event.message,
+    source: contact.source,
+  });
   return { ok: true, contactId: contact.id };
 }
 
