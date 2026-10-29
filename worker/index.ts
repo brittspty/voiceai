@@ -1,5 +1,7 @@
 import { prisma } from "../lib/db";
 import { runJob } from "../lib/dialer";
+import { digestEnabled, monitorEnabled } from "../lib/marketing/config";
+import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
 import { marketingSyncIntervalMs, runMarketingSync } from "../lib/marketing/sync";
 import { claimJob, failOrRetry } from "../lib/queue";
 import { createRedis } from "../lib/redis";
@@ -32,6 +34,10 @@ function startMarketingSync() {
       if (result.status !== "skipped") {
         console.log(`[worker] marketing sync ${result.status}${result.error ? `: ${result.error}` : ""}`);
       }
+      if (monitorEnabled() && result.status === "succeeded") {
+        const monitored = await runStoredMonitor();
+        if (monitored.status === "ran") console.log(`[worker] marketing monitor alerts ${monitored.alerts}`);
+      }
     } catch (error) {
       console.error("[worker] marketing sync failed", error);
     } finally {
@@ -40,7 +46,15 @@ function startMarketingSync() {
   };
   void tick();
   const timer = setInterval(() => void tick(), marketingSyncIntervalMs());
-  return () => clearInterval(timer);
+  const digestTimer = digestEnabled()
+    ? setInterval(() => {
+        void runStoredDigests().catch((error) => console.error("[worker] marketing digest failed", error));
+      }, 60 * 60 * 1000)
+    : null;
+  return () => {
+    clearInterval(timer);
+    if (digestTimer) clearInterval(digestTimer);
+  };
 }
 
 async function main() {

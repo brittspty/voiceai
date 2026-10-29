@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import bcrypt from "bcryptjs";
 import { PrismaClient, type CallOutcome, type Consent, type Prisma } from "@prisma/client";
 import { clientConfig, defaultKnowledge } from "../lib/client-config";
-import { plannedSeedUsers, SAMPLE_ACTIVITY_ACTIONS, seedStartupLines } from "../lib/seed-plan";
+import { plannedSeedUsers, plannedSuperAdmins, SAMPLE_ACTIVITY_ACTIONS, seedStartupLines } from "../lib/seed-plan";
 import { zonedTimeToUtc } from "../lib/time";
 import { buildTranscript } from "../lib/transcript";
 import { DEFAULT_POLICY } from "../lib/types";
@@ -34,7 +34,24 @@ function knowledgeBody(cfg: ReturnType<typeof clientConfig>) {
   }
 }
 
+async function ensureSuperAdmins() {
+  for (const person of plannedSuperAdmins(process.env)) {
+    const existing = await prisma.user.findUnique({ where: { email: person.email } });
+    if (existing) continue;
+    await prisma.user.create({
+      data: {
+        name: person.name,
+        email: person.email,
+        passwordHash: await bcrypt.hash(person.password, 10),
+        role: "super_admin",
+      },
+    });
+    console.log(`Super admin  ${person.email}`);
+  }
+}
+
 async function main() {
+  await ensureSuperAdmins();
   const existing = await prisma.org.findUnique({ where: { id: "org" } });
   if (existing) {
     console.log("Seed already applied. Workspace values stay as they are in the database.");
@@ -144,9 +161,9 @@ async function main() {
   const live = process.env.INTEGRATIONS_MODE === "live";
   await prisma.integrationCheck.createMany({
     data: [
-      integrationRow("ghl", "GoHighLevel", "Lead sync", !live || Boolean(process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID), 1390),
-      integrationRow("elevenlabs", "ElevenLabs", "Conversational AI", !live || Boolean(process.env.ELEVENLABS_API_KEY), 240),
-      integrationRow("twilio", "Twilio", "Phone carrier", !live || Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER), 180),
+      integrationRow("ghl", "GoHighLevel", "Lead sync", live && Boolean(process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID), 1390),
+      integrationRow("elevenlabs", "ElevenLabs", "Conversational AI", live && Boolean(process.env.ELEVENLABS_API_KEY), 240),
+      integrationRow("twilio", "Twilio", "Phone carrier", live && Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER), 180),
     ],
   });
 
@@ -178,10 +195,8 @@ async function main() {
   for (const line of seedStartupLines(cfg)) console.log(line);
 }
 
-function integrationRow(provider: string, label: string, detail: string, configured: boolean, mockLatency: number) {
-  const live = process.env.INTEGRATIONS_MODE === "live";
-  if (!live) return { provider, label, detail, status: "healthy" as const, latencyMs: mockLatency, checkedAt: new Date(Date.now() - 12 * 60 * 1000) };
-  if (!configured) return { provider, label, detail: "Not configured", status: "unconfigured" as const, latencyMs: null, checkedAt: new Date() };
+function integrationRow(provider: string, label: string, detail: string, configured: boolean, _mockLatency: number) {
+  if (!configured) return { provider, label, detail: "Not connected", status: "unconfigured" as const, latencyMs: null, checkedAt: new Date() };
   return { provider, label, detail: "Not checked yet", status: "unconfigured" as const, latencyMs: null, checkedAt: new Date() };
 }
 

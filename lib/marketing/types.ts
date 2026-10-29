@@ -148,6 +148,16 @@ export type NormalizedMetric = {
   thruplays: string | null;
 };
 
+export type NormalizedHourly = {
+  platform: AdPlatform;
+  date: string;
+  hour: number;
+  adExternalId: string;
+  impressions: string;
+  clicks: string;
+  conversions: string;
+};
+
 export type NormalizedRaw = {
   platform: AdPlatform;
   objectType: string;
@@ -165,6 +175,7 @@ export type NormalizedSnapshot = {
   adGroupAudiences: NormalizedAdGroupAudience[];
   segments: NormalizedSegment[];
   metrics: NormalizedMetric[];
+  hourly: NormalizedHourly[];
   raw: NormalizedRaw[];
   warnings: string[];
 };
@@ -180,6 +191,7 @@ export function emptySnapshot(): NormalizedSnapshot {
     adGroupAudiences: [],
     segments: [],
     metrics: [],
+    hourly: [],
     raw: [],
     warnings: [],
   };

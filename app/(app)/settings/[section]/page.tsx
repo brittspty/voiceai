@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ConfirmButton, ConfirmSubmitButton } from "@/components/confirm-dialog";
 import { GoLivePanel } from "@/components/go-live-panel";
 import { InviteForm } from "@/components/invite-form";
@@ -8,11 +8,11 @@ import { PageTitle } from "@/components/shell";
 import { TestConsole } from "@/components/test-console";
 import { TotpSetup } from "@/components/totp-setup";
 import { VoicePicker } from "@/components/voice-picker";
-import { requireUser, isOwner, canWrite, isSuperAdmin } from "@/lib/auth";
+import { requireUser, isOwner, canWrite, isSuperAdmin, canOpenOperatorSettings, OPERATOR_SETTINGS } from "@/lib/auth";
 import { resolveBrandColor, resolveMark } from "@/lib/brand";
 import { actorLabel, CONSENT_OPTIONS, humanFieldLabel, integrationKeyId, presentIntegration } from "@/lib/customer-copy";
 import { prisma } from "@/lib/db";
-import { appUrl } from "@/lib/env";
+import { publicHttpsBase } from "@/lib/env";
 import { formatDateTime, timeAgo } from "@/lib/format";
 import { maskPhone } from "@/lib/phone";
 import { type SP } from "@/lib/params";
@@ -61,6 +61,8 @@ export default async function SettingsSection({ params, searchParams }: { params
   const title = TITLES[rawSection];
   if (!title) notFound();
   const user = await requireUser();
+  if (user.role === "client_viewer") redirect("/marketing/client");
+  if ((OPERATOR_SETTINGS as readonly string[]).includes(section) && !canOpenOperatorSettings(user.role)) redirect("/settings/calling");
   const bundle = await getSettingsBundle();
   return (
     <div>
@@ -171,7 +173,7 @@ function Branding({ owner, bundle }: { owner: boolean; bundle: Awaited<ReturnTyp
         <label className="block text-sm">Mark<input name="mark" defaultValue={resolveMark(bundle.org.mark)} maxLength={2} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
         <label className="block text-sm">Logo URL<input name="logoUrl" defaultValue={bundle.org.logoUrl} placeholder="Leave blank for the Specificity logo" disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
       </div>
-      <p className="text-xs text-muted">Leave the logo blank to use the Specificity logo. The color is #FF5800 unless you set another hex color.</p>
+      <p className="text-xs text-muted">Leave the logo blank to use the Specificity logo. The color stays the Specificity orange unless you set another one.</p>
       {owner ? <button className="btn-brand rounded-full px-3 py-1.5 text-sm">Save branding</button> : <p className="text-sm text-muted">Only an owner can edit branding.</p>}
     </form>
   );
@@ -432,7 +434,8 @@ function Integrations({
   readiness: { id: string; ok: boolean }[];
 }) {
   const stale = checks.some((check) => presentIntegration({ ...check, testMode, keysReady: false }).stale);
-  const toneClass = { gray: "bg-zinc-100 text-zinc-700", green: "bg-[#e7f6ee] text-[#166534]", red: "bg-red-100 text-[#9f1239]", amber: "bg-amber-100 text-amber-950" };
+  const toneClass = { gray: "bg-chip text-muted", green: "bg-success-soft text-success", red: "bg-danger-soft text-danger", amber: "bg-warning-soft text-warning" };
+  const base = publicHttpsBase();
   return (
     <div>
       <IntegrationsRefresh stale={stale} />
@@ -444,7 +447,7 @@ function Integrations({
             <div key={check.provider} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
               <div>
                 <div className="font-medium">{check.label}</div>
-                <div className="text-sm text-zinc-600 dark:text-zinc-300">{shown.sentence}</div>
+                {shown.sentence !== shown.status && <div className="text-sm text-zinc-600 dark:text-zinc-300">{shown.sentence}</div>}
                 <div className="mt-1 text-xs text-muted">{check.checkedAt ? `Checked ${timeAgo(check.checkedAt)}` : "Not checked yet"}</div>
               </div>
               <span className={`rounded-full px-2 py-0.5 text-xs ${toneClass[shown.tone]}`}>{shown.status}</span>
@@ -454,11 +457,15 @@ function Integrations({
       </div>
       <details className="mt-4 text-sm text-muted">
         <summary>For Specificity support</summary>
-        <ul className="mt-2 space-y-1 font-mono text-xs">
-          <li>{appUrl()}/api/webhooks/ghl</li>
-          <li>{appUrl()}/api/webhooks/elevenlabs</li>
-          <li>{appUrl()}/api/webhooks/twilio</li>
-        </ul>
+        {base ? (
+          <ul className="mt-2 space-y-1 font-mono text-xs">
+            <li>{base}/api/webhooks/ghl</li>
+            <li>{base}/api/webhooks/elevenlabs</li>
+            <li>{base}/api/webhooks/twilio</li>
+          </ul>
+        ) : (
+          <p className="mt-2">The public site address is not set yet.</p>
+        )}
       </details>
     </div>
   );

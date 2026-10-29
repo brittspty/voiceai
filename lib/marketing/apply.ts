@@ -159,18 +159,47 @@ export async function applySnapshot(store: MarketingStore, snapshot: NormalizedS
   }
 
   for (const metric of snapshot.metrics) {
-    const adId = adIds.get(`${metric.platform}:${metric.adExternalId}`);
+    let adId = adIds.get(`${metric.platform}:${metric.adExternalId}`);
+    let campaignId = campaignIds.get(`${metric.platform}:${metric.campaignExternalId}`) ?? null;
+    let adGroupId = adGroupIds.get(`${metric.platform}:${metric.adGroupExternalId}`) ?? null;
+    if (!adId) {
+      const existing = await store.findAdContext(ctx.workspaceId, metric.platform, metric.adExternalId);
+      if (!existing) continue;
+      adId = existing.id;
+      adGroupId = adGroupId ?? existing.adGroupId;
+      campaignId = campaignId ?? existing.campaignId;
+    }
     const audienceSegmentId = segmentIds.get(`${metric.segmentKind}:${metric.segmentKey}`);
-    if (!adId || !audienceSegmentId) continue;
+    if (!audienceSegmentId) continue;
     await store.upsertMetric({
       ...metric,
       workspaceId: ctx.workspaceId,
       adId,
       audienceSegmentId,
-      campaignId: campaignIds.get(`${metric.platform}:${metric.campaignExternalId}`) ?? null,
-      adGroupId: adGroupIds.get(`${metric.platform}:${metric.adGroupExternalId}`) ?? null,
+      campaignId,
+      adGroupId,
       creativeVersionId: metric.fingerprint ? (creativeIds.get(metric.fingerprint) ?? null) : null,
       sourcePullId: ctx.runId,
+    });
+    rowsWritten += 1;
+  }
+
+  for (const hour of snapshot.hourly ?? []) {
+    const key = `${hour.platform}:${hour.adExternalId}`;
+    let adId = adIds.get(key);
+    if (!adId) {
+      const existing = await store.findAdContext(ctx.workspaceId, hour.platform, hour.adExternalId);
+      adId = existing?.id;
+    }
+    if (!adId) continue;
+    await store.upsertHourly({
+      workspaceId: ctx.workspaceId,
+      adId,
+      date: hour.date,
+      hour: hour.hour,
+      impressions: hour.impressions,
+      clicks: hour.clicks,
+      conversions: hour.conversions,
     });
     rowsWritten += 1;
   }

@@ -1,4 +1,7 @@
 import type { ClientConfig } from "./client-config";
+import { plannedSuperAdmins } from "./marketing/access";
+
+export { plannedSuperAdmins };
 
 export type PlannedSeedUser = {
   id: string;

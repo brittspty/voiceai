@@ -8,7 +8,7 @@ import { updateSwitches } from "@/lib/actions";
 import type { ReadinessItem } from "@/lib/readiness";
 
 const TONE = {
-  done: "bg-[#e7f6ee] text-[#166534]",
+  done: "bg-success-soft text-success",
   todo: "bg-amber-100 text-amber-950",
   staff: "bg-zinc-100 text-zinc-700",
 };
@@ -140,10 +140,10 @@ export function GoLivePanel({
               Type GO LIVE to confirm
               <input ref={inputRef} value={phrase} onChange={(event) => setPhrase(event.target.value)} className="mt-1 h-10 w-full rounded-lg border border-line px-3" autoComplete="off" />
             </label>
-            {error && <p className="mt-2 text-sm text-[#9f1239]">{error}</p>}
+            {error && <p className="mt-2 text-sm text-danger">{error}</p>}
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="h-10 rounded-full border border-line px-4 text-sm" onClick={() => setOpen(false)}>Cancel</button>
-              <button type="button" disabled={phrase !== "GO LIVE" || pending} className="h-10 rounded-full bg-[#9f1239] px-4 text-sm text-white disabled:opacity-50" onClick={() => save(false)}>
+              <button type="button" disabled={phrase !== "GO LIVE" || pending} className="h-10 rounded-full bg-danger px-4 text-sm text-on-ink disabled:opacity-50" onClick={() => save(false)}>
                 {pending ? "Working…" : "Go live"}
               </button>
             </div>
@@ -155,7 +155,7 @@ export function GoLivePanel({
           <div role="alertdialog" aria-modal="true" aria-labelledby={`${titleId}-back`} className="w-full max-w-md rounded-2xl border border-line bg-card p-5 shadow-xl">
             <h2 id={`${titleId}-back`} className="text-lg font-semibold">Switch back to test mode?</h2>
             <p className="mt-2 text-sm leading-6 text-muted">Avery will stop calling real leads. Test calls still work.</p>
-            {error && <p className="mt-2 text-sm text-[#9f1239]">{error}</p>}
+            {error && <p className="mt-2 text-sm text-danger">{error}</p>}
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="h-10 rounded-full border border-line px-4 text-sm" onClick={() => setConfirmBack(false)}>Cancel</button>
               <button type="button" disabled={pending} className="h-10 rounded-full bg-ink px-4 text-sm text-white dark:bg-white dark:text-black" onClick={() => save(true)}>Switch to test mode</button>

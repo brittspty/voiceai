@@ -22,8 +22,8 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
               <Link key={item.id} href={`/knowledge?doc=${item.id}`} className="rounded-xl border border-line bg-card p-4 shadow-[var(--shadow)]">
                 <div className="text-sm font-medium">{item.title}</div>
                 <div className="mt-3 flex items-center gap-2 text-xs text-muted">
-                  <span className={item.status === "live" ? "text-[#187a42]" : ""}>{item.status === "live" ? "Live" : "Draft"}</span>
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#22a06b]" />
+                  <span className={item.status === "live" ? "text-success" : ""}>{item.status === "live" ? "Live" : "Draft"}</span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-success-strong" />
                   {timeAgo(item.updatedAt)}
                 </div>
               </Link>

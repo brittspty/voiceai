@@ -3,7 +3,7 @@ import { sessionSecret } from "./env";
 export const SESSION_COOKIE = "voiceops_session";
 
 export type TokenPayload =
-  | { kind: "session"; sid: string; exp: number }
+  | { kind: "session"; sid: string; exp: number; role?: string }
   | { kind: "totp"; uid: string; exp: number };
 
 function bytesToBase64Url(bytes: Uint8Array) {

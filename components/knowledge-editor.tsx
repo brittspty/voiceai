@@ -50,7 +50,7 @@ export function KnowledgeEditor({
       {doc && <Link href="/knowledge" className="text-sm text-muted">← All documents</Link>}
       <input name="title" defaultValue={doc?.title || ""} placeholder="Document title" className="h-10 w-full rounded-lg border border-line bg-card px-3 text-sm" />
       <textarea name="body" defaultValue={doc?.body || ""} rows={18} className="w-full rounded-xl border border-line bg-card p-3 text-sm leading-6" placeholder="What the agent is allowed to say." />
-      {error && <p className="text-sm text-[#d14343]">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
       <div className="flex gap-2">
         <button className="rounded-full border border-line px-3 py-1.5 text-sm" name="publish" value="no">Save draft</button>
         <ConfirmSubmitButton name="publish" value="yes" label="Make it live" title="Let Avery use this document?" body="Avery can answer from this document on new calls." className="rounded-full bg-ink px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black" />

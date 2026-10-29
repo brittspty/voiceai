@@ -20,3 +20,39 @@ Plain-language copy, empty states, and Specificity branding on the voice and set
 - Teammates are invited by email (or a copyable link when email is not configured) instead of a typed temporary password.
 - Primary buttons use dark text on #FF5800. The brand default is that orange and the Specificity mark, not blue or "V".
 - The voice log no longer links to ElevenLabs. Help no longer claims a national do-not-call check. Request access has its own form.
+
+### Marketing operations
+
+- Human campaign budgets (amount, daily or lifetime, currency, who set it, when) with an audit row for each change. Only a signed-in super admin, or an account manager for that campaign, can save one. Sync, the monitor, and worker jobs do not write it. Accepting a budget suggestion records the decision and does not write the budget or call an ad platform.
+- Spend, budgets, CPC, CPM, CPA, and any other cost-derived field are returned only to super admins and account managers. Owners, admins, viewers, client viewers, and share links receive a server payload with those fields, budget cards, and cost rules removed. CSV exports follow the same rule.
+- A share link with a passcode does not return JSON or CSV until the passcode cookie is present. Viewer write actions answer 403. Share pages send `Referrer-Policy: no-referrer`.
+- Marketing migrations run after `20261029193000_invites_and_brand_defaults`: `20261029200000_marketing_ops`, then `20261029210000_share_passcode`.
+- Roles: super admin (Jason, Brittany, and Chris are seeded placeholders; emails come from `MARKETING_SUPER_ADMIN_EMAILS`), account manager scoped to the client, an ad account, or a campaign, and a read-only client viewer for exactly one client.
+- Client viewers and share links get an allowlisted performance payload (impressions, reach, clicks, click rate, conversions, leads, frequency, creative previews, trends). Cost fields are removed on the server. Each view is audited.
+- Specificity theme tokens live in `lib/brand/tokens.ts` and CSS variables. Placeholder colors and Inter until the designer's tokens replace that file. Tagline: Identify. Engage. Convert.
+
+Flags default **off**:
+
+- `MARKETING_INTRADAY_SYNC` — 15 minute cadence, today and yesterday at ad level, full trailing window once a day. Skips when a previous sync is still running.
+- `MARKETING_MONITOR` — alerts and suggestions after a sync. A suggestion is hidden until a second check confirms it.
+- `MARKETING_DIGEST` — hourly stored summary for each account manager.
+- `MARKETING_DIGEST_DELIVERY` — no email or SMS is sent.
+- `MARKETING_CLIENT_LINKS` — tokenized share links.
+
+### Decision UI (spec 2026-10-29)
+
+- Decision cards, including a recommend-only budget card. Approving records the OK and the steps. It does not change the budget or call an ad platform. “I made the change” only marks the handoff done.
+- Hourly summary layout for an account manager. Email stays off.
+- Super-admin client comparison and a skill yes/no prompt. A skill cannot be granted a budget change.
+- Client share view shows booked calls, leads, ad views, and campaign status. No cost or currency.
+- Brand tokens use the placeholder orange `#FF5800` and Poppins. `lib/brand.ts` points `brandColor` and `logoUrl` at `specificity-mark.png`.
+
+### Follow-ups
+
+- PDF download on the client share view.
+- Turn the flags on only after the owner approves the deploy checklist.
+- Email and SMS delivery for digests.
+- Designer replaces the placeholder brand tokens.
+- UX specs for alerts, suggestions, digests, and the client view.
+- A screen to invite a client viewer (the API exists; the form does not).
+- A signed-in client viewer is limited to the client results page. Invites stay behind `MARKETING_CLIENT_VIEWERS` and need a strong password.

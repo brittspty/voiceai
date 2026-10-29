@@ -11,9 +11,9 @@ export function TotpSetup({ enabled, userId }: { enabled: boolean; userId: strin
     <div className="rounded-xl border border-line bg-card p-4">
       <h3 className="font-medium">Your two-step sign-in</h3>
       <p className="mt-1 text-sm text-muted">{enabled ? "Two-step sign-in is on for this account." : "Add a six-digit code from an authenticator app."}</p>
-      {error && <p className="mt-2 text-sm text-[#d14343]">{error}</p>}
+      {error && <p className="mt-2 text-sm text-danger">{error}</p>}
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        {!enabled && !qr && <button className="rounded-full bg-ink px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black" onClick={async () => {
+        {!enabled && !qr && <button className="rounded-full bg-ink px-3 py-1.5 text-sm text-on-ink" onClick={async () => {
           try { const next = await beginTotp(); setQr(next.qr); setSecret(next.secret); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not start"); }
         }}>Set up</button>}
         {qr && (
@@ -22,7 +22,7 @@ export function TotpSetup({ enabled, userId }: { enabled: boolean; userId: strin
             <div>
               <div className="font-mono text-xs">{secret}</div>
               <input name="code" inputMode="numeric" placeholder="123456" className="mt-2 h-9 rounded-lg border border-line px-2 text-sm" />
-              <button className="ml-2 rounded-full bg-ink px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black">Confirm</button>
+              <button className="ml-2 rounded-full bg-ink px-3 py-1.5 text-sm text-on-ink">Confirm</button>
             </div>
           </form>
         )}

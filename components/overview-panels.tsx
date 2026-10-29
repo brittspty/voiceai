@@ -76,7 +76,7 @@ export function LiveNow({ initial, range }: { initial: Live; range: string }) {
           <h2 className="font-medium">Live now</h2>
           <p className="text-sm text-muted">Calls moving through the system. Wrap-up means Avery is saving notes to your CRM.</p>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-muted"><span className="h-1.5 w-1.5 rounded-full bg-[#22a06b]" aria-hidden="true" /> Updating live</div>
+        <div className="flex items-center gap-1.5 text-xs text-muted"><span className="h-1.5 w-1.5 rounded-full bg-success-strong" aria-hidden="true" /> Updating live</div>
       </div>
       <div className="mt-4 flex flex-wrap gap-4 text-sm">
         {legend.map(([label, count, dot]) => (
@@ -108,8 +108,8 @@ export function DialsChart({ data, range }: { data: { label: string; dials: numb
           <p className="text-sm text-muted">{period}</p>
         </div>
         <div className="flex gap-3 text-xs text-muted">
-          <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-[#3b82f6]" /> Dials</span>
-          <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-[#2eb8a0]" /> Answered</span>
+          <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-chart-1" /> Dials</span>
+          <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-chart-2" /> Answered</span>
         </div>
       </div>
       <p className="sr-only">Dials and answered calls, {period}: {dials} dials, {connects} answered.</p>
@@ -118,16 +118,16 @@ export function DialsChart({ data, range }: { data: { label: string; dials: numb
           <AreaChart data={data}>
             <defs>
               <linearGradient id="dials" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#7dd3c7" stopOpacity={0.8} />
-                <stop offset="100%" stopColor="#7dd3c7" stopOpacity={0.05} />
+                <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.8} />
+                <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0.05} />
               </linearGradient>
             </defs>
             <CartesianGrid stroke="var(--line)" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#71717a" }} axisLine={false} tickLine={false} />
-            <YAxis width={28} tick={{ fontSize: 12, fill: "#71717a" }} axisLine={false} tickLine={false} allowDecimals={false} domain={[0, 4]} />
+            <XAxis dataKey="label" tick={{ fontSize: 12, fill: "var(--muted)" }} axisLine={false} tickLine={false} />
+            <YAxis width={28} tick={{ fontSize: 12, fill: "var(--muted)" }} axisLine={false} tickLine={false} allowDecimals={false} domain={[0, 4]} />
             <Tooltip />
-            <Area type="monotone" dataKey="dials" stroke="#3b82f6" fill="url(#dials)" strokeWidth={2} />
-            <Area type="monotone" dataKey="connects" stroke="#2eb8a0" fill="transparent" strokeWidth={2} />
+            <Area type="monotone" dataKey="dials" stroke="var(--chart-1)" fill="url(#dials)" strokeWidth={2} />
+            <Area type="monotone" dataKey="connects" stroke="var(--chart-2)" fill="transparent" strokeWidth={2} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -148,7 +148,7 @@ export function OutcomesCard({ outcomes, range }: { outcomes: { outcome: string;
           {outcomes.map((row) => (
             <li key={row.outcome}>
               <div className="mb-1 flex justify-between text-sm"><span>{outcomeLabel(row.outcome)}</span><span>{row.count}</span></div>
-              <div className="h-2 rounded-full bg-chip"><div className="h-2 rounded-full bg-[#3b82f6]" style={{ width: `${(row.count / total) * 100}%` }} /></div>
+              <div className="h-2 rounded-full bg-chip"><div className="h-2 rounded-full bg-chart-1" style={{ width: `${(row.count / total) * 100}%` }} /></div>
             </li>
           ))}
         </ul>

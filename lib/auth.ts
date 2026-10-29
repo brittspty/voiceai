@@ -48,3 +48,24 @@ export function isOwner(role: Role) {
 export function isSuperAdmin(role: string) {
   return role === "super_admin";
 }
+
+export const OPERATOR_SETTINGS = ["users", "production", "integrations"] as const;
+
+export function canOpenOperatorSettings(role: string) {
+  return role === "owner" || role === "super_admin";
+}
+
+/** Viewers cannot perform writes. Callers turn this into a 403 instead of an uncaught error. */
+export function permissionStatus(role: string): 403 | null {
+  if (role === "viewer" || role === "client_viewer") return 403;
+  return null;
+}
+
+export async function requireStaffUser() {
+  const user = await requireUser();
+  if (permissionStatus(user.role) === 403) {
+    const { denyAccess } = await import("./deny");
+    denyAccess();
+  }
+  return user;
+}

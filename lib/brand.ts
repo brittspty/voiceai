@@ -1,3 +1,4 @@
+import { brandTokens } from "./brand/tokens";
 import { clientConfig, type ClientConfig } from "./client-config";
 
 /** Customer-facing product name. Avery is the AI caller, not the product. */
@@ -18,6 +19,18 @@ export const PLACEHOLDER_LOGO_URL = "/brand/specificity-logo-reversed.png";
 /** Color stored by older seeds before the Specificity placeholder existed. */
 const UNSET_BRAND_COLOR = "#2563eb";
 
+/** Hosted mark. Light backgrounds only. Poppins and the orange are placeholders. */
+export const PLATFORM_LOGO_PATH = brandTokens.logo.src;
+
+export function platformBrand() {
+  return {
+    brandColor: brandTokens.light.brand,
+    logoUrl: PLATFORM_LOGO_PATH,
+    inkColor: brandTokens.light.ink,
+    fontFamily: brandTokens.font.family,
+  };
+}
+
 export type Brand = {
   companyName: string;
   subtitle: string;
@@ -25,6 +38,8 @@ export type Brand = {
   timezone: string;
   brandColor: string;
   logoUrl: string;
+  inkColor: string;
+  fontFamily: string;
   mark: string;
 };
 
@@ -51,6 +66,7 @@ export function resolveMark(value: string | null | undefined) {
 }
 
 export function brandFromConfig(cfg: ClientConfig = clientConfig()): Brand {
+  const platform = platformBrand();
   return {
     companyName: cfg.companyName,
     subtitle: cfg.subtitle,
@@ -58,6 +74,8 @@ export function brandFromConfig(cfg: ClientConfig = clientConfig()): Brand {
     timezone: cfg.timezone,
     brandColor: resolveBrandColor(cfg.brandColor),
     logoUrl: resolveLogoUrl(cfg.logoUrl),
+    inkColor: platform.inkColor,
+    fontFamily: platform.fontFamily,
     mark: resolveMark(cfg.mark),
   };
 }
@@ -68,6 +86,7 @@ export async function loadBrand(): Promise<Brand> {
     const org = await prisma.org.findUnique({ where: { id: "org" } });
     if (!org) return brandFromConfig();
     const cfg = clientConfig();
+    const platform = platformBrand();
     return {
       companyName: org.name,
       subtitle: org.subtitle,
@@ -75,6 +94,8 @@ export async function loadBrand(): Promise<Brand> {
       timezone: org.timezone,
       brandColor: resolveBrandColor(org.brandColor || cfg.brandColor),
       logoUrl: resolveLogoUrl(org.logoUrl),
+      inkColor: platform.inkColor,
+      fontFamily: platform.fontFamily,
       mark: resolveMark(org.mark || cfg.mark),
     };
   } catch {

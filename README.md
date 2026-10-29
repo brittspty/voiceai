@@ -117,7 +117,13 @@ A live sync needs a Meta system user token and the app that issued it:
 | `META_ATTRIBUTION_WINDOWS` | Comma-separated windows sent to insights. Default `7d_click,1d_view`, stored as `7d_click_1d_view` |
 | `MARKETING_SYNC_MODE` | `auto` (default), `mock`, `live`, or `off`. `auto` syncs when the token, app id, and app secret are set and at least one account is configured; otherwise it skips |
 | `MARKETING_LOOKBACK_DAYS` | Trailing days re-pulled each run, from 1 to 90. Default 7. Late attribution is handled by upserting this window, not by a high-water mark |
-| `MARKETING_SYNC_INTERVAL_MS` | Worker interval. Default 6 hours. The worker also syncs once on startup |
+| `MARKETING_SYNC_INTERVAL_MS` | Worker interval. Default 6 hours, or 15 minutes when intraday sync is on and this value is empty. The worker also syncs once on startup |
+| `MARKETING_INTRADAY_SYNC` | `off` (default). `on` pulls today and yesterday at ad level between a once-a-day full window. A run is skipped when the previous one is still going |
+| `MARKETING_MONITOR` | `off` (default). `on` writes alerts and draft suggestions after a successful sync. Suggestions stay hidden until a second check confirms them |
+| `MARKETING_DIGEST` | `off` (default). `on` stores an hourly summary for each account manager. It does not send it |
+| `MARKETING_DIGEST_DELIVERY` | `off` (default). Email and SMS are not sent in this version |
+| `MARKETING_CLIENT_LINKS` | `off` (default). `on` lets a super admin or account manager create a client share link |
+| `MARKETING_SUPER_ADMIN_EMAILS` | Comma-separated emails treated as super admins. Default placeholders: Jason, Brittany, and Chris |
 | `DATABASE_URL` | Postgres URL the CLI writes to. Required for `npm run meta:sync` unless you pass `--dry-run` |
 
 When `META_AD_ACCOUNT_IDS` is set, that list is the only allow-list. When it is empty, the sync uses `AdAccount` rows with `syncEnabled` still true. Clearing the env var does not delete history. Set `MARKETING_SYNC_MODE=off` to stop all syncs. Accounts removed from the allow-list stay in the database and are not pulled while the env list is non-empty.

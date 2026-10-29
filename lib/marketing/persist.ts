@@ -1,0 +1,186 @@
+import { prisma } from "../db";
+import { accessFromUser } from "./access";
+import {
+  alertMinImpressions,
+  baselineDays,
+  digestEnabled,
+  monitorEnabled,
+  recommendationMinClicks,
+  recommendationMinImpressions,
+  verticalBenchmarks,
+} from "./config";
+import { buildManagerDigest } from "./digest";
+import { evaluateAds, type HourPoint, type HumanBudget, type MetricPoint } from "./monitor";
+import { verifyRecommendation } from "./recommendations";
+import { addDaysISO, zonedISODate } from "../time";
+
+function dec(value: { toString(): string } | number | null | undefined) {
+  if (value === null || value === undefined) return 0;
+  const parsed = Number(value.toString());
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export async function loadMonitorRows(): Promise<{ rows: MetricPoint[]; hours: HourPoint[]; budgets: HumanBudget[] }> {
+  const [metrics, hourly, campaigns] = await Promise.all([
+    prisma.dailyMetric.findMany({
+      include: {
+        ad: { select: { id: true, name: true, adGroup: { select: { id: true, campaignId: true, campaign: { select: { adAccountId: true, objective: true } } } } } },
+      },
+    }),
+    prisma.adHourlyMetric.findMany(),
+    prisma.campaign.findMany({ select: { id: true, budgetAmount: true, budgetType: true, budgetCurrency: true } }),
+  ]);
+  const rows: MetricPoint[] = metrics.map((metric) => ({
+    id: metric.id,
+    adId: metric.adId,
+    adName: metric.ad.name,
+    adGroupId: metric.ad.adGroup.id,
+    campaignId: metric.ad.adGroup.campaignId,
+    adAccountId: metric.ad.adGroup.campaign.adAccountId,
+    objective: metric.ad.adGroup.campaign.objective,
+    date: metric.date.toISOString().slice(0, 10),
+    ingestedAt: metric.ingestedAt.toISOString(),
+    spend: dec(metric.spend),
+    impressions: Number(metric.impressions),
+    clicks: Number(metric.clicks),
+    linkClicks: Number(metric.linkClicks),
+    reach: Number(metric.reach),
+    leads: dec(metric.platformLeads),
+    conversions: dec(metric.platformConversions),
+    conversionValue: dec(metric.conversionValue),
+  }));
+  const hours = hourly.map((row) => ({
+    adId: row.adId,
+    hour: row.hour,
+    clicks: Number(row.clicks),
+    impressions: Number(row.impressions),
+    conversions: dec(row.conversions),
+  }));
+  const budgets = campaigns.flatMap((campaign) => {
+    if ((campaign.budgetType !== "daily" && campaign.budgetType !== "lifetime") || campaign.budgetAmount === null) return [];
+    return [{ campaignId: campaign.id, amount: dec(campaign.budgetAmount), period: campaign.budgetType, currency: campaign.budgetCurrency }];
+  });
+  return { rows, hours, budgets };
+}
+
+export async function runStoredMonitor(now = new Date()) {
+  if (!monitorEnabled()) return { status: "skipped" as const };
+  const org = await prisma.org.findUnique({ where: { id: "org" }, select: { timezone: true } });
+  const timeZone = org?.timezone || "America/New_York";
+  const today = zonedISODate(now, timeZone);
+  const yesterday = addDaysISO(today, -1);
+  const { rows, hours, budgets } = await loadMonitorRows();
+  const evaluated = evaluateAds({
+    rows,
+    hours,
+    budgets,
+    now,
+    today,
+    yesterday,
+    baselineDays: baselineDays(),
+    alertMinImpressions: alertMinImpressions(),
+    benchmarks: verticalBenchmarks(),
+  });
+  for (const alert of evaluated.alerts) {
+    await prisma.adAlert.create({
+      data: {
+        adId: alert.adId,
+        adAccountId: alert.adAccountId,
+        campaignId: alert.campaignId,
+        severity: alert.severity,
+        code: alert.code,
+        title: alert.title,
+        summary: alert.summary,
+        metric: alert.metric,
+        observed: alert.observed,
+        baseline: alert.baseline,
+        windowStart: new Date(`${alert.windowStart}T00:00:00.000Z`),
+        windowEnd: new Date(`${alert.windowEnd}T00:00:00.000Z`),
+        sampleSize: alert.sampleSize,
+        evidence: { metric: alert.metric, baseline: alert.baseline, observed: alert.observed, sampleSize: alert.sampleSize, sourceMetricIds: alert.sourceMetricIds },
+        sourceMetricIds: alert.sourceMetricIds,
+        dataLandedAt: new Date(alert.dataLandedAt),
+        detectedAt: now,
+      },
+    });
+  }
+  const thresholds = { minImpressions: recommendationMinImpressions(), minClicks: recommendationMinClicks(), today, yesterday };
+  for (const draft of evaluated.drafts) {
+    const check = verifyRecommendation(draft, rows, thresholds);
+    await prisma.recommendation.create({
+      data: {
+        type: draft.type,
+        status: check.status,
+        adId: draft.adId,
+        campaignId: draft.campaignId,
+        adAccountId: draft.adAccountId,
+        title: draft.title,
+        summary: draft.summary,
+        rationale: draft.rationale,
+        metric: draft.metric,
+        baseline: draft.baseline,
+        observed: draft.observed,
+        windowStart: new Date(`${draft.windowStart}T00:00:00.000Z`),
+        windowEnd: new Date(`${draft.windowEnd}T00:00:00.000Z`),
+        sampleSize: check.sampleSize,
+        sourceMetricIds: draft.sourceMetricIds,
+        evidence: {
+          metric: draft.metric,
+          baseline: draft.baseline,
+          observed: draft.observed,
+          windowStart: draft.windowStart,
+          windowEnd: draft.windowEnd,
+          sampleSize: check.sampleSize,
+          sourceMetricIds: draft.sourceMetricIds,
+        },
+        currentBudgetAmount: draft.currentBudgetAmount,
+        currentBudgetPeriod: draft.currentBudgetPeriod,
+        proposedBudgetAmount: draft.proposedBudgetAmount,
+        proposedBudgetPeriod: draft.proposedBudgetPeriod,
+        proposedCurrency: draft.proposedCurrency,
+        verifiedAt: check.status === "verified" ? now : null,
+        verifierNote: check.note,
+      },
+    });
+  }
+  return { status: "ran" as const, alerts: evaluated.alerts.length, drafts: evaluated.drafts.length };
+}
+
+export async function runStoredDigests(now = new Date()) {
+  if (!digestEnabled()) return { status: "skipped" as const };
+  const periodStart = new Date(now.getTime() - 60 * 60 * 1000);
+  const [managers, alerts, recommendations] = await Promise.all([
+    prisma.user.findMany({ where: { role: "account_manager" }, include: { marketingScopes: true } }),
+    prisma.adAlert.findMany({ where: { createdAt: { gte: periodStart } } }),
+    prisma.recommendation.findMany({ where: { status: "verified", verifiedAt: { gte: periodStart } } }),
+  ]);
+  let written = 0;
+  for (const manager of managers) {
+    const access = accessFromUser(manager, manager.marketingScopes.map((row) => ({
+      workspaceId: row.workspaceId,
+      scopeKind: row.scopeKind,
+      adAccountId: row.adAccountId,
+      campaignId: row.campaignId,
+    })));
+    const draft = buildManagerDigest({
+      userId: manager.id,
+      accountIds: access.accounts,
+      periodStart,
+      periodEnd: now,
+      alerts: alerts.map((alert) => ({ id: alert.id, title: alert.title, summary: alert.summary, accountId: alert.adAccountId })),
+      recommendations: recommendations.map((rec) => ({ id: rec.id, title: rec.title, summary: rec.summary, accountId: rec.adAccountId || "" })),
+    });
+    if (!draft) continue;
+    await prisma.managerDigest.create({
+      data: {
+        userId: draft.userId,
+        periodStart: draft.periodStart,
+        periodEnd: draft.periodEnd,
+        payload: draft.payload,
+        delivery: draft.delivery,
+      },
+    });
+    written += 1;
+  }
+  return { status: "ran" as const, written };
+}

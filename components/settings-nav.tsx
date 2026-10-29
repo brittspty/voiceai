@@ -23,12 +23,13 @@ const SUPPORT_LINKS = [
   ["/settings/test-console", "Place a test call"],
 ] as const;
 
-export function SettingsNav() {
+export function SettingsNav({ role = "" }: { role?: string }) {
   const pathname = usePathname();
   const current = pathname === "/settings/go-live" ? "/settings/production" : pathname;
+  const hidden = role === "owner" || role === "super_admin" ? new Set<string>() : new Set(["/settings/users", "/settings/integrations", "/settings/production"]);
   return (
     <nav className="flex gap-1 overflow-x-auto md:w-52 md:flex-col">
-      {SETTINGS_LINKS.map(([href, label]) => (
+      {SETTINGS_LINKS.filter(([href]) => !hidden.has(href)).map(([href, label]) => (
         <Link key={href} href={href} className={cn("whitespace-nowrap rounded-lg px-3 py-2 text-sm", current === href ? "bg-hover font-medium" : "text-muted hover:bg-hover")}>
           {label}
         </Link>

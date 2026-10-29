@@ -11,6 +11,9 @@ enum Role {
   owner
   admin
   viewer
+  super_admin
+  account_manager
+  client_viewer
 }
 
 enum Consent {
@@ -115,6 +118,14 @@ model User {
   totpEnabled        Boolean   @default(false)
   createdAt          DateTime  @default(now())
   sessions           Session[]
+  budgetsSet         Campaign[]            @relation("BudgetSetBy")
+  budgetAudits       CampaignBudgetAudit[]
+  marketingScopes    MarketingAssignment[]
+  clientAccess       ClientViewerAccess?
+  shareLinksCreated  ClientShareLink[]
+  clientViews        ClientViewAudit[]
+  digests            ManagerDigest[]
+  recommendationDecisions Recommendation[] @relation("RecommendationDecision")
 }
 
 model Session {
@@ -522,6 +533,9 @@ model AdAccount {
   updatedAt    DateTime               @updatedAt
   campaigns    Campaign[]
   audiences    Audience[]
+  assignments  MarketingAssignment[]
+  alerts       AdAlert[]
+  recommendations Recommendation[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([connectionId])
@@ -540,18 +554,28 @@ model Campaign {
   objectiveRaw String                @default("")
   status       MarketingEntityStatus @default(unknown)
   statusRaw    String                @default("")
-  budgetType   BudgetType            @default(none)
-  budgetAmount Decimal?              @db.Decimal(18, 4)
+  budgetType           BudgetType            @default(none)
+  budgetAmount         Decimal?              @db.Decimal(18, 4)
+  budgetCurrency       String                @default("USD")
+  budgetSetById        String?
+  budgetSetBy          User?                 @relation("BudgetSetBy", fields: [budgetSetById], references: [id], onDelete: SetNull)
+  budgetSetAt          DateTime?
+  reportedBudgetType   BudgetType            @default(none)
+  reportedBudgetAmount Decimal?              @db.Decimal(18, 4)
   startDate    DateTime?
   endDate      DateTime?
   namingParsed Json                  @default("{}")
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
-  adGroups     AdGroup[]
-  metrics      DailyMetric[]
+  adGroups        AdGroup[]
+  metrics         DailyMetric[]
+  budgetAudits    CampaignBudgetAudit[]
+  alerts          AdAlert[]
+  recommendations Recommendation[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([adAccountId])
+  @@index([budgetSetById])
 }
 
 model AdGroup {
@@ -635,6 +659,9 @@ model Ad {
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
   metrics           DailyMetric[]
+  hourly            AdHourlyMetric[]
+  alerts            AdAlert[]
+  recommendations   Recommendation[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([adGroupId])
@@ -779,4 +806,202 @@ model MarketingRawRecord {
 
   @@unique([workspaceId, platform, objectType, externalId])
   @@index([syncRunId])
+}
+
+enum AlertSeverity {
+  info
+  warning
+  critical
+}
+
+enum RecommendationStatus {
+  draft
+  verified
+  dismissed
+  accepted
+  declined
+}
+
+enum RecommendationType {
+  performance
+  traffic
+  roi
+  budget_change
+}
+
+enum MarketingScopeKind {
+  client
+  ad_account
+  campaign
+}
+
+model CampaignBudgetAudit {
+  id               String     @id @default(cuid())
+  campaignId       String
+  campaign         Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  amount           Decimal    @db.Decimal(18, 4)
+  period           BudgetType
+  currency         String
+  setById          String
+  setBy            User       @relation(fields: [setById], references: [id])
+  setAt            DateTime
+  source           String
+  recommendationId String?
+  note             String     @default("")
+
+  @@index([campaignId, setAt])
+}
+
+model MarketingAssignment {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String             @default("org")
+  scopeKind   MarketingScopeKind
+  adAccountId String?
+  adAccount   AdAccount?         @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  campaignId  String?
+  createdAt   DateTime           @default(now())
+
+  @@index([userId])
+  @@index([adAccountId])
+  @@index([campaignId])
+}
+
+model ClientViewerAccess {
+  userId      String @id
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String
+  createdAt   DateTime @default(now())
+}
+
+model ClientShareLink {
+  id          String    @id @default(cuid())
+  workspaceId String
+  tokenHash   String    @unique
+  label        String   @default("")
+  passcodeHash String?
+  createdById  String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  views       ClientViewAudit[]
+
+  @@index([workspaceId])
+}
+
+model ClientViewAudit {
+  id           String          @id @default(cuid())
+  workspaceId  String
+  viewerUserId String?
+  viewer       User?           @relation(fields: [viewerUserId], references: [id], onDelete: SetNull)
+  shareLinkId  String?
+  shareLink    ClientShareLink? @relation(fields: [shareLinkId], references: [id], onDelete: SetNull)
+  page         String
+  ip           String
+  userAgent    String
+  viewedAt     DateTime        @default(now())
+
+  @@index([workspaceId, viewedAt])
+  @@index([shareLinkId])
+}
+
+model AdAlert {
+  id            String        @id @default(cuid())
+  workspaceId   String        @default("org")
+  adId          String
+  ad            Ad            @relation(fields: [adId], references: [id], onDelete: Cascade)
+  adAccountId   String
+  adAccount     AdAccount     @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  campaignId    String
+  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  severity      AlertSeverity
+  code          String
+  title         String
+  summary       String
+  metric        String
+  observed      String
+  baseline      String
+  windowStart   DateTime?     @db.Date
+  windowEnd     DateTime?     @db.Date
+  sampleSize    Int
+  evidence      Json
+  sourceMetricIds String[]    @default([])
+  syncRunId     String?
+  dataLandedAt  DateTime
+  detectedAt    DateTime
+  createdAt     DateTime      @default(now())
+
+  @@index([adAccountId, createdAt])
+  @@index([campaignId])
+  @@index([detectedAt])
+}
+
+model Recommendation {
+  id                    String               @id @default(cuid())
+  workspaceId           String               @default("org")
+  type                  RecommendationType
+  status                RecommendationStatus @default(draft)
+  adId                  String?
+  ad                    Ad?                  @relation(fields: [adId], references: [id], onDelete: SetNull)
+  campaignId            String?
+  campaign              Campaign?            @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  adAccountId           String?
+  adAccount             AdAccount?           @relation(fields: [adAccountId], references: [id], onDelete: SetNull)
+  title                 String
+  summary               String
+  rationale             String
+  metric                String
+  baseline              String
+  observed              String
+  windowStart           DateTime?            @db.Date
+  windowEnd             DateTime?            @db.Date
+  sampleSize            Int
+  sourceMetricIds       String[]             @default([])
+  evidence              Json
+  currentBudgetAmount   Decimal?             @db.Decimal(18, 4)
+  currentBudgetPeriod   BudgetType?
+  proposedBudgetAmount  Decimal?             @db.Decimal(18, 4)
+  proposedBudgetPeriod  BudgetType?
+  proposedCurrency      String?
+  verifiedAt            DateTime?
+  verifierNote          String               @default("")
+  decidedById           String?
+  decidedBy             User?                @relation("RecommendationDecision", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt             DateTime?
+  decisionNote          String               @default("")
+  createdAt             DateTime             @default(now())
+
+  @@index([status, createdAt])
+  @@index([adAccountId])
+  @@index([campaignId])
+}
+
+model ManagerDigest {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  periodStart DateTime
+  periodEnd   DateTime
+  payload     Json
+  delivery    String   @default("not_sent")
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model AdHourlyMetric {
+  id           String   @id @default(cuid())
+  workspaceId  String   @default("org")
+  adId         String
+  ad           Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  date         DateTime @db.Date
+  hour         Int
+  impressions  BigInt   @default(0)
+  clicks       BigInt   @default(0)
+  conversions  Decimal  @default(0) @db.Decimal(18, 4)
+
+  @@unique([adId, date, hour])
+  @@index([date])
 }
