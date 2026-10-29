@@ -32,9 +32,9 @@ The dev server listens on port **43123**. The worker is a second process. It cla
 
 | Role | Email | Password | Two-step |
 | --- | --- | --- | --- |
-| Owner | alex.rivera@specificityinc.example | VoiceOps!owner | Off |
-| Admin | jordan.lee@specificityinc.example | VoiceOps!admin | Off |
-| Viewer | sam.patel@specificityinc.example | VoiceOps!viewer | Off |
+| Owner | alex.rivera@specificityinc.example | Owner-setup-2026!change | Off |
+| Admin | jordan.lee@specificityinc.example | Admin-setup-2026!change | Off |
+| Viewer | sam.patel@specificityinc.example | Viewer-setup-2026!change | Off |
 
 These are the defaults when the `SEED_*` variables are unset. Override names, emails, and passwords before the first seed. The seed does not reset an existing workspace. Admin and viewer are created only when `SEED_SAMPLE_DATA` is true. A production seed with `SEED_SAMPLE_DATA=false` creates only the owner, with two-step sign-in off. On a localhost `APP_URL` the sign-in page shows this hint. A public `APP_URL` hides it unless `SHOW_DEMO_LOGIN=true`.
 

@@ -28,14 +28,16 @@ const ready: ReadinessInput = {
 
 test("go-live can be offered while test mode is still on", () => {
   const progress = goLiveProgress(readinessItems(ready));
-  assert.equal(progress.ready, true);
+  assert.equal(progress.ready, progress.remaining === 0);
   assert.equal(progress.remaining, 0);
-  assert.equal(progress.done, progress.total - 1);
+  assert.equal(progress.done + progress.remaining, progress.total);
+  assert.equal(progress.total, readinessItems(ready).length - 1);
 });
 
 test("a missing connection is the next go-live step", () => {
   const progress = goLiveProgress(readinessItems({ ...ready, integrationsMode: "mock", hasGhlKey: false }));
   assert.equal(progress.ready, false);
+  assert.equal(progress.done + progress.remaining, progress.total);
   assert.ok(progress.remaining >= 2);
   assert.equal(progress.nextTitle, "Live connections turned on");
 });

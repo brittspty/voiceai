@@ -7,8 +7,8 @@ test("defaults to the Specificity workspace", () => {
   assert.equal(cfg.companyName, "Specificity Inc");
   assert.equal(cfg.agentName, "Avery");
   assert.equal(cfg.timezone, "America/New_York");
-  assert.equal(cfg.brandColor, "#2563eb");
-  assert.equal(cfg.mark, "V");
+  assert.equal(cfg.brandColor, "#FF5800");
+  assert.equal(cfg.mark, "S");
   assert.deepEqual(cfg.offices.map((office) => office.name), ["Main office", "Virtual"]);
   assert.equal(cfg.owner.email, "alex.rivera@specificityinc.example");
   assert.equal(cfg.showDemoLogin, true);
@@ -53,6 +53,7 @@ test("hides the demo sign-in hint on a public host unless asked", () => {
   assert.equal(showDemoLogin({ APP_URL: "https://voiceai.specificityinc.com" }), false);
   assert.equal(showDemoLogin({ APP_URL: "https://voiceai.specificityinc.com", SHOW_DEMO_LOGIN: "true" }), true);
   assert.equal(showDemoLogin({ APP_URL: "http://127.0.0.1:43123" }), true);
+  assert.equal(showDemoLogin({ NODE_ENV: "production", APP_URL: "http://127.0.0.1:43123", SHOW_DEMO_LOGIN: "true" }), false);
 });
 
 test("the default knowledge script uses the configured company and agent", () => {

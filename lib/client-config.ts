@@ -1,8 +1,8 @@
 export type Env = Record<string, string | undefined>;
 
 export const PRODUCT_NAME = "VoiceOps";
-export const DEFAULT_BRAND_COLOR = "#2563eb";
-export const DEFAULT_MARK = "V";
+export const DEFAULT_BRAND_COLOR = "#FF5800";
+export const DEFAULT_MARK = "S";
 export const DEFAULT_TIMEZONE = "America/New_York";
 
 export type SeedOffice = {
@@ -95,6 +95,7 @@ export function parseOffices(raw: string | undefined, timezone: string): SeedOff
 }
 
 export function showDemoLogin(env: Env = process.env) {
+  if ((env.NODE_ENV || "").trim() === "production") return false;
   const flag = (env.SHOW_DEMO_LOGIN || "").trim().toLowerCase();
   if (flag === "true" || flag === "1") return true;
   if (flag === "false" || flag === "0") return false;
@@ -135,17 +136,17 @@ export function clientConfig(env: Env = process.env): ClientConfig {
     owner: {
       name: text(env, "SEED_OWNER_NAME", "Alex Rivera"),
       email: text(env, "SEED_OWNER_EMAIL", "alex.rivera@specificityinc.example").toLowerCase(),
-      password: text(env, "SEED_OWNER_PASSWORD", "VoiceOps!owner"),
+      password: text(env, "SEED_OWNER_PASSWORD", "Owner-setup-2026!change"),
     },
     admin: {
       name: text(env, "SEED_ADMIN_NAME", "Jordan Lee"),
       email: text(env, "SEED_ADMIN_EMAIL", "jordan.lee@specificityinc.example").toLowerCase(),
-      password: text(env, "SEED_ADMIN_PASSWORD", "VoiceOps!admin"),
+      password: text(env, "SEED_ADMIN_PASSWORD", "Admin-setup-2026!change"),
     },
     viewer: {
       name: text(env, "SEED_VIEWER_NAME", "Sam Patel"),
       email: text(env, "SEED_VIEWER_EMAIL", "sam.patel@specificityinc.example").toLowerCase(),
-      password: text(env, "SEED_VIEWER_PASSWORD", "VoiceOps!viewer"),
+      password: text(env, "SEED_VIEWER_PASSWORD", "Viewer-setup-2026!change"),
     },
   };
 }

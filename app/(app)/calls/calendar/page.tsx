@@ -7,6 +7,16 @@ import { timeAgo } from "@/lib/format";
 
 const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17];
 
+function clockLabel(value: string) {
+  const [hourText, minuteText] = value.split(":");
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  if (!Number.isFinite(hour)) return value;
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const twelve = hour % 12 === 0 ? 12 : hour % 12;
+  return `${twelve}:${String(Number.isFinite(minute) ? minute : 0).padStart(2, "0")} ${suffix}`;
+}
+
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ office?: string; week?: string }> }) {
   const sp = await searchParams;
   const data = await getCalendar(sp.office, sp.week);
@@ -19,6 +29,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const startLabel = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short" }).format(zonedTimeToUtc(`${data.days[0]}T12:00:00`, data.tz));
   return (
     <div>
+      <p className="mb-3 max-w-3xl text-sm text-zinc-600 dark:text-zinc-300">Open blocks come from GoHighLevel availability. When Avery may dial is a separate setting under Calling rules.</p>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <form>
           <input type="hidden" name="week" value={data.weekStart} />
@@ -74,7 +85,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                   <div key={`${iso}-${hour}`} className={`relative h-12 border-l border-t border-line ${open ? "bg-[#e7f6ee]" : "bg-hatch"}`}>
                     {hour === 13 && !open && <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-card px-2 py-0.5 text-[10px] text-muted shadow">Closed</span>}
                     {open && hour === parseHHMM(hours?.openTime || "10:00") / 60 && (
-                      <span className="absolute left-2 top-1 text-[10px] font-medium text-[#187a42]">Open<br />{hours?.openTime} – {hours?.closeTime}</span>
+                      <span className="absolute left-2 top-1 text-[10px] font-medium text-[#187a42]">Open<br />{clockLabel(hours?.openTime || "")} – {clockLabel(hours?.closeTime || "")}</span>
                     )}
                   </div>
                 );

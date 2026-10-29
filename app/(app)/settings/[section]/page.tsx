@@ -3,11 +3,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ConfirmButton, ConfirmSubmitButton } from "@/components/confirm-dialog";
 import { GoLivePanel } from "@/components/go-live-panel";
+import { InviteForm } from "@/components/invite-form";
 import { PageTitle } from "@/components/shell";
 import { TestConsole } from "@/components/test-console";
 import { TotpSetup } from "@/components/totp-setup";
 import { VoicePicker } from "@/components/voice-picker";
-import { requireUser, isOwner, canWrite } from "@/lib/auth";
+import { requireUser, isOwner, canWrite, isSuperAdmin } from "@/lib/auth";
+import { resolveBrandColor, resolveMark } from "@/lib/brand";
 import { actorLabel, CONSENT_OPTIONS, humanFieldLabel, integrationKeyId, presentIntegration } from "@/lib/customer-copy";
 import { prisma } from "@/lib/db";
 import { appUrl } from "@/lib/env";
@@ -18,7 +20,6 @@ import { callingQueue, getSettingsBundle, listActivity, listFailedJobs } from "@
 import { VOICE_CATALOG, type CallingPolicy } from "@/lib/types";
 import {
   addOffice,
-  addUser,
   discardJob,
   publishAgent,
   publishRules,
@@ -34,7 +35,8 @@ import {
 
 const TITLES: Record<string, [string, string]> = {
   calling: ["Call settings", "Who Avery will call, and why a lead is ready or waiting."],
-  agent: ["Avery's script", "Your company name, the opening line, and the instructions Avery follows. Publishing makes a new version."],
+  branding: ["Branding", "The color and mark for this workspace. Avery's script is on its own page."],
+  agent: ["Avery's script", "The opening line and the instructions Avery follows. Publishing makes a new version."],
   voice: ["Avery's voice", "Choose how Avery sounds. Using a voice makes it the one on new calls."],
   "calling-rules": ["Calling rules", "When Avery may call, how often, and who counts as a yes. Publishing replaces the live rules."],
   offices: ["Locations", "Time zone, calendar, and who takes meetings for each location."],
@@ -65,33 +67,35 @@ export default async function SettingsSection({ params, searchParams }: { params
       <PageTitle
         title={title[0]}
         subtitle={title[1]}
-        action={section === "integrations" ? (
+        action={section === "integrations" && canWrite(user.role) ? (
           <form action={async () => { "use server"; await refreshIntegrations(); }}>
             <button className="rounded-full border border-line bg-card px-3 py-1.5 text-sm">Check now</button>
           </form>
-        ) : section === "failed-jobs" ? (
+        ) : section === "failed-jobs" && canWrite(user.role) ? (
           <form action={async () => { "use server"; await retryAllJobs(); }}>
             <button className="rounded-full border border-line bg-card px-3 py-1.5 text-sm">Retry all waiting now</button>
           </form>
         ) : null}
       />
       {section === "calling" && <Calling userCan={canWrite(user.role)} offices={bundle.offices} testMode={bundle.org.testMode} />}
+      {section === "branding" && <Branding owner={isOwner(user.role)} bundle={bundle} />}
       {section === "agent" && <Agent owner={isOwner(user.role)} bundle={bundle} />}
       {section === "voice" && <VoicePicker owner={isOwner(user.role)} voices={VOICE_CATALOG} live={bundle.voiceVersions.find((v) => v.status === "published")} opening={bundle.draftAgent?.openingLine || ""} agentName={bundle.org.agentName} />}
       {section === "calling-rules" && <Rules owner={isOwner(user.role)} policy={bundle.policy.policy} version={bundle.policy.version?.version} />}
       {section === "offices" && <Offices canWrite={canWrite(user.role)} offices={bundle.offices} timezone={bundle.org.timezone} agentName={bundle.org.agentName} />}
       {section === "users" && <Users owner={isOwner(user.role)} user={user} users={bundle.users} />}
-      {section === "capabilities" && <Capabilities owner={isOwner(user.role)} bundle={bundle} />}
+      {section === "capabilities" && <Capabilities owner={isOwner(user.role)} canWrite={canWrite(user.role)} superAdmin={isSuperAdmin(user.role)} bundle={bundle} />}
       {section === "integrations" && <Integrations checks={bundle.checks} testMode={bundle.org.testMode} readiness={bundle.readiness} />}
       {section === "activity" && <Activity searchParams={await searchParams} />}
-      {section === "failed-jobs" && <Failed />}
+      {section === "failed-jobs" && <Failed canWrite={canWrite(user.role)} />}
       {section === "test-console" && (
         <TestConsole
+          canWrite={canWrite(user.role)}
           offices={bundle.offices.map((o) => ({ id: o.id, name: o.name }))}
           contacts={(await prisma.contact.findMany({ orderBy: { name: "asc" }, take: 30 })).map((c) => ({ id: c.id, name: c.name, phone: c.phone }))}
         />
       )}
-      {section === "production" && <Production owner={isOwner(user.role)} showAdmin={user.email.includes("specificityinc")} bundle={bundle} />}
+      {section === "production" && <Production owner={isOwner(user.role)} canAct={canWrite(user.role)} showAdmin={isSuperAdmin(user.role)} bundle={bundle} />}
     </div>
   );
 }
@@ -146,11 +150,9 @@ async function Calling({ offices, userCan, testMode }: { offices: { id: string; 
   );
 }
 
-function Agent({ owner, bundle }: { owner: boolean; bundle: Awaited<ReturnType<typeof getSettingsBundle>> }) {
-  const draft = bundle.draftAgent;
+function Branding({ owner, bundle }: { owner: boolean; bundle: Awaited<ReturnType<typeof getSettingsBundle>> }) {
   return (
-    <div className="space-y-4">
-    <form className="space-y-3 rounded-xl border border-line bg-card p-4" action={async (formData) => {
+    <form className="max-w-xl space-y-3 rounded-xl border border-line bg-card p-4" action={async (formData) => {
       "use server";
       await saveWorkspace({
         name: String(formData.get("name") || ""),
@@ -161,18 +163,23 @@ function Agent({ owner, bundle }: { owner: boolean; bundle: Awaited<ReturnType<t
         mark: String(formData.get("mark") || ""),
       });
     }}>
-      <h3 className="font-medium">Workspace</h3>
       <div className="grid gap-3 md:grid-cols-2">
         <label className="block text-sm">Company name<input name="name" defaultValue={bundle.org.name} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
         <label className="block text-sm">Subtitle<input name="subtitle" defaultValue={bundle.org.subtitle} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
         <label className="block text-sm">Timezone<input name="timezone" defaultValue={bundle.org.timezone} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
-        <label className="block text-sm">Brand color<input name="brandColor" defaultValue={bundle.org.brandColor} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
-        <label className="block text-sm">Mark<input name="mark" defaultValue={bundle.org.mark} maxLength={2} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
-        <label className="block text-sm">Logo URL<input name="logoUrl" defaultValue={bundle.org.logoUrl} placeholder="https://" disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
+        <label className="block text-sm">Brand color<input name="brandColor" defaultValue={resolveBrandColor(bundle.org.brandColor)} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
+        <label className="block text-sm">Mark<input name="mark" defaultValue={resolveMark(bundle.org.mark)} maxLength={2} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
+        <label className="block text-sm">Logo URL<input name="logoUrl" defaultValue={bundle.org.logoUrl} placeholder="Leave blank for the Specificity logo" disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
       </div>
-      <p className="text-xs text-muted">Leave the logo blank to keep the built-in mark. The color sits behind the mark on the sign-in page and in the sidebar.</p>
-      {owner ? <button className="rounded-full bg-ink px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black">Save workspace</button> : <p className="text-sm text-muted">Only an owner can edit the workspace.</p>}
+      <p className="text-xs text-muted">Leave the logo blank to use the Specificity logo. The color is #FF5800 unless you set another hex color.</p>
+      {owner ? <button className="btn-brand rounded-full px-3 py-1.5 text-sm">Save branding</button> : <p className="text-sm text-muted">Only an owner can edit branding.</p>}
     </form>
+  );
+}
+
+function Agent({ owner, bundle }: { owner: boolean; bundle: Awaited<ReturnType<typeof getSettingsBundle>> }) {
+  const draft = bundle.draftAgent;
+  return (
     <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
       <form className="space-y-3 rounded-xl border border-line bg-card p-4" action={async (formData) => {
         "use server";
@@ -185,7 +192,7 @@ function Agent({ owner, bundle }: { owner: boolean; bundle: Awaited<ReturnType<t
         <label className="block text-sm">Agent name<input name="agentName" defaultValue={bundle.org.agentName} disabled={!owner} className="mt-1 h-9 w-full rounded-lg border border-line px-2" /></label>
         <label className="block text-sm">Opening line<textarea name="openingLine" defaultValue={draft?.openingLine || ""} disabled={!owner} rows={3} className="mt-1 w-full rounded-lg border border-line p-2" /></label>
         <label className="block text-sm">Instructions<textarea name="instructions" defaultValue={draft?.instructions || ""} disabled={!owner} rows={10} className="mt-1 w-full rounded-lg border border-line p-2" /></label>
-        {owner && <button className="rounded-full bg-ink px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black">Save draft</button>}
+        {owner && <button className="btn-brand rounded-full px-3 py-1.5 text-sm">Save draft</button>}
         {!owner && <p className="text-sm text-muted">Only an owner can edit the agent.</p>}
       </form>
       <div className="rounded-xl border border-line bg-card p-4 text-sm">
@@ -207,7 +214,6 @@ function Agent({ owner, bundle }: { owner: boolean; bundle: Awaited<ReturnType<t
           ))}
         </ul>
       </div>
-    </div>
     </div>
   );
 }
@@ -266,7 +272,7 @@ function Rules({ owner, policy, version }: { owner: boolean; policy: CallingPoli
       <label className="flex items-center gap-2"><input type="checkbox" name="enforceDnc" defaultChecked={policy.enforceDnc} /> Enforce do-not-call</label>
       <label className="flex items-center gap-2"><input type="checkbox" name="enforceCallingHours" defaultChecked={policy.enforceCallingHours} /> Enforce calling hours</label>
       {owner ? (
-        <ConfirmSubmitButton label="Publish rules" title="Publish these calling rules?" body="Avery will follow these hours, caps, and consent rules on new calls." className="rounded-full bg-ink px-3 py-1.5 text-white dark:bg-white dark:text-black" />
+        <ConfirmSubmitButton label="Publish rules" title="Publish these calling rules?" body="Avery will follow these hours, caps, and consent rules on new calls." className="btn-brand rounded-full px-3 py-1.5 text-sm" />
       ) : <p className="text-muted">Only an owner can publish rules.</p>}
     </form>
   );
@@ -291,7 +297,7 @@ function Offices({ offices, canWrite: allow, timezone, agentName }: { offices: A
           <label className="text-sm">Calendar<input name="calendar" placeholder="e.g., Main calendar" className="mt-1 block h-9 rounded-lg border border-line px-2 text-sm" /></label>
           <label className="text-sm">Who takes meetings<input name="advisor" placeholder={`e.g., ${agentName}`} className="mt-1 block h-9 rounded-lg border border-line px-2 text-sm" /></label>
           <select name="type" className="h-9 rounded-lg border border-line bg-card px-2 text-sm"><option value="office">Office</option><option value="virtual">Virtual</option></select>
-          <button className="h-9 self-end rounded-full bg-ink px-3 text-sm text-white dark:bg-white dark:text-black">Add location</button>
+          <button className="btn-brand h-9 self-end rounded-full px-3 text-sm">Add location</button>
         </form>
       )}
       <div className="overflow-hidden rounded-xl border border-line bg-card">
@@ -335,23 +341,7 @@ function Users({ owner, user, users }: { owner: boolean; user: { id: string; rol
         <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">Turn on two-step sign-in for every owner and admin before you go live.</p>
       )}
       <TotpSetup enabled={users.find((row) => row.id === user.id)?.totpEnabled || false} userId={user.id} />
-      {owner && (
-        <form className="flex flex-wrap gap-2" action={async (formData) => {
-          "use server";
-          await addUser({
-            name: String(formData.get("name") || ""),
-            email: String(formData.get("email") || ""),
-            role: String(formData.get("role") || "viewer") as "viewer",
-            password: String(formData.get("password") || ""),
-          });
-        }}>
-          <input name="name" placeholder="Name" required className="h-9 rounded-lg border border-line px-2 text-sm" />
-          <input name="email" type="email" placeholder="Email" required className="h-9 rounded-lg border border-line px-2 text-sm" />
-          <input name="password" type="text" placeholder="Temporary password" required className="h-9 rounded-lg border border-line px-2 text-sm" />
-          <select name="role" className="h-9 rounded-lg border border-line bg-card px-2 text-sm"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="owner">Owner</option></select>
-          <button className="rounded-full bg-ink px-3 text-sm text-white dark:bg-white dark:text-black">Add user</button>
-        </form>
-      )}
+      {owner && <InviteForm />}
       <div className="overflow-hidden rounded-xl border border-line bg-card">
         <table className="w-full text-left text-sm">
           <thead><tr className="border-b border-line text-[11px] text-muted">{["Name", "Email", "Role", "Two-step sign-in", "Added"].map((h) => <th key={h} scope="col" className="px-4 py-3 font-medium">{h}</th>)}</tr></thead>
@@ -372,7 +362,7 @@ function Users({ owner, user, users }: { owner: boolean; user: { id: string; rol
   );
 }
 
-function Capabilities({ owner, bundle }: { owner: boolean; bundle: Awaited<ReturnType<typeof getSettingsBundle>> }) {
+function Capabilities({ owner, canWrite: allow, superAdmin, bundle }: { owner: boolean; canWrite: boolean; superAdmin: boolean; bundle: Awaited<ReturnType<typeof getSettingsBundle>> }) {
   const policy = bundle.policy.policy;
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -392,30 +382,40 @@ function Capabilities({ owner, bundle }: { owner: boolean; bundle: Awaited<Retur
         {policy.enforceDnc && <input type="hidden" name="enforceDnc" value="on" />}
         {policy.enforceCallingHours && <input type="hidden" name="enforceCallingHours" value="on" />}
         {bundle.org.testMode && <input type="hidden" name="testMode" value="on" />}
-        <label className="flex items-center gap-2"><input type="checkbox" name="scheduleEnabled" defaultChecked={bundle.org.scheduleEnabled} /> Call new GoHighLevel leads on a schedule</label>
-        {owner ? <button className="rounded-full bg-ink px-3 py-1.5 text-white dark:bg-white dark:text-black">Save switches</button> : <p className="text-muted">Only an owner can change these.</p>}
+        {owner ? (
+          <>
+            <label className="flex items-center gap-2"><input type="checkbox" name="scheduleEnabled" defaultChecked={bundle.org.scheduleEnabled} /> Call new GoHighLevel leads on a schedule</label>
+            <button className="btn-brand rounded-full px-3 py-1.5 text-sm">Save switches</button>
+          </>
+        ) : <p className="text-muted">{allow ? "Only an owner can change these." : "You have view-only access."}</p>}
       </form>
       <div className="rounded-xl border border-line bg-card p-4">
         <h3 className="font-medium">Fields sent to GoHighLevel</h3>
         <ul className="mt-3 space-y-3 text-sm">
           {bundle.mappings.map((mapping) => (
             <li key={mapping.id}>
-              <form className="space-y-1" action={async (formData) => { "use server"; await saveMapping(mapping.id, String(formData.get("ghl") || mapping.ghlField), formData.get("enabled") === "on"); }}>
-                <div className="font-medium">{humanFieldLabel(mapping.internalField, mapping.ghlField)}</div>
-                <div className="text-xs text-muted">CRM key: {mapping.ghlField}</div>
-                <div className="flex items-center gap-2">
-                  <label className="sr-only" htmlFor={`ghl-${mapping.id}`}>CRM key for {humanFieldLabel(mapping.internalField, mapping.ghlField)}</label>
-                  <input id={`ghl-${mapping.id}`} name="ghl" defaultValue={mapping.ghlField} className="h-8 flex-1 rounded-md border border-line px-2" />
-                  <label className="text-xs"><input type="checkbox" name="enabled" defaultChecked={mapping.enabled} /> On</label>
-                  <button className="text-xs underline">Save</button>
+              {superAdmin ? (
+                <form className="space-y-1" action={async (formData) => { "use server"; await saveMapping(mapping.id, String(formData.get("ghl") || mapping.ghlField), formData.get("enabled") === "on"); }}>
+                  <div className="font-medium">{humanFieldLabel(mapping.internalField, mapping.ghlField)}</div>
+                  <label className="block text-xs text-muted" htmlFor={`ghl-${mapping.id}`}>CRM key</label>
+                  <div className="flex items-center gap-2">
+                    <input id={`ghl-${mapping.id}`} name="ghl" defaultValue={mapping.ghlField} className="h-8 flex-1 rounded-md border border-line px-2" />
+                    <label className="text-xs"><input type="checkbox" name="enabled" defaultChecked={mapping.enabled} /> On</label>
+                    <button className="text-xs underline">Save</button>
+                  </div>
+                </form>
+              ) : (
+                <div>
+                  <div className="font-medium">{humanFieldLabel(mapping.internalField, mapping.ghlField)}</div>
+                  <div className="text-xs text-muted">{mapping.enabled ? "On" : "Off"} · Specificity manages the CRM key</div>
                 </div>
-              </form>
+              )}
             </li>
           ))}
         </ul>
         <h3 className="mt-5 font-medium">Recent activity</h3>
         <ul className="mt-2 space-y-1 text-sm text-muted">
-          {bundle.activity.map((row) => <li key={row.id}>{actorLabel(row.actorName)} · {row.action}</li>)}
+          {bundle.activity.filter((row) => row.action !== "Seeded the workspace").map((row) => <li key={row.id}>{actorLabel(row.actorName)} · {row.action}</li>)}
         </ul>
       </div>
     </div>
@@ -481,10 +481,10 @@ async function Activity({ searchParams }: { searchParams: SP }) {
         <table className="w-full text-left text-sm">
           <thead><tr className="border-b border-line text-[11px] text-muted">{["Time", "Who", "What happened", "What it touched"].map((h) => <th key={h} scope="col" className="px-4 py-3 font-medium">{h}</th>)}</tr></thead>
           <tbody>
-            {data.rows.length === 0 && (
+            {data.rows.filter((row) => row.action !== "Seeded the workspace").length === 0 && (
               <tr><td colSpan={4} className="px-4 py-10 text-center"><div className="font-medium">Nothing here yet</div><p className="mt-1 text-muted">Changes you and your team make will be listed here.</p></td></tr>
             )}
-            {data.rows.map((row) => (
+            {data.rows.filter((row) => row.action !== "Seeded the workspace").map((row) => (
               <tr key={row.id} className="border-b border-line last:border-0">
                 <td className="px-4 py-3 text-muted">{formatDateTime(row.createdAt)}</td>
                 <td className="px-4 py-3">{actorLabel(row.actorName)}</td>
@@ -500,7 +500,21 @@ async function Activity({ searchParams }: { searchParams: SP }) {
   );
 }
 
-async function Failed() {
+function plainJob(type: string, error: string | null) {
+  const inbound = type === "inbound_event";
+  const text = (error || "").toLowerCase();
+  const detail = text.includes("timeout") || text.includes("timed out")
+    ? "The update took too long."
+    : text.includes("webhook")
+      ? "The connection didn't answer."
+      : error || "Something went wrong. You can try again.";
+  return {
+    title: inbound ? "A new lead from GoHighLevel didn't arrive" : "A call note didn't save to your CRM",
+    detail,
+  };
+}
+
+async function Failed({ canWrite: allow }: { canWrite: boolean }) {
   const data = await listFailedJobs();
   const table = (rows: typeof data.incoming, title: string) => (
     <section className="mt-4">
@@ -512,14 +526,25 @@ async function Failed() {
             {rows.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center"><div className="font-medium">No failed jobs</div><p className="mt-1 text-sm text-muted">Everything is running.</p></td></tr>}
             {rows.map((job) => (
               <tr key={job.id} className="border-b border-line last:border-0">
-                <td className="px-3 py-2">{job.type.replaceAll("_", " ")}</td>
+                <td className="px-3 py-2">{plainJob(job.type, job.lastError).title}</td>
                 <td className="px-3 py-2">{job.status}</td>
                 <td className="px-3 py-2">{job.attempts}/{job.maxAttempts}</td>
-                <td className="px-3 py-2 text-muted">{job.lastError || "—"}</td>
+                <td className="px-3 py-2 text-muted">{plainJob(job.type, job.lastError).detail}</td>
                 <td className="px-3 py-2 text-muted">{formatDateTime(job.updatedAt)}</td>
                 <td className="px-3 py-2">
-                  <form className="inline" action={async () => { "use server"; await retryJob(job.id); }}><button className="underline">Retry</button></form>
-                  <form className="ml-2 inline" action={async () => { "use server"; await discardJob(job.id); }}><button className="underline">Discard</button></form>
+                  {allow && (
+                    <>
+                      <form className="inline" action={async () => { "use server"; await retryJob(job.id); }}><button className="underline">Try again</button></form>
+                      <ConfirmButton
+                        label="Discard"
+                        confirmLabel="Discard"
+                        title="Discard this update?"
+                        body="Avery will not try to send it again."
+                        className="ml-2 text-sm underline"
+                        action={async () => { "use server"; await discardJob(job.id); }}
+                      />
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
@@ -531,11 +556,12 @@ async function Failed() {
   return <div>{table(data.incoming, "Updates from your CRM")}{table(data.crm, "Notes written back to GoHighLevel")}</div>;
 }
 
-function Production({ owner, showAdmin, bundle }: { owner: boolean; showAdmin: boolean; bundle: Awaited<ReturnType<typeof getSettingsBundle>> }) {
+function Production({ owner, canAct, showAdmin, bundle }: { owner: boolean; canAct: boolean; showAdmin: boolean; bundle: Awaited<ReturnType<typeof getSettingsBundle>> }) {
   const policy = bundle.policy.policy;
   return (
     <GoLivePanel
       owner={owner}
+      canAct={canAct}
       showAdmin={showAdmin}
       testMode={bundle.org.testMode}
       items={bundle.readiness}

@@ -13,7 +13,7 @@ const GUIDES = [
   },
   {
     title: "Upload a do-not-call list",
-    body: "Add a number, or paste a list with one phone number per line. Avery will not call those numbers. The national do-not-call list is checked as well.",
+    body: "Add a number, or paste a list with one phone number per line. Avery will not call those numbers.",
     href: "/calls/do-not-call",
     action: "Open the list",
   },

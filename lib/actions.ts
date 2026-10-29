@@ -11,7 +11,10 @@ import { goLiveBlockReason } from "./customer-copy";
 import { getSettingsBundle } from "./queries";
 import { TEST_STRIP_COOKIE } from "./ui-prefs";
 import { audit } from "./audit";
-import { canWrite, isOwner, requireUser } from "./auth";
+import { canWrite, isOwner, isSuperAdmin, requireUser } from "./auth";
+import { appUrl } from "./env";
+import { sendInviteEmail } from "./mail";
+import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "./db";
 import { gateContextForContact } from "./dialer";
 import { evaluateGates } from "./gates";
@@ -31,7 +34,8 @@ function assertOwner(role: Role) {
 }
 
 export async function preflightCall(input: { contactId?: string; phone?: string; consent?: Consent; timeZone?: string }) {
-  await requireUser();
+  const user = await requireUser();
+  assertWrite(user.role);
   if (input.contactId) {
     const ctx = await gateContextForContact(input.contactId);
     return evaluateGates(ctx.gate);
@@ -373,15 +377,48 @@ export async function setOfficeStatus(id: string, status: OfficeStatus) {
   revalidatePath("/settings/calling");
 }
 
-export async function addUser(input: { name: string; email: string; role: Role; password: string }) {
+function hashInviteToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export async function inviteTeammate(input: { name: string; email: string; role: Role }) {
   const user = await requireUser();
   assertOwner(user.role);
-  const passwordHash = await bcrypt.hash(input.password, 10);
-  const created = await prisma.user.create({
-    data: { name: input.name.trim(), email: input.email.trim().toLowerCase(), role: input.role, passwordHash },
+  const name = input.name.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!name) throw new Error("Enter a name.");
+  if (!email.includes("@")) throw new Error("Enter a work email.");
+  if (await prisma.user.findUnique({ where: { email } })) throw new Error("That person already has an account.");
+  const token = randomBytes(24).toString("hex");
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await prisma.invite.deleteMany({ where: { email } });
+  await prisma.invite.create({
+    data: { email, name, role: input.role, tokenHash: hashInviteToken(token), expiresAt, createdById: user.id },
   });
-  await audit(user, "Added a user", { type: "user", id: created.id, label: created.email });
+  const link = `${appUrl()}/invite/${token}`;
+  const mailed = await sendInviteEmail({ to: email, name, link });
+  await audit(user, "Invited a teammate", { type: "user", label: email });
   revalidatePath("/settings/users");
+  return { emailed: mailed.sent, link: mailed.sent ? "" : link };
+}
+
+export async function acceptInvite(input: { token: string; password: string }) {
+  const password = input.password;
+  if (password.length < 10) throw new Error("Use at least 10 characters.");
+  const invite = await prisma.invite.findUnique({ where: { tokenHash: hashInviteToken(input.token.trim()) } });
+  if (!invite || invite.expiresAt.getTime() < Date.now()) throw new Error("This invite link is no longer valid. Ask for a new one.");
+  if (await prisma.user.findUnique({ where: { email: invite.email } })) throw new Error("That person already has an account.");
+  const passwordHash = await bcrypt.hash(password, 10);
+  await prisma.user.create({ data: { name: invite.name, email: invite.email, role: invite.role, passwordHash } });
+  await prisma.invite.delete({ where: { id: invite.id } });
+}
+
+export async function requestAccess(input: { name: string; email: string; business: string }) {
+  const name = input.name.trim();
+  const email = input.email.trim().toLowerCase();
+  const business = input.business.trim();
+  if (!name || !email.includes("@") || !business) throw new Error("Enter your name, work email, and business.");
+  await prisma.accessRequest.create({ data: { name, email, business } });
 }
 
 export async function beginTotp() {
@@ -478,7 +515,7 @@ export async function discardJob(id: string) {
 
 export async function saveMapping(id: string, ghlField: string, enabled: boolean) {
   const user = await requireUser();
-  assertWrite(user.role);
+  if (!isSuperAdmin(user.role)) throw new Error("Only Specificity can change CRM keys.");
   const row = await prisma.fieldMapping.update({ where: { id }, data: { ghlField, enabled } });
   await audit(user, "Updated a CRM field mapping", { type: "field_mapping", id, label: row.internalField });
   revalidatePath("/settings/capabilities");

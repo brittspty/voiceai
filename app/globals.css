@@ -50,6 +50,14 @@ body { background: var(--canvas); color: var(--ink); }
   background-image: repeating-linear-gradient(-45deg, transparent, transparent 5px, rgba(255, 255, 255, 0.04) 5px, rgba(255, 255, 255, 0.04) 6px);
 }
 
+.btn-brand {
+  background-color: #FF5800;
+  color: #231F20;
+  font-weight: 600;
+}
+.btn-brand:hover { background-color: #E14E00; }
+.btn-brand:disabled { opacity: 0.45; cursor: not-allowed; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

@@ -82,11 +82,14 @@ export function VoicePicker({
                 {isLive && <span className="rounded-full bg-[#e7f6ee] px-2 py-0.5 text-xs text-[#166534]">Live</span>}
               </div>
               <p className="mt-3 text-xs text-muted">Opening line: {line}</p>
-              {owner && !isLive && (
-                <button type="button" className="mt-3 h-9 rounded-full bg-ink px-3 text-sm text-white dark:bg-white dark:text-black" onClick={() => { setPendingId(voice.id); setError(null); }}>
-                  Use this voice
-                </button>
-              )}
+              <div className="mt-3 flex gap-2">
+                <button type="button" className="h-9 rounded-full border border-line px-3 text-sm" onClick={playLine}>Play</button>
+                {owner && !isLive && (
+                  <button type="button" className="btn-brand h-9 rounded-full px-3 text-sm" onClick={() => { setPendingId(voice.id); setError(null); }}>
+                    Use this voice
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
@@ -94,13 +97,13 @@ export function VoicePicker({
       {chosen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onMouseDown={() => setPendingId(null)}>
           <div role="alertdialog" aria-modal="true" aria-labelledby={titleId} className="w-full max-w-md rounded-2xl border border-line bg-card p-5 shadow-xl" onMouseDown={(event) => event.stopPropagation()}>
-            <h2 id={titleId} className="text-lg font-semibold">Use {chosen.name} on calls?</h2>
+            <h2 id={titleId} className="text-lg font-semibold">Make {chosen.name} live for new calls?</h2>
             <p className="mt-2 text-sm leading-6 text-muted">{agentName} will use {chosen.name} on all new calls.</p>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="h-10 rounded-full border border-line px-4 text-sm" onClick={() => setPendingId(null)}>Cancel</button>
               <button
                 type="button"
-                className="h-10 rounded-full bg-ink px-4 text-sm text-white dark:bg-white dark:text-black"
+                className="btn-brand h-10 rounded-full px-4 text-sm"
                 onClick={() => makeLive(chosen, live ? { id: live.voiceId, name: live.voiceName, description: "" } : null)}
               >
                 Use this voice

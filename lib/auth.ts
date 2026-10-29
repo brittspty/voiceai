@@ -44,3 +44,7 @@ export function canWrite(role: Role) {
 export function isOwner(role: Role) {
   return role === "owner";
 }
+
+export function isSuperAdmin(role: string) {
+  return role === "super_admin";
+}

@@ -55,7 +55,7 @@ export function ConfirmButton({
               <button
                 type="button"
                 disabled={pending}
-                className={`h-10 rounded-full px-4 text-sm text-white ${danger ? "bg-[#9f1239]" : "bg-ink dark:bg-white dark:text-black"}`}
+                className={`h-10 rounded-full px-4 text-sm ${danger ? "bg-[#9f1239] text-white" : "btn-brand"}`}
                 onClick={async () => {
                   setPending(true);
                   setError(null);
@@ -108,7 +108,7 @@ export function ConfirmSubmitButton({
   }, [open]);
   return (
     <>
-      <button type="button" className={className || "rounded-full bg-ink px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black"} onClick={() => setOpen(true)}>{label}</button>
+      <button type="button" className={className || "btn-brand rounded-full px-3 py-1.5 text-sm"} onClick={() => setOpen(true)}>{label}</button>
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onMouseDown={() => setOpen(false)}>
           <div role="alertdialog" aria-modal="true" aria-labelledby={titleId} className="w-full max-w-md rounded-2xl border border-line bg-card p-5 shadow-xl" onMouseDown={(event) => event.stopPropagation()}>
@@ -116,7 +116,7 @@ export function ConfirmSubmitButton({
             <p className="mt-2 text-sm leading-6 text-muted">{body}</p>
             <div className="mt-4 flex justify-end gap-2">
               <button ref={cancelRef} type="button" className="h-10 rounded-full border border-line px-4 text-sm" onClick={() => setOpen(false)}>Cancel</button>
-              <button type="submit" name={name} value={value} className="h-10 rounded-full bg-ink px-4 text-sm text-white dark:bg-white dark:text-black">{label}</button>
+              <button type="submit" name={name} value={value} className="btn-brand h-10 rounded-full px-4 text-sm">{label}</button>
             </div>
           </div>
         </div>

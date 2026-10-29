@@ -170,15 +170,17 @@ export function goLiveBlockReason(input: { confirm: string | undefined; items: R
 }
 
 export function goLiveProgress(items: ReadinessItem[]) {
-  const done = items.filter((item) => item.ok).length;
-  const blocking = items.filter((item) => item.id !== "test-mode" && !item.ok);
+  const steps = items.filter((item) => item.id !== "test-mode");
+  const done = steps.filter((item) => item.ok).length;
+  const blocking = steps.filter((item) => !item.ok);
+  const remaining = blocking.length;
   const next = blocking[0] ? presentGoLiveItem(blocking[0]) : null;
   return {
     done,
-    total: items.length,
-    remaining: blocking.length,
+    total: steps.length,
+    remaining,
     nextTitle: next?.title ?? null,
-    ready: blocking.length === 0,
+    ready: remaining === 0,
   };
 }
 

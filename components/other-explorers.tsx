@@ -107,7 +107,7 @@ export function DncExplorer({
             <input name="reason" placeholder="Asked not to be called" className="mt-1 h-9 w-full rounded-lg border border-line bg-card px-2 text-sm" />
           </label>
           <p className="text-xs text-muted">Use a 10-digit number, like (251) 555-0123.</p>
-          <button className="h-9 rounded-full bg-ink px-3 text-sm text-white dark:bg-white dark:text-black">Add a number</button>
+          <button className="btn-brand h-9 rounded-full px-3 text-sm">Add a number</button>
         </form>
       </div>
       <Explorer
@@ -121,7 +121,7 @@ export function DncExplorer({
         menus={[{ param: "reason", label: "Reason", options: [] }]}
         segments={[{ param: "status", label: "Status", options: [{ value: "any", label: "Any" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }] }]}
         emptyTitle="Your do-not-call list is empty"
-        emptyBody="Add numbers Avery must never call. We also check the national list."
+        emptyBody="Add numbers Avery must never call."
         columns={[
           { id: "phone", header: "PHONE", cell: (row) => maskPhone(row.phone) },
           { id: "reason", header: "REASON", cell: (row) => row.reason },

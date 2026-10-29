@@ -16,6 +16,7 @@ const TONE = {
 export function GoLivePanel({
   owner,
   showAdmin,
+  canAct,
   testMode,
   items,
   cap,
@@ -24,6 +25,7 @@ export function GoLivePanel({
 }: {
   owner: boolean;
   showAdmin: boolean;
+  canAct: boolean;
   testMode: boolean;
   items: ReadinessItem[];
   cap: number;
@@ -32,7 +34,7 @@ export function GoLivePanel({
 }) {
   const router = useRouter();
   const progress = goLiveProgress(items);
-  const rows = items.map(presentGoLiveItem);
+  const rows = items.filter((item) => item.id !== "test-mode").map(presentGoLiveItem);
   const [open, setOpen] = useState(false);
   const [phrase, setPhrase] = useState("");
   const [pending, setPending] = useState(false);
@@ -64,7 +66,7 @@ export function GoLivePanel({
     <div>
       <div className="mb-4 rounded-xl border border-line bg-card p-4">
         <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-          <p className="font-medium">{progress.done} of {progress.total} done.{progress.nextTitle ? ` Next: ${progress.nextTitle}.` : " You can go live when you are ready."}</p>
+          <p className="font-medium">{progress.done} of {progress.total} done.{progress.remaining === 0 ? " You can go live." : ` Finish ${progress.remaining} more ${progress.remaining === 1 ? "step" : "steps"} to go live.`}</p>
           <span className="text-muted">{Math.round((progress.done / Math.max(progress.total, 1)) * 100)}%</span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-chip" role="progressbar" aria-valuenow={progress.done} aria-valuemin={0} aria-valuemax={progress.total} aria-label="Go-live progress">
@@ -98,7 +100,7 @@ export function GoLivePanel({
                             </details>
                           )}
                         </div>
-                        {!row.ok && row.action && row.href && (
+                        {canAct && !row.ok && row.action && row.href && (
                           <Link href={row.href} className="inline-flex h-9 items-center rounded-full border border-line px-3 text-sm">{row.action}</Link>
                         )}
                       </div>
@@ -114,13 +116,12 @@ export function GoLivePanel({
         <div className="mt-4">
           <button
             type="button"
-            disabled={!progress.ready}
-            className="h-10 rounded-full bg-ink px-4 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black"
+            disabled={progress.remaining !== 0}
+            className="btn-brand h-10 rounded-full px-4 text-sm"
             onClick={() => { setPhrase(""); setError(null); setOpen(true); }}
           >
             Go live…
           </button>
-          {!progress.ready && <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">Finish {progress.remaining} more {progress.remaining === 1 ? "step" : "steps"} to go live.</p>}
         </div>
       )}
       {owner && !testMode && (

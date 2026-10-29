@@ -78,7 +78,7 @@ function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }
             <label className="block text-sm">Password<input name="password" type="password" autoComplete="current-password" required className="mt-1 h-10 w-full rounded-lg border border-line px-3" /></label>
             <p className="text-sm"><Link href="/forgot-password" className="underline">Forgot password?</Link></p>
             {error && <p className="text-sm text-[#9f1239]">{error}</p>}
-            <button disabled={pending} className="h-10 w-full rounded-full bg-ink text-sm text-white dark:bg-white dark:text-black">{pending ? "Signing in…" : "Sign in"}</button>
+            <button disabled={pending} className="btn-brand h-10 w-full rounded-full text-sm">{pending ? "Signing in…" : "Sign in"}</button>
           </form>
         ) : (
           <form
@@ -103,7 +103,7 @@ function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }
             <p className="text-sm text-muted">Enter the six-digit code from your authenticator app.</p>
             <input name="code" inputMode="numeric" required className="h-10 w-full rounded-lg border border-line px-3 tracking-[0.3em]" />
             {error && <p className="text-sm text-[#d14343]">{error}</p>}
-            <button disabled={pending} className="h-10 w-full rounded-full bg-ink text-sm text-white dark:bg-white dark:text-black">Verify</button>
+            <button disabled={pending} className="btn-brand h-10 w-full rounded-full text-sm">Verify</button>
           </form>
         )}
         <p className="mt-4 text-sm text-zinc-700 dark:text-zinc-300">New to {brand.wordmark}? <Link href="/contact" className="font-medium underline">Request access</Link>. We&apos;ll set you up within 1 business day.</p>

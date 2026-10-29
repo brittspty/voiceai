@@ -43,6 +43,13 @@ export function isBundledLogo(url: string | null | undefined) {
   return (url || "").startsWith("/brand/");
 }
 
+/** Old seeds used "V" as an unset mark. */
+export function resolveMark(value: string | null | undefined) {
+  const mark = (value || "").trim();
+  if (!mark || mark.toUpperCase() === "V") return "S";
+  return mark.slice(0, 2);
+}
+
 export function brandFromConfig(cfg: ClientConfig = clientConfig()): Brand {
   return {
     companyName: cfg.companyName,
@@ -51,7 +58,7 @@ export function brandFromConfig(cfg: ClientConfig = clientConfig()): Brand {
     timezone: cfg.timezone,
     brandColor: resolveBrandColor(cfg.brandColor),
     logoUrl: resolveLogoUrl(cfg.logoUrl),
-    mark: cfg.mark,
+    mark: resolveMark(cfg.mark),
   };
 }
 
@@ -68,7 +75,7 @@ export async function loadBrand(): Promise<Brand> {
       timezone: org.timezone,
       brandColor: resolveBrandColor(org.brandColor || cfg.brandColor),
       logoUrl: resolveLogoUrl(org.logoUrl),
-      mark: org.mark || cfg.mark,
+      mark: resolveMark(org.mark || cfg.mark),
     };
   } catch {
     return brandFromConfig();

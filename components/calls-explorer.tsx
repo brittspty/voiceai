@@ -36,7 +36,7 @@ export function CallsExplorer({ rows, total, page, perPage, offices, mode = "all
         segments={[{ param: "tests", label: "Test calls", options: [{ value: "any", label: "Any" }, { value: "hidden", label: "Hidden" }, { value: "shown", label: "Shown" }] }]}
         emptyTitle="No calls yet"
         emptyBody={mode === "voice" ? "Calls Avery places will show up here, including test calls." : "In test mode, only test calls show up here."}
-        emptyAction={<Link href="/settings/test-console" className="inline-flex h-9 items-center rounded-full bg-ink px-3 text-sm text-white dark:bg-white dark:text-black">Place a test call</Link>}
+        emptyAction={<Link href="/settings/test-console" className="btn-brand inline-flex h-9 items-center rounded-full px-3 text-sm">Place a test call</Link>}
         onRow={setOpen}
         columns={mode === "voice" ? [
           { id: "time", header: "TIME", cell: (row) => <span className="text-muted">{formatDateTime(row.time)}</span> },
@@ -52,11 +52,11 @@ export function CallsExplorer({ rows, total, page, perPage, offices, mode = "all
           { id: "duration", header: "DURATION", cell: (row) => <Duration seconds={row.durationSec} /> },
           { id: "cost", header: "COST", cell: (row) => <Money cents={row.costCents} />, defaultHidden: true },
         ]}
+        stackOnMobile
         trailing={mode === "voice" ? (row) => (
           <div className="flex justify-end gap-3 text-sm text-muted">
-            <button type="button" onClick={() => setOpen(row)} className="hover:text-ink">Transcript</button>
-            <button type="button" onClick={() => setOpen(row)} className="hover:text-ink">Recording</button>
-            <a className="hover:text-ink" href={row.elevenLabsId ? `https://elevenlabs.io` : "#"} target="_blank" rel="noreferrer">ElevenLabs ↗</a>
+            {row.transcript.length > 0 && <button type="button" onClick={() => setOpen(row)} className="hover:text-ink">Transcript</button>}
+            {row.recordingUrl && <button type="button" onClick={() => setOpen(row)} className="hover:text-ink">Recording</button>}
           </div>
         ) : undefined}
       />

@@ -28,6 +28,7 @@ export function Explorer<T extends { id: string }>({
   emptyTitle,
   emptyBody,
   emptyAction,
+  stackOnMobile = false,
   actions,
   onRow,
   trailing,
@@ -45,6 +46,7 @@ export function Explorer<T extends { id: string }>({
   emptyTitle: string;
   emptyBody: string;
   emptyAction?: React.ReactNode;
+  stackOnMobile?: boolean;
   actions?: React.ReactNode;
   onRow?: (row: T) => void;
   trailing?: (row: T) => React.ReactNode;
@@ -172,7 +174,22 @@ export function Explorer<T extends { id: string }>({
           )}
         </div>
       )}
-      <div className="mt-4 overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow)]">
+      {stackOnMobile && rows.length > 0 && (
+        <div className="mt-4 space-y-3 sm:hidden">
+          {rows.map((row) => (
+            <div key={row.id} className="rounded-xl border border-line bg-card p-4 text-sm shadow-[var(--shadow)]" onClick={() => onRow?.(row)}>
+              {visible.map((column) => (
+                <div key={column.id} className="flex items-start justify-between gap-3 py-1">
+                  <span className="text-xs uppercase tracking-wide text-muted">{column.header}</span>
+                  <span className="text-right">{column.cell(row)}</span>
+                </div>
+              ))}
+              {trailing && <div className="mt-2 text-right" onClick={(event) => event.stopPropagation()}>{trailing(row)}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className={cn("mt-4 overflow-hidden rounded-xl border border-line bg-card shadow-[var(--shadow)]", stackOnMobile && rows.length > 0 && "hidden sm:block")}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead>

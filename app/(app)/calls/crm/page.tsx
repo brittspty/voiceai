@@ -1,18 +1,13 @@
 import Link from "next/link";
 import { refreshCalendar } from "@/lib/actions";
 import { formatDateTime, timeAgo } from "@/lib/format";
-import { addDaysISO, formatHHMM, parseHHMM, zonedISODate, zonedTimeToUtc } from "@/lib/time";
+import { formatHHMM, parseHHMM, zonedTimeToUtc } from "@/lib/time";
 import { getCrm } from "@/lib/queries";
 
 export default async function CrmPage({ searchParams }: { searchParams: Promise<{ day?: string; q?: string }> }) {
   const sp = await searchParams;
   const data = await getCrm(sp.day);
   const office = data.office;
-  const [year, month] = data.iso.split("-").map(Number);
-  const first = `${year}-${String(month).padStart(2, "0")}-01`;
-  const firstWeekday = new Date(`${first}T12:00:00Z`).getUTCDay();
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const cells = [...Array(firstWeekday).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => String(i + 1).padStart(2, "0"))];
   const weekday = new Date(`${data.iso}T12:00:00Z`).getUTCDay();
   const hours = office?.hours.find((h) => h.weekday === weekday);
   const slots: string[] = [];
@@ -21,51 +16,19 @@ export default async function CrmPage({ searchParams }: { searchParams: Promise<
   }
   const q = (sp.q || "").toLowerCase();
   const tags = data.tags.filter((tag) => tag.name.toLowerCase().includes(q));
-  const monthLabel = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(zonedTimeToUtc(`${data.iso}T12:00:00`, data.tz));
-  const prev = addDaysISO(first, -1).slice(0, 7) + "-01";
-  const nextMonth = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const dayLabel = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: data.tz }).format(zonedTimeToUtc(`${data.iso}T12:00:00`, data.tz));
+  const calendarName = office?.calendarName?.trim();
   return (
     <div className="space-y-4">
+      <p className="text-sm text-zinc-600 dark:text-zinc-300">Meetings and the month view live on <Link className="underline" href="/calls/calendar">Calendar</Link> and <Link className="underline" href="/calls/appointments">Appointments</Link>. This page is how Avery writes back to GoHighLevel.</p>
       <section className="rounded-xl border border-line bg-card p-4 shadow-[var(--shadow)]">
-        <h2 className="font-medium">Calendar</h2>
-        <p className="text-sm text-muted">Appointments the agent booked into GoHighLevel (your CRM), by day.</p>
-        <div className="mt-4 grid gap-4 lg:grid-cols-[280px_1fr]">
-          <div className="rounded-xl border border-line p-3">
-            <div className="mb-2 flex items-center justify-between text-sm font-medium">
-              <Link href={`/calls/crm?day=${prev}`}>‹</Link>
-              {monthLabel}
-              <Link href={`/calls/crm?day=${nextMonth}`}>›</Link>
-            </div>
-            <div className="grid grid-cols-7 text-center text-xs text-muted">
-              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => <div key={d} className="py-1">{d}</div>)}
-              {cells.map((day, index) => day ? (
-                <Link key={day} href={`/calls/crm?day=${first.slice(0, 8)}${day}`} className={`rounded-md py-1 ${data.iso.endsWith(day) ? "bg-ink text-white dark:bg-white dark:text-black" : "hover:bg-hover"}`}>{Number(day)}</Link>
-              ) : <div key={`e-${index}`} />)}
-            </div>
-          </div>
-          <div className="rounded-xl border border-dashed border-line p-6 text-center">
-            <div className="text-sm text-muted">{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: data.tz }).format(zonedTimeToUtc(`${data.iso}T12:00:00`, data.tz))} · {data.appointments.length} appointments</div>
-            {data.appointments.length === 0 ? (
-              <>
-                <div className="mt-6 font-medium">Nothing booked</div>
-                <p className="mt-1 text-sm text-muted">Pick another day, or check Availability below for the times still open.</p>
-              </>
-            ) : (
-              <ul className="mt-4 space-y-2 text-left text-sm">
-                {data.appointments.map((appt) => <li key={appt.id}>{formatDateTime(appt.startsAt, data.tz)} · {appt.contact.name} · {appt.status}</li>)}
-              </ul>
-            )}
-          </div>
-        </div>
-      </section>
-      <section className="rounded-xl border border-line bg-card p-4 shadow-[var(--shadow)]">
-        <h2 className="font-medium">Availability</h2>
-        <p className="text-sm text-muted">Open times on {new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: data.tz }).format(zonedTimeToUtc(`${data.iso}T12:00:00`, data.tz))} — {office?.calendarName}. Live from GoHighLevel — the same openings the agent offers.</p>
+        <h2 className="font-medium">Open times</h2>
+        <p className="text-sm text-muted">Open times on {dayLabel}{calendarName ? `, ${calendarName}` : ""}. These come from GoHighLevel. When Avery may dial is set in Calling rules.</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {slots.length === 0 && <span className="text-sm text-muted">Closed this day.</span>}
           {slots.map((slot) => <span key={slot} className="rounded-full border border-line px-2.5 py-1 text-xs">{slot}</span>)}
         </div>
-        <p className="mt-3 text-xs text-muted">{slots.length} openings, shown in {data.tz.replace("_", " ")}.</p>
+        <p className="mt-3 text-xs text-muted">{slots.length} openings, shown in {data.tz.replaceAll("_", " ")}.</p>
       </section>
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-line bg-card p-4 shadow-[var(--shadow)]">

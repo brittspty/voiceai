@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 export const SETTINGS_LINKS = [
   ["/settings/production", "Go-live checklist"],
   ["/settings/calling", "Call settings"],
+  ["/settings/branding", "Branding"],
   ["/settings/agent", "Avery's script"],
   ["/settings/voice", "Avery's voice"],
   ["/settings/calling-rules", "Calling rules"],
