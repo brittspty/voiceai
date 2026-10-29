@@ -23,7 +23,7 @@ export function AppShell({
   mode,
   children,
 }: {
-  org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
+  org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string; testMode?: boolean };
   user: { name: string; email: string; role: string };
   mode: { testMode: boolean; agentName: string; wordmark: string; tagline: string };
   children: React.ReactNode;
@@ -51,7 +51,10 @@ export function AppShell({
         {!collapsed && <div className="text-sm font-semibold">{mode.wordmark}</div>}
       </div>
       <nav className="flex flex-col gap-0.5 px-2">
-        {(user.role === "client_viewer" ? [{ href: "/marketing/client", label: "Performance", icon: BarChart3 }] : NAV).map((item) => {
+        {(user.role === "client_viewer"
+          ? [{ href: "/marketing/client", label: "Performance", icon: BarChart3 }]
+          : [...NAV, ...(user.role === "super_admin" ? [{ href: "/marketing/compare", label: "Clients", icon: BarChart3 }, { href: "/marketing/skills", label: "Skills", icon: BarChart3 }] : [])]
+        ).map((item) => {
           const Icon = item.icon;
           const active = itemActive(item.href);
           return (

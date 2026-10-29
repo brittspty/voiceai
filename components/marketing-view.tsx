@@ -1,7 +1,9 @@
+import { DecisionQueue } from "@/components/decision-queue";
+import { HourlySummary } from "@/components/hourly-summary";
 import { ShareLinkButton } from "@/components/share-link-button";
 import { Pill } from "@/components/pills";
 import { PageTitle } from "@/components/shell";
-import { decideMarketingRecommendation, saveCampaignBudget } from "@/lib/marketing/human-actions";
+import { saveCampaignBudget } from "@/lib/marketing/human-actions";
 import { formatDateTime } from "@/lib/format";
 
 type AccountRow = {
@@ -47,6 +49,10 @@ type RecommendationRow = {
   windowEnd: string;
   sampleSize: number;
   sourceCount: number;
+  createdAt?: string;
+  decidedAt?: string | null;
+  decisionNote?: string;
+  verifierNote?: string;
   currentBudgetAmount: number | null;
   proposedBudgetAmount: number | null;
   proposedCurrency: string | null;
@@ -322,84 +328,14 @@ export function MarketingView(props: {
             <p className="mt-2 text-xs text-muted">Latest 100 rows. One row is one ad on one day. Do not add reach across rows.</p>
           </section>
 
-          <section>
-            <h2 className="mb-2 font-medium">Things to look at</h2>
-            <p className="mb-2 text-sm text-muted">
-              {props.flags?.monitor
-                ? "These notes appear after a sync. They are advice. Nothing in your ad account is changed."
-                : "Ad checks are turned off."}
-            </p>
-            <div className="space-y-2">
-              {(props.alerts ?? []).map((alert) => (
-                <article key={alert.id} className="rounded-xl border border-line bg-card px-4 py-3 text-sm">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Pill tone={alert.severity === "critical" ? "red" : alert.severity === "warning" ? "amber" : "gray"}>{alert.severity}</Pill>
-                    <span className="font-medium">{alert.title}</span>
-                  </div>
-                  <p className="mt-1 text-muted">{alert.summary}</p>
-                  <p className="mt-1 text-xs text-muted">{alert.account} · {alert.ad}</p>
-                </article>
-              ))}
-              {!props.alerts?.length && <p className="text-sm text-muted">No notes yet.</p>}
-            </div>
-          </section>
-
-          <section>
-            <h2 className="mb-2 font-medium">Suggestions</h2>
-            <p className="mb-2 text-sm text-muted">A suggestion shows up only after a second check confirms it. Dismissing it does not change the ad account.</p>
-            <div className="space-y-2">
-              {(props.recommendations ?? []).map((rec) => (
-                <article key={rec.id} className="rounded-xl border border-line bg-card px-4 py-3 text-sm">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Pill tone={rec.status === "verified" ? "blue" : rec.status === "accepted" ? "green" : "gray"}>{rec.status}</Pill>
-                    <span className="font-medium">{rec.title}</span>
-                  </div>
-                  <p className="mt-1">{rec.summary}</p>
-                  <p className="mt-2 text-xs text-muted">
-                    {rec.metric} · baseline {rec.baseline} · seen {rec.observed} · {rec.windowStart} to {rec.windowEnd} · {rec.sampleSize.toLocaleString("en-US")} impressions · {rec.sourceCount} source rows
-                  </p>
-                  {rec.type === "budget_change" && rec.status === "verified" && props.flags?.canEditBudget && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <form action={decideMarketingRecommendation}>
-                        <input type="hidden" name="id" value={rec.id} />
-                        <input type="hidden" name="decision" value="accept" />
-                        <button className="rounded-full bg-ink px-3 py-1 text-xs text-on-ink">Accept local budget</button>
-                      </form>
-                      <form action={decideMarketingRecommendation}>
-                        <input type="hidden" name="id" value={rec.id} />
-                        <input type="hidden" name="decision" value="decline" />
-                        <button className="rounded-full border border-line px-3 py-1 text-xs">Decline</button>
-                      </form>
-                    </div>
-                  )}
-                  {rec.type !== "budget_change" && rec.status === "verified" && (
-                    <form action={decideMarketingRecommendation} className="mt-3">
-                      <input type="hidden" name="id" value={rec.id} />
-                      <input type="hidden" name="decision" value="dismiss" />
-                      <button className="rounded-full border border-line px-3 py-1 text-xs">Dismiss</button>
-                    </form>
-                  )}
-                </article>
-              ))}
-              {!props.recommendations?.length && <p className="text-sm text-muted">No confirmed suggestions yet.</p>}
-            </div>
-          </section>
-
-          <section>
-            <h2 className="mb-2 font-medium">Hourly update</h2>
-            <p className="mb-2 text-sm text-muted">
-              {props.flags?.digest ? "A stored summary for the account manager. Email and text messages are off." : "Hourly updates are turned off."}
-            </p>
-            <div className="space-y-2">
-              {(props.digests ?? []).map((digest) => (
-                <article key={digest.id} className="rounded-xl border border-line bg-card px-4 py-3 text-sm">
-                  <div className="text-xs text-muted">{formatDateTime(digest.createdAt)} · not sent</div>
-                  <pre className="mt-2 whitespace-pre-wrap font-sans text-sm">{JSON.stringify(digest.payload, null, 2)}</pre>
-                </article>
-              ))}
-              {!props.digests?.length && <p className="text-sm text-muted">No stored updates yet.</p>}
-            </div>
-          </section>
+          <div id="queue">
+            {props.flags?.monitor ? (
+              <DecisionQueue cards={props.recommendations ?? []} canAct={Boolean(props.flags.canEditBudget)} />
+            ) : (
+              <p className="text-sm text-muted">Decision cards are turned off.</p>
+            )}
+          </div>
+          <HourlySummary enabled={Boolean(props.flags?.digest)} digests={props.digests ?? []} />
 
           <section>
             <h2 className="mb-2 font-medium">Client link</h2>

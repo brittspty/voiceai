@@ -13,6 +13,7 @@
   --color-hover: var(--hover);
   --color-chip: var(--chip);
   --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
   --color-on-brand: var(--on-brand);
   --color-on-ink: var(--on-ink);
   --color-success: var(--success);
@@ -33,7 +34,11 @@
 }
 
 html, body { height: 100%; }
-body { background: var(--canvas); color: var(--ink); font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif; }
+body { background: var(--canvas); color: var(--ink); font-family: var(--font-sans), "Segoe UI", Arial, Helvetica, sans-serif; }
+:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
 
 .bg-hatch {
   background-color: var(--hatch);

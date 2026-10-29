@@ -1,5 +1,5 @@
 import type { MarketingAccess } from "./access";
-import { setCampaignBudget, type BudgetStore, type HumanBudgetActor } from "./budget";
+import type { BudgetStore } from "./budget";
 import type { MetricPoint, MonitorDraft } from "./monitor";
 
 export type RecommendationDecision = "dismiss" | "accept" | "decline";
@@ -101,27 +101,13 @@ export async function decideRecommendation(input: {
     throw new Error("Only a confirmed recommendation can be decided.");
   }
   if (input.decision === "accept") {
-    if (input.recommendation.type !== "budget_change") throw new Error("Only a budget suggestion can be accepted.");
-    if (!input.recommendation.campaignId || !input.recommendation.adAccountId || !input.recommendation.proposedBudgetAmount || !input.recommendation.proposedBudgetPeriod || !input.recommendation.proposedCurrency) {
-      throw new Error("The budget suggestion is incomplete.");
+    if (input.recommendation.type === "budget_change") {
+      if (!input.recommendation.proposedBudgetAmount) throw new Error("The budget suggestion is incomplete.");
+      // Records the person's OK only. The budget itself is not written.
+      void input.budgetStore;
+      return { status: "accepted" as const, budgetWrite: "none" as const };
     }
-    const actor: HumanBudgetActor = { kind: "human", access: input.actor.access };
-    await setCampaignBudget(
-      actor,
-      {
-        campaignId: input.recommendation.campaignId,
-        adAccountId: input.recommendation.adAccountId,
-        amount: input.recommendation.proposedBudgetAmount,
-        period: input.recommendation.proposedBudgetPeriod,
-        currency: input.recommendation.proposedCurrency,
-        source: "recommendation_accept",
-        recommendationId: input.recommendation.id,
-        note: input.note || "",
-      },
-      input.budgetStore,
-      input.now,
-    );
-    return { status: "accepted" as const };
+    return { status: "accepted" as const, budgetWrite: "none" as const };
   }
   return { status: input.decision === "decline" ? ("declined" as const) : ("dismissed" as const) };
 }

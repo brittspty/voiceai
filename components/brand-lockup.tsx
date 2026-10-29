@@ -1,25 +1,31 @@
 import { brandTokens } from "@/lib/brand/tokens";
-import { BrandMark } from "@/components/brand-mark";
 
 export function BrandLockup({
-  logoUrl = "",
-  mark = brandTokens.logo.mark,
   compact = false,
+  showTagline = false,
 }: {
   logoUrl?: string;
   mark?: string;
   compact?: boolean;
+  showTagline?: boolean;
 }) {
-  const src = logoUrl || brandTokens.logo.src;
   return (
-    <div className="flex items-center gap-2.5">
-      <BrandMark logoUrl={src} mark={mark || brandTokens.logo.mark} letter={!src} />
+    <div className="flex items-center gap-3">
+      <img src={brandTokens.logo.src} alt={brandTokens.logo.alt} className="h-10 w-auto" />
       {!compact && (
         <div className="leading-tight">
           <div className="text-sm font-semibold text-ink">{brandTokens.wordmark}</div>
-          <div className="text-xs text-muted">{brandTokens.tagline}</div>
+          {showTagline && <div className="text-xs italic text-muted">{brandTokens.tagline}</div>}
         </div>
       )}
     </div>
+  );
+}
+
+export function BrandFooter() {
+  return (
+    <footer className="px-4 py-6 text-center text-sm text-muted">
+      {brandTokens.wordmark} Inc · {brandTokens.tagline}
+    </footer>
   );
 }

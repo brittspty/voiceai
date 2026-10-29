@@ -15,7 +15,11 @@ import {
 } from "./config";
 import { accessFromUser, canEditCampaignBudget, plannedSuperAdmins, superAdminEmails } from "./access";
 import { setCampaignBudget } from "./budget";
-import { buildClientViewerResponse, clientViewerCsv, forbiddenClientKeys } from "./client-view";
+import { buildClientShare, clientShareCsv, clientShareHasMoney, clientShareText, forbiddenClientKeys } from "./client-view";
+import { batchApproveAllowed, budgetCardCopy, budgetCopyIsClean } from "./decision-ui";
+import { compareClients } from "./compare";
+import { skillIsSafe, OFFERED_SKILL } from "./skills";
+import { platformBrand } from "../brand";
 import { buildManagerDigest, digestDeliveryPlan } from "./digest";
 import { evaluateAds, type MetricPoint } from "./monitor";
 import { decideRecommendation, verifyRecommendation } from "./recommendations";
@@ -218,7 +222,7 @@ test("only a human can write a budget, and accepting a suggestion does not call 
   assert.equal(writes.length, 1);
   const accepted = await decideRecommendation({ actor: { kind: "human", access: manager }, recommendation: budgetDraft, decision: "accept", budgetStore: store });
   assert.equal(accepted.status, "accepted");
-  assert.equal(writes.length, 2);
+  assert.equal(writes.length, 1);
   const declined = await decideRecommendation({
     actor: { kind: "human", access: manager },
     recommendation: budgetDraft,
@@ -226,7 +230,30 @@ test("only a human can write a budget, and accepting a suggestion does not call 
     budgetStore: store,
   });
   assert.equal(declined.status, "declined");
-  assert.equal(writes.length, 2);
+  assert.equal(writes.length, 1);
+  const copy = budgetCardCopy({
+    id: "rec1",
+    type: "budget_change",
+    status: "verified",
+    title: "Recommended budget",
+    summary: "It ran out early.",
+    rationale: "",
+    metric: "budget",
+    baseline: "100",
+    observed: "80",
+    windowStart: "2026-10-01",
+    windowEnd: "2026-10-07",
+    sampleSize: 2000,
+    sourceCount: 4,
+    currentBudgetAmount: 150,
+    proposedBudgetAmount: 200,
+    proposedCurrency: "USD",
+    proposedBudgetPeriod: "daily",
+  });
+  assert.equal(budgetCopyIsClean(copy.fixed), true);
+  assert.match(copy.fixed, /will not change this budget/);
+  assert.equal(batchApproveAllowed([{ type: "budget_change", tier: "am" }]).ok, false);
+  assert.equal(batchApproveAllowed([{ type: "pause", tier: "am" }, { type: "swap", tier: "am" }]).ok, false);
 
   const banned = ["worker/index.ts", "lib/marketing/sync.ts", "lib/marketing/monitor.ts", "lib/marketing/persist.ts", "lib/marketing/apply.ts", "lib/marketing/connectors/meta.ts", "lib/dialer.ts"];
   for (const file of banned) {
@@ -243,40 +270,37 @@ test("only a human can write a budget, and accepting a suggestion does not call 
 });
 
 test("client responses and exports have no cost fields", () => {
-  const response = buildClientViewerResponse({
-    client: "Specificity",
-    rows: [
-      {
-        date: "2026-10-07",
-        campaign: "Leads",
-        ad: "Roof",
-        impressions: 1000,
-        reach: 800,
-        clicks: 40,
-        conversions: 3,
-        leads: 3,
-        spend: 99,
-        cpc: 2,
-        cpm: 10,
-        cpa: 30,
-        roas: 1,
-        budget: 100,
-        costPerLead: 33,
-        currency: "USD",
-      } as never,
-    ],
-    creatives: [{ ad: "Roof", headline: "Start here", body: "A short check.", previewUrl: "hash_roof" }],
+  const response = buildClientShare({
+    client: "Bayou Home Services",
+    adViews: 48200,
+    leads: 214,
+    booked: 70,
+    campaigns: [{ name: "Leak Repair", channel: "Meta", leads: 120, booked: 41 }],
+    sharedBy: "Dana R.",
+    expires: "expires 2026-11-28",
   });
   assert.deepEqual(forbiddenClientKeys(response), []);
+  assert.equal(clientShareHasMoney(response), false);
   assert.equal(JSON.stringify(response).includes("\"spend\""), false);
-  const csv = clientViewerCsv(response);
-  assert.equal(/spend|budget|cpc|cpm|cpa|roas|cost/i.test(csv.split("\n")[0] || ""), false);
-  assert.equal(csv.includes("99"), false);
-  assert.match(csv, /Impressions/);
-  assert.equal(response.metrics[0]?.ctr, 0.04);
-  assert.equal(response.metrics[0]?.frequency, 1.25);
+  const csv = clientShareCsv(response);
+  assert.equal(/spend|budget|cpc|cpm|cpa|roas|cost|\$/.test(csv), false);
+  assert.match(csv, /Booked calls/);
+  assert.equal(response.viewOnly, true);
   assert.equal("alerts" in response, false);
-  assert.equal("recommendations" in response, false);
+  assert.match(clientShareText(response), /People who booked a call/);
+  const brand = platformBrand();
+  assert.equal(brand.brandColor, "#FF5800");
+  assert.equal(brand.logoUrl, "/brand/specificity-mark.png");
+  assert.equal(skillIsSafe(OFFERED_SKILL), true);
+  assert.equal(skillIsSafe({ ...OFFERED_SKILL, can: ["Change budgets"] }), false);
+  const compared = compareClients({
+    clients: [
+      { name: "Acme", manager: "Dana", spend: 4980, booked: 31 },
+      { name: "Bayou", manager: "Dana", spend: 2870, booked: 70 },
+    ],
+  });
+  assert.equal(compared.rows.find((row) => row.name === "Acme")?.flag, "Outlier");
+  assert.equal(compared.rows.find((row) => row.name === "Bayou")?.flag, "");
 });
 
 test("share links are hashed, revocable, and off by default", () => {

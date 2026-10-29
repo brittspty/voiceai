@@ -1,136 +1,107 @@
-export const CLIENT_FIELDS = [
-  "date",
-  "campaign",
-  "ad",
-  "impressions",
-  "reach",
-  "clicks",
-  "ctr",
-  "conversions",
-  "leads",
-  "frequency",
-] as const;
+const FORBIDDEN_KEY = /spend|budget|cpc|cpm|cpa|roas|cost|cpl|currency|amount|revenue/i;
+const FORBIDDEN_TEXT = /spend|cost|cpc|cpm|cpa|budget|roas|revenue|\$/i;
 
-export type ClientCreative = {
-  ad: string;
-  headline: string;
-  body: string;
-  previewUrl: string;
-};
-
-export type ClientMetric = {
-  date: string;
-  campaign: string;
-  ad: string;
-  impressions: number;
-  reach: number;
-  clicks: number;
-  ctr: number | null;
-  conversions: number;
+export type ClientCampaign = {
+  name: string;
+  status: "Doing well" | "Steady" | "Fewer bookings";
+  booked: number;
   leads: number;
-  frequency: number | null;
+  channel: string;
+  detail: string;
 };
 
-export type ClientViewerResponse = {
+export type ClientShareView = {
   client: string;
-  metrics: ClientMetric[];
-  trends: ClientMetric[];
-  creatives: ClientCreative[];
+  viewOnly: true;
+  rangeLabel: string;
+  kpis: { label: string; value: string; delta: string; meaning: string }[];
+  campaigns: ClientCampaign[];
+  updated: string;
+  sharedBy: string;
+  expires: string;
 };
 
-const FORBIDDEN_KEY = /spend|budget|cpc|cpm|cpa|roas|cost|cpl|currency|amount/i;
-
-export function clientMetric(row: {
-  date: string;
-  campaign: string;
-  ad: string;
-  impressions: number;
-  reach: number;
-  clicks: number;
-  conversions: number;
-  leads: number;
-}): ClientMetric {
-  return {
-    date: row.date,
-    campaign: row.campaign,
-    ad: row.ad,
-    impressions: row.impressions,
-    reach: row.reach,
-    clicks: row.clicks,
-    ctr: row.impressions ? row.clicks / row.impressions : null,
-    conversions: row.conversions,
-    leads: row.leads,
-    frequency: row.reach ? row.impressions / row.reach : null,
-  };
+function campaignStatus(booked: number, leads: number): ClientCampaign["status"] {
+  if (booked === 0 && leads < 5) return "Fewer bookings";
+  if (booked >= 5) return "Doing well";
+  return "Steady";
 }
 
-export function clientTrends(metrics: ClientMetric[]): ClientMetric[] {
-  const byDate = new Map<string, ClientMetric>();
-  for (const row of metrics) {
-    const current = byDate.get(row.date) ?? {
-      date: row.date,
-      campaign: "All campaigns",
-      ad: "All ads",
-      impressions: 0,
-      reach: 0,
-      clicks: 0,
-      ctr: null,
-      conversions: 0,
-      leads: 0,
-      frequency: null,
+export function buildClientShare(input: {
+  client: string;
+  adViews: number;
+  leads: number;
+  booked: number;
+  campaigns: { name: string; channel: string; leads: number; booked: number; note?: string }[];
+  sharedBy?: string;
+  expires?: string;
+  rangeLabel?: string;
+}): ClientShareView {
+  const campaigns = input.campaigns.map((row) => {
+    const status = campaignStatus(row.booked, row.leads);
+    const note = row.note ? ` · ${row.note}` : "";
+    return {
+      name: row.name,
+      status,
+      booked: row.booked,
+      leads: row.leads,
+      channel: row.channel,
+      detail: `${row.booked} booked calls · ${row.leads} leads · ${row.channel}${note}`,
     };
-    current.impressions += row.impressions;
-    current.reach += row.reach;
-    current.clicks += row.clicks;
-    current.conversions += row.conversions;
-    current.leads += row.leads;
-    current.ctr = current.impressions ? current.clicks / current.impressions : null;
-    current.frequency = current.reach ? current.impressions / current.reach : null;
-    byDate.set(row.date, current);
-  }
-  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-}
-
-export function clientCreative(row: { ad: string; headline?: string; body?: string; previewUrl?: string }): ClientCreative {
-  return {
-    ad: row.ad,
-    headline: row.headline || "",
-    body: row.body || "",
-    previewUrl: row.previewUrl || "",
-  };
-}
-
-/** Allowlist serializer. Extra keys on the input are dropped. */
-export function buildClientViewerResponse(input: {
-  client: string;
-  rows: {
-    date: string;
-    campaign: string;
-    ad: string;
-    impressions: number;
-    reach: number;
-    clicks: number;
-    conversions: number;
-    leads: number;
-  }[];
-  creatives: { ad: string; headline?: string; body?: string; previewUrl?: string }[];
-}): ClientViewerResponse {
-  const metrics = input.rows.map((row) => clientMetric(row));
+  });
   return {
     client: input.client,
-    metrics,
-    trends: clientTrends(metrics),
-    creatives: input.creatives.map((row) => clientCreative(row)),
+    viewOnly: true,
+    rangeLabel: input.rangeLabel || "Last 7 days",
+    kpis: [
+      {
+        label: "Booked calls",
+        value: String(input.booked),
+        delta: "",
+        meaning: "People who booked a call or visit with you.",
+      },
+      {
+        label: "New leads",
+        value: String(input.leads),
+        delta: "",
+        meaning: "People who asked for a quote or info.",
+      },
+      {
+        label: "Called within 5 min",
+        value: "Not measured yet",
+        delta: "",
+        meaning: "How fast new leads heard from you.",
+      },
+      {
+        label: "Ad views",
+        value: input.adViews.toLocaleString("en-US"),
+        delta: "",
+        meaning: "How many times people saw your ads.",
+      },
+    ],
+    campaigns,
+    updated: "Updated from the latest sync",
+    sharedBy: input.sharedBy || "your marketing team",
+    expires: input.expires || "",
   };
 }
 
-export function clientViewerCsv(response: ClientViewerResponse) {
-  const headers = ["Date", "Campaign", "Ad", "Impressions", "Reach", "Clicks", "Click rate", "Conversions", "Leads", "Frequency"];
-  const lines = [headers.join(",")];
-  for (const row of response.metrics) {
-    lines.push(
-      [row.date, row.campaign, row.ad, row.impressions, row.reach, row.clicks, row.ctr ?? "", row.conversions, row.leads, row.frequency ?? ""].join(","),
-    );
+export function clientShareText(view: ClientShareView) {
+  return [
+    view.client,
+    view.rangeLabel,
+    ...view.kpis.flatMap((row) => [row.label, row.value, row.delta, row.meaning]),
+    ...view.campaigns.flatMap((row) => [row.name, row.status, row.detail]),
+    view.updated,
+    view.sharedBy,
+    view.expires,
+  ].join(" ");
+}
+
+export function clientShareCsv(view: ClientShareView) {
+  const lines = ["Campaign,Status,Booked calls,Leads,Channel"];
+  for (const row of view.campaigns) {
+    lines.push([row.name, row.status, row.booked, row.leads, row.channel].join(","));
   }
   return lines.join("\n");
 }
@@ -151,4 +122,8 @@ export function collectKeys(value: unknown, keys: string[] = []): string[] {
 
 export function forbiddenClientKeys(value: unknown) {
   return collectKeys(value).filter((key) => FORBIDDEN_KEY.test(key));
+}
+
+export function clientShareHasMoney(view: ClientShareView) {
+  return FORBIDDEN_TEXT.test(clientShareText(view)) || FORBIDDEN_TEXT.test(clientShareCsv(view));
 }

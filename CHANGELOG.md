@@ -36,6 +36,14 @@ Flags default **off**:
 - `MARKETING_DIGEST_DELIVERY` — no email or SMS is sent.
 - `MARKETING_CLIENT_LINKS` — tokenized share links.
 
+### Decision UI (spec 2026-10-29)
+
+- Decision cards, including a recommend-only budget card. Approving records the OK and the steps. It does not change the budget or call an ad platform. “I made the change” only marks the handoff done.
+- Hourly summary layout for an account manager. Email stays off.
+- Super-admin client comparison and a skill yes/no prompt. A skill cannot be granted a budget change.
+- Client share view shows booked calls, leads, ad views, and campaign status. No cost or currency.
+- Brand tokens use the placeholder orange `#FF5800` and Poppins. `lib/brand.ts` points `brandColor` and `logoUrl` at `specificity-mark.png`.
+
 ### Follow-ups
 
 - Turn the flags on only after the owner approves the deploy checklist.

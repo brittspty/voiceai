@@ -1,6 +1,6 @@
 import { prisma } from "../db";
 import { accessFromUser, type MarketingAccess } from "./access";
-import { buildClientViewerResponse } from "./client-view";
+import { buildClientShare } from "./client-view";
 import { clientViewEvent, type ClientViewEvent } from "./share-link";
 
 function num(value: bigint | number | null | undefined) {
@@ -166,6 +166,10 @@ export async function getMarketingPage(access?: MarketingAccess) {
         windowEnd: rec.windowEnd ? rec.windowEnd.toISOString().slice(0, 10) : "",
         sampleSize: rec.sampleSize,
         sourceCount: rec.sourceMetricIds.length,
+        createdAt: rec.createdAt.toISOString(),
+        decidedAt: rec.decidedAt?.toISOString() ?? null,
+        decisionNote: rec.decisionNote,
+        verifierNote: rec.verifierNote,
         currentBudgetAmount: rec.currentBudgetAmount ? dec(rec.currentBudgetAmount) : null,
         proposedBudgetAmount: rec.proposedBudgetAmount ? dec(rec.proposedBudgetAmount) : null,
         proposedCurrency: rec.proposedCurrency,
@@ -182,46 +186,40 @@ export async function getMarketingPage(access?: MarketingAccess) {
   };
 }
 
-export async function loadClientPerformance(clientName: string) {
+export async function loadClientPerformance(clientName: string, meta?: { sharedBy?: string; expires?: string }) {
   const metrics = await prisma.dailyMetric.findMany({
     orderBy: [{ date: "desc" }],
     take: 200,
     select: {
-      date: true,
       impressions: true,
-      reach: true,
-      clicks: true,
       platformLeads: true,
       platformConversions: true,
-      ad: { select: { name: true, creativeVersion: { select: { headline: true, body: true, mediaRef: true } } } },
+      platform: true,
       campaign: { select: { name: true } },
     },
   });
-  const creatives = new Map<string, { ad: string; headline: string; body: string; previewUrl: string }>();
+  const byCampaign = new Map<string, { name: string; channel: string; leads: number; booked: number }>();
+  let adViews = 0;
+  let leads = 0;
+  let booked = 0;
   for (const metric of metrics) {
-    const version = metric.ad.creativeVersion;
-    if (!creatives.has(metric.ad.name)) {
-      creatives.set(metric.ad.name, {
-        ad: metric.ad.name,
-        headline: version?.headline || "",
-        body: version?.body || "",
-        previewUrl: version?.mediaRef || "",
-      });
-    }
+    const name = metric.campaign?.name || "Campaign";
+    const row = byCampaign.get(name) ?? { name, channel: metric.platform === "meta" ? "Meta" : metric.platform, leads: 0, booked: 0 };
+    row.leads += dec(metric.platformLeads);
+    row.booked += dec(metric.platformConversions);
+    byCampaign.set(name, row);
+    adViews += Number(metric.impressions);
+    leads += dec(metric.platformLeads);
+    booked += dec(metric.platformConversions);
   }
-  return buildClientViewerResponse({
+  return buildClientShare({
     client: clientName,
-    rows: metrics.map((metric) => ({
-      date: metric.date.toISOString().slice(0, 10),
-      campaign: metric.campaign?.name || "Campaign",
-      ad: metric.ad.name,
-      impressions: Number(metric.impressions),
-      reach: Number(metric.reach),
-      clicks: Number(metric.clicks),
-      conversions: dec(metric.platformConversions),
-      leads: dec(metric.platformLeads),
-    })),
-    creatives: [...creatives.values()],
+    adViews,
+    leads,
+    booked,
+    campaigns: [...byCampaign.values()],
+    sharedBy: meta?.sharedBy,
+    expires: meta?.expires,
   });
 }
 

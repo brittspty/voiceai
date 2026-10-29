@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { clientViewerCsv } from "@/lib/marketing/client-view";
+import { clientShareCsv } from "@/lib/marketing/client-view";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
 import { hashShareToken, shareLinkState } from "@/lib/marketing/share-link";
@@ -28,7 +28,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
     ...meta,
   });
   if (isExport) {
-    return new NextResponse(clientViewerCsv(payload), { headers: { "Content-Type": "text/csv; charset=utf-8" } });
+    return new NextResponse(clientShareCsv(payload), { headers: { "Content-Type": "text/csv; charset=utf-8" } });
   }
   return NextResponse.json(payload);
 }

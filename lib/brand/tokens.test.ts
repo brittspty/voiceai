@@ -5,10 +5,11 @@ import { brandTokenCss, brandTokens } from "./tokens";
 test("brand tokens are the single source for the tagline, type, and colors", () => {
   assert.equal(brandTokens.wordmark, "Specificity");
   assert.equal(brandTokens.tagline, "Identify. Engage. Convert.");
-  assert.equal(brandTokens.font.family, "Inter");
+  assert.equal(brandTokens.font.family, "Poppins");
+  assert.equal(brandTokens.light.brand, "#FF5800");
+  assert.equal(brandTokens.logo.src, "/brand/specificity-mark.png");
   const css = brandTokenCss();
   assert.match(css, new RegExp(`--brand: ${brandTokens.light.brand}`));
-  assert.match(css, new RegExp(`--canvas: ${brandTokens.light.canvas}`));
-  assert.match(css, new RegExp(`--font-sans: ${brandTokens.font.stack.replace(/[()]/g, "\\$&")}`));
-  assert.match(css, /--ink: #f4f4f5/);
+  assert.match(css, new RegExp(`--brand-ink: ${brandTokens.light.brandInk}`));
+  assert.match(css, /--ink: #231F20/);
 });

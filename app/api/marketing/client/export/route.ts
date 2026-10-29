@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { clientViewerCsv } from "@/lib/marketing/client-view";
+import { clientShareCsv } from "@/lib/marketing/client-view";
 import { loadClientPerformance, loadMarketingAccess, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
 
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const payload = await loadClientPerformance(access.email);
   const meta = requestClientMeta(request.headers);
   await recordClientView({ workspaceId: access.workspaceId, viewerUserId: user.id, page: "/api/marketing/client/export", ...meta });
-  return new NextResponse(clientViewerCsv(payload), {
+  return new NextResponse(clientShareCsv(payload), {
     headers: { "Content-Type": "text/csv; charset=utf-8" },
   });
 }

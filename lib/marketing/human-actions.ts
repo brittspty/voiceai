@@ -2,6 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
+import { audit } from "../audit";
 import { requireUser } from "../auth";
 import { prisma } from "../db";
 import { setCampaignBudget } from "./budget";
@@ -9,6 +10,7 @@ import { prismaBudgetStore } from "./budget-store";
 import { loadMarketingAccess } from "./queries";
 import { decideRecommendation } from "./recommendations";
 import { assertCanCreateShareLink, newShareToken } from "./share-link";
+import { OFFERED_SKILL, skillIsSafe } from "./skills";
 import { WORKSPACE_ID } from "./types";
 
 export async function saveCampaignBudget(formData: FormData) {
@@ -36,7 +38,38 @@ export async function decideMarketingRecommendation(formData: FormData) {
   const decision = String(formData.get("decision") || "dismiss");
   const rec = await prisma.recommendation.findUnique({ where: { id } });
   if (!rec) throw new Error("That suggestion was not found.");
+  if (access.kind === "client_viewer" || access.kind === "none" || !access.seesAlerts && access.kind !== "account_manager") {
+    throw new Error("You can't decide this.");
+  }
+  if (decision === "later") {
+    await prisma.recommendation.update({
+      where: { id: rec.id },
+      data: { decisionNote: "later", decidedById: user.id, decidedAt: new Date() },
+    });
+    revalidatePath("/marketing");
+    return;
+  }
+  if (decision === "undo") {
+    const decidedAt = rec.decidedAt?.getTime() ?? 0;
+    if (Date.now() - decidedAt > 30_000) throw new Error("The undo window has closed.");
+    await prisma.recommendation.update({
+      where: { id: rec.id },
+      data: { status: "verified", decisionNote: "", decidedById: null, decidedAt: null },
+    });
+    revalidatePath("/marketing");
+    return;
+  }
+  if (decision === "confirm") {
+    if (rec.type !== "budget_change") throw new Error("Only a budget handoff can be confirmed.");
+    await prisma.recommendation.update({
+      where: { id: rec.id },
+      data: { decisionNote: "done", decidedById: user.id },
+    });
+    revalidatePath("/marketing");
+    return;
+  }
   const choice = decision === "accept" || decision === "decline" ? decision : "dismiss";
+  const reason = String(formData.get("reason") || "");
   const result = await decideRecommendation({
     actor: { kind: "human", access },
     recommendation: {
@@ -54,9 +87,24 @@ export async function decideMarketingRecommendation(formData: FormData) {
   });
   await prisma.recommendation.update({
     where: { id: rec.id },
-    data: { status: result.status, decidedById: user.id, decidedAt: new Date(), decisionNote: choice },
+    data: {
+      status: result.status,
+      decidedById: user.id,
+      decidedAt: new Date(),
+      decisionNote: rec.type === "budget_change" && choice === "accept" ? "waiting" : reason || choice,
+    },
   });
   revalidatePath("/marketing");
+}
+
+export async function decideSkillOffer(formData: FormData) {
+  const user = await requireUser();
+  const access = await loadMarketingAccess(user);
+  if (access.kind !== "super_admin") throw new Error("Super admins only.");
+  if (!skillIsSafe(OFFERED_SKILL)) throw new Error("This skill cannot be added.");
+  const choice = String(formData.get("choice") || "no");
+  await audit(user, choice === "yes" ? "Added a skill" : "Skipped a skill", { type: "skill", label: OFFERED_SKILL.name });
+  revalidatePath("/marketing/skills");
 }
 
 export async function createShareLink(input: { label?: string; expiresAt?: string | null }) {
