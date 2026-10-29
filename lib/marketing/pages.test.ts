@@ -152,6 +152,12 @@ test("auto-pause stays off without the flag or the client opt-in", () => {
   assert.equal(evaluate({ samples: downs(), autoPauseOn: false }).alerts.some((alert) => alert.code === "page_down"), true);
 });
 
+test("three failures in one region do not pause", () => {
+  const samples = [0, 1, 2].map((step) => sample(ago((2 - step) * 60_000), { status: "down", region: "us-east" }));
+  assert.equal(downConfirmed(samples), false);
+  assert.equal(evaluate({ samples }).plans.length, 0);
+});
+
 test("checks that are not about a minute apart do not pause", () => {
   const samples = [
     sample(ago(600_000), { status: "down", region: "us-east" }),

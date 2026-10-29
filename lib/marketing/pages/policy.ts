@@ -145,9 +145,7 @@ export function downConfirmed(samples: PageSample[]) {
   const failed = suffixWhile(samples, (sample) => sample.status === "down");
   if (failed.length < ALERT_AFTER_FAILURES) return false;
   const regions = new Set(failed.map((sample) => sample.region).filter(Boolean));
-  if (regions.size < 2) return false;
-  const span = Date.parse(failed[failed.length - 1].at) - Date.parse(failed[0].at);
-  return span <= 10 * 60 * 1000;
+  return regions.size >= 2;
 }
 
 export function pauseReady(samples: PageSample[]) {
@@ -444,7 +442,7 @@ export function evaluatePage(input: {
     });
   }
 
-  const canPause = input.autoPauseOn && input.optIn && pauseReady(samples) && !(downOpen?.pauseHeld);
+  const canPause = input.autoPauseOn && input.optIn && pageDown && pauseReady(samples) && !(downOpen?.pauseHeld);
   const outstanding = input.tracked.filter((row) => !row.resumedAt);
   if (canPause && !pageRecovered) {
     for (const ad of matchingAds(input.page.url, input.ads)) {
