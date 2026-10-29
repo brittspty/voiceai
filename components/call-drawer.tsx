@@ -31,7 +31,7 @@ export function CallDrawer({ call, onClose }: { call: CallRow | null; onClose: (
   return (
     <Dialog.Root open={Boolean(call)} onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/30" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-overlay" />
         <Dialog.Content className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col overflow-y-auto border-l border-line bg-card p-5 shadow-xl">
           {call && (
             <>
@@ -55,7 +55,7 @@ export function CallDrawer({ call, onClose }: { call: CallRow | null; onClose: (
                 <Meta label="Consent" value={<ConsentPill consent={call.consent} />} />
                 <Meta label="ElevenLabs" value={call.elevenLabsId || "—"} />
               </dl>
-              {call.failureReason && <p className="mt-3 rounded-lg bg-[#fdecec] px-3 py-2 text-sm text-[#d14343]">{call.failureReason}</p>}
+              {call.failureReason && <p className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{call.failureReason}</p>}
               <section className="mt-5">
                 <h3 className="text-sm font-medium">Recording</h3>
                 {call.recordingUrl ? <audio className="mt-2 w-full" controls src={call.recordingUrl} /> : <p className="mt-2 text-sm text-muted">No recording yet.</p>}
@@ -66,7 +66,7 @@ export function CallDrawer({ call, onClose }: { call: CallRow | null; onClose: (
                   {call.gateChecks.length === 0 && <li className="text-sm text-muted">No gate record on this call.</li>}
                   {call.gateChecks.map((check) => (
                     <li key={check.id} className="text-sm">
-                      <span className={check.passed ? "text-[#187a42]" : "text-[#d14343]"}>{check.passed ? "Passed" : "Blocked"}</span>
+                      <span className={check.passed ? "text-success" : "text-danger"}>{check.passed ? "Passed" : "Blocked"}</span>
                       <span className="text-muted"> · {check.detail}</span>
                     </li>
                   ))}
@@ -76,7 +76,7 @@ export function CallDrawer({ call, onClose }: { call: CallRow | null; onClose: (
                 <h3 className="text-sm font-medium">Transcript</h3>
                 <div className="mt-2 space-y-2">
                   {call.transcript.map((line, index) => (
-                    <div key={index} className={line.speaker === "agent" ? "mr-8 rounded-2xl bg-chip px-3 py-2 text-sm" : "ml-8 rounded-2xl bg-[#e8f1ff] px-3 py-2 text-sm"}>
+                    <div key={index} className={line.speaker === "agent" ? "mr-8 rounded-2xl bg-chip px-3 py-2 text-sm" : "ml-8 rounded-2xl bg-info-soft px-3 py-2 text-sm"}>
                       <div className="text-[11px] uppercase tracking-wide text-muted">{line.speaker === "agent" ? "Agent" : "Contact"} · {line.atSec}s</div>
                       {line.text}
                     </div>

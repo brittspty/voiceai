@@ -4,9 +4,11 @@ import {
   attributionWindowLabel,
   attributionWindows,
   decideSync,
+  intradaySyncEnabled,
   lookbackDays,
   marketingSyncIntervalMs,
   resolveAccountIds,
+  STALE_SYNC_MS,
   type Env,
 } from "./config";
 import { mockMetaBundle } from "./connectors/fixtures";
@@ -27,6 +29,7 @@ export type SyncResult = {
   rowsWritten?: number;
   since?: string;
   until?: string;
+  cadence?: "full" | "intraday";
 };
 
 function clip(value: string, max = 500) {
@@ -56,6 +59,13 @@ async function withStore<T>(store: MarketingStore | undefined, run: (store: Mark
   return prisma.$transaction((tx) => run(createPrismaMarketingStore(tx)), { timeout: 300_000, maxWait: 15_000 });
 }
 
+async function readStore<T>(store: MarketingStore | undefined, run: (store: MarketingStore) => Promise<T>) {
+  if (store) return run(store);
+  const { prisma } = await import("../db");
+  const { createPrismaMarketingStore } = await import("./prisma-store");
+  return run(createPrismaMarketingStore(prisma));
+}
+
 export async function runMarketingSync(options: {
   env?: Env;
   now?: Date;
@@ -70,27 +80,90 @@ export async function runMarketingSync(options: {
 
   const now = options.now ?? new Date();
   const timeZone = options.timezone ?? (await defaultTimezone());
-  const window = insightWindow(now, timeZone, lookbackDays(env));
+  const running = await readStore(options.store, (store) => store.findRunningRun(WORKSPACE_ID, "meta"));
+  if (running) {
+    const age = now.getTime() - running.startedAt.getTime();
+    if (age < STALE_SYNC_MS) return { status: "skipped", reason: "previous sync still running" };
+    await readStore(options.store, (store) =>
+      store.finishRun(running.id, {
+        status: "failed",
+        rowsRead: 0,
+        rowsWritten: 0,
+        error: "stopped because it ran longer than the time limit",
+        note: "",
+        finishedAt: now,
+      }),
+    );
+  }
+  const lastFull = await readStore(options.store, (store) => store.lastSuccessfulFull(WORKSPACE_ID, "meta"));
+  const today = zonedISODate(now, timeZone);
+  const intraday =
+    intradaySyncEnabled(env) && Boolean(lastFull) && zonedISODate(lastFull!.finishedAt, timeZone) === today;
+  const window = intraday ? { since: addDaysISO(today, -1), until: today } : insightWindow(now, timeZone, lookbackDays(env));
+  const cadence = intraday ? "intraday" : "full";
   const windows = attributionWindows(env);
   const attributionWindow = attributionWindowLabel(windows);
   const mode: StoredSyncMode = decision.action === "mock" ? "mock" : "live";
 
   let accountIds: string[] = [];
   let snapshot = options.snapshot;
-  let failures: string[] = [];
-
-  if (!snapshot && decision.action === "mock") {
-    snapshot = normalizeMetaBundle(mockMetaBundle(now, timeZone), { attributionWindow });
-    accountIds = snapshot.accounts.map((account) => account.externalId);
-  }
+  const appId = decision.action === "live" ? decision.appId : "";
 
   if (!snapshot && decision.action === "live") {
-    const stored = options.store
-      ? await options.store.enabledAccountIds("meta", WORKSPACE_ID)
-      : await withStore(undefined, (store) => store.enabledAccountIds("meta", WORKSPACE_ID));
+    const stored = await readStore(options.store, (store) => store.enabledAccountIds("meta", WORKSPACE_ID));
     accountIds = resolveAccountIds(decision.accountIds, stored);
-    if (!accountIds.length) return { status: "skipped", reason: "no ad accounts configured" };
-    try {
+    if (!accountIds.length) return { status: "skipped", reason: "no ad accounts configured", cadence };
+  }
+
+  const claimed = await readStore(options.store, async (store) => {
+    const connection = await store.upsertConnection({
+      workspaceId: WORKSPACE_ID,
+      platform: "meta",
+      authType: mode === "mock" ? "internal" : "system_user",
+      secretRef: mode === "mock" ? "fixture:meta" : "env:META_ACCESS_TOKEN",
+      appExternalId: appId,
+      status: "connected",
+      scopes: mode === "mock" ? ["fixture"] : ["ads_read", "read_insights"],
+      lastSyncAt: null,
+      lastError: null,
+    });
+    const run = await store.startRun({
+      workspaceId: WORKSPACE_ID,
+      connectionId: connection.id,
+      platform: "meta",
+      kind: cadence === "intraday" ? "insights" : "full",
+      mode,
+      windowStart: window.since,
+      windowEnd: window.until,
+      requestedAccounts: accountIds,
+    });
+    return { connectionId: connection.id, runId: run.id };
+  });
+
+  const failRun = async (message: string) => {
+    await readStore(options.store, (store) =>
+      store.finishRun(claimed.runId, {
+        status: "failed",
+        rowsRead: 0,
+        rowsWritten: 0,
+        error: message,
+        note: "",
+        finishedAt: now,
+      }),
+    );
+  };
+
+  let failures: string[] = [];
+  try {
+    if (!snapshot && decision.action === "mock") {
+      snapshot = normalizeMetaBundle(mockMetaBundle(now, timeZone), { attributionWindow });
+      if (intraday) {
+        snapshot.metrics = snapshot.metrics.filter((metric) => metric.date >= window.since && metric.date <= window.until);
+      }
+      accountIds = snapshot.accounts.map((account) => account.externalId);
+    }
+
+    if (!snapshot && decision.action === "live") {
       const pulled = await getConnector("meta").pull({
         accountIds,
         accessToken: decision.accessToken,
@@ -100,52 +173,39 @@ export async function runMarketingSync(options: {
         until: window.until,
         attributionWindows: windows,
         fetchImpl: options.fetchImpl,
+        insightsOnly: intraday,
       });
       snapshot = pulled.snapshot;
       failures = pulled.failures;
-    } catch (error) {
-      const message = clip(error instanceof Error ? error.message : "Meta sync failed");
-      return { status: "failed", error: message, mode, since: window.since, until: window.until };
     }
+  } catch (error) {
+    const message = clip(error instanceof Error ? error.message : "Meta sync failed");
+    await failRun(message);
+    return { status: "failed", error: message, mode, since: window.since, until: window.until, cadence };
   }
 
-  if (!snapshot) return { status: "skipped", reason: "nothing to sync" };
-  if (!accountIds.length) accountIds = snapshot.accounts.map((account) => account.externalId);
+  if (!snapshot) {
+    await failRun("nothing to sync");
+    return { status: "skipped", reason: "nothing to sync", cadence };
+  }
 
   const error = failures.length ? clip(failures.join("; ")) : null;
   const note = clip(snapshot.warnings.filter((warning) => !warning.startsWith("Account pull failed")).join("; "));
   const status = failures.length ? "failed" : "succeeded";
-  const appId = decision.action === "live" ? decision.appId : "";
 
   try {
     const rowsWritten = await withStore(options.store, async (store) => {
-      const connection = await store.upsertConnection({
-        workspaceId: WORKSPACE_ID,
-        platform: "meta",
-        authType: mode === "mock" ? "internal" : "system_user",
-        secretRef: mode === "mock" ? "fixture:meta" : "env:META_ACCESS_TOKEN",
-        appExternalId: appId,
+      await store.markConnection(claimed.connectionId, {
         status: failures.length ? "error" : "connected",
-        scopes: mode === "mock" ? ["fixture"] : ["ads_read", "read_insights"],
         lastSyncAt: now,
         lastError: error,
       });
-      const run = await store.startRun({
-        workspaceId: WORKSPACE_ID,
-        connectionId: connection.id,
-        platform: "meta",
-        kind: "full",
-        mode,
-        windowStart: window.since,
-        windowEnd: window.until,
-        requestedAccounts: accountIds,
-      });
       const applied = await applySnapshot(store, snapshot, {
         workspaceId: WORKSPACE_ID,
-        connectionId: connection.id,
-        runId: run.id,
+        connectionId: claimed.connectionId,
+        runId: claimed.runId,
       });
-      await store.finishRun(run.id, {
+      await store.finishRun(claimed.runId, {
         status,
         rowsRead: snapshot.raw.length,
         rowsWritten: applied.rowsWritten,
@@ -163,9 +223,11 @@ export async function runMarketingSync(options: {
       rowsWritten,
       since: window.since,
       until: window.until,
+      cadence,
     };
   } catch (caught) {
     const message = clip(caught instanceof Error ? caught.message : "Marketing sync failed");
-    return { status: "failed", error: message, mode, since: window.since, until: window.until };
+    await failRun(message);
+    return { status: "failed", error: message, mode, since: window.since, until: window.until, cadence };
   }
 }

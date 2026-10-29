@@ -1,9 +1,27 @@
+import { redirect } from "next/navigation";
 import { MarketingView } from "@/components/marketing-view";
-import { getMarketingPage } from "@/lib/marketing/queries";
+import { requireUser } from "@/lib/auth";
+import { clientLinksEnabled, digestEnabled, monitorEnabled } from "@/lib/marketing/config";
+import { getMarketingPage, loadMarketingAccess } from "@/lib/marketing/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function MarketingPage() {
-  const data = await getMarketingPage();
-  return <MarketingView {...data} />;
+  const user = await requireUser();
+  const access = await loadMarketingAccess(user);
+  if (access.kind === "client_viewer") redirect("/marketing/client");
+  if (access.kind === "none") redirect("/");
+  const data = await getMarketingPage(access);
+  return (
+    <MarketingView
+      {...data}
+      flags={{
+        monitor: monitorEnabled(),
+        digest: digestEnabled(),
+        clientLinks: clientLinksEnabled(),
+        canEditBudget: access.canEditBudget,
+        canCreateShareLink: access.canCreateShareLink,
+      }}
+    />
+  );
 }

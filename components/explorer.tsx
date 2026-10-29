@@ -154,7 +154,7 @@ export function Explorer<T extends { id: string }>({
               {segment.options.map((option) => {
                 const active = (sp.get(segment.param) || segment.options[0]?.value) === option.value;
                 return (
-                  <button key={option.value} type="button" onClick={() => setParam(segment.param, option.value)} className={cn("rounded-full px-2.5 py-1", active ? "bg-ink text-white dark:bg-white dark:text-black" : "text-muted hover:bg-hover")}>
+                  <button key={option.value} type="button" onClick={() => setParam(segment.param, option.value)} className={cn("rounded-full px-2.5 py-1", active ? "bg-ink text-on-ink" : "text-muted hover:bg-hover")}>
                     {option.label}
                   </button>
                 );
@@ -266,7 +266,7 @@ function FilterMenu({ label, value, options, onChange }: { label: string; value:
   return (
     <Popover.Root>
       <Popover.Trigger className="inline-flex h-8 items-center gap-1 rounded-full border border-dashed border-line px-3 text-sm text-muted">
-        <span className="text-zinc-400">⊕</span> {label}{current && value !== "any" ? `: ${current.label}` : ""}
+        <span className="text-muted">⊕</span> {label}{current && value !== "any" ? `: ${current.label}` : ""}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content className="z-50 min-w-40 rounded-xl border border-line bg-card p-1 shadow-lg">

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import bcrypt from "bcryptjs";
 import { PrismaClient, type CallOutcome, type Consent, type Prisma } from "@prisma/client";
 import { clientConfig, defaultKnowledge } from "../lib/client-config";
-import { plannedSeedUsers, SAMPLE_ACTIVITY_ACTIONS, seedStartupLines } from "../lib/seed-plan";
+import { plannedSeedUsers, plannedSuperAdmins, SAMPLE_ACTIVITY_ACTIONS, seedStartupLines } from "../lib/seed-plan";
 import { zonedTimeToUtc } from "../lib/time";
 import { buildTranscript } from "../lib/transcript";
 import { DEFAULT_POLICY } from "../lib/types";
@@ -34,7 +34,24 @@ function knowledgeBody(cfg: ReturnType<typeof clientConfig>) {
   }
 }
 
+async function ensureSuperAdmins() {
+  for (const person of plannedSuperAdmins(process.env)) {
+    const existing = await prisma.user.findUnique({ where: { email: person.email } });
+    if (existing) continue;
+    await prisma.user.create({
+      data: {
+        name: person.name,
+        email: person.email,
+        passwordHash: await bcrypt.hash(person.password, 10),
+        role: "super_admin",
+      },
+    });
+    console.log(`Super admin  ${person.email}`);
+  }
+}
+
 async function main() {
+  await ensureSuperAdmins();
   const existing = await prisma.org.findUnique({ where: { id: "org" } });
   if (existing) {
     console.log("Seed already applied. Workspace values stay as they are in the database.");

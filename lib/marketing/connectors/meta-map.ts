@@ -19,6 +19,7 @@ export type MetaBundle = {
   ads: unknown[];
   audiences: unknown[];
   insights: unknown[];
+  hourlyInsights?: unknown[];
   warnings?: string[];
   /** Set when the pull stopped early so insights already fetched can still be stored. */
   stopped?: string;
@@ -257,7 +258,7 @@ function targetingAudiences(adset: Record<string, unknown>, role: "include" | "e
 
 export function normalizeMetaBundle(
   bundle: MetaBundle,
-  options: { attributionWindow: string; platform?: AdPlatform },
+  options: { attributionWindow: string; platform?: AdPlatform; orphanInsights?: boolean },
 ): NormalizedSnapshot {
   const platform = options.platform ?? "meta";
   const snapshot = emptySnapshot();
@@ -445,7 +446,7 @@ export function normalizeMetaBundle(
     const adExternalId = str(record.ad_id);
     const date = str(record.date_start).slice(0, 10);
     if (!adExternalId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-    if (!adIds.has(adExternalId)) {
+    if (!adIds.has(adExternalId) && !options.orphanInsights) {
       snapshot.warnings.push(`Insight for unknown ad ${adExternalId} on ${date} was skipped`);
       continue;
     }
@@ -484,12 +485,31 @@ export function normalizeMetaBundle(
     });
   }
 
+  for (const item of bundle.hourlyInsights ?? []) {
+    const record = asRecord(item);
+    const adExternalId = str(record.ad_id);
+    const date = str(record.date_start).slice(0, 10);
+    const hour = Number(str(record.hourly_stats_aggregated_by_advertiser_time_zone).slice(0, 2));
+    if (!adExternalId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isInteger(hour) || hour < 0 || hour > 23) continue;
+    const actions = actionRows(record.actions);
+    snapshot.hourly.push({
+      platform,
+      date,
+      hour,
+      adExternalId,
+      impressions: intString(record.impressions),
+      clicks: intString(record.clicks),
+      conversions: mapPlatformConversions(actions),
+    });
+  }
+
   return snapshot;
 }
 
 export function mergeSnapshots(parts: NormalizedSnapshot[]): NormalizedSnapshot {
   const merged = emptySnapshot();
   const metricKeys = new Set<string>();
+  const hourlyKeys = new Set<string>();
   const entityKeys = {
     accounts: new Set<string>(),
     campaigns: new Set<string>(),
@@ -556,6 +576,12 @@ export function mergeSnapshots(parts: NormalizedSnapshot[]): NormalizedSnapshot 
       if (entityKeys.segments.has(key)) continue;
       entityKeys.segments.add(key);
       merged.segments.push(row);
+    }
+    for (const row of part.hourly ?? []) {
+      const key = `${row.date}|${row.hour}|${row.platform}|${row.adExternalId}`;
+      if (hourlyKeys.has(key)) continue;
+      hourlyKeys.add(key);
+      merged.hourly.push(row);
     }
     for (const row of part.metrics) {
       const key = `${row.date}|${row.platform}|${row.adExternalId}|${row.segmentKind}|${row.segmentKey}|${row.attributionWindow}`;

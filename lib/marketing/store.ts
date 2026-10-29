@@ -32,6 +32,16 @@ export type RunWrite = {
   requestedAccounts: string[];
 };
 
+export type HourlyWrite = {
+  workspaceId: string;
+  adId: string;
+  date: string;
+  hour: number;
+  impressions: string;
+  clicks: string;
+  conversions: string;
+};
+
 export type RunFinish = {
   status: SyncStatus;
   rowsRead: number;
@@ -81,6 +91,14 @@ export type MarketingStore = {
       sourcePullId: string;
     },
   ): Promise<void>;
+  findRunningRun(workspaceId: string, platform: AdPlatform): Promise<{ id: string; startedAt: Date } | null>;
+  lastSuccessfulFull(workspaceId: string, platform: AdPlatform): Promise<{ finishedAt: Date } | null>;
+  findAdContext(
+    workspaceId: string,
+    platform: AdPlatform,
+    externalId: string,
+  ): Promise<{ id: string; adGroupId: string; campaignId: string } | null>;
+  upsertHourly(input: HourlyWrite): Promise<void>;
 };
 
 type MemoryVersion = VersionRow & { creativeId: string; fingerprint: string; fields: NormalizedSnapshot["creatives"][number] };
@@ -105,7 +123,7 @@ export type MemoryDump = {
   names: Record<string, string>;
 };
 
-export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump } {
+export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump; setRunStartedAt: (id: string, at: Date) => void } {
   let seq = 0;
   const nextId = () => `mem_${++seq}`;
   const connections = new Map<string, { id: string } & ConnectionWrite>();
@@ -121,9 +139,19 @@ export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump }
   const segments = new Map<string, { id: string }>();
   const metrics = new Map<string, { spend: string; sourcePullId: string; adExternalId: string; date: string }>();
   const raw = new Map<string, unknown>();
-  const runs: { id: string; status: SyncStatus }[] = [];
+  const runs: {
+    id: string;
+    status: SyncStatus;
+    kind: SyncKind;
+    workspaceId: string;
+    platform: AdPlatform;
+    startedAt: Date;
+    finishedAt: Date | null;
+  }[] = [];
+  const adContexts = new Map<string, { id: string; adGroupId: string }>();
+  const adGroupCampaigns = new Map<string, string>();
 
-  const store: MarketingStore & { dump: () => MemoryDump } = {
+  const store: MarketingStore & { dump: () => MemoryDump; setRunStartedAt: (id: string, at: Date) => void } = {
     async upsertConnection(input) {
       const key = `${input.workspaceId}:${input.platform}`;
       const existing = connections.get(key);
@@ -138,12 +166,46 @@ export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump }
     },
     async startRun(input) {
       const id = nextId();
-      runs.push({ id, status: "running", ...input } as { id: string; status: SyncStatus });
+      runs.push({
+        id,
+        status: "running",
+        kind: input.kind,
+        workspaceId: input.workspaceId,
+        platform: input.platform,
+        startedAt: new Date(),
+        finishedAt: null,
+      });
       return { id };
     },
     async finishRun(id, patch) {
       const run = runs.find((item) => item.id === id);
-      if (run) run.status = patch.status;
+      if (run) {
+        run.status = patch.status;
+        run.finishedAt = patch.finishedAt;
+      }
+    },
+    async findRunningRun(workspaceId, platform) {
+      const run = runs.find((item) => item.status === "running" && item.workspaceId === workspaceId && item.platform === platform);
+      return run ? { id: run.id, startedAt: run.startedAt } : null;
+    },
+    async lastSuccessfulFull(workspaceId, platform) {
+      const matches = runs.filter(
+        (item) => item.status === "succeeded" && item.kind === "full" && item.workspaceId === workspaceId && item.platform === platform && item.finishedAt,
+      );
+      const latest = matches.sort((a, b) => (b.finishedAt?.getTime() ?? 0) - (a.finishedAt?.getTime() ?? 0))[0];
+      return latest?.finishedAt ? { finishedAt: latest.finishedAt } : null;
+    },
+    async findAdContext(workspaceId, platform, externalId) {
+      const ad = adContexts.get(`${workspaceId}:${platform}:${externalId}`);
+      if (!ad) return null;
+      const campaignId = adGroupCampaigns.get(ad.adGroupId);
+      if (!campaignId) return null;
+      return { id: ad.id, adGroupId: ad.adGroupId, campaignId };
+    },
+    async upsertHourly() {},
+    setRunStartedAt(id: string, at: Date) {
+      const run = runs.find((item) => item.id === id);
+      if (run) run.startedAt = at;
     },
     async enabledAccountIds(platform, workspaceId) {
       return [...accounts.values()]
@@ -181,6 +243,7 @@ export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump }
       const key = `${input.workspaceId}:${input.platform}:${input.externalId}`;
       const id = adGroups.get(key)?.id ?? nextId();
       adGroups.set(key, { id });
+      adGroupCampaigns.set(id, input.campaignId);
       names.set(`ad_group:${input.externalId}`, input.name);
       return { id };
     },
@@ -224,6 +287,7 @@ export function createMemoryStore(): MarketingStore & { dump: () => MemoryDump }
       const key = `${input.workspaceId}:${input.platform}:${input.externalId}`;
       const id = ads.get(key)?.id ?? nextId();
       ads.set(key, { id, externalId: input.externalId });
+      adContexts.set(key, { id, adGroupId: input.adGroupId });
       names.set(`ad:${input.externalId}`, input.name);
       return { id };
     },

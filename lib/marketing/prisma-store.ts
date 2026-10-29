@@ -117,8 +117,8 @@ export function createPrismaMarketingStore(client: Client): MarketingStore {
           objectiveRaw: input.objectiveRaw,
           status: input.status,
           statusRaw: input.statusRaw,
-          budgetType: input.budgetType,
-          budgetAmount: input.budgetAmount,
+          reportedBudgetType: input.budgetType,
+          reportedBudgetAmount: input.budgetAmount,
           startDate: input.startDate ? new Date(input.startDate) : null,
           endDate: input.endDate ? new Date(input.endDate) : null,
           namingParsed: input.namingParsed,
@@ -130,8 +130,8 @@ export function createPrismaMarketingStore(client: Client): MarketingStore {
           objectiveRaw: input.objectiveRaw,
           status: input.status,
           statusRaw: input.statusRaw,
-          budgetType: input.budgetType,
-          budgetAmount: input.budgetAmount,
+          reportedBudgetType: input.budgetType,
+          reportedBudgetAmount: input.budgetAmount,
           startDate: input.startDate ? new Date(input.startDate) : null,
           endDate: input.endDate ? new Date(input.endDate) : null,
           namingParsed: input.namingParsed,
@@ -389,6 +389,51 @@ export function createPrismaMarketingStore(client: Client): MarketingStore {
           ...data,
         },
         update: data,
+      });
+    },
+    async findRunningRun(workspaceId, platform) {
+      const row = await client.marketingSyncRun.findFirst({
+        where: { workspaceId, platform, status: "running" },
+        orderBy: { startedAt: "desc" },
+        select: { id: true, startedAt: true },
+      });
+      return row;
+    },
+    async lastSuccessfulFull(workspaceId, platform) {
+      const row = await client.marketingSyncRun.findFirst({
+        where: { workspaceId, platform, status: "succeeded", kind: "full", finishedAt: { not: null } },
+        orderBy: { finishedAt: "desc" },
+        select: { finishedAt: true },
+      });
+      return row?.finishedAt ? { finishedAt: row.finishedAt } : null;
+    },
+    async findAdContext(workspaceId, platform, externalId) {
+      const ad = await client.ad.findUnique({
+        where: { workspaceId_platform_externalId: { workspaceId, platform, externalId } },
+        select: { id: true, adGroupId: true, adGroup: { select: { campaignId: true } } },
+      });
+      if (!ad) return null;
+      return { id: ad.id, adGroupId: ad.adGroupId, campaignId: ad.adGroup.campaignId };
+    },
+    async upsertHourly(input) {
+      const date = day(input.date);
+      if (!date) return;
+      await client.adHourlyMetric.upsert({
+        where: { adId_date_hour: { adId: input.adId, date, hour: input.hour } },
+        create: {
+          workspaceId: input.workspaceId,
+          adId: input.adId,
+          date,
+          hour: input.hour,
+          impressions: BigInt(input.impressions),
+          clicks: BigInt(input.clicks),
+          conversions: input.conversions,
+        },
+        update: {
+          impressions: BigInt(input.impressions),
+          clicks: BigInt(input.clicks),
+          conversions: input.conversions,
+        },
       });
     },
   };

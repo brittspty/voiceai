@@ -51,7 +51,7 @@ export function AppShell({
         {!collapsed && <div className="text-sm font-semibold">{mode.wordmark}</div>}
       </div>
       <nav className="flex flex-col gap-0.5 px-2">
-        {NAV.map((item) => {
+        {(user.role === "client_viewer" ? [{ href: "/marketing/client", label: "Performance", icon: BarChart3 }] : NAV).map((item) => {
           const Icon = item.icon;
           const active = itemActive(item.href);
           return (
@@ -59,7 +59,7 @@ export function AppShell({
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
-              className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm", active ? "bg-hover font-medium text-ink" : "text-zinc-600 hover:bg-hover dark:text-zinc-300")}
+              className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm", active ? "bg-hover font-medium text-ink" : "text-muted hover:bg-hover")}
             >
               <Icon className="h-4 w-4" />
               {!collapsed && item.label}
@@ -68,10 +68,10 @@ export function AppShell({
         })}
       </nav>
       <div className="mt-auto px-2 pb-4">
-        <Link href="/docs" className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-zinc-600 hover:bg-hover dark:text-zinc-300", pathname === "/docs" && "bg-hover text-ink")}>
+        {user.role !== "client_viewer" && <Link href="/docs" className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted hover:bg-hover", pathname === "/docs" && "bg-hover text-ink")}>
           <FileText className="h-4 w-4" />
           {!collapsed && "Help"}
-        </Link>
+        </Link>}
       </div>
     </div>
   );
@@ -81,7 +81,7 @@ export function AppShell({
       <aside className={cn("sticky top-0 hidden h-screen shrink-0 border-r border-line bg-sidebar md:block", collapsed ? "w-[72px]" : "w-[220px]")}>{nav}</aside>
       {open && (
         <div className="fixed inset-0 z-40 md:hidden">
-          <button className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} aria-label="Close menu" />
+          <button className="absolute inset-0 bg-overlay" onClick={() => setOpen(false)} aria-label="Close menu" />
           <aside className="relative h-full w-[240px] bg-sidebar">{nav}</aside>
         </div>
       )}
@@ -120,9 +120,11 @@ export function AppShell({
                     <div className="text-xs text-muted">{user.email}</div>
                     <div className="mt-1 text-xs capitalize text-muted">{user.role}</div>
                   </div>
-                  <Dropdown.Item asChild>
-                    <Link href="/settings/users" className="block rounded-md px-2 py-1.5 text-sm outline-none hover:bg-hover">Two-step sign-in</Link>
-                  </Dropdown.Item>
+                  {user.role !== "client_viewer" && (
+                    <Dropdown.Item asChild>
+                      <Link href="/settings/users" className="block rounded-md px-2 py-1.5 text-sm outline-none hover:bg-hover">Two-step sign-in</Link>
+                    </Dropdown.Item>
+                  )}
                   <form action="/api/auth/logout" method="post">
                     <button className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-hover">Sign out</button>
                   </form>

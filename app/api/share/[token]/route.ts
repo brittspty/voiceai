@@ -1,0 +1,34 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { clientViewerCsv } from "@/lib/marketing/client-view";
+import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
+import { requestClientMeta } from "@/lib/marketing/request-meta";
+import { hashShareToken, shareLinkState } from "@/lib/marketing/share-link";
+
+async function openLink(token: string) {
+  const link = await prisma.clientShareLink.findUnique({ where: { tokenHash: hashShareToken(token) } });
+  const state = shareLinkState(link, new Date());
+  return { link, state };
+}
+
+export async function GET(request: Request, context: { params: Promise<{ token: string }> }) {
+  const { token } = await context.params;
+  const { link, state } = await openLink(token);
+  if (state === "disabled") return NextResponse.json({ error: "Client links are turned off" }, { status: 404 });
+  if (state !== "ok" || !link) return NextResponse.json({ error: "Link not found" }, { status: 404 });
+  const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
+  const payload = await loadClientPerformance(org?.name || "Performance");
+  const meta = requestClientMeta(request.headers);
+  const url = new URL(request.url);
+  const isExport = url.pathname.endsWith("/export");
+  await recordClientView({
+    workspaceId: link.workspaceId,
+    shareLinkId: link.id,
+    page: isExport ? "/api/share/export" : "/api/share",
+    ...meta,
+  });
+  if (isExport) {
+    return new NextResponse(clientViewerCsv(payload), { headers: { "Content-Type": "text/csv; charset=utf-8" } });
+  }
+  return NextResponse.json(payload);
+}

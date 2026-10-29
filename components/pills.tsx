@@ -3,10 +3,10 @@ import { maskPhone } from "@/lib/phone";
 import { formatDuration, formatMoney, outcomeLabel, outcomeTone, statusLabel, statusTone } from "@/lib/format";
 
 const tones = {
-  green: "bg-[#e7f6ee] text-[#187a42]",
-  amber: "bg-[#f8f1df] text-[#9a6708]",
-  red: "bg-[#fdecec] text-[#d14343]",
-  blue: "bg-[#e8f1ff] text-[#1d4ed8]",
+  green: "bg-success-soft text-success",
+  amber: "bg-warning-soft text-warning",
+  red: "bg-danger-soft text-danger",
+  blue: "bg-info-soft text-info",
   gray: "bg-chip text-muted",
 };
 

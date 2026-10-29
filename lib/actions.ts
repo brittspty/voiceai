@@ -384,6 +384,9 @@ function hashInviteToken(token: string) {
 export async function inviteTeammate(input: { name: string; email: string; role: Role }) {
   const user = await requireUser();
   assertOwner(user.role);
+  if (input.role !== "owner" && input.role !== "admin" && input.role !== "viewer") {
+    throw new Error("That role is assigned separately.");
+  }
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
   if (!name) throw new Error("Enter a name.");

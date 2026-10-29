@@ -51,6 +51,8 @@ export type MetaPullInput = {
   sleep?: Sleep;
   log?: MetaProgressLog;
   deadline?: number;
+  /** Intraday runs load ad insights only. Structure edges are left to the daily pull. */
+  insightsOnly?: boolean;
 };
 
 export function inclusiveDays(since: string, until: string) {
@@ -231,6 +233,25 @@ export async function pullMetaAccount(input: MetaPullInput & { accountId: string
   const warnings: string[] = [];
   const account = await graphGet({ ...common, path: accountId, params: { fields: ACCOUNT_FIELDS } });
   const insights = await pullAdInsights({ ...scoped, accountId });
+  let hourlyInsights: unknown[] = [];
+  if (input.insightsOnly) {
+    try {
+      hourlyInsights = await graphList({
+        ...common,
+        path: `${accountId}/insights`,
+        params: {
+          ...insightParams(input),
+          breakdowns: "hourly_stats_aggregated_by_advertiser_time_zone",
+        },
+      });
+    } catch (error) {
+      if (isMetaBudgetStop(error)) {
+        return { account, campaigns: [], adsets: [], ads: [], audiences: [], insights, hourlyInsights, warnings, stopped: clipError(error) };
+      }
+      warnings.push(`${accountId} hourly insights skipped: ${clipError(error)}`);
+    }
+    return { account, campaigns: [], adsets: [], ads: [], audiences: [], insights, hourlyInsights, warnings, stopped: "" };
+  }
   const delivered = insightEntityIds(insights);
 
   let campaigns: unknown[] = [];
@@ -359,7 +380,7 @@ export async function pullMetaAccount(input: MetaPullInput & { accountId: string
       else warnings.push(`${accountId} audiences skipped: ${clipError(error)}`);
     }
   }
-  return { account, campaigns, adsets, ads, audiences, insights, warnings, stopped };
+  return { account, campaigns, adsets, ads, audiences, insights, hourlyInsights: [], warnings, stopped };
 }
 
 export async function pullMetaSnapshot(input: MetaPullInput) {
@@ -370,7 +391,7 @@ export async function pullMetaSnapshot(input: MetaPullInput) {
   for (const accountId of input.accountIds) {
     try {
       const bundle = await pullMetaAccount({ ...input, accountId, deadline });
-      parts.push(normalizeMetaBundle(bundle, { attributionWindow: label, platform: "meta" satisfies AdPlatform }));
+      parts.push(normalizeMetaBundle(bundle, { attributionWindow: label, platform: "meta" satisfies AdPlatform, orphanInsights: input.insightsOnly }));
       if (bundle.stopped) failures.push(`${accountId}: ${bundle.stopped}`);
     } catch (error) {
       failures.push(`${accountId}: ${redactSecrets(error instanceof Error ? error.message : "request failed").slice(0, 240)}`);
