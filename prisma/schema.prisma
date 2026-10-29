@@ -575,6 +575,7 @@ model Campaign {
 
   @@unique([workspaceId, platform, externalId])
   @@index([adAccountId])
+  @@index([budgetSetById])
 }
 
 model AdGroup {
