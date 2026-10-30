@@ -5,13 +5,15 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { GoogleAdsConnection } from "../../components/google-ads-connection";
 import { accessFromUser } from "./access";
-import { decideGoogleAdsSync } from "./config";
+import { GOOGLE_ADS_API_VERSION, decideGoogleAdsSync, googleAdsApiVersion, googleAdsEnv } from "./config";
 import { mockGoogleAdsBundle } from "./connectors/google-fixtures";
 import {
   GOOGLE_ADS_MUTATE_PATHS,
   GOOGLE_ADS_TOKEN_URL,
   GoogleAdsWriteBlockedError,
+  assertGoogleAdsAllowed,
   classifyGoogleAdsRequest,
+  googleAdsGuard,
   googleAdsRequest,
   googleAdsSearch,
   googleAdsServiceUrl,
@@ -60,6 +62,67 @@ test("search and searchStream are the only allowed Google Ads calls", () => {
   assert.equal(classifyGoogleAdsRequest("POST", GOOGLE_ADS_TOKEN_URL), "blocked");
   assert.throws(() => googleAdsServiceUrl("v21", "../mutate", "search"), GoogleAdsWriteBlockedError);
   assert.throws(() => googleAdsServiceUrl("not-a-version", CUSTOMER, "search"), GoogleAdsWriteBlockedError);
+});
+
+test("googleAdsGuard keeps read, page-status, and upload on separate allowlists", async () => {
+  const version = GOOGLE_ADS_API_VERSION;
+  const read = `https://googleads.googleapis.com/${version}/customers/${CUSTOMER}/googleAds:search`;
+  const status = `https://googleads.googleapis.com/${version}/customers/${CUSTOMER}/adGroupAds:mutate`;
+  const upload = `https://googleads.googleapis.com/${version}/customers/${CUSTOMER}:uploadClickConversions`;
+  const budget = `https://googleads.googleapis.com/${version}/customers/${CUSTOMER}/campaignBudgets:mutate`;
+  const otherUpload = `https://googleads.googleapis.com/${version}/customers/${CUSTOMER}:uploadCallConversions`;
+
+  assert.equal(googleAdsGuard("read", "POST", read), true);
+  assert.equal(googleAdsGuard("read", "POST", status), false);
+  assert.equal(googleAdsGuard("read", "POST", upload), false);
+  assert.equal(googleAdsGuard("page-status", "POST", status), true);
+  assert.equal(googleAdsGuard("page-status", "POST", read), false);
+  assert.equal(googleAdsGuard("page-status", "POST", budget), false);
+  assert.equal(googleAdsGuard("page-status", "POST", upload), false);
+  assert.equal(googleAdsGuard("upload", "POST", upload), true);
+  assert.equal(googleAdsGuard("upload", "POST", otherUpload), false);
+  assert.equal(googleAdsGuard("upload", "POST", status), false);
+  assert.equal(googleAdsGuard("upload", "POST", read), false);
+
+  let calls = 0;
+  const fetchImpl: FetchLike = async () => {
+    calls += 1;
+    throw new Error("fetch should not run");
+  };
+  await assert.rejects(() => googleAdsRequest({ method: "POST", url: status, fetchImpl }), GoogleAdsWriteBlockedError);
+  await assert.rejects(() => googleAdsRequest({ method: "POST", url: upload, fetchImpl }), GoogleAdsWriteBlockedError);
+  assert.equal(calls, 0);
+  assertGoogleAdsAllowed("page-status", "POST", status);
+  assertGoogleAdsAllowed("upload", "POST", upload);
+  assert.throws(() => assertGoogleAdsAllowed("read", "POST", status), GoogleAdsWriteBlockedError);
+});
+
+test("the Google Ads env helper is the version and customer-id source of truth", () => {
+  assert.equal(GOOGLE_ADS_API_VERSION, "v26");
+  assert.equal(googleAdsApiVersion({}), "v26");
+  assert.equal(googleAdsApiVersion({ GOOGLE_ADS_API_VERSION: "v18" }), "v26");
+  assert.equal(googleAdsApiVersion({ GOOGLE_ADS_API_VERSION: "v21" }), "v26");
+  assert.equal(googleAdsApiVersion({ GOOGLE_ADS_API_VERSION: "v22" }), "v26");
+  assert.equal(googleAdsApiVersion({ GOOGLE_ADS_API_VERSION: "v23" }), "v23");
+  assert.equal(googleAdsApiVersion({ GOOGLE_ADS_API_VERSION: "nope" }), "v26");
+
+  const settings = googleAdsEnv({
+    GOOGLE_ADS_CUSTOMER_ID: "1111111111",
+    GOOGLE_ADS_CUSTOMER_IDS: "2222222222, 333-333-3333, 2222222222, short",
+    GOOGLE_ADS_API_VERSION: "v18",
+    GOOGLE_ADS_LOGIN_CUSTOMER_ID: "444-444-4444",
+  });
+  assert.deepEqual(settings.customerIds, ["2222222222", "3333333333"]);
+  assert.equal(settings.loginCustomerId, "4444444444");
+  assert.equal(settings.apiVersion, "v26");
+  assert.equal(JSON.stringify(settings).includes("1111111111"), false);
+
+  const live = decideGoogleAdsSync(liveEnv({ GOOGLE_ADS_CUSTOMER_IDS: "5555555555", GOOGLE_ADS_CUSTOMER_ID: "6666666666" }));
+  assert.equal(live.action, "live");
+  if (live.action === "live") {
+    assert.deepEqual(live.customerIds, ["5555555555"]);
+    assert.equal(live.apiVersion, "v26");
+  }
 });
 
 test("every mutate endpoint is rejected before fetch", async () => {

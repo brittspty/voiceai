@@ -202,9 +202,49 @@ export function parseCustomerIds(raw: string | undefined) {
   return ids;
 }
 
+/**
+ * REST major version. The path is `/v26`; minor releases such as v26.1 are served there.
+ * v18–v22 are sunset (v21 on 2026-08-05, v22 on 2026-10-07). A sunset or invalid value
+ * falls back to this constant so every caller shares one default.
+ */
+export const GOOGLE_ADS_API_VERSION = "v26";
+
+const SUNSET_GOOGLE_ADS_VERSIONS = new Set(["v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22"]);
+
 export function googleAdsApiVersion(env: Env) {
-  const raw = (env.GOOGLE_ADS_API_VERSION || "v21").trim();
-  return /^v\d+$/.test(raw) ? raw : "v21";
+  const raw = (env.GOOGLE_ADS_API_VERSION || "").trim();
+  if (/^v\d+$/.test(raw) && !SUNSET_GOOGLE_ADS_VERSIONS.has(raw)) return raw;
+  return GOOGLE_ADS_API_VERSION;
+}
+
+export type GoogleAdsEnv = {
+  enabled: boolean;
+  developerToken: string;
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+  loginCustomerId: string;
+  /** From GOOGLE_ADS_CUSTOMER_IDS only. GOOGLE_ADS_CUSTOMER_ID is not read. */
+  customerIds: string[];
+  apiVersion: string;
+};
+
+/**
+ * One parser for Google Ads env. One deployment is one client, so
+ * GOOGLE_ADS_CUSTOMER_IDS is that client's account allow-list. A later
+ * multi-client database should store the customer id on the client row.
+ */
+export function googleAdsEnv(env: Env = process.env): GoogleAdsEnv {
+  return {
+    enabled: googleAdsEnabled(env),
+    developerToken: (env.GOOGLE_ADS_DEVELOPER_TOKEN || "").trim(),
+    clientId: (env.GOOGLE_ADS_CLIENT_ID || "").trim(),
+    clientSecret: (env.GOOGLE_ADS_CLIENT_SECRET || "").trim(),
+    refreshToken: (env.GOOGLE_ADS_REFRESH_TOKEN || "").trim(),
+    loginCustomerId: normalizeCustomerId(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || ""),
+    customerIds: parseCustomerIds(env.GOOGLE_ADS_CUSTOMER_IDS),
+    apiVersion: googleAdsApiVersion(env),
+  };
 }
 
 export type GoogleAdsDecision =
@@ -233,19 +273,19 @@ export function decideGoogleAdsSync(env: Env): GoogleAdsDecision {
   if (mode !== "auto" && mode !== "live") {
     return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
   }
+  const settings = googleAdsEnv(env);
   const missing = GOOGLE_ADS_REQUIRED.filter((name) => !(env[name] || "").trim());
   if (missing.length) return { action: "skip", reason: `missing ${missing.join(", ")}` };
-  const loginCustomerId = normalizeCustomerId(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || "");
-  if (!loginCustomerId) return { action: "skip", reason: "GOOGLE_ADS_LOGIN_CUSTOMER_ID is not a 10-digit customer id" };
+  if (!settings.loginCustomerId) return { action: "skip", reason: "GOOGLE_ADS_LOGIN_CUSTOMER_ID is not a 10-digit customer id" };
   return {
     action: "live",
-    developerToken: env.GOOGLE_ADS_DEVELOPER_TOKEN!.trim(),
-    clientId: env.GOOGLE_ADS_CLIENT_ID!.trim(),
-    clientSecret: env.GOOGLE_ADS_CLIENT_SECRET!.trim(),
-    refreshToken: env.GOOGLE_ADS_REFRESH_TOKEN!.trim(),
-    loginCustomerId,
-    customerIds: parseCustomerIds(env.GOOGLE_ADS_CUSTOMER_IDS),
-    apiVersion: googleAdsApiVersion(env),
+    developerToken: settings.developerToken,
+    clientId: settings.clientId,
+    clientSecret: settings.clientSecret,
+    refreshToken: settings.refreshToken,
+    loginCustomerId: settings.loginCustomerId,
+    customerIds: settings.customerIds,
+    apiVersion: settings.apiVersion,
   };
 }
 

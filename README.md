@@ -134,7 +134,9 @@ Set the same variables on the app and the worker, then restart the worker. `npm 
 
 The connector is off unless `MARKETING_GOOGLE_ADS` is `on`. With the switch on and credentials missing, the sync skips and does not raise. `MARKETING_SYNC_MODE=mock` loads labeled fixtures and does not call Google, so the marketing screen can be reviewed before a developer token exists.
 
-Google's OAuth scope (`https://www.googleapis.com/auth/adwords`) can read and write. This app does not use that write power. The HTTP client allows only `GoogleAdsService` `search` and `searchStream`. Every mutate method, including campaign budgets, ads, criteria, and conversion uploads, is rejected before `fetch` runs.
+Google's OAuth scope (`https://www.googleapis.com/auth/adwords`) can read and write. This connector does not use that write power. `googleAdsRequest` allows only `GoogleAdsService` `search` and `searchStream`. `googleAdsGuard(kind)` in `lib/marketing/connectors/google-ads-client.ts` is the shared allowlist: `read` (this connector), `page-status` (`adGroupAds:mutate` only), and `upload` (`uploadClickConversions` only). A URL on one list is still blocked on the others. Read calls reject every mutate and upload before `fetch`.
+
+`googleAdsEnv()` in `lib/marketing/config.ts` is the only parser. The customer-id variable is `GOOGLE_ADS_CUSTOMER_IDS` (plural). `GOOGLE_ADS_CUSTOMER_ID` is not read. This deployment is one database per client, so the list is that client's accounts. A later multi-client database should store the customer id on the client row, not in a second env var. The API version is `v26` (`GOOGLE_ADS_API_VERSION`). v18 through v22 are sunset and fall back to `v26`.
 
 | Variable | Use |
 | --- | --- |
@@ -144,8 +146,8 @@ Google's OAuth scope (`https://www.googleapis.com/auth/adwords`) can read and wr
 | `GOOGLE_ADS_CLIENT_SECRET` | OAuth client secret. Never written to the database |
 | `GOOGLE_ADS_REFRESH_TOKEN` | Refresh token for the Google account that can see the manager account. Stored only as the pointer `env:GOOGLE_ADS_REFRESH_TOKEN` |
 | `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | 10-digit manager (MCC) id, with or without dashes. Sent as `login-customer-id` |
-| `GOOGLE_ADS_CUSTOMER_IDS` | Optional comma-separated client account ids. When empty, the sync lists non-manager accounts under the login customer id |
-| `GOOGLE_ADS_API_VERSION` | Default `v21` |
+| `GOOGLE_ADS_CUSTOMER_IDS` | Optional comma-separated 10-digit account ids for this deployment. Not `GOOGLE_ADS_CUSTOMER_ID`. When empty, the sync lists non-manager accounts under the login customer id |
+| `GOOGLE_ADS_API_VERSION` | Default `v26`. Sunset majors v18–v22 are ignored and replaced with `v26` |
 
 ```bash
 MARKETING_GOOGLE_ADS=on MARKETING_SYNC_MODE=mock npm run google-ads:sync

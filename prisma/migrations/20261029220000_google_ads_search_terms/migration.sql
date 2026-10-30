@@ -1,4 +1,5 @@
 -- Google Ads search terms. Additive. Existing marketing rows are unchanged.
+-- Timestamp 20261029220000 is unique to this migration. Do not reuse it.
 CREATE TABLE "SearchTermMetric" (
     "id" TEXT NOT NULL,
     "workspaceId" TEXT NOT NULL DEFAULT 'org',

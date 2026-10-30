@@ -1,10 +1,13 @@
 /**
  * Google Ads HTTP client.
  *
- * The adwords OAuth scope can read and write. This file is the least-privilege
- * boundary: the only Google Ads API calls that can leave the process are
- * GoogleAdsService search and searchStream. Every mutate method is rejected
- * before fetch runs.
+ * The adwords OAuth scope can read and write. `googleAdsGuard(kind)` is the
+ * shared allowlist other features must call before fetch:
+ * - `read` — GoogleAdsService search and searchStream (this connector)
+ * - `page-status` — `adGroupAds:mutate` only (landing-page pause/resume)
+ * - `upload` — `customers/{id}:uploadClickConversions` only (offline conversions)
+ *
+ * `googleAdsRequest` always uses `read`. It cannot send a mutate or an upload.
  */
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -12,9 +15,18 @@ export type Sleep = (ms: number) => Promise<void>;
 
 export const GOOGLE_ADS_HOST = "googleads.googleapis.com";
 export const GOOGLE_ADS_TOKEN_URL = "https://oauth2.googleapis.com/token";
-const READ_ONLY_PATH = /^\/v\d+\/customers\/\d{10}\/googleAds:(search|searchStream)$/;
 const MAX_ATTEMPTS = 3;
 const MAX_SEARCH_PAGES = 100;
+
+export const GOOGLE_ADS_GUARD_KINDS = ["read", "page-status", "upload"] as const;
+export type GoogleAdsGuardKind = (typeof GOOGLE_ADS_GUARD_KINDS)[number];
+
+/** One path pattern per kind. Read does not include mutate or upload. */
+const GUARD_PATHS: Record<GoogleAdsGuardKind, RegExp> = {
+  read: /^\/v\d+\/customers\/\d{10}\/googleAds:(search|searchStream)$/,
+  "page-status": /^\/v\d+\/customers\/\d{10}\/adGroupAds:mutate$/,
+  upload: /^\/v\d+\/customers\/\d{10}:uploadClickConversions$/,
+};
 
 /**
  * Known write methods. The allowlist above is what blocks them. This list is
@@ -65,9 +77,18 @@ export const GOOGLE_ADS_MUTATE_PATHS = [
 const WRITE_MARKER = /mutate|upload|offlineUserData|:apply|batchJob/i;
 
 export class GoogleAdsWriteBlockedError extends Error {
-  constructor(method: string, rawUrl: string) {
-    super(`Blocked Google Ads ${method} ${safeGoogleAdsPath(rawUrl)}. Only GoogleAdsService search and searchStream are allowed.`);
+  kind: GoogleAdsGuardKind;
+
+  constructor(method: string, rawUrl: string, kind: GoogleAdsGuardKind = "read") {
+    const allowed =
+      kind === "read"
+        ? "Only GoogleAdsService search and searchStream are allowed."
+        : kind === "page-status"
+          ? "Only adGroupAds:mutate is allowed for page-status."
+          : "Only uploadClickConversions is allowed for upload.";
+    super(`Blocked Google Ads ${method} ${safeGoogleAdsPath(rawUrl)}. ${allowed}`);
     this.name = "GoogleAdsWriteBlockedError";
+    this.kind = kind;
   }
 }
 
@@ -105,29 +126,47 @@ export function safeGoogleAdsPath(rawUrl: string) {
 
 export type GoogleAdsReadMethod = "search" | "searchStream";
 
-/** Allow POST search and searchStream on googleads.googleapis.com. Everything else is blocked. */
-export function classifyGoogleAdsRequest(method: string, rawUrl: string): GoogleAdsReadMethod | "blocked" {
+function googleAdsEndpoint(method: string, rawUrl: string): URL | null {
   let url: URL;
   try {
     url = new URL(rawUrl);
   } catch {
-    return "blocked";
+    return null;
   }
-  if (method.toUpperCase() !== "POST") return "blocked";
-  if (url.protocol !== "https:") return "blocked";
-  if (url.username || url.password || url.port) return "blocked";
-  if (url.hostname !== GOOGLE_ADS_HOST) return "blocked";
-  if (url.search || url.hash) return "blocked";
-  if (rawUrl.includes("..") || rawUrl.includes("\\")) return "blocked";
-  if (WRITE_MARKER.test(rawUrl)) return "blocked";
-  const match = url.pathname.match(READ_ONLY_PATH);
-  if (!match) return "blocked";
-  return match[1] === "searchStream" ? "searchStream" : "search";
+  if (method.toUpperCase() !== "POST") return null;
+  if (url.protocol !== "https:") return null;
+  if (url.username || url.password || url.port) return null;
+  if (url.hostname !== GOOGLE_ADS_HOST) return null;
+  if (url.search || url.hash) return null;
+  if (rawUrl.includes("..") || rawUrl.includes("\\")) return null;
+  return url;
+}
+
+/**
+ * Named allowlist. `read` is what this connector executes. `page-status` and
+ * `upload` exist so later features can refuse every other Google URL before fetch.
+ * A URL allowed for one kind is still blocked for the others.
+ */
+export function googleAdsGuard(kind: GoogleAdsGuardKind, method: string, rawUrl: string) {
+  const url = googleAdsEndpoint(method, rawUrl);
+  if (!url) return false;
+  if (kind === "read" && WRITE_MARKER.test(rawUrl)) return false;
+  return GUARD_PATHS[kind].test(url.pathname);
+}
+
+export function assertGoogleAdsAllowed(kind: GoogleAdsGuardKind, method: string, rawUrl: string) {
+  if (!googleAdsGuard(kind, method, rawUrl)) throw new GoogleAdsWriteBlockedError(method, rawUrl, kind);
+}
+
+/** Allow POST search and searchStream on googleads.googleapis.com. Everything else is blocked. */
+export function classifyGoogleAdsRequest(method: string, rawUrl: string): GoogleAdsReadMethod | "blocked" {
+  if (!googleAdsGuard("read", method, rawUrl)) return "blocked";
+  return rawUrl.includes("googleAds:searchStream") ? "searchStream" : "search";
 }
 
 export function assertGoogleAdsReadOnly(method: string, rawUrl: string): GoogleAdsReadMethod {
   const kind = classifyGoogleAdsRequest(method, rawUrl);
-  if (kind === "blocked") throw new GoogleAdsWriteBlockedError(method, rawUrl);
+  if (kind === "blocked") throw new GoogleAdsWriteBlockedError(method, rawUrl, "read");
   return kind;
 }
 
@@ -169,9 +208,9 @@ function errorMessage(body: unknown, status: number, secrets: string[]) {
   return redactGoogleSecrets(`${prefix}: ${message}`.slice(0, 400), secrets);
 }
 
-/** Performs one allowlisted Google Ads call. Mutate URLs throw and do not call fetch. */
+/** Performs one read call. Page-status and upload URLs throw and do not call fetch. */
 export async function googleAdsRequest(input: GoogleAdsCall) {
-  assertGoogleAdsReadOnly(input.method, input.url);
+  assertGoogleAdsAllowed("read", input.method, input.url);
   const fetchImpl = input.fetchImpl ?? fetch;
   const sleep = input.sleep ?? defaultSleep;
   const secrets = input.secrets ?? [];
