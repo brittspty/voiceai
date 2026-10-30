@@ -213,7 +213,7 @@ export function MarketingView(props: {
   alerts?: AlertRow[];
   recommendations?: RecommendationRow[];
   digests?: DigestRow[];
-  flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean };
+  flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean; searchWaste?: boolean; competitorWatch?: boolean; holdouts?: boolean };
   speedToLead?: SpeedDashboardView | { error: true } | null;
   leadQuality?: { qualified: number; total: number; rateLabel: string; trend: string; costPerQualifiedLead?: string } | null;
 }) {
@@ -244,6 +244,13 @@ export function MarketingView(props: {
           ) : undefined
         }
       />
+      {props.flags?.searchWaste || props.flags?.competitorWatch || props.flags?.holdouts ? (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {props.flags.searchWaste ? <a className="inline-flex min-h-11 items-center rounded-lg border border-line px-3 text-sm font-semibold text-brand-ink" href="/marketing/search-waste">Negative keywords</a> : null}
+          {props.flags.competitorWatch ? <a className="inline-flex min-h-11 items-center rounded-lg border border-line px-3 text-sm font-semibold text-brand-ink" href="/marketing/competitors">Competitor ads</a> : null}
+          {props.flags.holdouts ? <a className="inline-flex min-h-11 items-center rounded-lg border border-line px-3 text-sm font-semibold text-brand-ink" href="/marketing/holdouts">Holdout tests</a> : null}
+        </div>
+      ) : null}
       {props.mock && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card px-4 py-3 text-sm">
           <Pill tone="amber">MOCK</Pill>

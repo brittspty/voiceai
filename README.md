@@ -130,6 +130,10 @@ A live sync needs a Meta system user token and the app that issued it:
 | `LEAD_SCORING_MODEL` | Optional model name. Default `gpt-4o-mini` |
 | `MARKETING_PAGE_MONITOR` | `off` (default). `on` checks landing pages for uptime, speed, forms, and pixels |
 | `MARKETING_PAGE_AUTOPAUSE` | `off` (default). `on` can pause ads for a client who opted in on Sites. Each client needs a saved write credential. Google uses `GOOGLE_ADS_CUSTOMER_IDS` and API v26 |
+| `MARKETING_SEARCH_WASTE` | `off` (default). `on` finds wasted Google search terms on `SearchTermMetric` and exports a negative-keyword CSV. It does not write to an ad account |
+| `MARKETING_COMPETITOR_WATCH` | `off` (default). `on` reads the public Meta Ad Library for up to 5 competitors. It does not read Google's Transparency Center |
+| `MARKETING_HOLDOUTS` | `off` (default). `on` stores a holdout design, assignment, and lift readout. It does not change ads or budgets |
+| `META_AD_LIBRARY_COUNTRIES` | Countries for Ad Library search. Default `US` |
 | `MARKETING_SUPER_ADMIN_EMAILS` | Comma-separated emails treated as super admins. Default placeholders: Jason, Brittany, and Chris |
 | `DATABASE_URL` | Postgres URL the CLI writes to. Required for `npm run meta:sync` unless you pass `--dry-run` |
 

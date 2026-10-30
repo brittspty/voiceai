@@ -133,6 +133,11 @@ model User {
   digests            ManagerDigest[]
   recommendationDecisions Recommendation[] @relation("RecommendationDecision")
   leadScoreOverrides     LeadScore[]       @relation("LeadScoreOverride")
+  negativeDecisions  NegativeProposal[] @relation("NegativeDecision")
+  competitorsCreated Competitor[]       @relation("CompetitorCreatedBy")
+  competitorIdeas    CompetitorIdea[]   @relation("CompetitorIdeaCreatedBy")
+  liftTestsCreated   LiftTest[]         @relation("LiftTestCreatedBy")
+  liftTestsStarted   LiftTest[]         @relation("LiftTestStartedBy")
 }
 
 model Session {
@@ -562,6 +567,8 @@ model AdAccount {
   assignments  MarketingAssignment[]
   alerts       AdAlert[]
   recommendations Recommendation[]
+  negativeProposals NegativeProposal[]
+  liftTests    LiftTest[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([connectionId])
@@ -600,6 +607,8 @@ model Campaign {
   budgetAudits    CampaignBudgetAudit[]
   alerts          AdAlert[]
   recommendations Recommendation[]
+  negativeProposals NegativeProposal[]
+  liftTests       LiftTest[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([adAccountId])
@@ -624,6 +633,7 @@ model AdGroup {
   audiences        AdGroupAudience[]
   metrics          DailyMetric[]
   searchTerms      SearchTermMetric[]
+  negativeProposals NegativeProposal[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([campaignId])
@@ -825,6 +835,8 @@ model SearchTermMetric {
   impressions        BigInt            @default(0)
   clicks             BigInt            @default(0)
   conversions        Decimal           @default(0) @db.Decimal(18, 4)
+  /// Set from an imported report. Null means the Google sync did not measure this separately, so waste detection uses conversions.
+  qualifiedConversions Decimal?        @db.Decimal(18, 4)
   ingestedAt         DateTime          @default(now())
   sourcePullId       String?
   sourcePull         MarketingSyncRun? @relation(fields: [sourcePullId], references: [id], onDelete: SetNull)
@@ -1547,4 +1559,255 @@ model AdPauseAudit {
 
   @@index([landingPageId, createdAt])
   @@index([createdAt])
+}
+
+enum SearchMatchType {
+  exact
+  phrase
+  broad
+}
+
+enum NegativeLevel {
+  campaign
+  ad_group
+  account
+}
+
+enum NegativeProposalStatus {
+  proposed
+  kept
+  exported
+}
+
+enum LiftTestStatus {
+  draft
+  running
+  paused
+  invalidated
+  completed
+  cancelled
+}
+
+enum LiftDesignKind {
+  geo
+  time
+  audience
+}
+
+enum LiftMetric {
+  leads
+  bookings
+  conversions
+}
+
+enum LiftCellRole {
+  treatment
+  holdout
+}
+
+enum LiftPeriod {
+  pre
+  post
+}
+
+enum LiftVerdict {
+  too_early
+  clearly_helping
+  maybe_helping
+  no_clear_effect
+  invalidated
+}
+
+model SearchWasteConfig {
+  workspaceId      String   @id
+  brandTerms       String[] @default([])
+  otherLocations   String[] @default([])
+  updatedAt        DateTime @updatedAt
+}
+
+model NegativeProposal {
+  id           String                 @id @default(cuid())
+  workspaceId  String
+  adAccountId  String
+  adAccount    AdAccount              @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  campaignId   String?
+  campaign     Campaign?              @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  adGroupId    String?
+  adGroup      AdGroup?               @relation(fields: [adGroupId], references: [id], onDelete: SetNull)
+  scopeKey     String                 @default("")
+  campaignName String                 @default("")
+  adGroupName  String                 @default("")
+  term         String
+  matchType    SearchMatchType
+  level        NegativeLevel
+  wasteSpend   Decimal                @default(0) @db.Decimal(18, 4)
+  currency     String                 @default("USD")
+  clicks       Int                    @default(0)
+  impressions  Int                    @default(0)
+  reason       String
+  confidence   String
+  status       NegativeProposalStatus @default(proposed)
+  safetyNote   String                 @default("")
+  windowStart  DateTime               @db.Date
+  windowEnd    DateTime               @db.Date
+  decidedById  String?
+  decidedBy    User?                  @relation("NegativeDecision", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt    DateTime?
+  exportedAt   DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  @@unique([workspaceId, adAccountId, scopeKey, term, matchType, windowStart], name: "negativeProposalWindow", map: "negative_proposal_window")
+  @@index([workspaceId, status])
+  @@index([adAccountId])
+  @@index([campaignId])
+  @@index([adGroupId])
+  @@index([decidedById])
+}
+
+// Public Meta Ad Library ads only. No spend or performance fields.
+model Competitor {
+  id            String         @id @default(cuid())
+  workspaceId   String
+  name          String
+  pageId        String         @default("")
+  website       String         @default("")
+  searchTerms   String[]       @default([])
+  lastError     String         @default("")
+  lastFetchedAt DateTime?
+  createdById   String?
+  createdBy     User?          @relation("CompetitorCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  ads           CompetitorAd[]
+
+  @@index([workspaceId])
+  @@index([createdById])
+}
+
+model CompetitorAd {
+  id           String           @id @default(cuid())
+  workspaceId  String
+  competitorId String
+  competitor   Competitor       @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  externalId   String
+  source       String           @default("meta_ad_library")
+  pageName     String           @default("")
+  headline     String           @default("")
+  body         String           @default("")
+  snapshotUrl  String           @default("")
+  firstSeen    DateTime
+  lastSeen     DateTime
+  active       Boolean          @default(true)
+  creative     Json
+  fetchedAt    DateTime         @default(now())
+  ideas        CompetitorIdea[]
+
+  @@unique([workspaceId, competitorId, externalId], name: "competitorAdExternal", map: "competitor_ad_external")
+  @@index([workspaceId, competitorId])
+  @@index([competitorId])
+}
+
+model CompetitorIdea {
+  id             String       @id @default(cuid())
+  workspaceId    String
+  competitorAdId String
+  competitorAd   CompetitorAd @relation(fields: [competitorAdId], references: [id], onDelete: Cascade)
+  headline       String
+  body           String
+  status         String       @default("draft")
+  createdById    String?
+  createdBy      User?        @relation("CompetitorIdeaCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([workspaceId])
+  @@index([competitorAdId])
+  @@index([createdById])
+}
+
+// Design, assignment, and readout only. Starting a test does not change an ad account.
+model LiftTest {
+  id                String         @id @default(cuid())
+  workspaceId       String
+  adAccountId       String
+  adAccount         AdAccount      @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  campaignId        String
+  campaign          Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name              String
+  question          String
+  designKind        LiftDesignKind
+  metric            LiftMetric
+  holdoutPercent    Int
+  startDate         DateTime       @db.Date
+  endDate           DateTime       @db.Date
+  preStartDate      DateTime?      @db.Date
+  minSample         Int
+  status            LiftTestStatus @default(draft)
+  invalidatedReason String         @default("")
+  createdById       String?
+  createdBy         User?          @relation("LiftTestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  startedById       String?
+  startedBy         User?          @relation("LiftTestStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
+  startedAt         DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  assignments       LiftAssignment[]
+  observations      LiftObservation[]
+  results           LiftResult[]
+
+  @@index([workspaceId, status])
+  @@index([adAccountId])
+  @@index([campaignId])
+  @@index([createdById])
+  @@index([startedById])
+}
+
+model LiftAssignment {
+  id          String       @id @default(cuid())
+  workspaceId String
+  testId      String
+  test        LiftTest     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  unitKey     String
+  role        LiftCellRole
+
+  @@unique([workspaceId, testId, unitKey], name: "liftAssignmentUnit", map: "lift_assignment_unit")
+  @@index([testId])
+}
+
+model LiftObservation {
+  id          String     @id @default(cuid())
+  workspaceId String
+  testId      String
+  test        LiftTest   @relation(fields: [testId], references: [id], onDelete: Cascade)
+  unitKey     String
+  period      LiftPeriod
+  outcome     Decimal    @default(0) @db.Decimal(18, 4)
+  spend       Decimal    @default(0) @db.Decimal(18, 4)
+  impressions Int        @default(0)
+  recordedAt  DateTime   @default(now())
+
+  @@unique([workspaceId, testId, unitKey, period], name: "liftObservationUnit", map: "lift_observation_unit")
+  @@index([testId])
+}
+
+model LiftResult {
+  id               String      @id @default(cuid())
+  workspaceId      String
+  testId           String
+  test             LiftTest    @relation(fields: [testId], references: [id], onDelete: Cascade)
+  computedAt       DateTime    @default(now())
+  ready            Boolean
+  verdict          LiftVerdict
+  method           String      @default("")
+  extraLeads       Decimal?    @db.Decimal(18, 4)
+  rangeLow         Decimal?    @db.Decimal(18, 4)
+  rangeHigh        Decimal?    @db.Decimal(18, 4)
+  confidence       Decimal?    @db.Decimal(8, 4)
+  extraLeadCost    Decimal?    @db.Decimal(18, 4)
+  sentence         String
+  treatmentOutcome Decimal     @default(0) @db.Decimal(18, 4)
+  holdoutOutcome   Decimal     @default(0) @db.Decimal(18, 4)
+
+  @@index([workspaceId, testId, computedAt])
+  @@index([testId])
 }

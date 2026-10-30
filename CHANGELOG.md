@@ -30,6 +30,15 @@ Plain-language copy, empty states, and Specificity branding on the voice and set
 - Migration `20261029224000_speed_to_lead` only adds tables and a recommendation type. It does not reuse `20261029210000`, `20261029220000`, `20261029223000`, or `20261029230000`. It does not change budgets, ads, or voice test mode.
 - Google Ads settings stay in the connector from main: `googleAdsApiVersion` defaults to v26, customer ids come only from `GOOGLE_ADS_CUSTOMER_IDS`, and requests go through `googleAdsGuard`. This feature does not add a second copy.
 
+### Marketing search waste, competitor watch, and holdouts
+
+Three read-only marketing tools, each behind its own flag. All three default **off**. None of them write to an ad account.
+
+- `MARKETING_SEARCH_WASTE` reads `SearchTermMetric` (the Google Ads search-term table) and downloads a negative-keyword CSV for a person to apply. An imported report is written into that same table. Customer ids come from `GOOGLE_ADS_CUSTOMER_IDS` via `googleAdsEnv`. There is no second search-term table and no second Google Ads client.
+- `MARKETING_COMPETITOR_WATCH` reads the public Meta Ad Library only (up to 5 competitors) and can save a draft creative idea. It does not store spend or results.
+- `MARKETING_HOLDOUTS` stores a test design, a stable holdout assignment, and a lift readout with a 90% range. A super admin starts a test. Cost per extra lead is returned only to super admins and account managers.
+- Migration `20261030170000_marketing_search_competitors_holdouts` sorts after `20261030162000_landing_page_monitor`. Every query for these tables includes `workspaceId`.
+
 ### Marketing operations
 
 - Human campaign budgets (amount, daily or lifetime, currency, who set it, when) with an audit row for each change. Only a signed-in super admin, or an account manager for that campaign, can save one. Sync, the monitor, and worker jobs do not write it. Accepting a budget suggestion records the decision and does not write the budget or call an ad platform.
