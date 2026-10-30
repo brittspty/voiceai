@@ -134,6 +134,8 @@ A live sync needs a Meta system user token and the app that issued it:
 | `MARKETING_COMPETITOR_WATCH` | `off` (default). `on` reads the public Meta Ad Library for up to 5 competitors. It does not read Google's Transparency Center |
 | `MARKETING_HOLDOUTS` | `off` (default). `on` stores a holdout design, assignment, and lift readout. It does not change ads or budgets |
 | `META_AD_LIBRARY_COUNTRIES` | Countries for Ad Library search. Default `US` |
+| `MARKETING_DASHBOARDS_V2` | `off` (default). `on` shows the campaign dashboards (staff overview, drill-down, client view, share links, and onboarding lead value). Spend, budget, and estimated ROAS stay limited to super admins and account managers. The screens only read synced rows |
+| `MARKETING_GOOGLE_ADS` | `off` (default). When on, Google Ads sync runs and the dashboards include `google_ads` rows. Meta rows show either way |
 | `MARKETING_SUPER_ADMIN_EMAILS` | Comma-separated emails treated as super admins. Default placeholders: Jason, Brittany, and Chris |
 | `DATABASE_URL` | Postgres URL the CLI writes to. Required for `npm run meta:sync` unless you pass `--dry-run` |
 

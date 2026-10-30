@@ -7,7 +7,9 @@ import {
   FULL_SYNC_INTERVAL_MS,
   INTRADAY_SYNC_INTERVAL_MS,
   clientLinksEnabled,
+  dashboardsV2Enabled,
   digestDeliveryEnabled,
+  googleAdsEnabled,
   digestEnabled,
   intradaySyncEnabled,
   marketingSyncIntervalMs,
@@ -57,6 +59,8 @@ test("feature flags default off and the sync interval stays at 6 hours", () => {
   assert.equal(digestEnabled({}), false);
   assert.equal(digestDeliveryEnabled({}), false);
   assert.equal(clientLinksEnabled({}), false);
+  assert.equal(dashboardsV2Enabled({}), false);
+  assert.equal(googleAdsEnabled({}), false);
   assert.equal(marketingSyncIntervalMs({}), FULL_SYNC_INTERVAL_MS);
   assert.equal(marketingSyncIntervalMs({ MARKETING_INTRADAY_SYNC: "on" }), INTRADAY_SYNC_INTERVAL_MS);
   assert.equal(marketingSyncIntervalMs({ MARKETING_INTRADAY_SYNC: "on", MARKETING_SYNC_INTERVAL_MS: "120000" }), 120000);
@@ -280,6 +284,7 @@ test("client responses and exports have no cost fields", () => {
     expires: "expires 2026-11-28",
   });
   assert.deepEqual(forbiddenClientKeys(response), []);
+  assert.equal(forbiddenClientKeys({ leadValueCents: 8500, callValueCents: 14000, externalId: "act_1" }).length >= 3, true);
   assert.equal(clientShareHasMoney(response), false);
   assert.equal(JSON.stringify(response).includes("\"spend\""), false);
   const csv = clientShareCsv(response);

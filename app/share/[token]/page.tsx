@@ -1,8 +1,12 @@
 import { cookies, headers } from "next/headers";
 import { ClientPerformance } from "@/components/client-performance";
+import { MarketingDashboard } from "@/components/marketing-dashboard";
 import { BrandFooter, BrandLockup } from "@/components/brand-lockup";
 import { prisma } from "@/lib/db";
 import { clientShareCsv } from "@/lib/marketing/client-view";
+import { dashboardsV2Enabled } from "@/lib/marketing/config";
+import { parseDashQuery } from "@/lib/marketing/dashboard-model";
+import { loadClientDashboard } from "@/lib/marketing/dashboard-query";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
 import { hashShareToken, passcodePrompt, SHARE_PASS_COOKIE, shareAccessDecision, shareLinkState } from "@/lib/marketing/share-link";
@@ -21,9 +25,10 @@ function Frame({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default async function SharePage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ export?: string; range?: string; code?: string }> }) {
+export default async function SharePage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { token } = await params;
   const query = await searchParams;
+  const code = typeof query.code === "string" ? query.code : undefined;
   let link: Awaited<ReturnType<typeof prisma.clientShareLink.findUnique>> & { createdBy?: { name: string } } | null = null;
   let agentName = "";
   try {
@@ -54,7 +59,7 @@ export default async function SharePage({ params, searchParams }: { params: Prom
     return (
       <Frame>
         <form className="mx-auto max-w-sm space-y-3 px-4 py-8" method="post" action={`/api/share/${token}/passcode`}>
-          <p>{passcodePrompt(query.code)}</p>
+          <p>{passcodePrompt(code)}</p>
           <input name="code" inputMode="numeric" autoComplete="one-time-code" className="h-11 w-full rounded-lg border border-line px-3" aria-label="Passcode" />
           <button className="min-h-11 rounded-lg bg-brand px-4 font-semibold text-on-brand">Continue</button>
         </form>
@@ -63,28 +68,45 @@ export default async function SharePage({ params, searchParams }: { params: Prom
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
   const expires = link.expiresAt ? `expires ${link.expiresAt.toISOString().slice(0, 10)}` : "";
-  const payload = await loadClientPerformance(org?.name || "Performance", {
-    workspaceId: link.workspaceId,
-    adAccountIds: "all",
-    sharedBy: manager,
-    expires,
-    range: query.range,
-  });
+  const range = typeof query.range === "string" ? query.range : undefined;
+  const exporting = query.export === "csv";
   const meta = requestClientMeta(await headers());
-  await recordClientView({ workspaceId: link.workspaceId, shareLinkId: link.id, page: query.export ? "/share/export" : "/share", ...meta });
-  if (query.export === "csv") {
+  await recordClientView({ workspaceId: link.workspaceId, shareLinkId: link.id, page: exporting ? "/share/export" : "/share", ...meta });
+  if (exporting) {
+    const payload = await loadClientPerformance(org?.name || "Performance", {
+      sharedBy: manager,
+      expires,
+      range,
+      workspaceId: link.workspaceId,
+      adAccountIds: "all",
+    });
     return (
       <Frame>
         <pre className="overflow-auto px-4 py-6 text-xs">{clientShareCsv(payload)}</pre>
       </Frame>
     );
   }
+  if (dashboardsV2Enabled()) {
+    const data = await loadClientDashboard(link.workspaceId, org?.name || "Campaigns");
+    return (
+      <Frame>
+        <MarketingDashboard model={data} query={parseDashQuery(query)} basePath={`/share/${token}`} />
+      </Frame>
+    );
+  }
+  const payload = await loadClientPerformance(org?.name || "Performance", {
+    sharedBy: manager,
+    expires,
+    range,
+    workspaceId: link.workspaceId,
+    adAccountIds: "all",
+  });
   return (
     <Frame>
       <form className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 px-4 pt-4 text-sm" method="get">
         <label>
           Dates{" "}
-          <select name="range" defaultValue={query.range || "7"} className="h-11 rounded-lg border border-line bg-card px-2">
+          <select name="range" defaultValue={range || "7"} className="h-11 rounded-lg border border-line bg-card px-2">
             <option value="7">Last 7 days</option>
             <option value="30">Last 30 days</option>
             <option value="month">This month</option>
