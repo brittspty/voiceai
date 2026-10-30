@@ -33,7 +33,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
 export async function requireUser() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/api/auth/logout");
   return user;
 }
 
