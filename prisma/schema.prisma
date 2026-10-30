@@ -1081,9 +1081,13 @@ enum ConversionDecisionStatus {
 model ConversionClient {
   id            String    @id @default(cuid())
   workspaceId   String    @default("org")
-  name          String
-  ghlLocationId String    @default("")
-  enabledAt     DateTime?
+  name              String
+  ghlLocationId     String    @default("")
+  /// This client's Meta dataset. Empty means Meta uploads are refused.
+  metaDatasetId     String    @default("")
+  /// This client's 10-digit Google Ads customer id. Empty means Google uploads are refused.
+  googleCustomerId  String    @default("")
+  enabledAt         DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   stages        ConversionStageMap[]
