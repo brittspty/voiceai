@@ -124,8 +124,6 @@ A live sync needs a Meta system user token and the app that issued it:
 | `MARKETING_DIGEST_DELIVERY` | `off` (default). Email and SMS are not sent in this version |
 | `MARKETING_CLIENT_LINKS` | `off` (default). `on` lets a super admin or account manager create a client share link |
 | `MARKETING_SPEED_TO_LEAD` | `off` (default). `on` records how many seconds each new lead waits for a person or Avery. Landing posts must be HMAC-signed per workspace. The target starts at 30 seconds. It does not place calls or change ads |
-| `GOOGLE_ADS_API_VERSION` | Default `v26`. Sunset values (`v18`–`v22`) fall back to v26. This build does not call Google |
-| `GOOGLE_ADS_CUSTOMER_IDS` | Comma-separated 10-digit customer ids for this deployment. `GOOGLE_ADS_CUSTOMER_ID` is not read |
 | `MARKETING_SUPER_ADMIN_EMAILS` | Comma-separated emails treated as super admins. Default placeholders: Jason, Brittany, and Chris |
 | `DATABASE_URL` | Postgres URL the CLI writes to. Required for `npm run meta:sync` unless you pass `--dry-run` |
 

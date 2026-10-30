@@ -27,8 +27,8 @@ Plain-language copy, empty states, and Specificity branding on the voice and set
 - The clock starts at the page landing time (a landing event or a hidden form field). If that time is missing, it uses GoHighLevel's submit time (`dateAdded` or `submittedAt`) or the call start and says so, for example "from form submit". If GHL did not send a submit time, the clock uses webhook arrival and the lead is labeled "from webhook arrival".
 - `POST /api/webhooks/landing` requires an HMAC for this workspace (`x-voiceops-signature` over `workspaceId.body`). Unsigned requests are rejected. The flag still defaults to off, and while it is off the route answers 404.
 - Each client has a response target. The default is 30 seconds. A worker sweep flags a lead that is still unanswered at the target, then again at 15 minutes, and resolves the alert when someone or Avery makes contact. The staff marketing page shows the median, the percent answered inside the target, and the slowest leads.
-- Migration `20261029224000_speed_to_lead` only adds tables and a recommendation type. `20261029210000`, `20261029220000`, `20261029223000`, and `20261029230000` are left for the migrations that already use them. It does not change budgets, ads, or voice test mode.
-- Shared Google Ads env parsing defaults the API version to v26 and reads only `GOOGLE_ADS_CUSTOMER_IDS`. This build does not call Google. `MARKETING_GOOGLE_ADS` stays off.
+- Migration `20261029224000_speed_to_lead` only adds tables and a recommendation type. It does not reuse `20261029210000`, `20261029220000`, `20261029223000`, or `20261029230000`. It does not change budgets, ads, or voice test mode.
+- Google Ads settings stay in the connector from main: `googleAdsApiVersion` defaults to v26, customer ids come only from `GOOGLE_ADS_CUSTOMER_IDS`, and requests go through `googleAdsGuard`. This feature does not add a second copy.
 
 ### Marketing operations
 
