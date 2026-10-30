@@ -129,6 +129,22 @@ export function offlineConversionsLiveEnabled(env: Env = process.env) {
   return offlineConversionsEnabled(env) && flagOn(env, "MARKETING_OFFLINE_CONVERSIONS_LIVE");
 }
 
+/** Off unless MARKETING_PAGE_MONITOR is explicitly on. Checks only. */
+export function pageMonitorEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_PAGE_MONITOR");
+}
+
+/** Off unless MARKETING_PAGE_AUTOPAUSE is explicitly on. Also needs that client's opt-in. */
+export function pageAutoPauseEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_PAGE_AUTOPAUSE");
+}
+
+/** A public URL this worker must reach before a page failure can pause ads. */
+export function pageMonitorCanaryUrl(env: Env = process.env) {
+  const raw = (env.PAGE_MONITOR_CANARY_URL || "https://www.gstatic.com/generate_204").trim();
+  return raw;
+}
+
 export function amBudgetCapUsd(env: Env = process.env) {
   const parsed = Number(env.MARKETING_AM_BUDGET_CAP_USD ?? 500);
   if (!Number.isFinite(parsed) || parsed < 0) return 500;

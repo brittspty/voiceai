@@ -128,6 +128,8 @@ A live sync needs a Meta system user token and the app that issued it:
 | `LEAD_SCORING_API_KEY` | Optional. Empty keeps the built-in rules. A key calls an OpenAI-compatible model only when the rules are unsure |
 | `LEAD_SCORING_API_URL` | Optional chat completions URL. Default is OpenAI |
 | `LEAD_SCORING_MODEL` | Optional model name. Default `gpt-4o-mini` |
+| `MARKETING_PAGE_MONITOR` | `off` (default). `on` checks landing pages for uptime, speed, forms, and pixels |
+| `MARKETING_PAGE_AUTOPAUSE` | `off` (default). `on` can pause ads for a client who opted in on Sites. Each client needs a saved write credential. Google uses `GOOGLE_ADS_CUSTOMER_IDS` and API v26 |
 | `MARKETING_SUPER_ADMIN_EMAILS` | Comma-separated emails treated as super admins. Default placeholders: Jason, Brittany, and Chris |
 | `DATABASE_URL` | Postgres URL the CLI writes to. Required for `npm run meta:sync` unless you pass `--dry-run` |
 

@@ -1,7 +1,8 @@
 import { prisma } from "../lib/db";
 import { runJob } from "../lib/dialer";
-import { digestEnabled, monitorEnabled, offlineConversionsEnabled, speedToLeadEnabled } from "../lib/marketing/config";
+import { digestEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, speedToLeadEnabled } from "../lib/marketing/config";
 import { runStoredOfflineCycle } from "../lib/marketing/offline/persist";
+import { runPageMonitor } from "../lib/marketing/pages/store";
 import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
 import { runGoogleAdsSync } from "../lib/marketing/google-sync";
 import { runSpeedToLeadSweep } from "../lib/marketing/speed-to-lead-store";
@@ -100,6 +101,13 @@ function startMarketingSync() {
   };
   void tick();
   const timer = setInterval(() => void tick(), marketingSyncIntervalMs());
+  const pageTimer = setInterval(() => {
+    if (!pageMonitorEnabled()) return;
+    void runPageMonitor().catch((error) => console.error("[worker] page monitor failed", error));
+  }, 30_000);
+  if (pageMonitorEnabled()) {
+    void runPageMonitor().catch((error) => console.error("[worker] page monitor failed", error));
+  }
   const digestTimer = digestEnabled()
     ? setInterval(() => {
         void runStoredDigests().catch((error) => console.error("[worker] marketing digest failed", error));
@@ -107,6 +115,7 @@ function startMarketingSync() {
     : null;
   return () => {
     clearInterval(timer);
+    clearInterval(pageTimer);
     if (digestTimer) clearInterval(digestTimer);
   };
 }
