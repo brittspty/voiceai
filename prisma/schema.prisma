@@ -1371,6 +1371,7 @@ model LeadScore {
 
   @@index([workspaceId, createdAt])
   @@index([overriddenById])
+}
 
 // A marketing client inside this workspace. "org" is the workspace, not a client.
 model MarketingClient {
@@ -1546,3 +1547,4 @@ model AdPauseAudit {
 
   @@index([landingPageId, createdAt])
   @@index([createdAt])
+}
