@@ -30,6 +30,7 @@ export type GhlEvent =
       submittedAt?: string;
       sessionKey?: string;
       leadSource?: string;
+      message: string;
     }
   | {
       kind: "appointment";
@@ -82,6 +83,7 @@ export function parseGhl(body: unknown): GhlEvent {
     submittedAt: submittedAt?.toISOString(),
     sessionKey: landing.sessionKey || undefined,
     leadSource: landing.leadSource || undefined,
+    message: [str(contact.message), str(contact.note), str(root.message), str(root.note)].filter(Boolean).join(" "),
   };
 }
 

@@ -8,6 +8,7 @@ import { evaluateGates } from "./gates";
 import { crmSummary, placeIfAllowed } from "./pipeline";
 import { getPublishedPolicy } from "./policy";
 import { digitsOnly } from "./phone";
+import { scoreCallIfEnabled } from "./marketing/lead-score/store";
 import { enqueue } from "./queue";
 import { SYSTEM_ACTOR, type CallOutcomeName, type TimelineEvent, type TranscriptLine } from "./types";
 import { noteVoiceTouch } from "./marketing/speed-to-lead-store";
@@ -234,6 +235,7 @@ export async function finishCall(
       console.error("[speed-to-lead] voice touch was not recorded", errorText(error));
     });
   }
+  await scoreCallIfEnabled(call.id);
 }
 
 export async function processCrmJob(job: { payload: unknown; attempts: number }) {

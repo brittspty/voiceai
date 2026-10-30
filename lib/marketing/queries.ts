@@ -1,7 +1,10 @@
 import { prisma } from "../db";
 import { accessFromUser, type MarketingAccess } from "./access";
 import { buildClientShare } from "./client-view";
+import { leadScoringEnabled } from "./config";
 import { alertSelect, alertWhere, campaignSelect, dailyMetricSelect, isCostContent, metricSum, recommendationSelect, recommendationWhere, redactMarketingPage, searchTermSelect } from "./cost-visibility";
+import { leadsSince, spendSince } from "./lead-score/store";
+import { buildLeadQualityTiles, effectiveLabel, splitByWindow } from "./lead-score/summary";
 import { clientViewEvent, type ClientViewEvent } from "./share-link";
 
 function num(value: bigint | number | null | undefined) {
@@ -317,8 +320,23 @@ export async function getMarketingPage(access?: MarketingAccess) {
       delivery: digest.delivery,
       payload: digest.payload,
     })),
+    leadQuality: await leadQualityTilesFor(seesCost, access?.workspaceId || ""),
   };
   return redactMarketingPage(page, seesCost);
+}
+
+async function leadQualityTilesFor(seesCost: boolean, workspaceId: string) {
+  if (!leadScoringEnabled() || !workspaceId) return null;
+  const now = new Date();
+  const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const previousStart = new Date(start.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const rows = await leadsSince(previousStart, workspaceId);
+  const split = splitByWindow(rows, start, previousStart);
+  if (!seesCost) {
+    return buildLeadQualityTiles({ current: split.current, previous: split.previous, seesCost: false });
+  }
+  const spendByCurrency = await spendSince(start, workspaceId);
+  return buildLeadQualityTiles({ current: split.current, previous: split.previous, seesCost: true, spendByCurrency });
 }
 
 export function clientRange(range: string | undefined, now = new Date()) {
@@ -334,7 +352,7 @@ export function clientRange(range: string | undefined, now = new Date()) {
   return { start, end, label };
 }
 
-export async function loadClientPerformance(clientName: string, meta?: { sharedBy?: string; expires?: string; range?: string }) {
+export async function loadClientPerformance(clientName: string, meta: { sharedBy?: string; expires?: string; range?: string; workspaceId: string }) {
   const window = clientRange(meta?.range);
   const metrics = await prisma.dailyMetric.findMany({
     where: { date: { gte: window.start, lte: window.end } },
@@ -367,6 +385,7 @@ export async function loadClientPerformance(clientName: string, meta?: { sharedB
     if (metric.ingestedAt > latest) latest = metric.ingestedAt;
   }
   const clock = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York", timeZoneName: "short" }).format(latest);
+  const qualified = await qualifiedForRange(window.start, window.end, window.label, meta.workspaceId);
   return buildClientShare({
     client: clientName,
     adViews,
@@ -377,7 +396,28 @@ export async function loadClientPerformance(clientName: string, meta?: { sharedB
     expires: meta?.expires,
     rangeLabel: window.label,
     updated: `Updated ${clock}`,
+    qualified,
   });
+}
+
+async function qualifiedForRange(start: Date, end: Date, label: string, workspaceId: string) {
+  if (!leadScoringEnabled() || !workspaceId) return null;
+  const length = Math.max(1, end.getTime() - start.getTime());
+  const previousStart = new Date(start.getTime() - length);
+  const rows = await leadsSince(previousStart, workspaceId);
+  const split = splitByWindow(
+    rows.filter((row) => row.createdAt < end),
+    start,
+    previousStart,
+  );
+  const count = split.current.filter((row) => effectiveLabel(row) === "qualified").length;
+  const previous = split.previous.filter((row) => effectiveLabel(row) === "qualified").length;
+  return {
+    count,
+    total: split.current.length,
+    delta: count - previous,
+    period: label === "Last 7 days" ? ("week" as const) : ("period" as const),
+  };
 }
 
 export async function recordClientView(input: Parameters<typeof clientViewEvent>[0]) {

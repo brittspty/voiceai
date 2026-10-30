@@ -47,6 +47,16 @@ Flags default **off**:
 - `MARKETING_DIGEST` — hourly stored summary for each account manager.
 - `MARKETING_DIGEST_DELIVERY` — no email or SMS is sent.
 - `MARKETING_CLIENT_LINKS` — tokenized share links.
+- `MARKETING_LEAD_SCORING` — form and call labels, staff and owner marks, and a staff-only cost-per-qualified-lead tile. Off leaves the current screens and payloads alone. No model key means rules only. Voice test mode is unchanged.
+
+### Lead quality scoring
+
+- Rules label each form lead and each completed call as qualified, not qualified, or spam. A model runs only when `LEAD_SCORING_API_KEY` is set and the rules are unsure. A failed model call keeps the rule result.
+- The owner can mark Qualified or Not qualified. Super admins and account managers can mark and override, including spam and clearing a mark. Admins, viewers, client viewers, and share links cannot mark. The mark route checks the role before it writes.
+- A manual mark is stored beside the automatic score and is the one that counts. The screen shows who marked it and when, and the activity log records the same.
+- Cost per qualified lead is queried and returned only when `seesCost` is true (super admin and account manager). Owners, client viewers, and share links get counts and a week-over-week trend, with the cost field removed on the server.
+- `npm run lead-score:eval` scores `fixtures/lead-quality/labeled.csv` and prints accuracy. Roll back by setting `MARKETING_LEAD_SCORING=off`. The `LeadScore` table can stay; nothing reads it while the flag is off.
+- Marks and qualified counts are limited to the caller's workspace. A super admin may mark any workspace. The model prompt does not include name, phone, or email. The owner role is the client owner (`client_owner`); admin and viewer cannot mark.
 
 ### Decision UI (spec 2026-10-29)
 

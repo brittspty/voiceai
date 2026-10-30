@@ -25,7 +25,7 @@ export type MarketingAccess = {
   email: string;
   role: string;
   workspaceId: string;
-  kind: "super_admin" | "account_manager" | "staff" | "client_viewer" | "none";
+  kind: "super_admin" | "account_manager" | "staff" | "client_owner" | "client_viewer" | "none";
   accounts: "all" | string[];
   campaigns: "all" | string[];
   seesCost: boolean;
@@ -130,7 +130,19 @@ export function accessFromUser(user: AccessUser, assignments: ScopeAssignment[],
       canCreateShareLink: clientWide || accounts === "all" || (Array.isArray(accounts) && accounts.length > 0) || campaignIds.length > 0,
     };
   }
-  if (user.role === "owner" || user.role === "admin" || user.role === "viewer") {
+  if (user.role === "owner") {
+    return {
+      ...base,
+      kind: "client_owner",
+      accounts: "all",
+      campaigns: "all",
+      seesCost: false,
+      seesAlerts: true,
+      canEditBudget: false,
+      canCreateShareLink: false,
+    };
+  }
+  if (user.role === "admin" || user.role === "viewer") {
     return {
       ...base,
       kind: "staff",
