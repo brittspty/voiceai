@@ -31,6 +31,7 @@ import {
 import { formatCents } from "@/lib/marketing/lead-value";
 import { AudienceChart, CompareBars, CompareScatter, DonutChart, PacingChart, Sparkline, TrendChart } from "@/components/marketing-dashboard-charts";
 import { LeadValueForm } from "@/components/lead-value-form";
+import type { HomeFeature } from "@/lib/marketing/home-dashboard";
 
 function href(basePath: string, query: DashQuery, patch: Partial<DashQuery> = {}) {
   return `${basePath}${dashSearch(query, { ...patch, editLead: patch.editLead ?? false })}`;
@@ -269,7 +270,17 @@ function More({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function MarketingDashboard({ model, query, basePath }: { model: DashboardModel; query: DashQuery; basePath: string }) {
+export function MarketingDashboard({
+  model,
+  query,
+  basePath,
+  features = [],
+}: {
+  model: DashboardModel;
+  query: DashQuery;
+  basePath: string;
+  features?: HomeFeature[];
+}) {
   const router = useRouter();
   const list = visibleCampaigns(model.campaigns, query);
   const selected = query.campaignId ? list.find((campaign) => campaign.id === query.campaignId) || model.campaigns.find((campaign) => campaign.id === query.campaignId) : null;
@@ -321,6 +332,20 @@ export function MarketingDashboard({ model, query, basePath }: { model: Dashboar
           ))}
         </select>
       </div>
+
+      {features.length > 0 && (
+        <section className="mb-4">
+          <h2 className="mb-3 text-base font-semibold">Marketing</h2>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {features.map((feature) => (
+              <article key={feature.id} className="rounded-[14px] border border-line border-l-4 border-l-brand bg-card p-4">
+                <h3 className="text-sm font-semibold">{feature.title}</h3>
+                <p className="mt-1 text-sm text-muted">{feature.detail}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="flex flex-col">
         {selected ? (

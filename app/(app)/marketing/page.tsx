@@ -21,6 +21,7 @@ import { loadDashboardForAccess } from "@/lib/marketing/dashboard-query";
 import { loadFatigueBoard } from "@/lib/marketing/fatigue-job";
 import { canReviewSearchWaste, canViewHoldouts, canWatchCompetitors } from "@/lib/marketing/feature-access";
 import { loadPacingBoard } from "@/lib/marketing/pacing-job";
+import { loadFeatureCards } from "@/lib/marketing/home-query";
 import { getMarketingPage, loadMarketingAccess } from "@/lib/marketing/queries";
 import { loadSpeedPage } from "@/lib/marketing/speed-to-lead-store";
 
@@ -67,6 +68,9 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
     );
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
-  const data = await loadDashboardForAccess(access, "staff", org?.name || "Campaigns");
-  return <MarketingDashboard model={data} query={parseDashQuery(query)} basePath="/marketing" />;
+  const [data, features] = await Promise.all([
+    loadDashboardForAccess(access, "staff", org?.name || "Campaigns"),
+    loadFeatureCards({ workspaceIds: [access.workspaceId], showMoney: access.seesCost }),
+  ]);
+  return <MarketingDashboard model={data} query={parseDashQuery(query)} basePath="/marketing" features={features} />;
 }

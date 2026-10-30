@@ -7,6 +7,7 @@ import { clientShareCsv } from "@/lib/marketing/client-view";
 import { dashboardsV2Enabled } from "@/lib/marketing/config";
 import { parseDashQuery } from "@/lib/marketing/dashboard-model";
 import { loadClientDashboard } from "@/lib/marketing/dashboard-query";
+import { loadFeatureCards } from "@/lib/marketing/home-query";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
 import { hashShareToken, passcodePrompt, SHARE_PASS_COOKIE, shareAccessDecision, shareLinkState } from "@/lib/marketing/share-link";
@@ -87,10 +88,13 @@ export default async function SharePage({ params, searchParams }: { params: Prom
     );
   }
   if (dashboardsV2Enabled()) {
-    const data = await loadClientDashboard(link.workspaceId, org?.name || "Campaigns");
+    const [data, features] = await Promise.all([
+      loadClientDashboard(link.workspaceId, org?.name || "Campaigns"),
+      loadFeatureCards({ workspaceIds: [link.workspaceId], showMoney: false }),
+    ]);
     return (
       <Frame>
-        <MarketingDashboard model={data} query={parseDashQuery(query)} basePath={`/share/${token}`} />
+        <MarketingDashboard model={data} query={parseDashQuery(query)} basePath={`/share/${token}`} features={features} />
       </Frame>
     );
   }

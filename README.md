@@ -40,12 +40,12 @@ These are the defaults when the `SEED_*` variables are unset. Override names, em
 
 ## What you can click
 
-- Overview: today’s KPIs, a live queue that refreshes every 4 seconds, the 7-day dial chart, outcomes, connect rate, booking funnel, recent calls.
+- Overview: ads, leads, speed-to-lead, lead quality, landing pages, creative fatigue, and pacing across the marketing system. Super admins and account managers see every client, with spend. Other roles see only their own client, without cost. Voice is a separate section, and only for a client who has the add-on.
 - Calls: all calls, appointments, calendar, contacts, do-not-call, CRM tags and availability, voice. Search, filters, a column picker, and 20 rows a page. A row opens the call drawer (transcript, recording, consent, cost, timeline).
 - Knowledge: the live sample document, plus drafts you can publish.
 - Settings: call eligibility, versioned agent instructions, voice, calling rules, offices, users and two-step sign-in, capability switches, integration health, the activity log, failed jobs, the test console, and the production checklist.
 
-Place a test call from **Settings → Test console**. Preflight runs the same gates as a live dial. If it passes, the worker moves the call through queued → dialing → in progress → wrap-up → completed, writes a transcript, and queues a mocked GoHighLevel note. The call shows on Overview and Calls. Choose “Booked” to also create an appointment.
+Place a test call from **Settings → Test console**. Preflight runs the same gates as a live dial. If it passes, the worker moves the call through queued → dialing → in progress → wrap-up → completed, writes a transcript, and queues a mocked GoHighLevel note. The call shows on Calls. Choose “Booked” to also create an appointment.
 
 ## Tests
 

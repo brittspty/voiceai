@@ -50,8 +50,25 @@ async function ensureSuperAdmins() {
   }
 }
 
+async function ensureWorkspaces() {
+  const cfg = clientConfig();
+  const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
+  await prisma.workspace.upsert({
+    where: { id: "org" },
+    create: { id: "org", name: org?.name || cfg.companyName, voiceEnabled: true },
+    update: {},
+  });
+  if (!cfg.sampleData) return;
+  await prisma.workspace.upsert({
+    where: { id: "gulf" },
+    create: { id: "gulf", name: "Gulf Coast Senior Insurance", voiceEnabled: false },
+    update: {},
+  });
+}
+
 async function main() {
   await ensureSuperAdmins();
+  await ensureWorkspaces();
   const existing = await prisma.org.findUnique({ where: { id: "org" } });
   if (existing) {
     console.log("Seed already applied. Workspace values stay as they are in the database.");

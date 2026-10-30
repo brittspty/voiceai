@@ -16,6 +16,7 @@ import {
   type RawMetric,
 } from "./dashboard-model";
 import { canEditLeadValue } from "./lead-value";
+import { isolatedWhere } from "./workspace";
 
 const WINDOW_DAYS = 60;
 
@@ -169,30 +170,29 @@ export async function loadDashboard(input: {
         })
       : Promise.resolve([]),
     prisma.marketingSyncRun.findMany({
-      where: { workspaceId, platform: { in: platforms } },
+      where: isolatedWhere(workspaceId, { platform: { in: platforms } }),
       orderBy: { finishedAt: "desc" },
       take: 8,
       select: { finishedAt: true, mode: true, platform: true, status: true },
     }),
     prisma.recommendation.findMany({
-      where: {
-        workspaceId,
-        status: { in: ["verified", "accepted"] },
-        ...(campaignIds.length ? { campaignId: { in: campaignIds } } : { campaignId: { in: [] } }),
-      },
+      where: isolatedWhere(workspaceId, {
+        status: { in: ["verified", "accepted"] as const },
+        campaignId: { in: campaignIds },
+      }),
       orderBy: { createdAt: "desc" },
       take: 12,
       select: { title: true, summary: true, type: true, metric: true, campaignId: true, campaign: { select: { name: true } } },
     }),
     showMoney
       ? prisma.clientSettings.findUnique({
-          where: { workspaceId },
+          where: isolatedWhere(workspaceId),
           include: { leadValueSetBy: { select: { name: true, role: true } } },
         })
       : Promise.resolve(null),
     mode === "staff"
       ? prisma.adAccount.findMany({
-          where: { workspaceId, platform: { in: platforms } },
+          where: isolatedWhere(workspaceId, { platform: { in: platforms } }),
           select: { externalId: true, platform: true },
         })
       : Promise.resolve([]),

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { dashboardsV2Enabled } from "@/lib/marketing/config";
 import { parseDashQuery } from "@/lib/marketing/dashboard-model";
 import { loadDashboardForAccess } from "@/lib/marketing/dashboard-query";
+import { loadFeatureCards } from "@/lib/marketing/home-query";
 import { loadClientPerformance, loadMarketingAccess, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
 
@@ -24,6 +25,9 @@ export default async function ClientMarketingPage({ searchParams }: { searchPara
     const payload = await loadClientPerformance(org?.name || "Performance", { workspaceId: access.workspaceId, adAccountIds: access.accounts });
     return <ClientPerformance data={payload} />;
   }
-  const data = await loadDashboardForAccess(access, "client", org?.name || "Campaigns");
-  return <MarketingDashboard model={data} query={parseDashQuery(await searchParams)} basePath="/marketing/client" />;
+  const [data, features] = await Promise.all([
+    loadDashboardForAccess(access, "client", org?.name || "Campaigns"),
+    loadFeatureCards({ workspaceIds: [access.workspaceId], showMoney: false }),
+  ]);
+  return <MarketingDashboard model={data} query={parseDashQuery(await searchParams)} basePath="/marketing/client" features={features} />;
 }

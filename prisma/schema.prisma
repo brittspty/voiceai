@@ -165,6 +165,14 @@ model Org {
   scheduleEnabled Boolean @default(false)
 }
 
+/// One row per client business. Voice is a paid add-on, off unless this client has it.
+model Workspace {
+  id           String   @id
+  name         String
+  voiceEnabled Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
 model Office {
   id            String       @id @default(cuid())
   name          String
