@@ -45,9 +45,21 @@ export type AdRow = {
   externalId: string;
   adGroupExternalId: string;
   customerId: string;
+  accountExternalId: string;
+  clientKey: string;
   status: string;
   destinationUrl: string;
 };
+
+const BLOCKED_CLIENT_KEYS = new Set(["org", "workspace", "client"]);
+
+/** A marketing client id. The workspace id "org" is not a client. */
+export function isRealClientKey(value: string) {
+  const key = value.trim();
+  if (key.length < 8 || key.length > 64) return false;
+  if (BLOCKED_CLIENT_KEYS.has(key.toLowerCase())) return false;
+  return /^[a-z0-9_-]+$/i.test(key);
+}
 
 export type TrackedPause = {
   id: string;
@@ -58,6 +70,11 @@ export type TrackedPause = {
   externalId: string;
   adGroupExternalId: string;
   customerId: string;
+  accountExternalId: string;
+  clientKey: string;
+  pageUrl: string;
+  pageName: string;
+  pausedAt: string;
   adName: string;
 };
 
@@ -144,11 +161,11 @@ export function gapsAboutOneMinute(samples: PageSample[]) {
 export function downConfirmed(samples: PageSample[]) {
   const failed = suffixWhile(samples, (sample) => sample.status === "down");
   if (failed.length < ALERT_AFTER_FAILURES) return false;
-  const regions = new Set(failed.map((sample) => sample.region).filter(Boolean));
-  return regions.size >= 2;
+  return gapsAboutOneMinute(failed.slice(-ALERT_AFTER_FAILURES));
 }
 
-export function pauseReady(samples: PageSample[]) {
+export function pauseReady(samples: PageSample[], canaryOk: boolean) {
+  if (!canaryOk) return false;
   const failed = suffixWhile(samples, (sample) => sample.status === "down");
   if (failed.length < PAUSE_AFTER_FAILURES) return false;
   return gapsAboutOneMinute(failed.slice(-PAUSE_AFTER_FAILURES));
@@ -181,14 +198,6 @@ export function pixelProblem(samples: PageSample[]): string[] | null {
   if (lost.length) return [...lost];
   const allMissing = PIXEL_NAMES.every((name) => !latest.pixels[name] && !previous.pixels[name]);
   return allMissing ? [...PIXEL_NAMES] : null;
-}
-
-export function nextRegion(lastRegion: string | null, regions: string[]) {
-  if (!regions.length) return "us-east";
-  if (!lastRegion) return regions[0];
-  const index = regions.indexOf(lastRegion);
-  if (index < 0) return regions[0];
-  return regions[(index + 1) % regions.length];
 }
 
 export function confirming(samples: PageSample[], incidents: IncidentRow[]) {
@@ -272,12 +281,13 @@ function writablePlatform(platform: string): AdPlatformWrite | null {
   return null;
 }
 
-function matchingAds(pageUrl: string, ads: AdRow[]) {
-  return ads.filter((ad) => writablePlatform(ad.platform) && ad.status === "active" && destinationMatches(ad.destinationUrl, pageUrl));
+function matchingAds(page: { clientKey: string; url: string }, ads: AdRow[]) {
+  if (!isRealClientKey(page.clientKey)) return [];
+  return ads.filter((ad) => ad.clientKey === page.clientKey && writablePlatform(ad.platform) && ad.status === "active" && destinationMatches(ad.destinationUrl, page.url));
 }
 
-function planFor(ad: AdRow, pageId: string, to: "PAUSED" | "ACTIVE", tracked?: TrackedPause): WritePlan | null {
-  const platform = writablePlatform(ad.platform);
+function planFor(ad: AdRow, page: { id: string; url: string; name?: string }, to: "PAUSED" | "ACTIVE", tracked?: TrackedPause): WritePlan | null {
+  const platform = writablePlatform(ad.platform) || tracked?.platform;
   if (!platform) return null;
   const customerId = tracked?.customerId || ad.customerId;
   const adGroupExternalId = tracked?.adGroupExternalId || ad.adGroupExternalId;
@@ -293,9 +303,37 @@ function planFor(ad: AdRow, pageId: string, to: "PAUSED" | "ACTIVE", tracked?: T
     pausedBySystem: to === "ACTIVE",
     adId: ad.id,
     adName: ad.name || tracked?.adName || "Ad",
-    landingPageId: pageId,
+    landingPageId: page.id,
     trackedId: tracked?.id,
+    accountExternalId: tracked?.accountExternalId || ad.accountExternalId,
+    pageUrl: tracked?.pageUrl || page.url,
+    pausedAt: tracked?.pausedAt || "",
+    clientKey: tracked?.clientKey || ad.clientKey,
+    pageName: tracked?.pageName || page.name || "",
   };
+}
+
+/** Resume from the stored pause row. The landing page does not have to exist. */
+export function planResumeFromTracked(row: TrackedPause): WritePlan | null {
+  if (row.mode !== "live" || row.resumedAt) return null;
+  if (!isRealClientKey(row.clientKey)) return null;
+  return planFor(
+    {
+      id: row.adId,
+      name: row.adName,
+      platform: row.platform,
+      externalId: row.externalId,
+      adGroupExternalId: row.adGroupExternalId,
+      customerId: row.customerId,
+      accountExternalId: row.accountExternalId,
+      clientKey: row.clientKey,
+      status: "paused",
+      destinationUrl: row.pageUrl,
+    },
+    { id: "", url: row.pageUrl },
+    "ACTIVE",
+    row,
+  );
 }
 
 export function checkedLabel(at: string | null, now: Date) {
@@ -407,6 +445,7 @@ export function evaluatePage(input: {
   clientAlertOptIn: boolean;
   mutedUntil: string | null;
   lastPushAt: string | null;
+  canaryOk: boolean;
   writeMode: Record<AdPlatformWrite, "live" | "dry_run">;
 }): Evaluation {
   const samples = sorted(input.samples);
@@ -422,7 +461,7 @@ export function evaluatePage(input: {
   const pageDown = downConfirmed(samples);
   const pageRecovered = Boolean(downOpen) && recovered(samples);
 
-  if (pageDown && !downOpen) openIncidents.push({ kind: "down", summary: "Down on two checks from two regions." });
+  if (pageDown && !downOpen) openIncidents.push({ kind: "down", summary: "Down on two checks about a minute apart." });
   if (pageRecovered && downOpen) {
     resolveIncidents.push({ kind: "down", summary: "Resolved" });
     resolveAlertCodes.push("page_down", "ads_paused");
@@ -434,7 +473,7 @@ export function evaluatePage(input: {
       code: "page_down",
       severity: "critical",
       title: `${input.page.name} is down`,
-      summary: "Two checks from two regions failed.",
+      summary: "Two checks failed about a minute apart.",
       clientSummary: clientDownCopy(input.page.name),
       audience: "both",
       breaksQuietHours: true,
@@ -442,16 +481,16 @@ export function evaluatePage(input: {
     });
   }
 
-  const canPause = input.autoPauseOn && input.optIn && pageDown && pauseReady(samples) && !(downOpen?.pauseHeld);
+  const canPause = input.autoPauseOn && input.optIn && isRealClientKey(input.page.clientKey) && pageDown && pauseReady(samples, input.canaryOk) && !(downOpen?.pauseHeld);
   const outstanding = input.tracked.filter((row) => !row.resumedAt);
   if (canPause && !pageRecovered) {
-    for (const ad of matchingAds(input.page.url, input.ads)) {
+    for (const ad of matchingAds(input.page, input.ads)) {
       const platform = writablePlatform(ad.platform);
       if (!platform) continue;
       const existing = outstanding.find((row) => row.adId === ad.id);
       if (existing?.mode === "live") continue;
       if (existing?.mode === "dry_run" && input.writeMode[platform] === "dry_run") continue;
-      const plan = planFor(ad, input.page.id, "PAUSED", existing);
+      const plan = planFor(ad, input.page, "PAUSED", existing);
       if (plan) plans.push(plan);
     }
   }
@@ -462,7 +501,8 @@ export function evaluatePage(input: {
     for (const row of live) {
       const ad = input.ads.find((item) => item.id === row.adId);
       const status = ad?.status ?? "paused";
-      if (status === "archived" || status === "deleted") continue;
+      if (ad && ad.clientKey !== row.clientKey) continue;
+      if (status === "archived" || status === "deleted" || status === "active") continue;
       const plan = planFor(
         ad ?? {
           id: row.adId,
@@ -472,9 +512,11 @@ export function evaluatePage(input: {
           adGroupExternalId: row.adGroupExternalId,
           customerId: row.customerId,
           status: "paused",
-          destinationUrl: input.page.url,
+          accountExternalId: row.accountExternalId,
+          clientKey: row.clientKey,
+          destinationUrl: row.pageUrl || input.page.url,
         },
-        input.page.id,
+        { id: input.page.id, url: row.pageUrl || input.page.url },
         "ACTIVE",
         row,
       );

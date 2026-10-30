@@ -1,6 +1,8 @@
 import { createHmac } from "node:crypto";
 import type { Env } from "../config";
-import { graphVersion } from "../config";
+import { googleAdsApiVersion, googleAdsEnv, graphVersion } from "../config";
+import { assertGoogleAdsAllowed, GoogleAdsWriteBlockedError } from "../connectors/google-ads-client";
+import { destinationMatches } from "./probe";
 
 export const READ_TOKEN_ENV = "META_ACCESS_TOKEN";
 export const READ_SECRET_ENV = "META_APP_SECRET";
@@ -18,7 +20,7 @@ const ALLOWED_KEYS = new Set([
 ]);
 
 /** Local bookkeeping. These never go to Meta or Google. */
-const METADATA_KEYS = new Set(["adId", "adName", "landingPageId", "trackedId"]);
+const METADATA_KEYS = new Set(["adId", "adName", "landingPageId", "trackedId", "accountExternalId", "pageUrl", "pausedAt", "clientKey", "pageName"]);
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const DIGITS = /^\d{1,32}$/;
@@ -42,6 +44,11 @@ export type WritePlan = AllowedChange & {
   adName: string;
   landingPageId: string;
   trackedId?: string;
+  accountExternalId: string;
+  pageUrl: string;
+  pausedAt: string;
+  clientKey: string;
+  pageName: string;
 };
 
 export function reviewWrite(input: unknown): { ok: true; change: AllowedChange } | { ok: false; reason: string } {
@@ -70,8 +77,8 @@ export function reviewWrite(input: unknown): { ok: true; change: AllowedChange }
   const adGroupExternalId = typeof record.adGroupExternalId === "string" ? record.adGroupExternalId : "";
   const customerId = typeof record.customerId === "string" ? record.customerId : "";
   if (record.platform === "google_ads") {
-    if (!DIGITS.test(customerId) || !DIGITS.test(adGroupExternalId) || !DIGITS.test(record.externalId)) {
-      return { ok: false, reason: "Google ads need a customer id, ad group id, and ad id." };
+    if (!/^\d{10}$/.test(customerId) || !DIGITS.test(adGroupExternalId) || !DIGITS.test(record.externalId)) {
+      return { ok: false, reason: "Google ads need a 10-digit customer id, an ad group id, and an ad id." };
     }
   }
   return {
@@ -152,35 +159,9 @@ export function secretRefIssue(value: string) {
 }
 
 export function customerIdIssue(value: string) {
-  const digits = value.trim().replace(/-/g, "");
-  if (!digits) return "Enter the Google Ads customer id.";
-  if (!/^\d{6,12}$/.test(digits)) return "The customer id should be digits only.";
+  if (!value.trim()) return "Enter the Google Ads customer id.";
+  if (!/^\d{10}$/.test(value.trim().replace(/-/g, ""))) return "The customer id should be 10 digits.";
   return null;
-}
-
-export function defaultCredential(clientKey: string, platform: AdPlatformWrite, env: Env): CredentialRow {
-  if (platform === "meta") {
-    return {
-      clientKey,
-      platform,
-      secretRef: "META_PAGE_WRITE_TOKEN",
-      appSecretRef: "META_PAGE_WRITE_APP_SECRET",
-      extraSecretRef: "",
-      accountExternalId: "",
-      loginCustomerId: "",
-      scopes: ["ads_management"],
-    };
-  }
-  return {
-    clientKey,
-    platform: "google_ads",
-    secretRef: "GOOGLE_ADS_WRITE_ACCESS_TOKEN",
-    appSecretRef: "",
-    extraSecretRef: "GOOGLE_ADS_DEVELOPER_TOKEN",
-    accountExternalId: (env.GOOGLE_ADS_CUSTOMER_ID || "").replace(/-/g, "").trim(),
-    loginCustomerId: (env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || "").replace(/-/g, "").trim(),
-    scopes: ["adwords"],
-  };
 }
 
 function envValue(env: Env, name: string) {
@@ -237,7 +218,8 @@ export function resolveWriteAccess(row: CredentialRow | undefined, env: Env, pla
 
 export function credentialFor(clientKey: string, platform: AdPlatformWrite, rows: CredentialRow[], env: Env) {
   const saved = rows.find((row) => row.clientKey === clientKey && row.platform === platform);
-  return resolveWriteAccess(saved ?? defaultCredential(clientKey, platform, env), env, platform);
+  if (!saved) return { mode: "dry_run" as const, reason: "No write credential is saved for this client." };
+  return resolveWriteAccess(saved, env, platform);
 }
 
 export function writeConnected(access: ResolvedWrite) {
@@ -268,6 +250,100 @@ function appSecretProof(accessToken: string, appSecret: string) {
   return createHmac("sha256", appSecret).update(accessToken).digest("hex");
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function accountDigits(value: string) {
+  return value.trim().replace(/^act_/, "").replace(/-/g, "");
+}
+
+export function metaLinks(creative: unknown) {
+  const record = asRecord(creative);
+  const story = asRecord(record.object_story_spec);
+  const link = asRecord(story.link_data).link;
+  const video = asRecord(asRecord(story.video_data).call_to_action);
+  const ctaLink = asRecord(video.value).link;
+  const links = [link, ctaLink].filter((item): item is string => typeof item === "string");
+  const urls = asRecord(record.asset_feed_spec).link_urls;
+  if (Array.isArray(urls)) {
+    for (const item of urls) {
+      const website = asRecord(item).website_url;
+      if (typeof website === "string") links.push(website);
+    }
+  }
+  return links;
+}
+
+export function judgeMetaAd(
+  body: unknown,
+  expected: { accountId: string; pageUrl: string; action: "pause" | "resume"; pausedAt?: string },
+): { ok: true } | { ok: false; reason: string } {
+  const record = asRecord(body);
+  if (record.error || typeof record.id !== "string") return { ok: false, reason: "Meta did not return an ad." };
+  if (typeof record.adset_id !== "string" || !record.adset_id) return { ok: false, reason: "That id is not an ad." };
+  const account = accountDigits(String(record.account_id || ""));
+  if (!account || account !== accountDigits(expected.accountId)) return { ok: false, reason: "That ad is not in this client's account." };
+  const status = String(record.effective_status || record.status || "");
+  if (expected.action === "pause" && status !== "ACTIVE") return { ok: false, reason: "That ad is not running." };
+  if (expected.action === "resume" && status !== "PAUSED") return { ok: false, reason: "That ad is no longer paused. It was left unchanged." };
+  if (expected.action === "pause" && !metaLinks(record.creative).some((link) => destinationMatches(link, expected.pageUrl))) {
+    return { ok: false, reason: "That ad does not send people to this page." };
+  }
+  if (expected.action === "resume" && expected.pausedAt) {
+    const updated = Date.parse(String(record.updated_time || ""));
+    const paused = Date.parse(expected.pausedAt);
+    if (Number.isFinite(updated) && Number.isFinite(paused) && updated > paused + 120_000) {
+      return { ok: false, reason: "That ad changed after we paused it. It was left unchanged." };
+    }
+  }
+  return { ok: true };
+}
+
+export function judgeGoogleAd(
+  body: unknown,
+  expected: { adId: string; pageUrl: string; action: "pause" | "resume" },
+): { ok: true } | { ok: false; reason: string } {
+  const results = asRecord(body).results;
+  const row = asRecord(Array.isArray(results) ? results[0] : null);
+  const adGroupAd = asRecord(row.adGroupAd);
+  const ad = asRecord(adGroupAd.ad);
+  if (String(ad.id || "") !== expected.adId) return { ok: false, reason: "Google Ads did not return that ad." };
+  const status = String(adGroupAd.status || "");
+  if (expected.action === "pause" && status !== "ENABLED") return { ok: false, reason: "That ad is not running." };
+  if (expected.action === "resume" && status !== "PAUSED") return { ok: false, reason: "That ad is no longer paused. It was left unchanged." };
+  if (expected.action === "pause") {
+    const urls = Array.isArray(ad.finalUrls) ? ad.finalUrls.filter((item): item is string => typeof item === "string") : [];
+    if (!urls.some((url) => destinationMatches(url, expected.pageUrl))) return { ok: false, reason: "That ad does not send people to this page." };
+  }
+  return { ok: true };
+}
+
+const GOOGLE_BODY_KEYS = new Set(["operations", "updateMask", "update", "resourceName", "status"]);
+
+export function googleStatusMutateAllowed(url: string, body: unknown) {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:" || parsed.hostname !== "googleads.googleapis.com") return false;
+  if (parsed.username || parsed.password || parsed.search || parsed.port) return false;
+  if (!/^\/v\d+\/customers\/\d{6,12}\/adGroupAds:mutate$/.test(parsed.pathname)) return false;
+  for (const key of collectKeys(body)) {
+    if (!GOOGLE_BODY_KEYS.has(key)) return false;
+  }
+  const operations = asRecord(body).operations;
+  if (!Array.isArray(operations) || operations.length !== 1) return false;
+  const operation = asRecord(operations[0]);
+  if (operation.updateMask !== "status") return false;
+  const update = asRecord(operation.update);
+  const keys = Object.keys(update).sort();
+  if (keys.join(",") !== "resourceName,status") return false;
+  return update.status === "PAUSED" || update.status === "ENABLED";
+}
+
 export async function performWrite(input: {
   plan: WritePlan | Record<string, unknown>;
   access: ResolvedWrite;
@@ -295,9 +371,23 @@ export async function performWrite(input: {
   }
   const fetchImpl = input.fetchImpl ?? fetch;
   const secrets = [input.access.accessToken, input.access.appSecret, input.access.developerToken].filter(Boolean);
+  const plan = input.plan as WritePlan;
+  const action = change.to === "PAUSED" ? "pause" : "resume";
   try {
     if (change.platform === "meta") {
       const version = graphVersion(input.env ?? process.env);
+      const lookup = new URL(`https://graph.facebook.com/${version}/${change.externalId}`);
+      lookup.searchParams.set("fields", "id,status,effective_status,adset_id,account_id,updated_time,creative{object_story_spec,asset_feed_spec}");
+      lookup.searchParams.set("access_token", input.access.accessToken);
+      if (input.access.appSecret) lookup.searchParams.set("appsecret_proof", appSecretProof(input.access.accessToken, input.access.appSecret));
+      const looked = await fetchImpl(lookup.toString(), { method: "GET" });
+      const judged = judgeMetaAd(await looked.json().catch(() => null), {
+        accountId: plan.accountExternalId || "",
+        pageUrl: plan.pageUrl || "",
+        action,
+        pausedAt: plan.pausedAt,
+      });
+      if (!judged.ok) return { ok: false, mode: "blocked", reason: judged.reason };
       const url = new URL(`https://graph.facebook.com/${version}/${change.externalId}`);
       url.searchParams.set("access_token", input.access.accessToken);
       if (input.access.appSecret) url.searchParams.set("appsecret_proof", appSecretProof(input.access.accessToken, input.access.appSecret));
@@ -309,22 +399,42 @@ export async function performWrite(input: {
       }
       return { ok: true, mode: "live" };
     }
-    const version = ((input.env ?? process.env).GOOGLE_ADS_API_VERSION || "v18").trim();
-    const safeVersion = /^v\d+$/.test(version) ? version : "v18";
-    const endpoint = `https://googleads.googleapis.com/${safeVersion}/customers/${change.customerId}/adGroupAds:mutate`;
+    const env = input.env ?? process.env;
+    if (!googleAdsEnv(env).customerIds.includes(change.customerId)) {
+      return { ok: false, mode: "blocked", reason: "That Google Ads customer is not in GOOGLE_ADS_CUSTOMER_IDS." };
+    }
+    const version = googleAdsApiVersion(env);
     const headers: Record<string, string> = {
       authorization: `Bearer ${input.access.accessToken}`,
       "developer-token": input.access.developerToken,
       "content-type": "application/json",
     };
     if (input.access.loginCustomerId) headers["login-customer-id"] = input.access.loginCustomerId;
-    const response = await fetchImpl(endpoint, { method: "POST", headers, body: JSON.stringify(googleMutateBody(change)) });
+    const searchUrl = `https://googleads.googleapis.com/${version}/customers/${change.customerId}/googleAds:search`;
+    assertGoogleAdsAllowed("read", "POST", searchUrl);
+    const searched = await fetchImpl(searchUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        query: `SELECT ad_group_ad.ad.id, ad_group_ad.status, ad_group_ad.ad.final_urls FROM ad_group_ad WHERE ad_group_ad.ad.id = ${change.externalId}`,
+      }),
+    });
+    const judged = judgeGoogleAd(await searched.json().catch(() => null), { adId: change.externalId, pageUrl: plan.pageUrl || "", action });
+    if (!judged.ok) return { ok: false, mode: "blocked", reason: judged.reason };
+    const endpoint = `https://googleads.googleapis.com/${version}/customers/${change.customerId}/adGroupAds:mutate`;
+    const mutateBody = googleMutateBody(change);
+    assertGoogleAdsAllowed("page-status", "POST", endpoint);
+    if (!googleStatusMutateAllowed(endpoint, mutateBody)) return { ok: false, mode: "blocked", reason: "That Google Ads change is not an ad status update." };
+    const response = await fetchImpl(endpoint, { method: "POST", headers, body: JSON.stringify(mutateBody) });
     if (!response.ok) {
       const text = redactSecrets(await response.text(), secrets);
       return { ok: false, mode: "live", reason: `Google Ads did not change the ad (${response.status}). ${text.slice(0, 180)}` };
     }
     return { ok: true, mode: "live" };
   } catch (error) {
+    if (error instanceof GoogleAdsWriteBlockedError) {
+      return { ok: false, mode: "blocked", reason: "Only an ad status change is allowed." };
+    }
     const message = error instanceof Error ? error.message : "The ad platform did not respond.";
     return { ok: false, mode: "live", reason: redactSecrets(message, secrets).slice(0, 180) };
   }

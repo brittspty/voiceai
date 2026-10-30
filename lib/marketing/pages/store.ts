@@ -1,11 +1,11 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../db";
-import { pageAutoPauseEnabled, pageMonitorEnabled, pageMonitorRegions } from "../config";
+import { pageAutoPauseEnabled, pageMonitorCanaryUrl, pageMonitorEnabled } from "../config";
 import { WORKSPACE_ID } from "../types";
-import { gateAlert, monitorStale, nextProbeAt, nextRegion, pauseAlertDraft, confirming, evaluatePage, formSubmitDue, checkedLabel, loadTimeLabel, CLIENT_PAUSED } from "./policy";
+import { gateAlert, monitorStale, nextProbeAt, pauseAlertDraft, confirming, evaluatePage, formSubmitDue, checkedLabel, loadTimeLabel, CLIENT_PAUSED, planResumeFromTracked } from "./policy";
 import type { AdRow, IncidentKind, IncidentRow, PriorAlert, TrackedPause } from "./policy";
 import type { PageSample, PageStatus, Pixels } from "./probe";
-import { emptyPixels, formTargetIssue, probePage, publicUrlIssue } from "./probe";
+import { emptyPixels, formTargetIssue, probeCanary, probePage, publicUrlIssue } from "./probe";
 import { presentLandingScreen, formResultLabel, type LandingScreen } from "./view";
 import { adStatusPatch, credentialFor, performWrite, shouldRetryLive, type AdPlatformWrite, type CredentialRow, type WritePlan } from "./writes";
 
@@ -76,8 +76,8 @@ function credentialRow(row: {
 }
 
 async function writeAudit(input: {
-  pageId: string;
-  adId: string;
+  pageId: string | null;
+  adId: string | null;
   platform: AdPlatformWrite;
   externalId: string;
   adName: string;
@@ -111,29 +111,34 @@ async function writeAudit(input: {
 }
 
 async function markPaused(plan: WritePlan, mode: "live" | "dry_run", now: Date) {
+  const data = {
+    mode,
+    pausedAt: now,
+    resumedAt: null,
+    clientKey: plan.clientKey,
+    pageUrl: plan.pageUrl,
+    pageName: plan.pageName,
+    accountExternalId: plan.accountExternalId,
+    externalId: plan.externalId,
+    adGroupExternalId: plan.adGroupExternalId,
+    customerId: plan.customerId,
+    adName: plan.adName,
+  };
   if (plan.trackedId) {
-    await prisma.systemPausedAd.update({
-      where: { id: plan.trackedId },
-      data: { mode, pausedAt: now, resumedAt: null },
-    });
+    await prisma.systemPausedAd.update({ where: { id: plan.trackedId }, data });
   } else {
     await prisma.systemPausedAd.create({
       data: {
+        ...data,
         workspaceId: WORKSPACE_ID,
-        adId: plan.adId,
-        landingPageId: plan.landingPageId,
+        adId: plan.adId || null,
+        landingPageId: plan.landingPageId || null,
         platform: plan.platform,
-        externalId: plan.externalId,
-        adGroupExternalId: plan.adGroupExternalId,
-        customerId: plan.customerId,
-        adName: plan.adName,
-        mode,
-        pausedAt: now,
       },
     });
   }
-  if (mode === "live") {
-    await prisma.ad.update({ where: { id: plan.adId }, data: adStatusPatch("paused", plan.platform) });
+  if (mode === "live" && plan.adId) {
+    await prisma.ad.updateMany({ where: { id: plan.adId }, data: adStatusPatch("paused", plan.platform) });
   }
 }
 
@@ -141,14 +146,21 @@ async function markResumed(plan: WritePlan, now: Date) {
   if (plan.trackedId) {
     await prisma.systemPausedAd.update({ where: { id: plan.trackedId }, data: { resumedAt: now } });
   }
-  await prisma.ad.update({ where: { id: plan.adId }, data: adStatusPatch("active", plan.platform) });
+  if (plan.adId) {
+    await prisma.ad.updateMany({ where: { id: plan.adId }, data: adStatusPatch("active", plan.platform) });
+  }
 }
 
 export async function runPageMonitor(env: Record<string, string | undefined> = process.env, deps: { fetchImpl?: FetchLike; now?: Date } = {}) {
   if (!pageMonitorEnabled(env)) return { status: "skipped" as const, reason: "MARKETING_PAGE_MONITOR is off" };
+  const canaryUrl = pageMonitorCanaryUrl(env);
+  const canaryOk = await probeCanary(canaryUrl, deps.fetchImpl ?? fetch);
+  if (!canaryOk) {
+    console.log("[page-monitor] canary failed, skipped page checks");
+    return { status: "ran" as const, probes: 0, pauses: 0, resumes: 0, canary: "failed" as const };
+  }
   const now = deps.now ?? new Date();
   const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const regions = pageMonitorRegions(env);
   const autoPauseOn = pageAutoPauseEnabled(env);
   const [pages, settings, credentialRows, adRows, org] = await Promise.all([
     prisma.landingPage.findMany({
@@ -172,7 +184,7 @@ export async function runPageMonitor(env: Record<string, string | undefined> = p
         externalId: true,
         status: true,
         destinationUrl: true,
-        adGroup: { select: { externalId: true, campaign: { select: { adAccount: { select: { externalId: true } } } } } },
+        adGroup: { select: { externalId: true, campaign: { select: { adAccount: { select: { externalId: true, clientId: true } } } } } },
       },
     }),
     prisma.org.findUnique({ where: { id: "org" }, select: { timezone: true } }),
@@ -185,6 +197,8 @@ export async function runPageMonitor(env: Record<string, string | undefined> = p
     externalId: ad.externalId,
     adGroupExternalId: ad.adGroup.externalId,
     customerId: ad.platform === "google_ads" ? ad.adGroup.campaign.adAccount.externalId.replace(/-/g, "") : "",
+    accountExternalId: ad.adGroup.campaign.adAccount.externalId,
+    clientKey: ad.adGroup.campaign.adAccount.clientId || "",
     status: ad.status,
     destinationUrl: ad.destinationUrl,
   }));
@@ -194,7 +208,7 @@ export async function runPageMonitor(env: Record<string, string | undefined> = p
   const logs: string[] = [];
   for (const page of pages) {
     try {
-      const outcome = await runOnePage({ page, ads, settings, credentials, regions, autoPauseOn, env, now, orgTimezone: org?.timezone || "America/New_York", fetchImpl: deps.fetchImpl });
+      const outcome = await runOnePage({ page, ads, settings, credentials, autoPauseOn, env, now, orgTimezone: org?.timezone || "America/New_York", fetchImpl: deps.fetchImpl });
       probes += outcome.probes;
       pauses += outcome.pauses;
       resumes += outcome.resumes;
@@ -216,7 +230,6 @@ async function runOnePage(input: {
   ads: AdRow[];
   settings: { clientKey: string; autoPauseOptIn: boolean; clientAlertOptIn: boolean; timezone: string }[];
   credentials: CredentialRow[];
-  regions: string[];
   autoPauseOn: boolean;
   env: Record<string, string | undefined>;
   now: Date;
@@ -247,13 +260,18 @@ async function runOnePage(input: {
     .filter((row): row is typeof row & { platform: "meta" | "google_ads" } => row.platform === "meta" || row.platform === "google_ads")
     .map((row) => ({
       id: row.id,
-      adId: row.adId,
+      adId: row.adId || "",
       mode: row.mode === "live" ? "live" : "dry_run",
       resumedAt: row.resumedAt ? row.resumedAt.toISOString() : null,
       platform: row.platform,
       externalId: row.externalId,
       adGroupExternalId: row.adGroupExternalId,
       customerId: row.customerId,
+      accountExternalId: row.accountExternalId,
+      clientKey: row.clientKey,
+      pageUrl: row.pageUrl,
+      pageName: row.pageName,
+      pausedAt: row.pausedAt.toISOString(),
       adName: row.adName,
     }));
   const writeMode = {
@@ -265,7 +283,7 @@ async function runOnePage(input: {
   const due = nextProbeAt(latest?.checkedAt.toISOString() ?? null, confirming(samples, incidents), now.getTime()) <= now.getTime();
   let nextSamples = samples;
   if (due && !publicUrlIssue(page.url)) {
-    const region = nextRegion(latest?.region ?? null, input.regions);
+    const region = "worker";
     const lastSubmit = page.checks.find((check) => check.formSubmitOk !== null);
     const submit = Boolean(page.formTestUrl) && !formTargetIssue(page.url, page.formTestUrl) && formSubmitDue(lastSubmit?.checkedAt.toISOString() ?? null, now.getTime());
     const sample = await probePage({
@@ -313,6 +331,7 @@ async function runOnePage(input: {
     clientAlertOptIn: Boolean(setting?.clientAlertOptIn),
     mutedUntil: page.mutedUntil ? page.mutedUntil.toISOString() : null,
     lastPushAt: lastPush ? lastPush.firedAt.toISOString() : null,
+    canaryOk: true,
     writeMode,
   });
   for (const opening of evaluation.openIncidents) {
@@ -445,39 +464,66 @@ async function runOnePage(input: {
   return { probes, pauses, resumes, logs };
 }
 
-export async function resumeLandingAds(input: { pageId: string; actorId: string; actorName: string; env?: Record<string, string | undefined>; fetchImpl?: FetchLike }) {
+function trackedFromRow(row: {
+  id: string;
+  adId: string | null;
+  mode: string;
+  resumedAt: Date | null;
+  platform: "meta" | "google_ads";
+  externalId: string;
+  adGroupExternalId: string;
+  customerId: string;
+  accountExternalId: string;
+  clientKey: string;
+  pageUrl: string;
+  pageName: string;
+  pausedAt: Date;
+  adName: string;
+}): TrackedPause {
+  return {
+    id: row.id,
+    adId: row.adId || "",
+    mode: row.mode === "live" ? "live" : "dry_run",
+    resumedAt: row.resumedAt ? row.resumedAt.toISOString() : null,
+    platform: row.platform,
+    externalId: row.externalId,
+    adGroupExternalId: row.adGroupExternalId,
+    customerId: row.customerId,
+    accountExternalId: row.accountExternalId,
+    clientKey: row.clientKey,
+    pageUrl: row.pageUrl,
+    pageName: row.pageName,
+    pausedAt: row.pausedAt.toISOString(),
+    adName: row.adName,
+  };
+}
+
+export async function resumeLandingAds(input: { pageId?: string; trackedId?: string; actorId: string; actorName: string; env?: Record<string, string | undefined>; fetchImpl?: FetchLike }) {
   const env = input.env ?? process.env;
-  const page = await prisma.landingPage.findFirst({
-    where: { id: input.pageId, workspaceId: WORKSPACE_ID, active: true },
-    include: { pauses: { where: { resumedAt: null, mode: "live" } } },
+  const pauses = await prisma.systemPausedAd.findMany({
+    where: {
+      workspaceId: WORKSPACE_ID,
+      resumedAt: null,
+      mode: "live",
+      ...(input.trackedId ? { id: input.trackedId } : { landingPageId: input.pageId || "" }),
+    },
   });
-  if (!page) return { ok: false as const, message: "That page is not being watched." };
-  if (!page.pauses.length) return { ok: false as const, message: "No ads are paused for this page." };
+  if (!pauses.length) return { ok: false as const, message: "No ads are paused for this page." };
   const credentials = (await prisma.pageWriteCredential.findMany({ where: { workspaceId: WORKSPACE_ID } })).map(credentialRow).filter((row): row is CredentialRow => Boolean(row));
   const now = new Date();
   let resumed = 0;
   const notes: string[] = [];
-  for (const row of page.pauses) {
+  for (const row of pauses) {
     if (row.platform !== "meta" && row.platform !== "google_ads") continue;
-    const plan: WritePlan = {
-      platform: row.platform,
-      level: "ad",
-      operation: "update_status",
-      externalId: row.externalId,
-      adGroupExternalId: row.adGroupExternalId,
-      customerId: row.customerId,
-      from: "PAUSED",
-      to: "ACTIVE",
-      pausedBySystem: true,
-      adId: row.adId,
-      adName: row.adName,
-      landingPageId: page.id,
-      trackedId: row.id,
-    };
-    const access = credentialFor(page.clientKey, row.platform, credentials, env);
-    const outcome = await performWrite({ plan, access, pageName: page.name, env, fetchImpl: input.fetchImpl });
+    const plan = planResumeFromTracked(trackedFromRow({ ...row, platform: row.platform }));
+    if (!plan) {
+      notes.push("That pause cannot be resumed.");
+      continue;
+    }
+    const access = credentialFor(row.clientKey, row.platform, credentials, env);
+    const outcome = await performWrite({ plan, access, pageName: row.pageName || "Landing page", env, fetchImpl: input.fetchImpl });
     await writeAudit({
-      pageId: page.id,
+      pageId: row.landingPageId,
       adId: row.adId,
       platform: row.platform,
       externalId: row.externalId,
@@ -501,12 +547,12 @@ export async function resumeLandingAds(input: { pageId: string; actorId: string;
     }
     await markResumed(plan, now);
     resumed += 1;
-  }
-  if (resumed) {
-    await prisma.pageIncident.updateMany({
-      where: { landingPageId: page.id, kind: "down", status: "open" },
-      data: { pauseHeld: true },
-    });
+    if (row.landingPageId) {
+      await prisma.pageIncident.updateMany({
+        where: { landingPageId: row.landingPageId, kind: "down", status: "open" },
+        data: { pauseHeld: true },
+      });
+    }
   }
   if (!resumed) return { ok: false as const, message: notes[0] || "Nothing changed." };
   return { ok: true as const, message: resumed === 1 ? "Resumed 1 ad." : `Resumed ${resumed} ads.` };
@@ -516,7 +562,7 @@ export async function loadLandingScreen(input: { audience: "staff" | "client"; c
   const env = input.env ?? process.env;
   const now = input.now ?? new Date();
   const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const [pages, setting, credentialRows, org] = await Promise.all([
+  const [pages, clients, orphans, accounts, credentialRows, org] = await Promise.all([
     prisma.landingPage.findMany({
       where: { workspaceId: WORKSPACE_ID, active: true },
       orderBy: { name: "asc" },
@@ -524,14 +570,28 @@ export async function loadLandingScreen(input: { audience: "staff" | "client"; c
         checks: { where: { checkedAt: { gte: since } }, orderBy: { checkedAt: "desc" }, take: 2000 },
         pauses: { where: { resumedAt: null, mode: "live" } },
         alerts: { orderBy: { firedAt: "desc" }, take: 30 },
+        client: { select: { name: true } },
       },
     }),
-    prisma.clientPageSetting.findUnique({ where: { workspaceId_clientKey: { workspaceId: WORKSPACE_ID, clientKey: "org" } } }),
-    prisma.pageWriteCredential.findMany({ where: { workspaceId: WORKSPACE_ID, clientKey: "org" } }),
-    prisma.org.findUnique({ where: { id: "org" }, select: { timezone: true, name: true } }),
+    prisma.marketingClient.findMany({
+      where: { workspaceId: WORKSPACE_ID },
+      orderBy: { name: "asc" },
+      include: { settings: true },
+    }),
+    prisma.systemPausedAd.findMany({
+      where: { workspaceId: WORKSPACE_ID, resumedAt: null, mode: "live", landingPageId: null },
+      orderBy: { pausedAt: "desc" },
+    }),
+    prisma.adAccount.findMany({
+      where: { workspaceId: WORKSPACE_ID },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, client: { select: { name: true } } },
+    }),
+    prisma.pageWriteCredential.findMany({ where: { workspaceId: WORKSPACE_ID } }),
+    prisma.org.findUnique({ where: { id: "org" }, select: { timezone: true } }),
   ]);
   const credentials = credentialRows.map(credentialRow).filter((row): row is CredentialRow => Boolean(row));
-  const timeZone = setting?.timezone || org?.timezone || "America/New_York";
+  const timeZoneFor = (clientKey: string) => clients.find((client) => client.id === clientKey)?.settings[0]?.timezone || org?.timezone || "America/New_York";
   const monitorOn = pageMonitorEnabled(env);
   const rawPages = pages.map((page) => {
     const latest = page.checks[0] ?? null;
@@ -549,7 +609,7 @@ export async function loadLandingScreen(input: { audience: "staff" | "client"; c
         formSubmitOk: submit?.formSubmitOk ?? null,
         formPresent: latest?.formPresent ?? false,
         submittedAt: submit?.checkedAt.toISOString() ?? null,
-        timeZone,
+        timeZone: timeZoneFor(page.clientKey),
         expectForm: page.expectForm,
       }),
       pixels: latest ? asPixels(latest.pixels) : null,
@@ -557,6 +617,7 @@ export async function loadLandingScreen(input: { audience: "staff" | "client"; c
       samples: page.checks.map((check) => ({ at: check.checkedAt.toISOString(), status: check.status })),
       pausedAdNames: page.pauses.map((row) => row.adName || "Ad"),
       recentlyResumed: Boolean(resumed) && page.pauses.length === 0,
+      clientName: page.client.name,
     };
   });
   const notices = pages.flatMap((page) =>
@@ -589,14 +650,21 @@ export async function loadLandingScreen(input: { audience: "staff" | "client"; c
       monitorOn,
       pages: pages.map((page) => ({ createdAt: page.createdAt.toISOString(), latestAt: page.checks[0]?.checkedAt.toISOString() ?? null })),
     }),
-    optIn: Boolean(setting?.autoPauseOptIn),
-    clientAlertOptIn: Boolean(setting?.clientAlertOptIn),
-    credentials: {
-      meta: credentialFor("org", "meta", credentials, env).mode === "live",
-      google: credentialFor("org", "google_ads", credentials, env).mode === "live",
-    },
+    optIn: false,
+    clientAlertOptIn: false,
+    credentials: { meta: false, google: false },
     pages: rawPages,
     notices,
     livePausedPageIds: pages.filter((page) => page.pauses.length > 0).map((page) => page.id),
+    clients: clients.map((client) => ({
+      id: client.id,
+      name: client.name,
+      autoPauseOptIn: Boolean(client.settings[0]?.autoPauseOptIn),
+      clientAlertOptIn: Boolean(client.settings[0]?.clientAlertOptIn),
+      meta: credentialFor(client.id, "meta", credentials, env).mode === "live" ? ("Connected" as const) : ("Not connected" as const),
+      google: credentialFor(client.id, "google_ads", credentials, env).mode === "live" ? ("Connected" as const) : ("Not connected" as const),
+    })),
+    orphans: orphans.map((row) => ({ id: row.id, adName: row.adName || "Ad", pageName: row.pageName || "Deleted page" })),
+    accounts: accounts.map((account) => ({ id: account.id, name: account.name, clientName: account.client?.name || "" })),
   });
 }

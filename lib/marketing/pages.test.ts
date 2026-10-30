@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { pageAutoPauseEnabled, pageMonitorEnabled } from "./config";
-import { evaluatePage, gateAlert, downConfirmed, pauseReady, recovered, clientDownCopy, clientStatusSentence, pausedHeadline, RESUMED_HEADLINE, CLIENT_PAUSED, uptimeReport, checkedLabel, nextProbeAt, HEALTHY_INTERVAL_MS, CONFIRM_INTERVAL_MS, monitorStale, dedupeKey, pushAllowed, inQuietHours } from "./pages/policy";
+import { googleAdsApiVersion, pageAutoPauseEnabled, pageMonitorEnabled } from "./config";
+import { googleAdsGuard } from "./connectors/google-ads-client";
+import { evaluatePage, gateAlert, downConfirmed, pauseReady, recovered, clientDownCopy, clientStatusSentence, pausedHeadline, RESUMED_HEADLINE, CLIENT_PAUSED, uptimeReport, checkedLabel, nextProbeAt, HEALTHY_INTERVAL_MS, CONFIRM_INTERVAL_MS, monitorStale, dedupeKey, pushAllowed, inQuietHours, isRealClientKey, planResumeFromTracked } from "./pages/policy";
 import type { AdRow, AlertDraft, PageSample, PriorAlert, TrackedPause } from "./pages/policy";
 import { analyzeHtml, canonicalPageUrl, classifySample, destinationMatches, formTargetIssue, isMonitorTestLead, probePage, publicUrlIssue, withoutMonitorTestLeads } from "./pages/probe";
 import { presentLandingScreen } from "./pages/view";
@@ -34,15 +35,18 @@ function sample(at: string, overrides: Partial<PageSample> = {}): PageSample {
   };
 }
 
-const page = { id: "page1", clientKey: "org", name: "Free Inspection", url: "https://example.com/free-inspection" };
+const CLIENT = "clacme0001";
+const page = { id: "page1", clientKey: CLIENT, name: "Free Inspection", url: "https://example.com/free-inspection" };
 
 function ads(): AdRow[] {
+  const shared = { accountExternalId: "1234567890", clientKey: CLIENT, customerId: "", adGroupExternalId: "" };
   return [
-    { id: "meta1", name: "Free Inspection Video", platform: "meta", externalId: "111", adGroupExternalId: "", customerId: "", status: "active", destinationUrl: "https://www.example.com/free-inspection?utm_source=fb&fbclid=abc" },
-    { id: "goog1", name: "Free Inspection Search", platform: "google_ads", externalId: "222", adGroupExternalId: "333", customerId: "1234567890", status: "active", destinationUrl: "https://example.com/free-inspection/" },
-    { id: "other", name: "Spring Tune-Up", platform: "meta", externalId: "444", adGroupExternalId: "", customerId: "", status: "active", destinationUrl: "https://example.com/other" },
-    { id: "human", name: "Already paused", platform: "meta", externalId: "555", adGroupExternalId: "", customerId: "", status: "paused", destinationUrl: "https://example.com/free-inspection" },
-    { id: "tiktok", name: "TikTok cut", platform: "tiktok", externalId: "666", adGroupExternalId: "", customerId: "", status: "active", destinationUrl: "https://example.com/free-inspection" },
+    { ...shared, id: "meta1", name: "Free Inspection Video", platform: "meta", externalId: "111", status: "active", destinationUrl: "https://www.example.com/free-inspection?utm_source=fb&fbclid=abc" },
+    { ...shared, id: "goog1", name: "Free Inspection Search", platform: "google_ads", externalId: "222", adGroupExternalId: "333", customerId: "1234567890", status: "active", destinationUrl: "https://example.com/free-inspection/" },
+    { ...shared, id: "other", name: "Spring Tune-Up", platform: "meta", externalId: "444", status: "active", destinationUrl: "https://example.com/other" },
+    { ...shared, id: "human", name: "Already paused", platform: "meta", externalId: "555", status: "paused", destinationUrl: "https://example.com/free-inspection" },
+    { ...shared, id: "foreign", name: "Other client", platform: "meta", externalId: "777", clientKey: "clother001", status: "active", destinationUrl: "https://example.com/free-inspection" },
+    { ...shared, id: "tiktok", name: "TikTok cut", platform: "tiktok", externalId: "666", status: "active", destinationUrl: "https://example.com/free-inspection" },
   ];
 }
 
@@ -61,6 +65,7 @@ function evaluate(overrides: Partial<Parameters<typeof evaluatePage>[0]> = {}) {
     clientAlertOptIn: false,
     mutedUntil: null,
     lastPushAt: null,
+    canaryOk: true,
     writeMode: { meta: "live", google_ads: "live" },
     ...overrides,
   });
@@ -88,16 +93,20 @@ function pausePlan(overrides: Record<string, unknown> = {}): WritePlan {
     adId: "meta1",
     adName: "Free Inspection Video",
     landingPageId: "page1",
+    accountExternalId: "1234567890",
+    pageUrl: "https://example.com/free-inspection",
+    pausedAt: "",
+    clientKey: CLIENT,
+    pageName: "Free Inspection",
     ...overrides,
   } as WritePlan;
 }
 
 function cleanChange(overrides: Record<string, unknown> = {}) {
   const change: Record<string, unknown> = { ...pausePlan(overrides) };
-  delete change.adId;
-  delete change.adName;
-  delete change.landingPageId;
-  delete change.trackedId;
+  for (const key of ["adId", "adName", "landingPageId", "trackedId", "accountExternalId", "pageUrl", "pausedAt", "clientKey", "pageName"]) {
+    delete change[key];
+  }
   return change;
 }
 
@@ -116,15 +125,16 @@ test("a single failed check does not alert or pause", () => {
   assert.equal(downConfirmed(result.displayStatus ? [sample(ago(0), { status: "down" })] : []), false);
 });
 
-test("two failures in one region do not alert", () => {
+test("two checks about a minute apart alert without a fake second region", () => {
   const result = evaluate({
-    samples: [sample(ago(60_000), { status: "down", region: "us-east" }), sample(ago(0), { status: "down", region: "us-east" })],
+    samples: [sample(ago(60_000), { status: "down", region: "worker" }), sample(ago(0), { status: "down", region: "worker" })],
   });
-  assert.equal(result.alerts.some((alert) => alert.code === "page_down"), false);
+  assert.equal(result.alerts.some((alert) => alert.code === "page_down"), true);
   assert.equal(result.plans.length, 0);
+  assert.equal(downConfirmed([sample(ago(0), { status: "down" }), sample(ago(0), { status: "down" })]), false);
 });
 
-test("two regions confirm a down alert and three spaced checks pause only matching ads", () => {
+test("two checks confirm a down alert and three spaced checks pause only this client's matching ads", () => {
   const confirmed = evaluate({
     samples: [sample(ago(60_000), { status: "down", region: "us-east" }), sample(ago(0), { status: "down", region: "eu-west" })],
   });
@@ -133,7 +143,8 @@ test("two regions confirm a down alert and three spaced checks pause only matchi
   assert.equal(confirmed.alerts[0]?.clientSummary, clientDownCopy("Free Inspection"));
 
   const paused = evaluate({ samples: downs() });
-  assert.equal(pauseReady(downs()), true);
+  assert.equal(pauseReady(downs(), true), true);
+  assert.equal(pauseReady(downs(), false), false);
   assert.deepEqual(paused.plans.map((plan) => plan.adId).sort(), ["goog1", "meta1"]);
   for (const plan of paused.plans) {
     assert.equal(plan.operation, "update_status");
@@ -143,7 +154,10 @@ test("two regions confirm a down alert and three spaced checks pause only matchi
     assert.equal(plan.pausedBySystem, false);
     assert.equal(reviewWrite(cleanChange(plan)).ok, true);
   }
-  assert.equal(paused.plans.some((plan) => plan.adId === "other" || plan.adId === "human" || plan.adId === "tiktok"), false);
+  assert.equal(paused.plans.some((plan) => plan.adId === "other" || plan.adId === "human" || plan.adId === "tiktok" || plan.adId === "foreign"), false);
+  assert.equal(evaluate({ samples: downs(), canaryOk: false }).plans.length, 0);
+  assert.equal(evaluate({ samples: downs(), page: { ...page, clientKey: "org" } }).plans.length, 0);
+  assert.equal(isRealClientKey("org"), false);
 });
 
 test("auto-pause stays off without the flag or the client opt-in", () => {
@@ -152,10 +166,10 @@ test("auto-pause stays off without the flag or the client opt-in", () => {
   assert.equal(evaluate({ samples: downs(), autoPauseOn: false }).alerts.some((alert) => alert.code === "page_down"), true);
 });
 
-test("three failures in one region do not pause", () => {
-  const samples = [0, 1, 2].map((step) => sample(ago((2 - step) * 60_000), { status: "down", region: "us-east" }));
-  assert.equal(downConfirmed(samples), false);
-  assert.equal(evaluate({ samples }).plans.length, 0);
+test("a canary failure blocks pause even after three spaced checks", () => {
+  const samples = [0, 1, 2].map((step) => sample(ago((2 - step) * 60_000), { status: "down", region: "worker" }));
+  assert.equal(downConfirmed(samples), true);
+  assert.equal(evaluate({ samples, canaryOk: false }).plans.length, 0);
 });
 
 test("checks that are not about a minute apart do not pause", () => {
@@ -164,19 +178,38 @@ test("checks that are not about a minute apart do not pause", () => {
     sample(ago(300_000), { status: "down", region: "eu-west" }),
     sample(ago(0), { status: "down", region: "us-east" }),
   ];
-  assert.equal(pauseReady(samples), false);
+  assert.equal(pauseReady(samples, true), false);
   assert.equal(evaluate({ samples }).plans.length, 0);
 });
 
 test("two good checks resume only ads this system paused", () => {
   const tracked: TrackedPause[] = [
-    { id: "trk", adId: "meta1", mode: "live", resumedAt: null, platform: "meta", externalId: "111", adGroupExternalId: "", customerId: "", adName: "Free Inspection Video" },
+    {
+      id: "trk",
+      adId: "meta1",
+      mode: "live",
+      resumedAt: null,
+      platform: "meta",
+      externalId: "111",
+      adGroupExternalId: "",
+      customerId: "",
+      accountExternalId: "1234567890",
+      clientKey: CLIENT,
+      pageUrl: page.url,
+      pageName: page.name,
+      pausedAt: ago(180_000),
+      adName: "Free Inspection Video",
+    },
   ];
   const result = evaluate({
-    samples: [sample(ago(180_000), { status: "down", region: "us-east" }), sample(ago(60_000), { status: "up", region: "eu-west" }), sample(ago(0), { status: "up", region: "us-east" })],
+    samples: [sample(ago(180_000), { status: "down", region: "worker" }), sample(ago(60_000), { status: "up", region: "worker" }), sample(ago(0), { status: "up", region: "worker" })],
     incidents: [{ id: "inc", kind: "down", status: "open", pauseHeld: false, openedAt: ago(180_000) }],
+    ads: ads().map((ad) => (ad.id === "meta1" ? { ...ad, status: "paused" } : ad)),
     tracked,
   });
+  const withoutPage = planResumeFromTracked({ ...tracked[0], id: "trk" });
+  assert.equal(withoutPage?.landingPageId, "");
+  assert.equal(withoutPage?.to, "ACTIVE");
   assert.equal(recovered(result.displayStatus ? [sample(ago(60_000), { status: "up" }), sample(ago(0), { status: "up" })] : []), true);
   assert.equal(result.resolveIncidents.some((incident) => incident.kind === "down" && incident.summary === "Resolved"), true);
   assert.deepEqual(result.resolveAlertCodes, ["page_down", "ads_paused"]);
@@ -237,7 +270,7 @@ test("slow, broken form, and missing pixel alert without pausing ads", () => {
 });
 
 test("alerts are deduped, muted, quiet, and push-limited", () => {
-  const prior: PriorAlert[] = [{ dedupeKey: dedupeKey("org", "page1", "page_down"), code: "page_down", severity: "critical", firedAt: ago(10 * 60_000), resolvedAt: null }];
+  const prior: PriorAlert[] = [{ dedupeKey: dedupeKey(CLIENT, "page1", "page_down"), code: "page_down", severity: "critical", firedAt: ago(10 * 60_000), resolvedAt: null }];
   const again = evaluate({ samples: downs(), alerts: prior });
   assert.equal(again.alerts.some((alert) => alert.code === "page_down"), false);
 
@@ -348,8 +381,11 @@ test("missing write credentials dry-run and never call the platform", async () =
   assert.equal(refused.mode, "dry_run");
   assert.match(secretRefIssue("META_ACCESS_TOKEN") || "", /read token/i);
   assert.match(secretRefIssue("EAABnotavariable") || "", /variable name/i);
-  const live = credentialFor("org", "google_ads", [], { GOOGLE_ADS_WRITE_ACCESS_TOKEN: "google-write", GOOGLE_ADS_DEVELOPER_TOKEN: "dev-token", GOOGLE_ADS_CUSTOMER_ID: "123-456-7890" });
-  assert.equal(live.mode, "live");
+  const live = credentialFor(CLIENT, "google_ads", [], { GOOGLE_ADS_WRITE_ACCESS_TOKEN: "google-write", GOOGLE_ADS_DEVELOPER_TOKEN: "dev-token", GOOGLE_ADS_CUSTOMER_IDS: "1234567890", GOOGLE_ADS_CUSTOMER_ID: "9999999999" });
+  assert.equal(live.mode, "dry_run");
+  const saved = credentialFor(CLIENT, "google_ads", [{ clientKey: CLIENT, platform: "google_ads", secretRef: "GOOGLE_ADS_WRITE_ACCESS_TOKEN", appSecretRef: "", extraSecretRef: "GOOGLE_ADS_DEVELOPER_TOKEN", accountExternalId: "1234567890", loginCustomerId: "", scopes: ["adwords"] }], { GOOGLE_ADS_WRITE_ACCESS_TOKEN: "google-write", GOOGLE_ADS_DEVELOPER_TOKEN: "dev-token" });
+  assert.equal(saved.mode, "live");
+  assert.equal(credentialFor("clother001", "google_ads", [{ clientKey: CLIENT, platform: "google_ads", secretRef: "GOOGLE_ADS_WRITE_ACCESS_TOKEN", appSecretRef: "", extraSecretRef: "GOOGLE_ADS_DEVELOPER_TOKEN", accountExternalId: "1234567890", loginCustomerId: "", scopes: ["adwords"] }], { GOOGLE_ADS_WRITE_ACCESS_TOKEN: "google-write", GOOGLE_ADS_DEVELOPER_TOKEN: "dev-token" }).mode, "dry_run");
   const log = dryRunLog("pause", "Free Inspection", ["Free Inspection Video"]);
   assert.equal(log.includes("google-write"), false);
   assert.match(log, /dry run: would pause 1 ad/);
@@ -358,6 +394,16 @@ test("missing write credentials dry-run and never call the platform", async () =
 test("a live status call sends only the status field", async () => {
   const seen: { url: string; body: string }[] = [];
   const fetchImpl = async (url: string, init?: RequestInit) => {
+    if ((init?.method || "GET") === "GET") {
+      return Response.json({
+        id: "111",
+        status: "ACTIVE",
+        effective_status: "ACTIVE",
+        adset_id: "999",
+        account_id: "1234567890",
+        creative: { object_story_spec: { link_data: { link: "https://example.com/free-inspection" } } },
+      });
+    }
     seen.push({ url, body: String(init?.body ?? "") });
     return new Response("{}", { status: 200 });
   };
@@ -370,22 +416,31 @@ test("a live status call sends only the status field", async () => {
   });
   assert.equal(outcome.ok, true);
   assert.equal(seen.length, 1);
+  assert.equal(seen.filter((call) => call.body === "status=PAUSED").length, 1);
   assert.equal(seen[0]?.body, "status=PAUSED");
   assert.equal(seen[0]?.url.includes("daily_budget"), false);
   assert.match(seen[0]?.url || "", /graph\.facebook\.com\/v23\.0\/111/);
-  const googleSeen: { body: string }[] = [];
+  const googleSeen: { url: string; body: string }[] = [];
   const google = await performWrite({
     plan: { ...pausePlan(), platform: "google_ads", externalId: "222", adGroupExternalId: "333", customerId: "1234567890" },
     access: { mode: "live", accessToken: "google-write", appSecret: "", developerToken: "dev-token", customerId: "1234567890", loginCustomerId: "" },
     pageName: "Free Inspection",
-    env: { GOOGLE_ADS_API_VERSION: "v18" },
-    fetchImpl: async (_url, init) => {
-      googleSeen.push({ body: String(init?.body ?? "") });
+    env: { GOOGLE_ADS_API_VERSION: "v18", GOOGLE_ADS_CUSTOMER_IDS: "1234567890", GOOGLE_ADS_CUSTOMER_ID: "9999999999" },
+    fetchImpl: async (url, init) => {
+      googleSeen.push({ url, body: String(init?.body ?? "") });
+      if (url.includes("googleAds:search")) {
+        return Response.json({ results: [{ adGroupAd: { status: "ENABLED", ad: { id: "222", finalUrls: ["https://example.com/free-inspection"] } } }] });
+      }
       return new Response("{}", { status: 200 });
     },
   });
   assert.equal(google.ok, true);
-  const parsed = JSON.parse(googleSeen[0]?.body || "{}") as { operations: { updateMask: string; update: { status: string } }[] };
+  const mutate = googleSeen.find((call) => call.url.includes("adGroupAds:mutate"));
+  assert.equal(googleAdsGuard("page-status", "POST", mutate?.url || ""), true);
+  assert.equal(googleAdsGuard("page-status", "POST", "https://googleads.googleapis.com/v26/customers/1234567890/campaigns:mutate"), false);
+  assert.equal(googleAdsGuard("page-status", "POST", "https://googleads.googleapis.com/v26/customers/1234567890/campaignBudgets:mutate"), false);
+  assert.match(mutate?.url || "", /\/v26\/customers\/1234567890\/adGroupAds:mutate$/);
+  const parsed = JSON.parse(mutate?.body || "{}") as { operations: { updateMask: string; update: { status: string } }[] };
   assert.equal(parsed.operations[0]?.updateMask, "status");
   assert.equal(parsed.operations[0]?.update.status, "PAUSED");
   assert.equal(shouldRetryLive(ago(60_000), NOW.getTime()), false);
@@ -419,9 +474,11 @@ test("clients see plain status and no costs", () => {
       samples: [{ at: ago(14 * 60_000), status: "down" }, { at: ago(0), status: "up" }],
       pausedAdNames: ["Free Inspection Video", "Free Inspection Search"],
       recentlyResumed: false,
+      clientName: "Acme Marine",
     }],
   });
   assert.equal(screen.credentials, null);
+  assert.equal(screen.clients.length, 0);
   assert.equal(screen.canManage, false);
   assert.equal(screen.notices.length, 0);
   assert.equal(screen.pages[0]?.summary, CLIENT_PAUSED);
@@ -478,6 +535,54 @@ test("page checks read the html and refuse private or off-site targets", async (
 test("the worker does nothing while the monitor flag is off", async () => {
   const result = await runPageMonitor({ MARKETING_PAGE_MONITOR: "off", MARKETING_PAGE_AUTOPAUSE: "on" });
   assert.deepEqual(result, { status: "skipped", reason: "MARKETING_PAGE_MONITOR is off" });
+});
+
+test("a Meta id that is not an ad is not paused", async () => {
+  let posts = 0;
+  const outcome = await performWrite({
+    plan: pausePlan(),
+    access: { mode: "live", accessToken: "meta-write-token", appSecret: "", developerToken: "", customerId: "", loginCustomerId: "" },
+    pageName: "Free Inspection",
+    fetchImpl: async (_url, init) => {
+      if (init?.method === "POST") posts += 1;
+      return Response.json({ id: "111", status: "ACTIVE", account_id: "1234567890" });
+    },
+  });
+  assert.equal(outcome.ok, false);
+  assert.equal(posts, 0);
+});
+
+test("Google status uses v26 and ignores the singular customer id", async () => {
+  assert.equal(googleAdsApiVersion({}), "v26");
+  assert.equal(googleAdsApiVersion({ GOOGLE_ADS_API_VERSION: "v18" }), "v26");
+  assert.equal(googleAdsApiVersion({ GOOGLE_ADS_API_VERSION: "v21" }), "v26");
+  assert.equal(googleAdsApiVersion({ GOOGLE_ADS_API_VERSION: "v23" }), "v23");
+  let called = 0;
+  const outcome = await performWrite({
+    plan: { ...pausePlan(), platform: "google_ads", externalId: "222", adGroupExternalId: "333", customerId: "1234567890" },
+    access: { mode: "live", accessToken: "google-write", appSecret: "", developerToken: "dev-token", customerId: "1234567890", loginCustomerId: "" },
+    pageName: "Free Inspection",
+    env: { GOOGLE_ADS_CUSTOMER_ID: "1234567890" },
+    fetchImpl: async () => {
+      called += 1;
+      return new Response("{}", { status: 200 });
+    },
+  });
+  assert.equal(outcome.ok, false);
+  assert.equal(called, 0);
+});
+
+test("pause rows survive page and ad deletion", () => {
+  const names = readdirSync(path.join(ROOT, "prisma/migrations"));
+  assert.equal(names.includes("20261029223000_landing_page_monitor"), false);
+  assert.equal(names.includes("20261030143000_landing_page_monitor"), false);
+  assert.equal(names.includes("20261030162000_landing_page_monitor"), true);
+  const sql = readFileSync(path.join(ROOT, "prisma/migrations/20261030162000_landing_page_monitor/migration.sql"), "utf8");
+  for (const name of ["SystemPausedAd_landingPageId_fkey", "SystemPausedAd_adId_fkey", "AdPauseAudit_landingPageId_fkey"]) {
+    const line = sql.split("\n").find((row) => row.includes(name));
+    assert.match(line || "", /ON DELETE SET NULL/);
+    assert.equal(/ON DELETE CASCADE/.test(line || ""), false);
+  }
 });
 
 test("pause code does not send budgets, bids, targeting, or creatives", () => {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CircleAlert, CircleCheck, Clock } from "lucide-react";
 import { ConfirmButton } from "@/components/confirm-dialog";
 import { PageTitle } from "@/components/shell";
-import { addLandingPage, muteLandingPage, resumeLandingPage, savePageWriteCredential, setPageMonitorOptIn, stopWatchingPage } from "@/lib/marketing/page-actions";
+import { addLandingPage, assignAccountToClient, createMarketingClient, muteLandingPage, resumeLandingPage, savePageWriteCredential, setPageMonitorOptIn, stopWatchingPage } from "@/lib/marketing/page-actions";
 import type { ClientPageRow, LandingScreen, PageNotice, StaffPageRow } from "@/lib/marketing/pages/view";
 
 function StatusChip({ status, label }: { status: string; label: string }) {
@@ -54,14 +54,14 @@ function NoticeCard({ notice, canManage }: { notice: PageNotice; canManage: bool
       {canManage && (
         <div className="mt-4 flex flex-wrap gap-2">
           {notice.canResume && (
-            <ConfirmButton
+              <ConfirmButton
               label="Resume"
               title="Resume these ads?"
               body="Resume the ads we paused for this page? They will send people here again."
               confirmLabel="Resume ads"
               className="btn-brand inline-flex min-h-11 items-center rounded-full px-4 text-sm"
               action={async () => {
-                const result = await resumeLandingPage(notice.pageId);
+                const result = await resumeLandingPage({ pageId: notice.pageId });
                 if (!result.ok) throw new Error(result.message);
               }}
             />
@@ -93,6 +93,7 @@ function PageRow({ row, staff }: { row: StaffPageRow | ClientPageRow; staff: Sta
       >
         <StatusChip status={row.status} label={row.statusLabel} />
         <span className="font-medium">{row.name}</span>
+        {staff?.clientName && <span className="hidden text-sm text-muted sm:inline">{staff.clientName}</span>}
         <span className="ml-auto hidden text-sm text-muted sm:inline">{row.checkedLabel}</span>
         {staff?.loadLabel && <span className="hidden text-sm text-muted sm:inline">{staff.loadLabel}</span>}
       </button>
@@ -130,6 +131,7 @@ export function LandingPagesView({ screen }: { screen: LandingScreen }) {
     const result = await addLandingPage({
       name: String(formData.get("name") || ""),
       url: String(formData.get("url") || ""),
+      clientKey: String(formData.get("clientKey") || ""),
       formTestUrl: String(formData.get("formTestUrl") || ""),
       expectForm: formData.get("expectForm") === "on",
     });
@@ -165,6 +167,15 @@ export function LandingPagesView({ screen }: { screen: LandingScreen }) {
           {!pages.length && <p className="mt-1 text-sm text-muted">{"We'll check it every 5 minutes."}</p>}
           <div className="mt-3 grid gap-3">
             <label className="grid gap-1 text-sm">
+              Client
+              <select name="clientKey" required className="min-h-11 rounded-xl border border-line bg-canvas px-3">
+                <option value="">Choose a client</option>
+                {screen.clients.map((client) => (
+                  <option key={client.id} value={client.id}>{client.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
               Page name
               <input name="name" required maxLength={80} className="min-h-11 rounded-xl border border-line bg-canvas px-3" />
             </label>
@@ -190,8 +201,33 @@ export function LandingPagesView({ screen }: { screen: LandingScreen }) {
           <PageRow key={row.id} row={row} staff={staff && "url" in row ? row : null} />
         ))}
       </div>
-      {staff && screen.canManage && <OptIn screen={screen} onMessage={setMessage} onError={setError} />}
-      {staff && screen.canEditCredentials && <CredentialForm onMessage={setMessage} onError={setError} credentials={screen.credentials} />}
+      {staff && screen.orphans.length > 0 && (
+        <div className="mt-6 space-y-3">
+          <h2 className="text-base font-semibold">Paused after a page was removed</h2>
+          {screen.orphans.map((row) => (
+            <div key={row.id} className="rounded-2xl border border-line bg-card p-4">
+              <p className="text-sm">{row.adName} · {row.pageName}</p>
+              {screen.canManage && (
+                <ConfirmButton
+                  label="Resume"
+                  title="Resume this ad?"
+                  body="The page record is gone. Resume still turns this ad back on if we paused it."
+                  confirmLabel="Resume ad"
+                  className="btn-brand mt-3 inline-flex min-h-11 items-center rounded-full px-4 text-sm"
+                  action={async () => {
+                    const result = await resumeLandingPage({ trackedId: row.id });
+                    if (!result.ok) throw new Error(result.message);
+                    setMessage(result.message);
+                  }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {staff && screen.canEditCredentials && <ClientForms screen={screen} onMessage={setMessage} onError={setError} />}
+      {staff && screen.canEditCredentials && <OptIn screen={screen} onMessage={setMessage} onError={setError} />}
+      {staff && screen.canEditCredentials && <CredentialForm screen={screen} onMessage={setMessage} onError={setError} />}
       {staff && screen.canManage && pages.length > 0 && (
         <div className="mt-6 space-y-2">
           {pages.map((row) => (
@@ -216,43 +252,109 @@ export function LandingPagesView({ screen }: { screen: LandingScreen }) {
   );
 }
 
-function OptIn({ screen, onMessage, onError }: { screen: LandingScreen; onMessage: (value: string) => void; onError: (value: string) => void }) {
+function ClientForms({ screen, onMessage, onError }: { screen: LandingScreen; onMessage: (value: string) => void; onError: (value: string) => void }) {
   return (
-    <form
-      className="mt-6 rounded-2xl border border-line bg-card p-4"
-      action={async (formData) => {
-        onError("");
-        const result = await setPageMonitorOptIn({
-          autoPauseOptIn: formData.get("autoPauseOptIn") === "on",
-          clientAlertOptIn: formData.get("clientAlertOptIn") === "on",
-        });
-        if (!result.ok) onError("Could not save that setting.");
-        else onMessage(result.message);
-      }}
-    >
-      <h2 className="text-base font-semibold">When a page is down</h2>
-      <p className="mt-1 text-sm text-muted">
-        {screen.autoPauseOn ? "Automatic pause is available on this server." : "Automatic pause is switched off on this server."} It still needs this client to opt in, and it only pauses ads that send people to the down page.
-      </p>
-      <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">
-        <input name="autoPauseOptIn" type="checkbox" defaultChecked={screen.optIn} className="h-4 w-4" />
-        Pause ads for this client when a page is down
-      </label>
-      <label className="flex min-h-11 items-center gap-2 text-sm">
-        <input name="clientAlertOptIn" type="checkbox" defaultChecked={screen.clientAlertOptIn} className="h-4 w-4" />
-        Email this client when a page is down
-      </label>
-      <button type="submit" className="btn-brand mt-3 inline-flex min-h-11 items-center rounded-full px-4 text-sm">Save</button>
-    </form>
+    <div className="mt-6 space-y-4">
+      <form
+        className="rounded-2xl border border-line bg-card p-4"
+        action={async (formData) => {
+          onError("");
+          const result = await createMarketingClient(String(formData.get("name") || ""));
+          if (!result.ok) onError(result.message);
+          else onMessage(result.message);
+        }}
+      >
+        <h2 className="text-base font-semibold">Add a client</h2>
+        <label className="mt-3 grid gap-1 text-sm">
+          Client name
+          <input name="name" required maxLength={80} className="min-h-11 rounded-xl border border-line bg-canvas px-3" />
+        </label>
+        <button type="submit" className="btn-brand mt-3 inline-flex min-h-11 items-center rounded-full px-4 text-sm">Add client</button>
+      </form>
+      {screen.accounts.length > 0 && screen.clients.length > 0 && (
+        <form
+          className="rounded-2xl border border-line bg-card p-4"
+          action={async (formData) => {
+            onError("");
+            const result = await assignAccountToClient({
+              accountId: String(formData.get("accountId") || ""),
+              clientKey: String(formData.get("clientKey") || ""),
+            });
+            if (!result.ok) onError(result.message);
+            else onMessage(result.message);
+          }}
+        >
+          <h2 className="text-base font-semibold">Assign an ad account</h2>
+          <p className="mt-1 text-sm text-muted">Ads are paused only when the account belongs to the page&apos;s client.</p>
+          <div className="mt-3 grid gap-3">
+            <label className="grid gap-1 text-sm">
+              Ad account
+              <select name="accountId" required className="min-h-11 rounded-xl border border-line bg-canvas px-3">
+                {screen.accounts.map((account) => (
+                  <option key={account.id} value={account.id}>{account.name}{account.clientName ? ` · ${account.clientName}` : ""}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              Client
+              <select name="clientKey" required className="min-h-11 rounded-xl border border-line bg-canvas px-3">
+                {screen.clients.map((client) => (
+                  <option key={client.id} value={client.id}>{client.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <button type="submit" className="btn-brand mt-3 inline-flex min-h-11 items-center rounded-full px-4 text-sm">Assign</button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function OptIn({ screen, onMessage, onError }: { screen: LandingScreen; onMessage: (value: string) => void; onError: (value: string) => void }) {
+  if (!screen.clients.length) return null;
+  return (
+    <div className="mt-4 space-y-4">
+      {screen.clients.map((client) => (
+        <form
+          key={client.id}
+          className="rounded-2xl border border-line bg-card p-4"
+          action={async (formData) => {
+            onError("");
+            const result = await setPageMonitorOptIn({
+              clientKey: client.id,
+              autoPauseOptIn: formData.get("autoPauseOptIn") === "on",
+              clientAlertOptIn: formData.get("clientAlertOptIn") === "on",
+            });
+            if (!result.ok) onError(result.message);
+            else onMessage(result.message);
+          }}
+        >
+          <h2 className="text-base font-semibold">{client.name}</h2>
+          <p className="mt-1 text-sm text-muted">
+            {screen.autoPauseOn ? "Automatic pause is available on this server." : "Automatic pause is switched off on this server."} Meta write: {client.meta}. Google Ads write: {client.google}.
+          </p>
+          <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">
+            <input name="autoPauseOptIn" type="checkbox" defaultChecked={client.autoPauseOptIn} className="h-4 w-4" />
+            Pause ads for {client.name} when a page is down
+          </label>
+          <label className="flex min-h-11 items-center gap-2 text-sm">
+            <input name="clientAlertOptIn" type="checkbox" defaultChecked={client.clientAlertOptIn} className="h-4 w-4" />
+            Email {client.name} when a page is down
+          </label>
+          <button type="submit" className="btn-brand mt-3 inline-flex min-h-11 items-center rounded-full px-4 text-sm">Save</button>
+        </form>
+      ))}
+    </div>
   );
 }
 
 function CredentialForm({
-  credentials,
+  screen,
   onMessage,
   onError,
 }: {
-  credentials: LandingScreen["credentials"];
+  screen: LandingScreen;
   onMessage: (value: string) => void;
   onError: (value: string) => void;
 }) {
@@ -263,6 +365,7 @@ function CredentialForm({
         onError("");
         const platform = formData.get("platform") === "google_ads" ? "google_ads" : "meta";
         const result = await savePageWriteCredential({
+          clientKey: String(formData.get("clientKey") || ""),
           platform,
           secretRef: String(formData.get("secretRef") || ""),
           appSecretRef: String(formData.get("appSecretRef") || ""),
@@ -276,9 +379,18 @@ function CredentialForm({
     >
       <h2 className="text-base font-semibold">Write access</h2>
       <p className="mt-1 text-sm text-muted">
-        Meta write: {credentials?.meta ?? "Not connected"}. Google Ads write: {credentials?.google ?? "Not connected"}. Enter environment variable names, not tokens. Without them, a pause is only logged.
+        Enter environment variable names for one client, not tokens. A saved row is required. Without it, a pause is only logged. Google also requires that customer id in GOOGLE_ADS_CUSTOMER_IDS.
       </p>
       <div className="mt-3 grid gap-3">
+        <label className="grid gap-1 text-sm">
+          Client
+          <select name="clientKey" required className="min-h-11 rounded-xl border border-line bg-canvas px-3">
+            <option value="">Choose a client</option>
+            {screen.clients.map((client) => (
+              <option key={client.id} value={client.id}>{client.name}</option>
+            ))}
+          </select>
+        </label>
         <label className="grid gap-1 text-sm">
           Platform
           <select name="platform" className="min-h-11 rounded-xl border border-line bg-canvas px-3">

@@ -227,6 +227,20 @@ async function readPublic(url: string, fetchImpl: FetchLike, timeoutMs: number, 
   }
 }
 
+export async function probeCanary(url: string, fetchImpl: FetchLike = fetch, timeoutMs = 8_000) {
+  if (publicUrlIssue(url)) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(url, { method: "GET", redirect: "manual", signal: controller.signal });
+    return response.status >= 200 && response.status < 400;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function probePage(input: {
   url: string;
   region: string;

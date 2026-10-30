@@ -134,18 +134,15 @@ export function pageMonitorEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_PAGE_MONITOR");
 }
 
-/** Off unless MARKETING_PAGE_AUTOPAUSE is explicitly on. Also needs a per-client opt-in. */
+/** Off unless MARKETING_PAGE_AUTOPAUSE is explicitly on. Also needs that client's opt-in. */
 export function pageAutoPauseEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_PAGE_AUTOPAUSE");
 }
 
-/** Probe labels. A single worker alternates them. Comma-separated, at least one. */
-export function pageMonitorRegions(env: Env = process.env) {
-  const parts = (env.PAGE_MONITOR_REGIONS || "us-east,eu-west")
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => /^[a-z0-9-]{2,32}$/i.test(part));
-  return parts.length ? parts : ["us-east", "eu-west"];
+/** A public URL this worker must reach before a page failure can pause ads. */
+export function pageMonitorCanaryUrl(env: Env = process.env) {
+  const raw = (env.PAGE_MONITOR_CANARY_URL || "https://www.gstatic.com/generate_204").trim();
+  return raw;
 }
 
 export function amBudgetCapUsd(env: Env = process.env) {

@@ -68,7 +68,6 @@ export function AppShell({
     ...(leadScoring ? [{ href: "/marketing/leads", label: "Leads", icon: ListChecks }] : []),
   ];
   const staffNav = extras.length ? [...NAV.slice(0, 2), ...extras, ...NAV.slice(2)] : NAV;
-  const navItems = user.role === "client_viewer" ? [{ href: "/marketing/client", label: "Performance", icon: BarChart3 }] : staffNav;
 
   const nav = (
     <div className="flex h-full flex-col">

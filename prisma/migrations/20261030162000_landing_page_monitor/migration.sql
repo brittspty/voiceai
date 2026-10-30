@@ -1,10 +1,22 @@
--- Landing page checks, incidents, and the audit trail for ad pause / resume.
--- Tokens are not stored. PageWriteCredential.secretRef is an environment variable name.
+-- Landing page checks and the pause audit. Timestamp 20261030162000 is unique
+-- (other drafts used 20261029223000). Tokens are not stored.
+
+CREATE TABLE "MarketingClient" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL DEFAULT 'org',
+    "name" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "MarketingClient_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "AdAccount" ADD COLUMN "clientId" TEXT;
 
 CREATE TABLE "LandingPage" (
     "id" TEXT NOT NULL,
     "workspaceId" TEXT NOT NULL DEFAULT 'org',
-    "clientKey" TEXT NOT NULL DEFAULT 'org',
+    "clientKey" TEXT NOT NULL,
     "clientLabel" TEXT NOT NULL DEFAULT '',
     "name" TEXT NOT NULL,
     "url" TEXT NOT NULL,
@@ -99,15 +111,20 @@ CREATE TABLE "PageWriteCredential" (
     CONSTRAINT "PageWriteCredential_pkey" PRIMARY KEY ("id")
 );
 
+-- Pause rows survive deletion of the page or the ad so a resume can still be sent.
 CREATE TABLE "SystemPausedAd" (
     "id" TEXT NOT NULL,
     "workspaceId" TEXT NOT NULL DEFAULT 'org',
-    "adId" TEXT NOT NULL,
-    "landingPageId" TEXT NOT NULL,
+    "adId" TEXT,
+    "landingPageId" TEXT,
+    "clientKey" TEXT NOT NULL DEFAULT '',
+    "pageUrl" TEXT NOT NULL DEFAULT '',
+    "pageName" TEXT NOT NULL DEFAULT '',
     "platform" "AdPlatform" NOT NULL,
     "externalId" TEXT NOT NULL,
     "adGroupExternalId" TEXT NOT NULL DEFAULT '',
     "customerId" TEXT NOT NULL DEFAULT '',
+    "accountExternalId" TEXT NOT NULL DEFAULT '',
     "adName" TEXT NOT NULL DEFAULT '',
     "mode" TEXT NOT NULL DEFAULT 'live',
     "pausedAt" TIMESTAMP(3) NOT NULL,
@@ -137,6 +154,9 @@ CREATE TABLE "AdPauseAudit" (
     CONSTRAINT "AdPauseAudit_pkey" PRIMARY KEY ("id")
 );
 
+CREATE UNIQUE INDEX "MarketingClient_workspaceId_name_key" ON "MarketingClient"("workspaceId", "name");
+CREATE INDEX "MarketingClient_workspaceId_idx" ON "MarketingClient"("workspaceId");
+CREATE INDEX "AdAccount_clientId_idx" ON "AdAccount"("clientId");
 CREATE UNIQUE INDEX "LandingPage_workspaceId_url_key" ON "LandingPage"("workspaceId", "url");
 CREATE INDEX "LandingPage_workspaceId_clientKey_active_idx" ON "LandingPage"("workspaceId", "clientKey", "active");
 CREATE INDEX "PageCheck_landingPageId_checkedAt_idx" ON "PageCheck"("landingPageId", "checkedAt");
@@ -147,12 +167,17 @@ CREATE UNIQUE INDEX "ClientPageSetting_workspaceId_clientKey_key" ON "ClientPage
 CREATE UNIQUE INDEX "PageWriteCredential_workspaceId_clientKey_platform_key" ON "PageWriteCredential"("workspaceId", "clientKey", "platform");
 CREATE INDEX "SystemPausedAd_landingPageId_resumedAt_idx" ON "SystemPausedAd"("landingPageId", "resumedAt");
 CREATE INDEX "SystemPausedAd_adId_resumedAt_idx" ON "SystemPausedAd"("adId", "resumedAt");
+CREATE INDEX "SystemPausedAd_clientKey_resumedAt_idx" ON "SystemPausedAd"("clientKey", "resumedAt");
 CREATE INDEX "AdPauseAudit_landingPageId_createdAt_idx" ON "AdPauseAudit"("landingPageId", "createdAt");
 CREATE INDEX "AdPauseAudit_createdAt_idx" ON "AdPauseAudit"("createdAt");
 
+ALTER TABLE "AdAccount" ADD CONSTRAINT "AdAccount_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "MarketingClient"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "LandingPage" ADD CONSTRAINT "LandingPage_clientKey_fkey" FOREIGN KEY ("clientKey") REFERENCES "MarketingClient"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "PageCheck" ADD CONSTRAINT "PageCheck_landingPageId_fkey" FOREIGN KEY ("landingPageId") REFERENCES "LandingPage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "PageIncident" ADD CONSTRAINT "PageIncident_landingPageId_fkey" FOREIGN KEY ("landingPageId") REFERENCES "LandingPage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "PageMonitorAlert" ADD CONSTRAINT "PageMonitorAlert_landingPageId_fkey" FOREIGN KEY ("landingPageId") REFERENCES "LandingPage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "SystemPausedAd" ADD CONSTRAINT "SystemPausedAd_adId_fkey" FOREIGN KEY ("adId") REFERENCES "Ad"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "SystemPausedAd" ADD CONSTRAINT "SystemPausedAd_landingPageId_fkey" FOREIGN KEY ("landingPageId") REFERENCES "LandingPage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ClientPageSetting" ADD CONSTRAINT "ClientPageSetting_clientKey_fkey" FOREIGN KEY ("clientKey") REFERENCES "MarketingClient"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "PageWriteCredential" ADD CONSTRAINT "PageWriteCredential_clientKey_fkey" FOREIGN KEY ("clientKey") REFERENCES "MarketingClient"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "SystemPausedAd" ADD CONSTRAINT "SystemPausedAd_adId_fkey" FOREIGN KEY ("adId") REFERENCES "Ad"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "SystemPausedAd" ADD CONSTRAINT "SystemPausedAd_landingPageId_fkey" FOREIGN KEY ("landingPageId") REFERENCES "LandingPage"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "AdPauseAudit" ADD CONSTRAINT "AdPauseAudit_landingPageId_fkey" FOREIGN KEY ("landingPageId") REFERENCES "LandingPage"("id") ON DELETE SET NULL ON UPDATE CASCADE;

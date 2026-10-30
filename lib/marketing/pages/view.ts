@@ -17,6 +17,7 @@ export type StaffPageRow = {
   formLabel: string | null;
   pixelLabel: string | null;
   detail: string;
+  clientName: string;
   pausedAds: { name: string }[];
 };
 
@@ -43,6 +44,19 @@ export type PageNotice = {
   canResume: boolean;
 };
 
+export type ClientOptInRow = {
+  id: string;
+  name: string;
+  autoPauseOptIn: boolean;
+  clientAlertOptIn: boolean;
+  meta: "Connected" | "Not connected";
+  google: "Connected" | "Not connected";
+};
+
+export type OrphanPause = { id: string; adName: string; pageName: string };
+
+export type AccountChoice = { id: string; name: string; clientName: string };
+
 export type LandingScreen = {
   audience: "staff" | "client";
   monitorOn: boolean;
@@ -55,6 +69,9 @@ export type LandingScreen = {
   credentials: { meta: "Connected" | "Not connected"; google: "Connected" | "Not connected" } | null;
   pages: StaffPageRow[] | ClientPageRow[];
   notices: PageNotice[];
+  clients: ClientOptInRow[];
+  orphans: OrphanPause[];
+  accounts: AccountChoice[];
 };
 
 type RawPage = {
@@ -70,6 +87,7 @@ type RawPage = {
   samples: { at: string; status: string }[];
   pausedAdNames: string[];
   recentlyResumed: boolean;
+  clientName: string;
 };
 
 type RawNotice = {
@@ -167,6 +185,9 @@ export function presentLandingScreen(input: {
   pages: RawPage[];
   notices: RawNotice[];
   livePausedPageIds: string[];
+  clients?: ClientOptInRow[];
+  orphans?: OrphanPause[];
+  accounts?: AccountChoice[];
 }): LandingScreen {
   const uptimeFor = (page: RawPage) => uptimeReport(page.samples, input.now);
   if (input.audience === "client") {
@@ -201,6 +222,9 @@ export function presentLandingScreen(input: {
       credentials: null,
       pages,
       notices: [],
+      clients: [],
+      orphans: [],
+      accounts: [],
     };
   }
   const pausedIds = new Set(input.livePausedPageIds);
@@ -220,6 +244,7 @@ export function presentLandingScreen(input: {
       formLabel: page.formLabel,
       pixelLabel: pixelSummary(page.pixels),
       detail: page.detail,
+      clientName: page.clientName,
       pausedAds: page.pausedAdNames.map((name) => ({ name })),
     };
   });
@@ -238,6 +263,9 @@ export function presentLandingScreen(input: {
     },
     pages,
     notices: staffNotices(input.notices, pausedIds, input.now.getTime()),
+    clients: input.clients ?? [],
+    orphans: input.orphans ?? [],
+    accounts: input.accounts ?? [],
   };
 }
 

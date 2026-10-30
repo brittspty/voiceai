@@ -5,7 +5,7 @@ import { requireUser } from "../auth";
 import { denyAccess } from "../deny";
 import { prisma } from "../db";
 import { loadMarketingAccess } from "./queries";
-import { MUTE_MS } from "./pages/policy";
+import { isRealClientKey, MUTE_MS } from "./pages/policy";
 import { canonicalPageUrl, formTargetIssue, publicUrlIssue } from "./pages/probe";
 import { resumeLandingAds } from "./pages/store";
 import { customerIdIssue, secretRefIssue } from "./pages/writes";
@@ -29,8 +29,11 @@ function refresh() {
   revalidatePath("/sites/landing-pages");
 }
 
-export async function addLandingPage(input: { name: string; url: string; formTestUrl?: string; expectForm?: boolean }) {
+export async function addLandingPage(input: { name: string; url: string; clientKey: string; formTestUrl?: string; expectForm?: boolean }) {
   await manager();
+  if (!isRealClientKey(input.clientKey)) return { ok: false as const, message: "Choose a client." };
+  const client = await prisma.marketingClient.findFirst({ where: { id: input.clientKey, workspaceId: WORKSPACE_ID } });
+  if (!client) return { ok: false as const, message: "Choose a client." };
   const name = input.name.trim().replace(/\s+/g, " ");
   if (!name || name.length > 80) return { ok: false as const, message: "Enter a page name." };
   const urlIssue = publicUrlIssue(input.url);
@@ -42,13 +45,12 @@ export async function addLandingPage(input: { name: string; url: string; formTes
     const formIssue = formTargetIssue(url, formTestUrl);
     if (formIssue) return { ok: false as const, message: formIssue };
   }
-  const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
   try {
     await prisma.landingPage.create({
       data: {
         workspaceId: WORKSPACE_ID,
-        clientKey: "org",
-        clientLabel: org?.name || "",
+        clientKey: client.id,
+        clientLabel: client.name,
         name,
         url,
         formTestUrl,
@@ -62,6 +64,34 @@ export async function addLandingPage(input: { name: string; url: string; formTes
   return { ok: true as const, message: "Page added. The first check runs within 5 minutes." };
 }
 
+export async function createMarketingClient(name: string) {
+  await superAdmin();
+  const label = name.trim().replace(/\s+/g, " ");
+  if (!label || label.length > 80) return { ok: false as const, message: "Enter a client name." };
+  if (label.toLowerCase() === "org") return { ok: false as const, message: "Choose a client name." };
+  try {
+    await prisma.marketingClient.create({ data: { workspaceId: WORKSPACE_ID, name: label } });
+  } catch {
+    return { ok: false as const, message: "That client already exists." };
+  }
+  refresh();
+  return { ok: true as const, message: "Client added." };
+}
+
+export async function assignAccountToClient(input: { accountId: string; clientKey: string }) {
+  await superAdmin();
+  if (!isRealClientKey(input.clientKey)) return { ok: false as const, message: "Choose a client." };
+  const client = await prisma.marketingClient.findFirst({ where: { id: input.clientKey, workspaceId: WORKSPACE_ID } });
+  if (!client) return { ok: false as const, message: "Choose a client." };
+  const updated = await prisma.adAccount.updateMany({
+    where: { id: input.accountId, workspaceId: WORKSPACE_ID },
+    data: { clientId: client.id },
+  });
+  if (!updated.count) return { ok: false as const, message: "That ad account was not found." };
+  refresh();
+  return { ok: true as const, message: "Ad account assigned." };
+}
+
 export async function stopWatchingPage(pageId: string) {
   await manager();
   await prisma.landingPage.updateMany({ where: { id: pageId, workspaceId: WORKSPACE_ID }, data: { active: false } });
@@ -69,15 +99,18 @@ export async function stopWatchingPage(pageId: string) {
   return { ok: true as const, message: "Stopped watching that page." };
 }
 
-export async function setPageMonitorOptIn(input: { autoPauseOptIn: boolean; clientAlertOptIn: boolean }) {
-  await manager();
-  const org = await prisma.org.findUnique({ where: { id: "org" }, select: { timezone: true, name: true } });
+export async function setPageMonitorOptIn(input: { clientKey: string; autoPauseOptIn: boolean; clientAlertOptIn: boolean }) {
+  await superAdmin();
+  if (!isRealClientKey(input.clientKey)) return { ok: false as const, message: "Choose a client." };
+  const client = await prisma.marketingClient.findFirst({ where: { id: input.clientKey, workspaceId: WORKSPACE_ID } });
+  if (!client) return { ok: false as const, message: "Choose a client." };
+  const org = await prisma.org.findUnique({ where: { id: "org" }, select: { timezone: true } });
   await prisma.clientPageSetting.upsert({
-    where: { workspaceId_clientKey: { workspaceId: WORKSPACE_ID, clientKey: "org" } },
+    where: { workspaceId_clientKey: { workspaceId: WORKSPACE_ID, clientKey: client.id } },
     create: {
       workspaceId: WORKSPACE_ID,
-      clientKey: "org",
-      clientLabel: org?.name || "",
+      clientKey: client.id,
+      clientLabel: client.name,
       autoPauseOptIn: input.autoPauseOptIn,
       clientAlertOptIn: input.clientAlertOptIn,
       timezone: org?.timezone || "America/New_York",
@@ -88,7 +121,7 @@ export async function setPageMonitorOptIn(input: { autoPauseOptIn: boolean; clie
     },
   });
   refresh();
-  return { ok: true as const, message: input.autoPauseOptIn ? "Automatic pause is on for this client." : "Automatic pause is off for this client." };
+  return { ok: true as const, message: input.autoPauseOptIn ? `Automatic pause is on for ${client.name}.` : `Automatic pause is off for ${client.name}.` };
 }
 
 export async function muteLandingPage(pageId: string) {
@@ -101,14 +134,15 @@ export async function muteLandingPage(pageId: string) {
   return { ok: true as const, message: "Muted for 24 hours." };
 }
 
-export async function resumeLandingPage(pageId: string) {
+export async function resumeLandingPage(input: { pageId?: string; trackedId?: string }) {
   const { user } = await manager();
-  const result = await resumeLandingAds({ pageId, actorId: user.id, actorName: user.name });
+  const result = await resumeLandingAds({ pageId: input.pageId, trackedId: input.trackedId, actorId: user.id, actorName: user.name });
   refresh();
   return result;
 }
 
 export async function savePageWriteCredential(input: {
+  clientKey: string;
   platform: "meta" | "google_ads";
   secretRef: string;
   appSecretRef?: string;
@@ -117,6 +151,9 @@ export async function savePageWriteCredential(input: {
   loginCustomerId?: string;
 }) {
   await superAdmin();
+  if (!isRealClientKey(input.clientKey)) return { ok: false as const, message: "Choose a client." };
+  const client = await prisma.marketingClient.findFirst({ where: { id: input.clientKey, workspaceId: WORKSPACE_ID } });
+  if (!client) return { ok: false as const, message: "Choose a client." };
   const secretIssue = secretRefIssue(input.secretRef);
   if (secretIssue) return { ok: false as const, message: secretIssue };
   const appSecretRef = (input.appSecretRef || "").trim();
@@ -133,10 +170,10 @@ export async function savePageWriteCredential(input: {
     if (customerIssue) return { ok: false as const, message: customerIssue };
   }
   await prisma.pageWriteCredential.upsert({
-    where: { workspaceId_clientKey_platform: { workspaceId: WORKSPACE_ID, clientKey: "org", platform: input.platform } },
+    where: { workspaceId_clientKey_platform: { workspaceId: WORKSPACE_ID, clientKey: client.id, platform: input.platform } },
     create: {
       workspaceId: WORKSPACE_ID,
-      clientKey: "org",
+      clientKey: client.id,
       platform: input.platform,
       secretRef: input.secretRef.trim(),
       appSecretRef,
