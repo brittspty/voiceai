@@ -518,12 +518,15 @@ test("fatigue and pacing code paths do not write budgets and migrations are uniq
   assert.equal(new Set(names).size, names.length);
   const stamps = names.map((name) => name.slice(0, 14));
   assert.equal(new Set(stamps).size, stamps.length);
-  assert.ok(names.includes("20261030161500_creative_fatigue"));
-  assert.ok(names.includes("20261030161600_pacing_snapshots"));
-  const pacingSql = readFileSync(path.join(ROOT, "prisma/migrations/20261030161600_pacing_snapshots/migration.sql"), "utf8");
+  assert.ok(names.includes("20261030171000_creative_fatigue"));
+  assert.ok(names.includes("20261030172000_pacing_snapshots"));
+  for (const name of ["20261030171000_creative_fatigue", "20261030172000_pacing_snapshots"]) {
+    assert.ok(name.slice(0, 14) > "20261030170000", name);
+  }
+  const pacingSql = readFileSync(path.join(ROOT, "prisma/migrations/20261030172000_pacing_snapshots/migration.sql"), "utf8");
   assert.match(pacingSql, /recommendationOnly" = true/);
   assert.match(pacingSql, /ADD VALUE 'pacing'/);
-  const fatigueSql = readFileSync(path.join(ROOT, "prisma/migrations/20261030161500_creative_fatigue/migration.sql"), "utf8");
+  const fatigueSql = readFileSync(path.join(ROOT, "prisma/migrations/20261030171000_creative_fatigue/migration.sql"), "utf8");
   assert.match(fatigueSql, /ADD VALUE 'creative_fatigue'/);
   assert.match(fatigueSql, /CREATE TABLE "FatigueSignal"/);
 });
