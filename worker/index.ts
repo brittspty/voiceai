@@ -1,6 +1,7 @@
 import { prisma } from "../lib/db";
 import { runJob } from "../lib/dialer";
-import { digestEnabled, monitorEnabled, speedToLeadEnabled } from "../lib/marketing/config";
+import { digestEnabled, monitorEnabled, offlineConversionsEnabled, speedToLeadEnabled } from "../lib/marketing/config";
+import { runStoredOfflineCycle } from "../lib/marketing/offline/persist";
 import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
 import { runGoogleAdsSync } from "../lib/marketing/google-sync";
 import { runSpeedToLeadSweep } from "../lib/marketing/speed-to-lead-store";
@@ -44,6 +45,28 @@ function startSpeedToLead() {
   };
   void tick();
   const timer = setInterval(() => void tick(), 10_000);
+  return () => clearInterval(timer);
+}
+
+function startOfflineConversions() {
+  if (!offlineConversionsEnabled()) return () => {};
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const result = await runStoredOfflineCycle();
+      if (result.status !== "off") {
+        console.log(`[worker] offline conversions ${result.status} logged=${result.logged} sent=${result.sent}`);
+      }
+    } catch {
+      console.error("[worker] offline conversions failed");
+    } finally {
+      running = false;
+    }
+  };
+  void tick();
+  const timer = setInterval(() => void tick(), 15 * 60 * 1000);
   return () => clearInterval(timer);
 }
 
@@ -92,6 +115,7 @@ async function main() {
   console.log("[worker] voice operations dialer started");
   const stopMarketing = startMarketingSync();
   const stopSpeed = startSpeedToLead();
+  const stopConversions = startOfflineConversions();
   const redis = createRedis();
   let connected = false;
   try {
@@ -122,6 +146,7 @@ async function main() {
   }
   stopMarketing();
   stopSpeed();
+  stopConversions();
   redis.disconnect();
   await prisma.$disconnect();
 }

@@ -5,7 +5,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   const user = await requireUser();
   return (
     <div className="flex flex-col gap-6 md:flex-row">
-      <SettingsNav role={user.role} />
+      <SettingsNav role={user.role} email={user.email} userId={user.id} />
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

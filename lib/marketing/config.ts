@@ -119,6 +119,16 @@ export function leadScoringEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_LEAD_SCORING");
 }
 
+/** Off unless MARKETING_OFFLINE_CONVERSIONS is explicitly on. Dry run only until the live switch is also on. */
+export function offlineConversionsEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_OFFLINE_CONVERSIONS");
+}
+
+/** Off unless MARKETING_OFFLINE_CONVERSIONS_LIVE is explicitly on. Has no effect while the master switch is off. */
+export function offlineConversionsLiveEnabled(env: Env = process.env) {
+  return offlineConversionsEnabled(env) && flagOn(env, "MARKETING_OFFLINE_CONVERSIONS_LIVE");
+}
+
 export function amBudgetCapUsd(env: Env = process.env) {
   const parsed = Number(env.MARKETING_AM_BUDGET_CAP_USD ?? 500);
   if (!Number.isFinite(parsed) || parsed < 0) return 500;
