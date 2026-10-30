@@ -177,9 +177,9 @@ export async function loadDashboard(input: {
     }),
     prisma.recommendation.findMany({
       where: isolatedWhere(workspaceId, {
-        status: { in: ["verified", "accepted"] as const },
+        status: { in: ["verified", "accepted"] },
         campaignId: { in: campaignIds },
-      }),
+      }) as Prisma.RecommendationWhereInput,
       orderBy: { createdAt: "desc" },
       take: 12,
       select: { title: true, summary: true, type: true, metric: true, campaignId: true, campaign: { select: { name: true } } },
