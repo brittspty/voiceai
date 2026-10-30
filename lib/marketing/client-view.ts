@@ -21,7 +21,14 @@ export type ClientShareView = {
   updated: string;
   sharedBy: string;
   expires: string;
+  notes?: string[];
 };
+
+export const CLIENT_TESTING_NOTE = "New ad version testing";
+
+export function clientTestingNote(queued: boolean) {
+  return queued ? CLIENT_TESTING_NOTE : "";
+}
 
 function campaignStatus(booked: number, leads: number): ClientCampaign["status"] {
   if (booked === 0 && leads < 5) return "Fewer bookings";
@@ -40,7 +47,9 @@ export function buildClientShare(input: {
   rangeLabel?: string;
   updated?: string;
   qualified?: { count: number; total: number; delta: number; period?: "week" | "period" } | null;
+  notes?: string[];
 }): ClientShareView {
+  const notes = (input.notes ?? []).map((note) => note.trim()).filter(Boolean);
   const campaigns = input.campaigns.map((row) => {
     const status = campaignStatus(row.booked, row.leads);
     const note = row.note ? ` · ${row.note}` : "";
@@ -88,6 +97,7 @@ export function buildClientShare(input: {
     updated: input.updated || "Updated just now",
     sharedBy: input.sharedBy || "your marketing team",
     expires: input.expires || "",
+    ...(notes.length ? { notes } : {}),
   };
 }
 
@@ -100,6 +110,7 @@ export function clientShareText(view: ClientShareView) {
     view.updated,
     view.sharedBy,
     view.expires,
+    ...(view.notes ?? []),
   ].join(" ");
 }
 

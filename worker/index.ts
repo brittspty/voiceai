@@ -1,6 +1,8 @@
 import { prisma } from "../lib/db";
 import { runJob } from "../lib/dialer";
-import { digestEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, speedToLeadEnabled } from "../lib/marketing/config";
+import { creativeFatigueEnabled, digestEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, speedToLeadEnabled } from "../lib/marketing/config";
+import { runCreativeFatigue } from "../lib/marketing/fatigue-job";
+import { runPacingRecs } from "../lib/marketing/pacing-job";
 import { runStoredOfflineCycle } from "../lib/marketing/offline/persist";
 import { runPageMonitor } from "../lib/marketing/pages/store";
 import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
@@ -92,6 +94,14 @@ function startMarketingSync() {
         }
       } catch (error) {
         console.error("[worker] google ads sync failed", error);
+      }
+      if (creativeFatigueEnabled()) {
+        const fatigue = await runCreativeFatigue();
+        if (fatigue.status === "ran") console.log(`[worker] creative fatigue signals ${fatigue.signals}`);
+      }
+      if (pacingRecsEnabled()) {
+        const pacing = await runPacingRecs();
+        if (pacing.status === "ran") console.log(`[worker] pacing snapshots ${pacing.snapshots}`);
       }
     } catch (error) {
       console.error("[worker] marketing sync failed", error);

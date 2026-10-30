@@ -1,3 +1,4 @@
+import { CopyAmount } from "@/components/copy-amount";
 import { decideMarketingRecommendation } from "@/lib/marketing/human-actions";
 import {
   budgetCardCopy,
@@ -5,7 +6,10 @@ import {
   canApproveCard,
   cardExpiry,
   confidenceLabel,
+  decisionIsOpen,
   expiryLabel,
+  fatigueCardCopy,
+  pacingCardCopy,
   plainCardLine,
   windowLabel,
   type DecisionInput,
@@ -31,7 +35,7 @@ export function DecisionQueue({
   budgetCap?: number;
 }) {
   const now = new Date();
-  const pending = cards.filter((card) => card.status === "verified" && canApproveCard(card, now));
+  const pending = cards.filter((card) => decisionIsOpen(card, now));
   const done = cards.filter((card) => !pending.includes(card));
   return (
     <section>
@@ -41,20 +45,35 @@ export function DecisionQueue({
         {pending.map((card) => {
           const expiry = cardExpiry(card, now);
           const budget = card.type === "budget_change" ? budgetCardCopy(card) : null;
+          const pacing = card.type === "pacing" ? pacingCardCopy(card) : null;
+          const fatigue = card.type === "creative_fatigue" ? fatigueCardCopy(card) : null;
+          const handoff = budget || pacing;
           const approved = card.status === "accepted";
-          const waitingPerson = approved && budget && card.decisionNote !== "done";
+          const waitingPerson = approved && handoff && card.decisionNote !== "done";
           const needsAdmin = Boolean(budget) && !isSuperAdmin && budgetNeedsSuperAdmin(card.proposedBudgetAmount, budgetCap);
           const undoOpen = approved && card.decidedAt && now.getTime() - Date.parse(card.decidedAt) < 30_000;
           const canApprove = canAct && canApproveCard(card, now) && !needsAdmin;
           return (
             <article key={card.id} className="rounded-xl border border-line bg-card p-4" aria-labelledby={`decision-${card.id}`}>
               <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
-                <span className="rounded-md border border-line bg-chip px-2 py-0.5 text-xs font-bold text-ink">{budget ? budget.tag : card.type === "traffic" ? "Urgent · Check traffic" : "Suggestion"}</span>
+                <span className="rounded-md border border-line bg-chip px-2 py-0.5 text-xs font-bold text-ink">{handoff ? handoff.tag : fatigue ? fatigue.tag : card.type === "traffic" ? "Urgent · Check traffic" : "Suggestion"}</span>
                 <span>{needsAdmin ? "Needs a super admin's OK" : expiry.expired ? "Expired" : card.status === "declined" ? "Declined" : approved ? "Approved" : "Pending"}</span>
                 <span>{expiryLabel(expiry.ends, now.getTime())}</span>
               </div>
-              <h3 id={`decision-${card.id}`} className="mt-2 text-lg font-semibold">{budget ? budget.headline : plainCardLine(card)}</h3>
-              <p className="mt-1">{budget ? budget.why : plainCardLine(card)}</p>
+              <h3 id={`decision-${card.id}`} className="mt-2 text-lg font-semibold">{handoff ? handoff.headline : fatigue ? fatigue.headline : plainCardLine(card)}</h3>
+              <p className="mt-1">{handoff ? handoff.why : fatigue ? fatigue.fix : plainCardLine(card)}</p>
+              {fatigue && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-lg bg-canvas p-3">
+                    <span className="text-sm text-muted">Current</span>
+                    <b className="block">{fatigue.current}</b>
+                  </div>
+                  <div className="rounded-lg bg-canvas p-3">
+                    <span className="text-sm text-muted">Proposed</span>
+                    <b className="block">{fatigue.proposed}</b>
+                  </div>
+                </div>
+              )}
               {budget && (
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <div className="rounded-lg bg-canvas p-3">
@@ -78,13 +97,29 @@ export function DecisionQueue({
               <details className="mt-3 text-sm">
                 <summary>Show evidence</summary>
                 <p className="mt-2 text-muted">
-                  {plainCardLine(card)} {card.sourceCount} source rows. {card.verifierNote || "A second check confirmed this."}
+                  {fatigue ? fatigue.headline : pacing ? pacing.why : plainCardLine(card)} {card.sourceCount} source rows. {card.verifierNote || "A second check confirmed this."}
                 </p>
               </details>
-              {budget && <p className="mt-3 text-sm text-muted">{budget.fixed}</p>}
+              {handoff && <p className="mt-3 text-sm text-muted">{handoff.fixed}</p>}
+              {fatigue && <p className="mt-3 text-sm text-muted">{fatigue.fixed}</p>}
               {needsAdmin && <p className="mt-3 text-sm">Needs a super admin&apos;s OK</p>}
-              {waitingPerson && (
-                <div className="mt-3 rounded-lg bg-success-soft p-3 text-sm">
+              {waitingPerson && pacing && (
+                <div className="mt-3 rounded-lg bg-success-soft p-3 text-sm" aria-live="polite">
+                  <b>Approved by you. The budget has not changed yet.</b>
+                  <ol className="mt-2 list-decimal space-y-2 pl-5">
+                    {pacing.steps.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                  {card.proposedBudgetAmount != null && (
+                    <div className="mt-3">
+                      <CopyAmount amount={card.proposedBudgetAmount.toFixed(2)} label={`Copy number ${card.proposedBudgetAmount.toFixed(2)}`} />
+                    </div>
+                  )}
+                </div>
+              )}
+              {waitingPerson && budget && !pacing && (
+                <div className="mt-3 rounded-lg bg-success-soft p-3 text-sm" aria-live="polite">
                   <b>Approved by you. The budget has not changed yet.</b>
                   <ol className="mt-2 list-decimal pl-5">
                     <li>Open the ad account and find this campaign.</li>
@@ -93,12 +128,24 @@ export function DecisionQueue({
                   </ol>
                 </div>
               )}
+              {fatigue && approved && (
+                <div className="mt-3 text-sm" aria-live="polite">
+                  <p>Queued for you to upload. Nothing is live.</p>
+                  {canAct && undoOpen && (
+                    <form action={decideMarketingRecommendation} className="mt-2">
+                      <input type="hidden" name="id" value={card.id} />
+                      <input type="hidden" name="decision" value="undo" />
+                      <Button label={`Undo: ${card.title}`}>Undo</Button>
+                    </form>
+                  )}
+                </div>
+              )}
               {canApprove && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <form action={decideMarketingRecommendation}>
                     <input type="hidden" name="id" value={card.id} />
                     <input type="hidden" name="decision" value="accept" />
-                    <Button primary label={budget ? `Approve and get steps: ${card.title}` : `Approve: ${card.title}`}>{budget ? "Approve and get steps" : "Approve"}</Button>
+                    <Button primary label={pacing || budget ? `Approve and get steps: ${card.title}` : fatigue ? `Approve new version: ${card.title}` : `Approve: ${card.title}`}>{pacing || budget ? "Approve and get steps" : fatigue ? "Approve new version" : "Approve"}</Button>
                   </form>
                   <form action={decideMarketingRecommendation}>
                     <input type="hidden" name="id" value={card.id} />
@@ -143,7 +190,9 @@ export function DecisionQueue({
         {done.map((card) => (
           <article key={card.id} className="rounded-xl border border-line bg-card p-4">
             <p className="text-sm text-muted">{card.status === "declined" ? "Declined" : card.status === "accepted" ? "Approved" : "Finished"}</p>
-            <h3 className="mt-1 font-semibold">{card.type === "budget_change" ? card.title : plainCardLine(card)}</h3>
+            <h3 className="mt-1 font-semibold">{card.type === "budget_change" || card.type === "pacing" || card.type === "creative_fatigue" ? card.title : plainCardLine(card)}</h3>
+            {card.type === "creative_fatigue" && card.status === "accepted" && <p className="mt-1 text-sm text-muted">Queued for you to upload. Nothing is live.</p>}
+            {card.type === "pacing" && card.decisionNote === "done" && <p className="mt-1 text-sm text-muted">Marked done. The platform did not change the budget.</p>}
           </article>
         ))}
       </div>

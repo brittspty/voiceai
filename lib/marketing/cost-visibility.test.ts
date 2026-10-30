@@ -141,7 +141,7 @@ test("cost queries omit spend and budget columns unless the viewer is staff", ()
   assert.equal("currentBudgetAmount" in recommendationSelect(false), false);
   assert.equal("proposedBudgetAmount" in recommendationSelect(false), false);
   assert.equal(recommendationSelect(true).currentBudgetAmount, true);
-  assert.deepEqual(recommendationWhere(false).type, { notIn: ["budget_change", "roi"] });
+  assert.deepEqual(recommendationWhere(false).type, { notIn: ["budget_change", "roi", "pacing"] });
   assert.ok(alertWhere(false).code && "notIn" in alertWhere(false).code && alertWhere(false).code.notIn?.includes("cpc_off"));
   assert.ok(alertWhere(false).metric && "notIn" in alertWhere(false).metric && alertWhere(false).metric.notIn?.includes("cpa"));
   const queries = readFileSync(path.join(ROOT, "lib/marketing/queries.ts"), "utf8");

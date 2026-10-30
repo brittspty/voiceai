@@ -14,7 +14,7 @@ export default async function ClientMarketingPage() {
   if (user.role !== "client_viewer") return <NoAccess title="Results" />;
   if (access.kind !== "client_viewer" || !access.workspaceId) return <NoAccess title="Results" />;
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
-  const payload = await loadClientPerformance(org?.name || "Performance", { workspaceId: access.workspaceId });
+  const payload = await loadClientPerformance(org?.name || "Performance", { workspaceId: access.workspaceId, adAccountIds: access.accounts });
   const meta = requestClientMeta(await headers());
   await recordClientView({ workspaceId: access.workspaceId, viewerUserId: user.id, page: "/marketing/client", ...meta });
   return <ClientPerformance data={payload} />;

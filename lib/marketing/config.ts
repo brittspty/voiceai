@@ -89,6 +89,16 @@ export function monitorEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_MONITOR");
 }
 
+/** Off unless MARKETING_CREATIVE_FATIGUE is explicitly on. */
+export function creativeFatigueEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_CREATIVE_FATIGUE");
+}
+
+/** Off unless MARKETING_PACING_RECS is explicitly on. Recommendations only. */
+export function pacingRecsEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_PACING_RECS");
+}
+
 /** Off unless MARKETING_DIGEST is explicitly on. Generation only. */
 export function digestEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_DIGEST");

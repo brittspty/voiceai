@@ -45,6 +45,10 @@ export async function decideMarketingRecommendation(formData: FormData) {
   if (access.kind === "client_viewer" || access.kind === "none" || (!access.seesAlerts && access.kind !== "account_manager")) {
     denyAccess();
   }
+  if (rec.type === "pacing" && (!access.seesCost || (access.kind !== "super_admin" && access.kind !== "account_manager"))) {
+    denyAccess();
+  }
+  const draftId = draftVersionId(rec.evidence);
   if (decision === "later") {
     await prisma.recommendation.update({
       where: { id: rec.id },
@@ -56,6 +60,7 @@ export async function decideMarketingRecommendation(formData: FormData) {
   if (decision === "undo") {
     const decidedAt = rec.decidedAt?.getTime() ?? 0;
     if (Date.now() - decidedAt > 30_000) throw new Error("The undo window has closed.");
+    if (rec.type === "creative_fatigue") await setDraftStatus(draftId, "draft");
     await prisma.recommendation.update({
       where: { id: rec.id },
       data: { status: "verified", decisionNote: "", decidedById: null, decidedAt: null },
@@ -64,7 +69,7 @@ export async function decideMarketingRecommendation(formData: FormData) {
     return;
   }
   if (decision === "assign") {
-    if (rec.type !== "budget_change") throw new Error("Only a budget handoff can be assigned.");
+    if (rec.type !== "budget_change" && rec.type !== "pacing") throw new Error("Only a budget handoff can be assigned.");
     await audit(user, "Assigned a budget change to a teammate", { type: "recommendation", id: rec.id, label: rec.title });
     await prisma.recommendation.update({
       where: { id: rec.id },
@@ -74,7 +79,7 @@ export async function decideMarketingRecommendation(formData: FormData) {
     return;
   }
   if (decision === "confirm") {
-    if (rec.type !== "budget_change") throw new Error("Only a budget handoff can be confirmed.");
+    if (rec.type !== "budget_change" && rec.type !== "pacing") throw new Error("Only a budget handoff can be confirmed.");
     await prisma.recommendation.update({
       where: { id: rec.id },
       data: { decisionNote: "done", decidedById: user.id },
@@ -99,16 +104,36 @@ export async function decideMarketingRecommendation(formData: FormData) {
     decision: choice,
     budgetStore: prismaBudgetStore(),
   });
+  if (result.status === "accepted" && rec.type === "creative_fatigue") await setDraftStatus(draftId, "queued");
+  const decisionNote =
+    (rec.type === "budget_change" || rec.type === "pacing") && choice === "accept"
+      ? "waiting"
+      : rec.type === "creative_fatigue" && choice === "accept"
+        ? "queued"
+        : reason || choice;
   await prisma.recommendation.update({
     where: { id: rec.id },
     data: {
       status: result.status,
       decidedById: user.id,
       decidedAt: new Date(),
-      decisionNote: rec.type === "budget_change" && choice === "accept" ? "waiting" : reason || choice,
+      decisionNote,
     },
   });
   revalidatePath("/marketing");
+}
+
+function draftVersionId(evidence: unknown) {
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return "";
+  const id = (evidence as { draftCreativeVersionId?: unknown }).draftCreativeVersionId;
+  return typeof id === "string" ? id : "";
+}
+
+async function setDraftStatus(id: string, status: "draft" | "queued") {
+  if (!id) return;
+  const row = await prisma.creativeVersion.findUnique({ where: { id }, select: { id: true } });
+  if (!row) return;
+  await prisma.creativeVersion.update({ where: { id }, data: { status } });
 }
 
 export async function decideSkillOffer(formData: FormData) {

@@ -1,11 +1,11 @@
 import type { Prisma } from "@prisma/client";
 
 /** Metrics, cards, and copy that reveal spend or a figure derived from it. */
-export const COST_METRICS = ["cpc", "cpm", "cpa", "cpl", "budget", "roi", "spend", "cost", "roas", "conversion_value"] as const;
+export const COST_METRICS = ["cpc", "cpm", "cpa", "cpl", "budget", "roi", "spend", "cost", "roas", "conversion_value", "pacing"] as const;
 
-export const COST_ALERT_CODES = ["cpc_off", "cpm_off", "cpa_off", "cpl_off", "budget_change", "roi_within_budget"] as const;
+export const COST_ALERT_CODES = ["cpc_off", "cpm_off", "cpa_off", "cpl_off", "budget_change", "roi_within_budget", "pacing_over", "pacing_under", "pacing_critical"] as const;
 
-export const COST_REC_TYPES = ["budget_change", "roi"] as const;
+export const COST_REC_TYPES = ["budget_change", "roi", "pacing"] as const;
 
 const COST_KEYS = new Set([
   "spend",
@@ -32,6 +32,14 @@ const COST_KEYS = new Set([
   "proposedcurrency",
   "costperqualifiedlead",
   "cpql",
+  "projectedspend",
+  "spendtodate",
+  "expectedspend",
+  "marginalcpa",
+  "paceratio",
+  "cparecent",
+  "cpaprior",
+  "cparise",
 ]);
 
 const COST_TEXT = /cost|spend|cpc|cpm|cpa|cpl|roas|\bbudget\b|revenue|\$/i;
