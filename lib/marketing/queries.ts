@@ -1,7 +1,7 @@
 import { prisma } from "../db";
 import { accessFromUser, type MarketingAccess } from "./access";
 import { buildClientShare } from "./client-view";
-import { alertSelect, alertWhere, campaignSelect, dailyMetricSelect, isCostContent, metricSum, recommendationSelect, recommendationWhere, redactMarketingPage } from "./cost-visibility";
+import { alertSelect, alertWhere, campaignSelect, dailyMetricSelect, isCostContent, metricSum, recommendationSelect, recommendationWhere, redactMarketingPage, searchTermSelect } from "./cost-visibility";
 import { clientViewEvent, type ClientViewEvent } from "./share-link";
 
 function num(value: bigint | number | null | undefined) {
@@ -104,6 +104,21 @@ type LoadedRecommendation = {
 
 type LoadedDigest = { id: string; createdAt: Date; delivery: string; payload: unknown };
 
+type LoadedSearchTerm = {
+  id: string;
+  date: Date;
+  term: string;
+  matchType: string;
+  status: string;
+  impressions: bigint | number | null;
+  clicks: bigint | number | null;
+  conversions: { toString(): string } | number | null;
+  platform: string;
+  currency?: string | null;
+  spend?: { toString(): string } | number | null;
+  campaign: { id: string; name: string; adAccountId: string | null; adAccount: { name: string } | null } | null;
+};
+
 function inScope(access: MarketingAccess | undefined, input: { adAccountId?: string | null; campaignId?: string | null }) {
   if (!access || access.accounts === "all") return true;
   if (input.campaignId && access.campaigns !== "all" && access.campaigns.includes(input.campaignId)) return true;
@@ -113,7 +128,7 @@ function inScope(access: MarketingAccess | undefined, input: { adAccountId?: str
 
 export async function getMarketingPage(access?: MarketingAccess) {
   const seesCost = Boolean(access?.seesCost);
-  const [accounts, campaigns, metrics, lastRun, totalsRaw] = await Promise.all([
+  const [accounts, campaigns, metrics, searchTerms, lastRun, totalsRaw] = await Promise.all([
     prisma.adAccount.findMany({ orderBy: { name: "asc" } }),
     prisma.campaign.findMany({ orderBy: { name: "asc" }, select: campaignSelect(seesCost) }) as Promise<LoadedCampaign[]>,
     prisma.dailyMetric.findMany({
@@ -121,6 +136,11 @@ export async function getMarketingPage(access?: MarketingAccess) {
       take: 100,
       select: dailyMetricSelect(seesCost),
     }) as Promise<LoadedMetric[]>,
+    prisma.searchTermMetric.findMany({
+      orderBy: [{ date: "desc" }, { term: "asc" }],
+      take: 100,
+      select: searchTermSelect(seesCost),
+    }) as Promise<LoadedSearchTerm[]>,
     prisma.marketingSyncRun.findFirst({ orderBy: { startedAt: "desc" } }),
     seesCost
       ? prisma.dailyMetric.groupBy({ by: ["currency"], _sum: metricSum(seesCost) })
@@ -148,6 +168,7 @@ export async function getMarketingPage(access?: MarketingAccess) {
   const visibleAccounts = accounts.filter((account) => inScope(access, { adAccountId: account.id }));
   const visibleCampaigns = campaigns.filter((campaign) => campaign.adAccount && inScope(access, { adAccountId: campaign.adAccount.id, campaignId: campaign.id }));
   const visibleMetrics = metrics.filter((metric) => inScope(access, { adAccountId: metric.campaign?.adAccountId, campaignId: metric.campaign?.id }));
+  const visibleSearchTerms = searchTerms.filter((row) => inScope(access, { adAccountId: row.campaign?.adAccountId, campaignId: row.campaign?.id }));
 
   const page = {
     mock: lastRun?.mode === "mock",
@@ -198,6 +219,23 @@ export async function getMarketingPage(access?: MarketingAccess) {
       };
       if (!seesCost || !("spend" in metric)) return row;
       return { ...row, currency: metric.currency, spend: dec(metric.spend) };
+    }),
+    searchTerms: visibleSearchTerms.map((row) => {
+      const mapped = {
+        id: row.id,
+        date: row.date.toISOString().slice(0, 10),
+        account: row.campaign?.adAccount?.name ?? "—",
+        campaign: row.campaign?.name ?? "—",
+        term: row.term,
+        matchType: row.matchType,
+        status: row.status,
+        platform: row.platform,
+        impressions: num(row.impressions),
+        clicks: num(row.clicks),
+        conversions: dec(row.conversions),
+      };
+      if (!seesCost || !("spend" in row)) return mapped;
+      return { ...mapped, currency: row.currency, spend: dec(row.spend) };
     }),
     lastRun: lastRun
       ? {

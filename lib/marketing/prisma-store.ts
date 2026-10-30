@@ -436,5 +436,45 @@ export function createPrismaMarketingStore(client: Client): MarketingStore {
         },
       });
     },
+    async upsertSearchTerm(input) {
+      const date = day(input.date);
+      if (!date) return;
+      const data = {
+        campaignId: input.campaignId,
+        adGroupId: input.adGroupId,
+        status: input.status,
+        currency: input.currency,
+        spend: input.spend,
+        impressions: BigInt(input.impressions),
+        clicks: BigInt(input.clicks),
+        conversions: input.conversions,
+        ingestedAt: new Date(),
+        sourcePullId: input.sourcePullId,
+      };
+      await client.searchTermMetric.upsert({
+        where: {
+          workspaceId_date_platform_campaignExternalId_adGroupExternalId_term_matchType: {
+            workspaceId: input.workspaceId,
+            date,
+            platform: input.platform,
+            campaignExternalId: input.campaignExternalId,
+            adGroupExternalId: input.adGroupExternalId,
+            term: input.term,
+            matchType: input.matchType,
+          },
+        },
+        create: {
+          workspaceId: input.workspaceId,
+          platform: input.platform,
+          date,
+          campaignExternalId: input.campaignExternalId,
+          adGroupExternalId: input.adGroupExternalId,
+          term: input.term,
+          matchType: input.matchType,
+          ...data,
+        },
+        update: data,
+      });
+    },
   };
 }

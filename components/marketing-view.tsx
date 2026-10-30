@@ -91,6 +91,22 @@ type LastRun = {
 
 type Total = { currency?: string; spend?: number; impressions: number; clicks: number; leads: number };
 
+type SearchTermRow = {
+  id: string;
+  date: string;
+  account: string;
+  campaign: string;
+  term: string;
+  matchType: string;
+  status: string;
+  platform: string;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  currency?: string | null;
+  spend?: number;
+};
+
 const PLATFORM_LABEL: Record<string, string> = {
   meta: "Meta",
   google_ads: "Google Ads",
@@ -115,6 +131,23 @@ function money(amount: number, currency: string) {
   } catch {
     return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
   }
+}
+
+function matchLabel(value: string) {
+  const key = value.trim().toLowerCase();
+  if (key === "exact") return "Exact";
+  if (key === "phrase") return "Phrase";
+  if (key === "broad") return "Broad";
+  if (key === "near_exact" || key === "near_phrase") return "Close variant";
+  return value ? label(value) : "Unspecified";
+}
+
+function termStatus(value: string) {
+  const key = value.trim().toUpperCase();
+  if (key === "ADDED") return "Added as a keyword";
+  if (key === "EXCLUDED") return "Excluded";
+  if (key === "NONE" || key === "") return "Not a keyword";
+  return label(key.toLowerCase());
 }
 
 function count(value: number) {
@@ -170,14 +203,17 @@ export function MarketingView(props: {
   accounts: AccountRow[];
   campaigns: CampaignRow[];
   rows: MetricRow[];
+  searchTerms?: SearchTermRow[];
   lastRun: LastRun | null;
   totals: Total[];
   alerts?: AlertRow[];
   recommendations?: RecommendationRow[];
   digests?: DigestRow[];
-  flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number };
+  flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean };
 }) {
   const seesCost = Boolean(props.flags?.seesCost);
+  const searchTerms = props.searchTerms ?? [];
+  const showSearchTerms = searchTerms.length > 0 || props.accounts.some((account) => account.platform === "google_ads");
   const impressions = props.totals.reduce((sum, row) => sum + row.impressions, 0);
   const clicks = props.totals.reduce((sum, row) => sum + row.clicks, 0);
   const leads = props.totals.reduce((sum, row) => sum + row.leads, 0);
@@ -193,6 +229,13 @@ export function MarketingView(props: {
           props.flags?.canEditBudget
             ? "Ad accounts, campaigns, and daily performance. Reach is shown per row and is not added up."
             : "Ad accounts, campaigns, and daily performance. Read only. Reach is shown per row and is not added up."
+        }
+        action={
+          props.flags?.showGoogleConnection ? (
+            <a className="btn-brand inline-flex min-h-11 items-center rounded-full px-4 text-sm" href="/marketing/connections">
+              Google Ads connection
+            </a>
+          ) : undefined
         }
       />
       {props.mock && (
@@ -334,6 +377,48 @@ export function MarketingView(props: {
             </Table>
             <p className="mt-2 text-xs text-muted">Latest 100 rows. One row is one ad on one day. Do not add reach across rows.</p>
           </section>
+
+          {showSearchTerms && (
+            <section aria-labelledby="search-terms-heading">
+              <h2 id="search-terms-heading" className="mb-2 font-medium">Search terms</h2>
+              <p className="mb-3 text-sm text-muted">Searches that showed a Google ad. Read only.</p>
+              {!searchTerms.length ? (
+                <div className="rounded-xl border border-line bg-card p-6 text-sm">
+                  <div className="font-medium">No search terms yet</div>
+                  <p className="mt-1 text-muted">They appear here after a Google Ads sync. Nothing is changed in the ad account.</p>
+                </div>
+              ) : (
+                <>
+                  <ul className="space-y-3 md:hidden">
+                    {searchTerms.map((row) => (
+                      <li key={row.id} className="rounded-xl border border-line bg-card p-4 text-sm">
+                        <div className="font-medium">{row.term}</div>
+                        <p className="mt-1 text-muted">{row.campaign} · {matchLabel(row.matchType)} · {termStatus(row.status)}</p>
+                        <p className="mt-2">{formatIso(row.date)} · {count(row.impressions)} impressions · {count(row.clicks)} clicks</p>
+                        {seesCost && <p className="mt-1">Spend {money(row.spend ?? 0, row.currency || "USD")}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="hidden md:block">
+                    <Table headers={seesCost ? ["Date", "Campaign", "Search", "Match", "Status", "Impr.", "Clicks", "Spend"] : ["Date", "Campaign", "Search", "Match", "Status", "Impr.", "Clicks"]}>
+                      {searchTerms.map((row) => (
+                        <tr key={row.id} className="border-b border-line last:border-0">
+                          <td className="px-4 py-3 text-muted">{formatIso(row.date)}</td>
+                          <td className="px-4 py-3">{row.campaign}</td>
+                          <td className="px-4 py-3 font-medium">{row.term}</td>
+                          <td className="px-4 py-3">{matchLabel(row.matchType)}</td>
+                          <td className="px-4 py-3">{termStatus(row.status)}</td>
+                          <td className="px-4 py-3">{count(row.impressions)}</td>
+                          <td className="px-4 py-3">{count(row.clicks)}</td>
+                          {seesCost && <td className="px-4 py-3">{money(row.spend ?? 0, row.currency || "USD")}</td>}
+                        </tr>
+                      ))}
+                    </Table>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
 
           <div id="queue">
             {props.flags?.monitor ? (

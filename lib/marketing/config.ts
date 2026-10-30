@@ -168,6 +168,127 @@ export function verticalBenchmarks(env: Env = process.env): Record<string, Bench
   }
 }
 
+export const GOOGLE_ADS_REQUIRED = [
+  "GOOGLE_ADS_DEVELOPER_TOKEN",
+  "GOOGLE_ADS_CLIENT_ID",
+  "GOOGLE_ADS_CLIENT_SECRET",
+  "GOOGLE_ADS_REFRESH_TOKEN",
+  "GOOGLE_ADS_LOGIN_CUSTOMER_ID",
+] as const;
+
+export type GoogleAdsCredentialName = (typeof GOOGLE_ADS_REQUIRED)[number];
+
+/** Off unless MARKETING_GOOGLE_ADS is explicitly on. */
+export function googleAdsEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_GOOGLE_ADS");
+}
+
+/** Accepts `1234567890` or `123-456-7890`. Returns "" when it is not a 10-digit id. */
+export function normalizeCustomerId(raw: string) {
+  const digits = raw.trim().replace(/-/g, "");
+  return /^\d{10}$/.test(digits) ? digits : "";
+}
+
+/** Comma-separated Google Ads customer ids. Empty input is empty. */
+export function parseCustomerIds(raw: string | undefined) {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const part of (raw || "").split(",")) {
+    const id = normalizeCustomerId(part);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * REST major version. The path is `/v26`; minor releases such as v26.1 are served there.
+ * v18–v22 are sunset (v21 on 2026-08-05, v22 on 2026-10-07). A sunset or invalid value
+ * falls back to this constant so every caller shares one default.
+ */
+export const GOOGLE_ADS_API_VERSION = "v26";
+
+const SUNSET_GOOGLE_ADS_VERSIONS = new Set(["v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22"]);
+
+export function googleAdsApiVersion(env: Env) {
+  const raw = (env.GOOGLE_ADS_API_VERSION || "").trim();
+  if (/^v\d+$/.test(raw) && !SUNSET_GOOGLE_ADS_VERSIONS.has(raw)) return raw;
+  return GOOGLE_ADS_API_VERSION;
+}
+
+export type GoogleAdsEnv = {
+  enabled: boolean;
+  developerToken: string;
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+  loginCustomerId: string;
+  /** From GOOGLE_ADS_CUSTOMER_IDS only. GOOGLE_ADS_CUSTOMER_ID is not read. */
+  customerIds: string[];
+  apiVersion: string;
+};
+
+/**
+ * One parser for Google Ads env. One deployment is one client, so
+ * GOOGLE_ADS_CUSTOMER_IDS is that client's account allow-list. A later
+ * multi-client database should store the customer id on the client row.
+ */
+export function googleAdsEnv(env: Env = process.env): GoogleAdsEnv {
+  return {
+    enabled: googleAdsEnabled(env),
+    developerToken: (env.GOOGLE_ADS_DEVELOPER_TOKEN || "").trim(),
+    clientId: (env.GOOGLE_ADS_CLIENT_ID || "").trim(),
+    clientSecret: (env.GOOGLE_ADS_CLIENT_SECRET || "").trim(),
+    refreshToken: (env.GOOGLE_ADS_REFRESH_TOKEN || "").trim(),
+    loginCustomerId: normalizeCustomerId(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || ""),
+    customerIds: parseCustomerIds(env.GOOGLE_ADS_CUSTOMER_IDS),
+    apiVersion: googleAdsApiVersion(env),
+  };
+}
+
+export type GoogleAdsDecision =
+  | { action: "skip"; reason: string }
+  | { action: "mock" }
+  | {
+      action: "live";
+      developerToken: string;
+      clientId: string;
+      clientSecret: string;
+      refreshToken: string;
+      loginCustomerId: string;
+      customerIds: string[];
+      apiVersion: string;
+    };
+
+/**
+ * Google Ads sync does nothing unless MARKETING_GOOGLE_ADS is on.
+ * Missing credentials skip. They do not throw.
+ */
+export function decideGoogleAdsSync(env: Env): GoogleAdsDecision {
+  if (!googleAdsEnabled(env)) return { action: "skip", reason: "MARKETING_GOOGLE_ADS is off" };
+  const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
+  if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };
+  if (mode === "mock") return { action: "mock" };
+  if (mode !== "auto" && mode !== "live") {
+    return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
+  }
+  const settings = googleAdsEnv(env);
+  const missing = GOOGLE_ADS_REQUIRED.filter((name) => !(env[name] || "").trim());
+  if (missing.length) return { action: "skip", reason: `missing ${missing.join(", ")}` };
+  if (!settings.loginCustomerId) return { action: "skip", reason: "GOOGLE_ADS_LOGIN_CUSTOMER_ID is not a 10-digit customer id" };
+  return {
+    action: "live",
+    developerToken: settings.developerToken,
+    clientId: settings.clientId,
+    clientSecret: settings.clientSecret,
+    refreshToken: settings.refreshToken,
+    loginCustomerId: settings.loginCustomerId,
+    customerIds: settings.customerIds,
+    apiVersion: settings.apiVersion,
+  };
+}
+
 export function decideSync(env: Env): SyncDecision {
   const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
   if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };

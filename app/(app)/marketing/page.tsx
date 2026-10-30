@@ -22,6 +22,7 @@ export default async function MarketingPage() {
         canEditBudget: access.canEditBudget && access.seesCost,
         canCreateShareLink: access.canCreateShareLink,
         seesCost: access.seesCost,
+        showGoogleConnection: access.kind === "super_admin" || access.kind === "account_manager",
         ...(access.seesCost ? { isSuperAdmin: access.kind === "super_admin", budgetCap: amBudgetCapUsd() } : {}),
       }}
     />

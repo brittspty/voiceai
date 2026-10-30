@@ -569,6 +569,7 @@ model Campaign {
   updatedAt    DateTime              @updatedAt
   adGroups        AdGroup[]
   metrics         DailyMetric[]
+  searchTerms     SearchTermMetric[]
   budgetAudits    CampaignBudgetAudit[]
   alerts          AdAlert[]
   recommendations Recommendation[]
@@ -595,6 +596,7 @@ model AdGroup {
   ads              Ad[]
   audiences        AdGroupAudience[]
   metrics          DailyMetric[]
+  searchTerms      SearchTermMetric[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([campaignId])
@@ -731,6 +733,7 @@ model MarketingSyncRun {
   startedAt          DateTime            @default(now())
   finishedAt         DateTime?
   metrics            DailyMetric[]
+  searchTerms        SearchTermMetric[]
 
   @@index([platform, startedAt])
   @@index([connectionId])
@@ -770,6 +773,38 @@ model DailyMetric {
   @@unique([workspaceId, date, platform, adId, audienceSegmentId, attributionWindow])
   @@index([date])
   @@index([campaignId])
+  @@index([sourcePullId])
+}
+
+/// Google Ads search terms. One row per term, ad group, match type, and day.
+/// Spend is stored here and stripped for every role except super admin and account manager.
+model SearchTermMetric {
+  id                 String            @id @default(cuid())
+  workspaceId        String            @default("org")
+  platform           AdPlatform
+  date               DateTime          @db.Date
+  campaignExternalId String            @db.VarChar(64)
+  adGroupExternalId  String            @db.VarChar(64)
+  campaignId         String?
+  campaign           Campaign?         @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  adGroupId          String?
+  adGroup            AdGroup?          @relation(fields: [adGroupId], references: [id], onDelete: SetNull)
+  term               String            @db.VarChar(500)
+  matchType          String            @default("") @db.VarChar(64)
+  status             String            @default("") @db.VarChar(64)
+  currency           String            @default("USD")
+  spend              Decimal           @default(0) @db.Decimal(18, 4)
+  impressions        BigInt            @default(0)
+  clicks             BigInt            @default(0)
+  conversions        Decimal           @default(0) @db.Decimal(18, 4)
+  ingestedAt         DateTime          @default(now())
+  sourcePullId       String?
+  sourcePull         MarketingSyncRun? @relation(fields: [sourcePullId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, date, platform, campaignExternalId, adGroupExternalId, term, matchType], map: "SearchTermMetric_identity_key")
+  @@index([date])
+  @@index([campaignId])
+  @@index([adGroupId])
   @@index([sourcePullId])
 }
 

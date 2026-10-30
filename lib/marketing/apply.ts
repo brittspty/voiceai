@@ -204,5 +204,28 @@ export async function applySnapshot(store: MarketingStore, snapshot: NormalizedS
     rowsWritten += 1;
   }
 
+  for (const term of snapshot.searchTerms ?? []) {
+    const campaignKey = `${term.platform}:${term.campaignExternalId}`;
+    const adGroupKey = `${term.platform}:${term.adGroupExternalId}`;
+    let campaignId = campaignIds.get(campaignKey) ?? null;
+    let adGroupId = adGroupIds.get(adGroupKey) ?? null;
+    if (!campaignId) {
+      const existing = await store.findCampaign(ctx.workspaceId, term.platform, term.campaignExternalId);
+      campaignId = existing?.id ?? null;
+    }
+    if (!adGroupId) {
+      const existing = await store.findAdGroup(ctx.workspaceId, term.platform, term.adGroupExternalId);
+      adGroupId = existing?.id ?? null;
+    }
+    await store.upsertSearchTerm({
+      ...term,
+      workspaceId: ctx.workspaceId,
+      campaignId,
+      adGroupId,
+      sourcePullId: ctx.runId,
+    });
+    rowsWritten += 1;
+  }
+
   return { rowsWritten };
 }

@@ -1,11 +1,14 @@
+import { runGoogleAdsSync } from "../lib/marketing/google-sync";
 import { runMarketingSync } from "../lib/marketing/sync";
 
-runMarketingSync()
-  .then((result) => {
-    console.log(JSON.stringify(result, null, 2));
-    if (result.status === "failed") process.exit(1);
-  })
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+async function main() {
+  const meta = await runMarketingSync();
+  const googleAds = await runGoogleAdsSync();
+  console.log(JSON.stringify({ meta, googleAds }, null, 2));
+  if (meta.status === "failed" || googleAds.status === "failed") process.exit(1);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
