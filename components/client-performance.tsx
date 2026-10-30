@@ -16,6 +16,9 @@ export function ClientPerformance({ data }: { data: ClientShareView }) {
           </div>
         ))}
       </div>
+      {data.notes?.map((note) => (
+        <p key={note} className="mt-4 text-sm text-ink">{note}</p>
+      ))}
       <h2 className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide text-muted">Your campaigns</h2>
       {data.campaigns.length === 0 && <p className="text-sm text-muted">No results yet for these dates. New campaigns can take a day or two to show numbers.</p>}
       <div className="space-y-3">

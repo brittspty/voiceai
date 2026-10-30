@@ -101,6 +101,9 @@ export async function decideRecommendation(input: {
     throw new Error("Only a confirmed recommendation can be decided.");
   }
   if (input.decision === "accept") {
+    if (input.recommendation.type === "pacing" || input.recommendation.type === "creative_fatigue") {
+      return { status: "accepted" as const, budgetWrite: "none" as const };
+    }
     if (input.recommendation.type === "budget_change") {
       if (!input.recommendation.proposedBudgetAmount) throw new Error("The budget suggestion is incomplete.");
       // Records the person's OK only. The budget itself is not written.

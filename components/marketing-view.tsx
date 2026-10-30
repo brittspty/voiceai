@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Lock } from "lucide-react";
 import { DecisionQueue } from "@/components/decision-queue";
+import { visibleDecisionCards } from "@/lib/marketing/decision-ui";
 import { HourlySummary } from "@/components/hourly-summary";
 import { SpeedToLeadTile } from "@/components/speed-to-lead-tile";
 import type { SpeedDashboardView } from "@/lib/marketing/speed-to-lead";
@@ -213,13 +214,23 @@ export function MarketingView(props: {
   alerts?: AlertRow[];
   recommendations?: RecommendationRow[];
   digests?: DigestRow[];
-  flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean; searchWaste?: boolean; competitorWatch?: boolean; holdouts?: boolean };
+  flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean; searchWaste?: boolean; competitorWatch?: boolean; holdouts?: boolean; creativeFatigue?: boolean; pacing?: boolean };
   speedToLead?: SpeedDashboardView | { error: true } | null;
   leadQuality?: { qualified: number; total: number; rateLabel: string; trend: string; costPerQualifiedLead?: string } | null;
+  pacing?: { enabled: boolean; bars: { campaignId: string; name: string; status: string; chip: string; text: string; verification: string }[]; stale?: boolean };
+  fatigue?: { enabled: boolean; ads: { campaignId: string; adName: string; headline: string; platform: string; chip: string }[] };
 }) {
   const seesCost = Boolean(props.flags?.seesCost);
   const searchTerms = props.searchTerms ?? [];
   const showSearchTerms = searchTerms.length > 0 || props.accounts.some((account) => account.platform === "google_ads");
+  const tiredCampaigns = new Set((props.fatigue?.ads ?? []).map((ad) => ad.campaignId));
+  const decisionCards = visibleDecisionCards(props.recommendations ?? [], {
+    seesCost,
+    monitor: Boolean(props.flags?.monitor),
+    fatigue: Boolean(props.flags?.creativeFatigue),
+    pacing: Boolean(props.flags?.pacing) && seesCost,
+  }).filter((card) => card.type !== "speed_to_lead");
+  const showDecisions = Boolean(props.flags?.monitor || props.flags?.creativeFatigue || (props.flags?.pacing && seesCost));
   const impressions = props.totals.reduce((sum, row) => sum + row.impressions, 0);
   const clicks = props.totals.reduce((sum, row) => sum + row.clicks, 0);
   const leads = props.totals.reduce((sum, row) => sum + row.leads, 0);
@@ -364,7 +375,10 @@ export function MarketingView(props: {
             <Table headers={campaignHeaders}>
               {props.campaigns.map((campaign) => (
                 <tr key={campaign.id} className="border-b border-line last:border-0">
-                  <td className="px-4 py-3 font-medium">{campaign.name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {campaign.name}
+                    {tiredCampaigns.has(campaign.id) && <span className="ml-2"><Pill tone="amber">Tired</Pill></span>}
+                  </td>
                   <td className="px-4 py-3">{campaign.account}</td>
                   <td className="px-4 py-3 capitalize">{label(campaign.objective)}</td>
                   <td className="px-4 py-3">
@@ -470,13 +484,60 @@ export function MarketingView(props: {
             </section>
           )}
 
+          {seesCost && props.flags?.pacing && props.pacing?.enabled && (
+            <section>
+              <h2 className="mb-1 font-medium">Pacing</h2>
+              <p className="mb-3 text-sm text-muted">Recommendation only. Budgets are set by people only. The platform will not change this budget.</p>
+              {props.pacing.stale && (
+                <p className="mb-3 text-sm text-muted">Can&apos;t read spend from Meta. Pacing may be out of date. Retry the sync.</p>
+              )}
+              {props.pacing.bars.length === 0 && <p className="text-sm text-muted">Set a budget on a campaign to see pacing.</p>}
+              {props.pacing.bars.length > 0 && props.pacing.bars.every((bar) => bar.status === "on_track") && (
+                <p className="mb-3 text-sm text-muted">All campaigns are pacing on track.</p>
+              )}
+              <div className="space-y-3">
+                {props.pacing.bars.map((bar) => (
+                  <article key={bar.campaignId} className="rounded-xl border border-line bg-card p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <b>{bar.name}</b>
+                      <Pill tone={bar.status === "critical" ? "red" : bar.status === "on_track" ? "green" : "amber"}>{bar.chip}</Pill>
+                    </div>
+                    <p className="mt-2 text-sm text-muted">{bar.text}</p>
+                    {bar.verification && <p className="mt-2 text-sm">{bar.verification}</p>}
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {props.flags?.creativeFatigue && props.fatigue?.enabled && (
+            <section>
+              <h2 className="mb-2 font-medium">Tired ads</h2>
+              {props.fatigue.ads.length === 0 ? (
+                <p className="text-sm text-muted">No tired ads right now.</p>
+              ) : (
+                <div className="space-y-3">
+                  {props.fatigue.ads.map((ad) => (
+                    <article key={ad.campaignId + ad.adName} className="rounded-xl border border-line bg-card p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Pill tone="amber">{ad.chip}</Pill>
+                        <span className="text-sm text-muted">{PLATFORM_LABEL[ad.platform] ?? ad.platform}</span>
+                      </div>
+                      <p className="mt-2">{ad.headline}</p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
           <div id="queue">
-            {props.flags?.monitor ? (
+            {showDecisions ? (
               <DecisionQueue
-                cards={(props.recommendations ?? []).filter((card) => card.type !== "speed_to_lead" && (seesCost || (card.type !== "budget_change" && card.type !== "roi" && !["cpc", "cpm", "cpa", "cpl", "budget", "roi", "spend", "cost"].includes(card.metric))))}
-                canAct={Boolean(props.flags.canEditBudget)}
-                isSuperAdmin={props.flags.isSuperAdmin}
-                budgetCap={props.flags.budgetCap}
+                cards={decisionCards}
+                canAct={Boolean(props.flags?.canEditBudget)}
+                isSuperAdmin={props.flags?.isSuperAdmin}
+                budgetCap={props.flags?.budgetCap}
               />
             ) : (
               <p className="text-sm text-muted">Decision cards are turned off.</p>

@@ -569,6 +569,8 @@ model AdAccount {
   recommendations Recommendation[]
   negativeProposals NegativeProposal[]
   liftTests    LiftTest[]
+  fatigueSignals  FatigueSignal[]
+  pacingSnapshots PacingSnapshot[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([connectionId])
@@ -609,6 +611,8 @@ model Campaign {
   recommendations Recommendation[]
   negativeProposals NegativeProposal[]
   liftTests       LiftTest[]
+  fatigueSignals  FatigueSignal[]
+  pacingSnapshots PacingSnapshot[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([adAccountId])
@@ -664,6 +668,7 @@ model CreativeVersion {
   creative            Creative  @relation(fields: [creativeId], references: [id], onDelete: Cascade)
   versionLabel        String
   fingerprint         String
+  status              CreativeVersionStatus @default(live)
   headline            String    @default("")
   body                String    @default("")
   description         String    @default("")
@@ -676,6 +681,7 @@ model CreativeVersion {
   updatedAt           DateTime  @updatedAt
   ads                 Ad[]
   metrics             DailyMetric[]
+  fatigueSignals      FatigueSignal[]
 
   @@unique([workspaceId, fingerprint])
   @@index([creativeId])
@@ -702,6 +708,7 @@ model Ad {
   alerts            AdAlert[]
   recommendations   Recommendation[]
   systemPauses      SystemPausedAd[]
+  fatigueSignals    FatigueSignal[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([adGroupId])
@@ -903,6 +910,14 @@ enum RecommendationType {
   roi
   budget_change
   speed_to_lead
+  creative_fatigue
+  pacing
+}
+
+enum CreativeVersionStatus {
+  live
+  draft
+  queued
 }
 
 enum MarketingScopeKind {
@@ -1233,6 +1248,73 @@ model ConversionAlert {
 
   @@index([dedupeKey, firedAt])
   @@index([clientId])
+}
+
+model FatigueSignal {
+  id                String           @id @default(cuid())
+  workspaceId       String           @default("org")
+  platform          AdPlatform
+  adId              String
+  ad                Ad               @relation(fields: [adId], references: [id], onDelete: Cascade)
+  creativeVersionId String?
+  creativeVersion   CreativeVersion? @relation(fields: [creativeVersionId], references: [id], onDelete: SetNull)
+  campaignId        String
+  campaign          Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adAccountId       String
+  adAccount         AdAccount        @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  frequency         Decimal?         @db.Decimal(18, 4)
+  ctrRecent         Decimal?         @db.Decimal(18, 6)
+  ctrPrior          Decimal?         @db.Decimal(18, 6)
+  ctrSlope          Decimal?         @db.Decimal(18, 6)
+  cpaRecent         Decimal?         @db.Decimal(18, 4)
+  cpaPrior          Decimal?         @db.Decimal(18, 4)
+  fatigued          Boolean
+  reasons           String[]         @default([])
+  windowStart       DateTime         @db.Date
+  windowEnd         DateTime         @db.Date
+  sampleSize        Int
+  dedupeKey         String
+  detectedAt        DateTime
+  createdAt         DateTime         @default(now())
+
+  @@index([adId, detectedAt])
+  @@index([dedupeKey, detectedAt])
+  @@index([campaignId])
+  @@index([adAccountId])
+}
+
+model PacingSnapshot {
+  id                   String        @id @default(cuid())
+  workspaceId          String        @default("org")
+  campaignId           String
+  campaign             Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adAccountId          String
+  adAccount            AdAccount     @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  platform             AdPlatform
+  periodStart          DateTime      @db.Date
+  periodEnd            DateTime      @db.Date
+  dayOfPeriod          Int
+  daysInPeriod         Int
+  budgetAmount         Decimal       @db.Decimal(18, 4)
+  budgetPeriod         BudgetType
+  currency             String
+  spendToDate          Decimal       @db.Decimal(18, 4)
+  expectedSpend        Decimal       @db.Decimal(18, 4)
+  projectedSpend       Decimal       @db.Decimal(18, 4)
+  paceRatio            Decimal       @db.Decimal(18, 4)
+  marginalCpa          Decimal?      @db.Decimal(18, 4)
+  costPerQualifiedLead Decimal?      @db.Decimal(18, 4)
+  qualifiedLeadBasis   String        @default("platform_leads")
+  status               String
+  severity             AlertSeverity
+  recommendationOnly   Boolean       @default(true)
+  dedupeKey            String
+  detectedAt           DateTime
+  createdAt            DateTime      @default(now())
+
+  @@index([campaignId, detectedAt])
+  @@index([dedupeKey, detectedAt])
+  @@index([adAccountId])
 }
 
 model AdHourlyMetric {

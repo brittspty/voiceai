@@ -1,3 +1,5 @@
+import { PACING_FIXED_LINE } from "./pacing";
+
 export const BUDGET_FIXED_LINE =
   "Budgets are set by people only. Approving records your OK and gives you the steps. The platform will not change this budget.";
 
@@ -100,6 +102,14 @@ export function decisionVisibleText(input: DecisionInput) {
     const copy = budgetCardCopy(input);
     return [copy.tag, copy.headline, copy.why, copy.fixed, "Approve and get steps", "Decline", "Later"].join(" ");
   }
+  if (input.type === "pacing") {
+    const copy = pacingCardCopy(input);
+    return [copy.tag, copy.headline, copy.why, copy.fixed, "Recommendation only", "Approve and get steps", "Decline", "Later"].join(" ");
+  }
+  if (input.type === "creative_fatigue") {
+    const copy = fatigueCardCopy(input);
+    return [copy.tag, copy.headline, copy.fix, copy.current, copy.proposed, copy.fixed, "Approve new version", "Decline", "Later"].join(" ");
+  }
   return [input.title, input.summary, "Approve", "Decline", "Later", "Show evidence"].join(" ");
 }
 
@@ -112,9 +122,70 @@ export function canApproveCard(input: DecisionInput, now: Date) {
   return !cardExpiry(input, now).expired;
 }
 
+const COST_DECISION_TYPES = new Set(["budget_change", "roi", "pacing"]);
+const COST_DECISION_METRICS = new Set(["cpc", "cpm", "cpa", "cpl", "budget", "roi", "spend", "cost", "pacing", "roas"]);
+
+export function pacingCardCopy(input: DecisionInput) {
+  const steps = input.rationale
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /^\d+\./.test(line))
+    .map((line) => line.replace(/^\d+\.\s*/, ""));
+  return {
+    tag: "Recommendation only · You make this change",
+    headline: input.title,
+    why: input.summary,
+    fixed: PACING_FIXED_LINE,
+    steps,
+  };
+}
+
+export function fatigueCardCopy(input: DecisionInput) {
+  const lines = input.rationale.split("\n").map((line) => line.trim()).filter(Boolean);
+  const current = lines.find((line) => line.startsWith("Current:"))?.slice("Current:".length).trim();
+  const proposed = lines.find((line) => line.startsWith("Proposed:"))?.slice("Proposed:".length).trim();
+  const missing = lines.some((line) => line === "Preview not available");
+  return {
+    tag: "Creative tired · AM approves",
+    headline: input.title,
+    fix: input.summary || "Approve a new version to test against it.",
+    current: current || "Preview not available",
+    proposed: missing && !proposed ? "Preview not available" : proposed || "Preview not available",
+    fixed: "Approving queues a draft for a person to upload. Nothing goes live on its own.",
+  };
+}
+
+export function decisionIsOpen(card: DecisionInput, now: Date) {
+  if (card.status === "verified" && canApproveCard(card, now)) return true;
+  if (card.status === "accepted" && (card.type === "pacing" || card.type === "budget_change") && card.decisionNote !== "done") return true;
+  if (card.status === "accepted" && card.type === "creative_fatigue" && card.decidedAt) {
+    return now.getTime() - Date.parse(card.decidedAt) < 30_000;
+  }
+  return false;
+}
+
+export function visibleDecisionCards<T extends { type: string; metric: string }>(
+  cards: T[],
+  input: { seesCost: boolean; monitor: boolean; fatigue: boolean; pacing: boolean },
+) {
+  return cards.filter((card) => {
+    if (card.type === "creative_fatigue") {
+      if (!input.fatigue) return false;
+      if (!input.seesCost && COST_DECISION_METRICS.has(card.metric)) return false;
+      return true;
+    }
+    if (card.type === "pacing") return input.pacing && input.seesCost;
+    if (!input.monitor) return false;
+    if (!input.seesCost && (COST_DECISION_TYPES.has(card.type) || COST_DECISION_METRICS.has(card.metric))) return false;
+    return true;
+  });
+}
+
 export function batchApproveAllowed(cards: { type: string; tier: string }[]) {
   if (!cards.length) return { ok: false, reason: "Select at least one decision." };
-  if (cards.some((card) => card.type === "budget_change")) return { ok: false, reason: "Budget cards are not included in a batch." };
+  if (cards.some((card) => card.type === "budget_change" || card.type === "pacing" || card.type === "creative_fatigue")) {
+    return { ok: false, reason: "Budget cards are not included in a batch." };
+  }
   const type = cards[0]?.type;
   const tier = cards[0]?.tier;
   if (cards.some((card) => card.type !== type || card.tier !== tier)) {
