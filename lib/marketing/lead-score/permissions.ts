@@ -5,12 +5,19 @@ const OWNER_MARKS: LeadMarkName[] = ["qualified", "unqualified", "clear"];
 
 export type MarkActor = { role: string; kind: string };
 
-/** Owner, super admin, and account manager can mark. Everyone else is read-only. */
+/**
+ * `client_owner` is the client who owns this workspace. The internal admin and
+ * viewer roles are not that person. super_admin and account_manager are staff
+ * and do not use the client-owner path.
+ */
+export function isClientOwner(actor: MarkActor) {
+  return actor.kind === "client_owner";
+}
+
+/** Client owner, super admin, and account manager can mark. Everyone else is read-only. */
 export function canMarkLead(actor: MarkActor) {
-  if (actor.role === "owner") return true;
-  if (actor.kind === "super_admin" || actor.kind === "account_manager") return true;
-  if (actor.role === "super_admin" || actor.role === "account_manager") return true;
-  return false;
+  if (isStaffMarker(actor)) return true;
+  return isClientOwner(actor);
 }
 
 export function isStaffMarker(actor: MarkActor) {
@@ -20,7 +27,7 @@ export function isStaffMarker(actor: MarkActor) {
 export function allowedLeadMarks(actor: MarkActor): LeadMarkName[] {
   if (!canMarkLead(actor)) return [];
   if (isStaffMarker(actor)) return STAFF_MARKS;
-  if (actor.role === "owner") return OWNER_MARKS;
+  if (isClientOwner(actor)) return OWNER_MARKS;
   return [];
 }
 

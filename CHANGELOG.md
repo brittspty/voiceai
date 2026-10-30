@@ -56,6 +56,7 @@ Flags default **off**:
 - A manual mark is stored beside the automatic score and is the one that counts. The screen shows who marked it and when, and the activity log records the same.
 - Cost per qualified lead is queried and returned only when `seesCost` is true (super admin and account manager). Owners, client viewers, and share links get counts and a week-over-week trend, with the cost field removed on the server.
 - `npm run lead-score:eval` scores `fixtures/lead-quality/labeled.csv` and prints accuracy. Roll back by setting `MARKETING_LEAD_SCORING=off`. The `LeadScore` table can stay; nothing reads it while the flag is off.
+- Marks and qualified counts are limited to the caller's workspace. A super admin may mark any workspace. The model prompt does not include name, phone, or email. The owner role is the client owner (`client_owner`); admin and viewer cannot mark.
 
 ### Decision UI (spec 2026-10-29)
 

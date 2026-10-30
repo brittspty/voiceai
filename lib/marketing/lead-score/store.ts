@@ -3,8 +3,10 @@ import { audit } from "../../audit";
 import { prisma } from "../../db";
 import { digitsOnly } from "../../phone";
 import { leadScoringEnabled } from "../config";
+import { WORKSPACE_ID } from "../types";
 import { classifierFromEnv, classifyLead } from "./classify";
 import { markAuditAction, toLeadView, transcriptText, type LeadRowView } from "./present";
+import { leadsSinceWhere, listLeadWhere, markLeadsWhere, workspaceAllowed, type LeadScope } from "./scope";
 import type { LeadInput, LeadLabel } from "./types";
 
 const rowInclude = {
@@ -48,7 +50,7 @@ async function onDoNotCall(phone: string) {
   return rows.some((row) => digitsOnly(row.phone) === digits);
 }
 
-async function saveMachine(where: { contactId: string } | { callId: string }, input: LeadInput, evidence: Prisma.InputJsonValue, rulesOnly: boolean) {
+async function saveMachine(where: { contactId: string } | { callId: string }, input: LeadInput, evidence: Prisma.InputJsonValue, rulesOnly: boolean, workspaceId: string) {
   const classification = await classifyLead(input, { provider: rulesOnly ? null : classifierFromEnv(process.env) });
   const data = {
     label: classification.label,
@@ -60,14 +62,14 @@ async function saveMachine(where: { contactId: string } | { callId: string }, in
   if ("contactId" in where) {
     return prisma.leadScore.upsert({
       where: { contactId: where.contactId },
-      create: { contactId: where.contactId, ...data },
+      create: { workspaceId, contactId: where.contactId, ...data },
       update: data,
       include: rowInclude,
     });
   }
   return prisma.leadScore.upsert({
     where: { callId: where.callId },
-    create: { callId: where.callId, ...data },
+    create: { workspaceId, callId: where.callId, ...data },
     update: data,
     include: rowInclude,
   });
@@ -94,6 +96,7 @@ export async function scoreFormLeadIfEnabled(
       },
       { message: input.message, source: input.source },
       Boolean(options.rulesOnly),
+      WORKSPACE_ID,
     );
     return { status: "scored" as const };
   } catch (error) {
@@ -123,6 +126,7 @@ export async function scoreCallIfEnabled(callId: string, options: { rulesOnly?: 
       },
       { outcome: call.outcome, durationSec: call.durationSec },
       Boolean(options.rulesOnly),
+      WORKSPACE_ID,
     );
     return { status: "scored" as const };
   } catch (error) {
@@ -132,8 +136,9 @@ export async function scoreCallIfEnabled(callId: string, options: { rulesOnly?: 
 }
 
 /** Backfill uses rules only so opening the page does not call the model once per lead. */
-export async function scoreMissingLeads(limit = 40) {
+export async function scoreMissingLeads(scope?: LeadScope, limit = 40) {
   if (!leadScoringEnabled()) return 0;
+  if (scope && !workspaceAllowed(WORKSPACE_ID, scope)) return 0;
   const contacts = await prisma.contact.findMany({
     where: { leadScore: { is: null } },
     orderBy: { createdAt: "desc" },
@@ -154,27 +159,34 @@ export async function scoreMissingLeads(limit = 40) {
   return contacts.length + calls.length;
 }
 
-export async function listLeadRows() {
-  const rows = await prisma.leadScore.findMany({ orderBy: { updatedAt: "desc" }, take: 200, include: rowInclude });
+export async function listLeadRows(scope: LeadScope) {
+  const rows = await prisma.leadScore.findMany({
+    where: listLeadWhere(scope),
+    orderBy: { updatedAt: "desc" },
+    take: 200,
+    include: rowInclude,
+  });
   return rows.map(viewOf);
 }
 
-export async function getLeadRow(id: string) {
-  const row = await prisma.leadScore.findUnique({ where: { id }, include: rowInclude });
+export async function getLeadRow(id: string, scope: LeadScope) {
+  const row = await prisma.leadScore.findFirst({ where: { id, ...listLeadWhere(scope) }, include: rowInclude });
   return row ? viewOf(row) : null;
 }
 
-export async function leadsSince(previousStart: Date) {
+export async function leadsSince(previousStart: Date, workspaceId: string) {
+  if (!workspaceId) return [];
   return prisma.leadScore.findMany({
-    where: { createdAt: { gte: previousStart } },
+    where: leadsSinceWhere(previousStart, workspaceId),
     select: { label: true, overrideLabel: true, createdAt: true },
   });
 }
 
-export async function spendSince(start: Date) {
+export async function spendSince(start: Date, workspaceId: string) {
+  if (!workspaceId) return [];
   const groups = await prisma.dailyMetric.groupBy({
     by: ["currency"],
-    where: { date: { gte: start } },
+    where: { workspaceId, date: { gte: start } },
     _sum: { spend: true },
   });
   return groups.map((group) => ({
@@ -183,21 +195,27 @@ export async function spendSince(start: Date) {
   }));
 }
 
-export async function waitingForMarkCount() {
-  return prisma.leadScore.count({ where: { overrideLabel: null } });
+export async function waitingForMarkCount(workspaceId: string) {
+  if (!workspaceId) return 0;
+  return prisma.leadScore.count({ where: { workspaceId, overrideLabel: null } });
 }
 
-export async function markLeads(input: { ids: string[]; label: LeadLabel | null; reason: string; user: { id: string; name: string } }) {
-  const existing = await prisma.leadScore.findMany({ where: { id: { in: input.ids } }, select: { id: true } });
+export async function markLeads(input: { ids: string[]; label: LeadLabel | null; reason: string; user: { id: string; name: string }; scope: LeadScope }) {
+  const existing = await prisma.leadScore.findMany({
+    where: markLeadsWhere(input.ids, input.scope),
+    select: { id: true, workspaceId: true },
+  });
   const saved: LeadRowView[] = [];
   for (const row of existing) {
-    const next = await prisma.leadScore.update({
-      where: { id: row.id },
+    const wrote = await prisma.leadScore.updateMany({
+      where: { id: row.id, workspaceId: row.workspaceId },
       data: input.label
         ? { overrideLabel: input.label, overrideReason: input.reason.slice(0, 120), overriddenById: input.user.id, overriddenAt: new Date() }
         : { overrideLabel: null, overrideReason: "", overriddenById: null, overriddenAt: null },
-      include: rowInclude,
     });
+    if (wrote.count !== 1) continue;
+    const next = await prisma.leadScore.findFirst({ where: { id: row.id, workspaceId: row.workspaceId }, include: rowInclude });
+    if (!next) continue;
     const view = viewOf(next);
     await audit({ id: input.user.id, name: input.user.name }, markAuditAction(view.name, input.label), {
       type: "lead_score",

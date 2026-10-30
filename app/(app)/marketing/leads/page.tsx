@@ -5,6 +5,7 @@ import { PageTitle } from "@/components/shell";
 import { requireUser } from "@/lib/auth";
 import { leadScoringEnabled } from "@/lib/marketing/config";
 import { markAudience } from "@/lib/marketing/lead-score/permissions";
+import { leadScopeFor } from "@/lib/marketing/lead-score/scope";
 import { listLeadRows, scoreMissingLeads } from "@/lib/marketing/lead-score/store";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { one, type SP } from "@/lib/params";
@@ -21,8 +22,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   }
   let rows: Awaited<ReturnType<typeof listLeadRows>> = [];
   try {
-    await scoreMissingLeads();
-    rows = await listLeadRows();
+    const scope = leadScopeFor(access);
+    await scoreMissingLeads(scope);
+    rows = await listLeadRows(scope);
   } catch {
     return (
       <div>

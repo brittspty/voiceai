@@ -32,7 +32,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   if (decision === "passcode") return shareResponse(NextResponse.json({ error: "This link needs a code." }, { status: 401 }));
   if (decision !== "ok" || !link) return shareResponse(NextResponse.json({ error: "Link not found" }, { status: 404 }));
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
-  const payload = await loadClientPerformance(org?.name || "Performance");
+  const payload = await loadClientPerformance(org?.name || "Performance", { workspaceId: link.workspaceId });
   const meta = requestClientMeta(request.headers);
   const url = new URL(request.url);
   const isExport = url.pathname.endsWith("/export");

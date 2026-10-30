@@ -5,6 +5,7 @@ import { PageTitle } from "@/components/shell";
 import { requireUser } from "@/lib/auth";
 import { leadScoringEnabled } from "@/lib/marketing/config";
 import { markAudience } from "@/lib/marketing/lead-score/permissions";
+import { leadScopeFor } from "@/lib/marketing/lead-score/scope";
 import { getLeadRow } from "@/lib/marketing/lead-score/store";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 
@@ -19,7 +20,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     return <PageTitle title="Lead" subtitle="Lead quality scoring is off." />;
   }
   const { id } = await params;
-  const row = await getLeadRow(id);
+  const row = await getLeadRow(id, leadScopeFor(access));
   if (!row) notFound();
   return (
     <div>

@@ -10,6 +10,41 @@ export interface LeadClassifier {
 
 const DEFAULT_URL = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_MODEL = "gpt-4o-mini";
+const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const PHONE = /\+?\d[\d\s().-]{8,}\d/g;
+
+/** Strip addresses and numbers from free text before it leaves the server. */
+export function scrubContactText(value: string) {
+  return value.replace(EMAIL, "[email]").replace(PHONE, "[phone]");
+}
+
+function dropName(value: string, name: string) {
+  const full = name.trim();
+  const parts = full.split(/\s+/).filter((part) => part.length >= 3);
+  let next = value;
+  for (const phrase of [full, ...parts]) {
+    if (phrase.length < 3) continue;
+    const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    next = next.replace(new RegExp(`\\b${escaped}\\b`, "gi"), "[name]");
+  }
+  return next;
+}
+
+/** The model sees the conversation, not the person's name, phone, or email. */
+export function redactLeadForModel(input: LeadInput): LeadInput {
+  const text = (value: string) => dropName(scrubContactText(value), input.name);
+  return {
+    kind: input.kind,
+    name: "",
+    phone: "",
+    email: null,
+    message: text(input.message),
+    transcript: text(input.transcript),
+    durationSec: input.durationSec,
+    outcome: input.outcome,
+    onDoNotCall: input.onDoNotCall,
+  };
+}
 
 export function parseModelContent(content: string): { label: LeadLabel; score: number; reason: string } | null {
   const stripped = content.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
@@ -41,18 +76,16 @@ export function modelRequest(input: LeadInput, env: Env) {
   const key = (env.LEAD_SCORING_API_KEY || "").trim();
   const model = (env.LEAD_SCORING_MODEL || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
   const url = (env.LEAD_SCORING_API_URL || DEFAULT_URL).trim() || DEFAULT_URL;
+  const safe = redactLeadForModel(input);
   const prompt = [
     "Classify this lead as qualified, unqualified, or spam.",
     "Reply with JSON only: {\"label\":\"qualified|unqualified|spam\",\"score\":0-99,\"reason\":\"short phrase\"}.",
-    `Kind: ${input.kind}`,
-    `Name: ${input.name}`,
-    `Phone: ${input.phone}`,
-    `Email: ${input.email || ""}`,
-    `Outcome: ${input.outcome || ""}`,
-    `Duration seconds: ${input.durationSec ?? ""}`,
-    `Do not call: ${input.onDoNotCall ? "yes" : "no"}`,
-    `Form note: ${input.message}`,
-    `Transcript: ${input.transcript.slice(0, 4000)}`,
+    `Kind: ${safe.kind}`,
+    `Outcome: ${safe.outcome || ""}`,
+    `Duration seconds: ${safe.durationSec ?? ""}`,
+    `Do not call: ${safe.onDoNotCall ? "yes" : "no"}`,
+    `Form note: ${safe.message}`,
+    `Transcript: ${safe.transcript.slice(0, 4000)}`,
   ].join("\n");
   return {
     url,
@@ -103,7 +136,7 @@ export async function classifyLead(input: LeadInput, options: { provider?: LeadC
   const provider = options.provider;
   if (!provider || rulesAreConfident(rules, options.threshold ?? 80)) return rules;
   try {
-    const model = await provider.classify(input);
+    const model = await provider.classify(redactLeadForModel(input));
     if (!model) return rules;
     return { label: model.label, score: model.score, reason: model.reason, model: provider.model };
   } catch {
