@@ -11,11 +11,12 @@ import {
   clampTarget,
   describeLead,
   normalizeSla,
+  clampWebhookStamp,
+  errorText,
   planSpeedToLead,
   resolveClock,
   touchSeconds,
   undoStillOpen,
-  usableStamp,
   type ClockSource,
   type SpeedLead,
   type TouchChannel,
@@ -106,7 +107,7 @@ export async function recordLanding(
 ) {
   if (!speedToLeadEnabled(env)) return { status: "skipped" as const };
   const now = input.now ?? new Date();
-  const landedAt = usableStamp(input.landedAt, now) ?? now;
+  const landedAt = clampWebhookStamp(input.landedAt, now) ?? now;
   const keys = sessionKeys(input);
   if (!keys.length) return { status: "invalid" as const };
   for (const key of keys) {
@@ -158,6 +159,7 @@ export async function recordSpeedLead(
     landedAt?: unknown;
     submittedAt?: unknown;
     callStartedAt?: unknown;
+    arrivalAt?: unknown;
     now?: Date;
   },
   env: Env = process.env,
@@ -168,9 +170,10 @@ export async function recordSpeedLead(
   if (!input.contactId && !keys.length) return { status: "invalid" as const };
   const stored = await earliestLanding(keys, now);
   const clock = resolveClock({
-    landedAt: earliestDate(usableStamp(input.landedAt, now), stored),
-    submittedAt: input.submittedAt,
-    callStartedAt: input.callStartedAt,
+    landedAt: earliestDate(clampWebhookStamp(input.landedAt, now), stored),
+    submittedAt: clampWebhookStamp(input.submittedAt, now),
+    callStartedAt: clampWebhookStamp(input.callStartedAt, now),
+    arrivalAt: input.arrivalAt ?? now,
     now,
   });
   const sla = await loadSla();
@@ -440,7 +443,7 @@ export async function runSpeedToLeadSweep(now = new Date(), env: Env = process.e
       alerts += await applyPlan(row, plan, now);
       for (const fire of plan.fires) fired.push(fire.severity);
     } catch (error) {
-      console.error("[speed-to-lead] sweep failed", plan.leadId, error);
+      console.error("[speed-to-lead] sweep failed", errorText(error));
     }
   }
   if (fired.length) await recordPushSlots(fired.includes("critical") ? "critical" : "warning", now, sla);

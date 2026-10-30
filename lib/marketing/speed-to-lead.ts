@@ -9,13 +9,16 @@ export const DEFAULT_CLOSE_TIME = "21:00";
 export const PUSH_GAP_MS = 15 * 60 * 1000;
 export const UNDO_MS = 30_000;
 export const LANDING_MATCH_MS = 24 * 60 * 60 * 1000;
+/** Public landing and GHL submit stamps must fall in this window. */
+export const WEBHOOK_STAMP_PAST_MS = 24 * 60 * 60 * 1000;
+export const WEBHOOK_STAMP_FUTURE_MS = 60 * 1000;
 
 export const EMPTY_WAITING = "No one waiting. Nice work.";
 export const EMPTY_LEADS = "No leads yet. They appear here as soon as your form or calls bring one in.";
 export const ERROR_COPY = "Can't read call activity right now, so timers may be wrong.";
 export const SAVED_COPY = "Saved. The target is updated.";
 
-export type ClockSource = "landing" | "form_submit" | "call_start";
+export type ClockSource = "landing" | "form_submit" | "call_start" | "webhook_arrival";
 export type TouchChannel = "human" | "voice_ai" | "sms";
 export type SpeedBand = "ok" | "late" | "very_late" | "queued";
 
@@ -158,25 +161,37 @@ export function usableStamp(value: unknown, now: Date): Date | null {
   return date;
 }
 
-export function resolveClock(input: { landedAt?: unknown; submittedAt?: unknown; callStartedAt?: unknown; now: Date }) {
+/** Caller-supplied webhook times. Anything outside [now-24h, now+60s] is dropped. */
+export function clampWebhookStamp(value: unknown, now: Date): Date | null {
+  const date = parseStamp(value);
+  if (!date) return null;
+  if (date.getTime() > now.getTime() + WEBHOOK_STAMP_FUTURE_MS) return null;
+  if (now.getTime() - date.getTime() > WEBHOOK_STAMP_PAST_MS) return null;
+  return date;
+}
+
+export function resolveClock(input: { landedAt?: unknown; submittedAt?: unknown; callStartedAt?: unknown; arrivalAt?: unknown; now: Date }) {
   const landedAt = usableStamp(input.landedAt, input.now);
   const submittedAt = usableStamp(input.submittedAt, input.now);
   const callStartedAt = usableStamp(input.callStartedAt, input.now);
   if (landedAt) return { clockStartAt: landedAt, clockSource: "landing" as const, landedAt, submittedAt, callStartedAt };
   if (submittedAt) return { clockStartAt: submittedAt, clockSource: "form_submit" as const, landedAt, submittedAt, callStartedAt };
   if (callStartedAt) return { clockStartAt: callStartedAt, clockSource: "call_start" as const, landedAt, submittedAt, callStartedAt };
-  return { clockStartAt: input.now, clockSource: "form_submit" as const, landedAt: null, submittedAt: null, callStartedAt: null };
+  const arrivalAt = usableStamp(input.arrivalAt, input.now) ?? input.now;
+  return { clockStartAt: arrivalAt, clockSource: "webhook_arrival" as const, landedAt: null, submittedAt: null, callStartedAt: null };
 }
 
 export function clockSourceLabel(source: ClockSource): string | null {
   if (source === "landing") return null;
   if (source === "form_submit") return "from form submit";
+  if (source === "webhook_arrival") return "from webhook arrival";
   return "from call start";
 }
 
 export function clockSourceDetail(source: ClockSource) {
   if (source === "landing") return "from page landing";
   if (source === "form_submit") return "from form submit";
+  if (source === "webhook_arrival") return "from webhook arrival";
   return "from call start";
 }
 
@@ -264,12 +279,54 @@ export function readLandingStamp(body: unknown, now = new Date()) {
   collectLandingValues(contact, values);
   let landedAt: Date | null = null;
   for (const value of values) {
-    const stamp = usableStamp(value, now);
+    const stamp = clampWebhookStamp(value, now);
     if (stamp && (!landedAt || stamp.getTime() < landedAt.getTime())) landedAt = stamp;
   }
   const sessionKey = text(contact.sessionKey || contact.session_id || contact.sessionId || root.sessionKey || root.sessionId || root.session_id).slice(0, 120);
   const leadSource = text(contact.leadSource || contact.formName || contact.source || root.leadSource || root.source).slice(0, 120);
   return { landedAt, sessionKey, leadSource };
+}
+
+const SUBMIT_KEYS = /^(date_?added|date_?created|created_?at|submitted_?at|form_?submitted_?at|dateadded)$/i;
+
+/** GHL's own submit time. Webhook arrival is not a submit time. */
+export function readGhlSubmittedAt(body: unknown, now = new Date()): Date | null {
+  const root = asRecord(body);
+  const contact = asRecord(root.contact ?? {});
+  const values: unknown[] = [
+    contact.dateAdded,
+    contact.date_added,
+    contact.dateCreated,
+    contact.createdAt,
+    contact.submittedAt,
+    contact.submitted_at,
+    root.dateAdded,
+    root.date_added,
+    root.submittedAt,
+    root.submitted_at,
+  ];
+  const fields = contact.customFields ?? contact.customField ?? root.customFields;
+  if (Array.isArray(fields)) {
+    for (const field of fields) {
+      const row = asRecord(field);
+      const key = text(row.key || row.id || row.name || row.fieldKey);
+      if (key && SUBMIT_KEYS.test(key)) values.push(row.value ?? row.field_value);
+    }
+  }
+  let submitted: Date | null = null;
+  for (const value of values) {
+    const stamp = clampWebhookStamp(value, now);
+    if (stamp && (!submitted || stamp.getTime() < submitted.getTime())) submitted = stamp;
+  }
+  return submitted;
+}
+
+export function errorText(error: unknown) {
+  if (error instanceof Error) {
+    const line = error.message.split("\n")[0]?.trim();
+    if (line) return line.slice(0, 240);
+  }
+  return "Speed-to-lead failed";
 }
 
 function channelLabel(channel: TouchChannel | null) {

@@ -1,8 +1,9 @@
 -- Speed-to-lead. Adds tables and one recommendation type. No existing rows are updated or deleted.
+-- Timestamp 20261029224000. 20261029210000, 20261029220000, 20261029223000, and 20261029230000 are already used.
 
 ALTER TYPE "RecommendationType" ADD VALUE 'speed_to_lead';
 
-CREATE TYPE "LeadClockSource" AS ENUM ('landing', 'form_submit', 'call_start');
+CREATE TYPE "LeadClockSource" AS ENUM ('landing', 'form_submit', 'call_start', 'webhook_arrival');
 
 CREATE TYPE "LeadTouchChannel" AS ENUM ('human', 'voice_ai', 'sms');
 

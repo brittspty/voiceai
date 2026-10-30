@@ -9,6 +9,7 @@ import { buildTranscript } from "./transcript";
 import type { ElevenEvent, GhlEvent, TwilioEvent } from "./webhook-parse";
 import { mapVendorOutcome, parseGhl } from "./webhook-parse";
 import { noteVoiceTouch, recordSpeedLead } from "./marketing/speed-to-lead-store";
+import { errorText } from "./marketing/speed-to-lead";
 import { normalizePhone } from "./phone";
 
 export async function applyGhlEvent(event: GhlEvent) {
@@ -72,8 +73,9 @@ export async function applyGhlEvent(event: GhlEvent) {
     ghlId: contact.ghlContactId,
     leadSource: event.leadSource || contact.source,
     landedAt: event.landedAt,
-    submittedAt: new Date(),
-  }).catch((error) => console.error("[speed-to-lead] lead was not recorded", error));
+    submittedAt: event.submittedAt,
+    arrivalAt: new Date(),
+  }).catch((error) => console.error("[speed-to-lead] lead was not recorded", errorText(error)));
   const org = await prisma.org.findUnique({ where: { id: "org" } });
   if (org?.scheduleEnabled) {
     const call = await prisma.call.create({
@@ -128,7 +130,7 @@ export async function applyTwilioEvent(event: TwilioEvent) {
     const startedAt = call.startedAt ?? new Date();
     await prisma.call.update({ where: { id: call.id }, data: { status: "in_progress", startedAt } });
     await noteVoiceTouch({ contactId: call.contactId, at: startedAt, callId: call.id }).catch((error) => {
-      console.error("[speed-to-lead] voice touch was not recorded", error);
+      console.error("[speed-to-lead] voice touch was not recorded", errorText(error));
     });
   } else if (status === "busy" || status === "no-answer" || status === "failed" || status === "canceled") {
     await prisma.call.update({

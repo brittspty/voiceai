@@ -4,6 +4,7 @@ import { digestEnabled, monitorEnabled, speedToLeadEnabled } from "../lib/market
 import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
 import { runGoogleAdsSync } from "../lib/marketing/google-sync";
 import { runSpeedToLeadSweep } from "../lib/marketing/speed-to-lead-store";
+import { errorText } from "../lib/marketing/speed-to-lead";
 import { marketingSyncIntervalMs, runMarketingSync } from "../lib/marketing/sync";
 import { claimJob, failOrRetry } from "../lib/queue";
 import { createRedis } from "../lib/redis";
@@ -36,7 +37,7 @@ function startSpeedToLead() {
       const result = await runSpeedToLeadSweep();
       if (result.status === "ran" && result.alerts) console.log(`[worker] speed-to-lead alerts ${result.alerts}`);
     } catch (error) {
-      console.error("[worker] speed-to-lead failed", error);
+      console.error("[worker] speed-to-lead failed", errorText(error));
     } finally {
       running = false;
     }

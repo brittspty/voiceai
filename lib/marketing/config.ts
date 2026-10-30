@@ -313,3 +313,78 @@ export function decideSync(env: Env): SyncDecision {
     attributionWindows: attributionWindows(env),
   };
 }
+
+export const GOOGLE_ADS_REQUIRED = [
+  "GOOGLE_ADS_DEVELOPER_TOKEN",
+  "GOOGLE_ADS_CLIENT_ID",
+  "GOOGLE_ADS_CLIENT_SECRET",
+  "GOOGLE_ADS_REFRESH_TOKEN",
+  "GOOGLE_ADS_LOGIN_CUSTOMER_ID",
+] as const;
+
+/** Off unless MARKETING_GOOGLE_ADS is explicitly on. This build does not call Google. */
+export function googleAdsEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_GOOGLE_ADS");
+}
+
+/** Accepts `1234567890` or `123-456-7890`. Returns "" when it is not a 10-digit id. */
+export function normalizeCustomerId(raw: string) {
+  const digits = raw.trim().replace(/-/g, "");
+  return /^\d{10}$/.test(digits) ? digits : "";
+}
+
+/** Comma-separated Google Ads customer ids. Empty input is empty. */
+export function parseCustomerIds(raw: string | undefined) {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const part of (raw || "").split(",")) {
+    const id = normalizeCustomerId(part);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * REST major version. The path is `/v26`; minor releases such as v26.1 are served there.
+ * v18–v22 are sunset. A sunset or invalid value falls back to this constant.
+ */
+export const GOOGLE_ADS_API_VERSION = "v26";
+
+const SUNSET_GOOGLE_ADS_VERSIONS = new Set(["v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22"]);
+
+export function googleAdsApiVersion(env: Env = process.env) {
+  const raw = (env.GOOGLE_ADS_API_VERSION || "").trim();
+  if (/^v\d+$/.test(raw) && !SUNSET_GOOGLE_ADS_VERSIONS.has(raw)) return raw;
+  return GOOGLE_ADS_API_VERSION;
+}
+
+export type GoogleAdsEnv = {
+  enabled: boolean;
+  developerToken: string;
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+  loginCustomerId: string;
+  /** From GOOGLE_ADS_CUSTOMER_IDS only. GOOGLE_ADS_CUSTOMER_ID is not read. */
+  customerIds: string[];
+  apiVersion: string;
+};
+
+/**
+ * One parser for Google Ads env. GOOGLE_ADS_CUSTOMER_IDS is this deployment's
+ * account allow-list. A later multi-client database should store the customer id on the client row.
+ */
+export function googleAdsEnv(env: Env = process.env): GoogleAdsEnv {
+  return {
+    enabled: googleAdsEnabled(env),
+    developerToken: (env.GOOGLE_ADS_DEVELOPER_TOKEN || "").trim(),
+    clientId: (env.GOOGLE_ADS_CLIENT_ID || "").trim(),
+    clientSecret: (env.GOOGLE_ADS_CLIENT_SECRET || "").trim(),
+    refreshToken: (env.GOOGLE_ADS_REFRESH_TOKEN || "").trim(),
+    loginCustomerId: normalizeCustomerId(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || ""),
+    customerIds: parseCustomerIds(env.GOOGLE_ADS_CUSTOMER_IDS),
+    apiVersion: googleAdsApiVersion(env),
+  };
+}

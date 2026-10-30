@@ -11,6 +11,7 @@ import { digitsOnly } from "./phone";
 import { enqueue } from "./queue";
 import { SYSTEM_ACTOR, type CallOutcomeName, type TimelineEvent, type TranscriptLine } from "./types";
 import { noteVoiceTouch } from "./marketing/speed-to-lead-store";
+import { errorText } from "./marketing/speed-to-lead";
 import { zonedDayBounds } from "./time";
 
 function sleep(ms: number) {
@@ -230,7 +231,7 @@ export async function finishCall(
   const connected = result.durationSec > 0 && result.outcome !== "failed" && result.outcome !== "no_answer";
   if (connected) {
     await noteVoiceTouch({ contactId: call.contactId, at: call.startedAt ?? new Date(), callId: call.id }).catch((error) => {
-      console.error("[speed-to-lead] voice touch was not recorded", error);
+      console.error("[speed-to-lead] voice touch was not recorded", errorText(error));
     });
   }
 }

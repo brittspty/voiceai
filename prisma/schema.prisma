@@ -1047,6 +1047,7 @@ enum LeadClockSource {
   landing
   form_submit
   call_start
+  webhook_arrival
 }
 
 enum LeadTouchChannel {
