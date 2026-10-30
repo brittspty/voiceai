@@ -3,6 +3,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { accessFromUser } from "./access";
+import { accessScopeWhere, clientMetricWhere, queuedTestingWhere, recommendationScopeWhere } from "./scope";
+import { isolatedWhere } from "./workspace";
 import { buildClientShare, clientShareHasMoney, clientTestingNote, forbiddenClientKeys } from "./client-view";
 import { creativeFatigueEnabled, pacingRecsEnabled } from "./config";
 import { alertWhere, isCostContent } from "./cost-visibility";
@@ -357,6 +359,9 @@ test("pacing and fatigue stay off client roles and share links", () => {
   assert.equal(clientFn.includes("spend"), false);
   assert.equal(clientFn.includes("cpa"), false);
   assert.equal(clientFn.includes("budgetAmount"), false);
+  assert.match(clientFn, /clientMetricWhere\(/);
+  assert.match(clientFn, /queuedTestingWhere\(/);
+  assert.ok(clientFn.indexOf("clientMetricWhere") < clientFn.indexOf("take: 200"));
   assert.equal(isCostContent({ type: "pacing", metric: "pacing", title: "Pace" }), true);
   assert.ok(alertWhere(false).code && "notIn" in alertWhere(false).code && alertWhere(false).code.notIn?.includes("pacing_over"));
   const cards = visibleDecisionCards(
@@ -434,6 +439,52 @@ test("accepting pacing or fatigue does not write a budget", async () => {
   assert.equal(COST_TEXT.test(fatigue.fixed), false);
   const missing = fatigueCardCopy({ ...fatigue, id: "3", type: "creative_fatigue", status: "verified", title: fatigue.headline, summary: fatigue.fix, rationale: "Preview not available\nApproving queues a draft for a person to upload. Nothing goes live on its own.", metric: "frequency", baseline: "1", observed: "2", windowStart: "", windowEnd: "", sampleSize: 10, sourceCount: 1 });
   assert.equal(missing.current, "Preview not available");
+});
+
+test("fatigue and pacing stay inside the caller workspace and ad account", () => {
+  const start = new Date("2026-10-01T00:00:00.000Z");
+  const end = new Date("2026-10-18T00:00:00.000Z");
+  const noteA = queuedTestingWhere("client-a", ["acct-a"]);
+  const noteB = queuedTestingWhere("client-b", ["acct-b"]);
+  assert.equal(noteA.workspaceId, "client-a");
+  assert.equal(noteB.workspaceId, "client-b");
+  assert.equal(JSON.stringify(noteA).includes("client-b"), false);
+  assert.equal(JSON.stringify(noteA).includes("acct-b"), false);
+  assert.equal(JSON.stringify(noteB).includes("acct-a"), false);
+  assert.equal(noteA.status, "queued");
+  const metricsA = clientMetricWhere("client-a", ["acct-a"], start, end);
+  const metricsB = clientMetricWhere("client-b", "all", start, end);
+  assert.equal(metricsA.workspaceId, "client-a");
+  assert.equal(JSON.stringify(metricsA).includes("acct-a"), true);
+  assert.equal(JSON.stringify(metricsA).includes("client-b"), false);
+  assert.equal(metricsB.workspaceId, "client-b");
+  assert.equal(JSON.stringify(metricsB).includes("acct-a"), false);
+  const boardA = accessScopeWhere({ workspaceId: "client-a", kind: "account_manager", accounts: ["acct-a"], campaigns: "all" });
+  const boardB = accessScopeWhere({ workspaceId: "client-b", kind: "account_manager", accounts: ["acct-b"], campaigns: "all" });
+  assert.deepEqual(boardA, { workspaceId: "client-a", adAccountId: { in: ["acct-a"] } });
+  assert.deepEqual(boardB, { workspaceId: "client-b", adAccountId: { in: ["acct-b"] } });
+  const campaignScoped = accessScopeWhere({ workspaceId: "client-a", kind: "account_manager", accounts: ["acct-a"], campaigns: ["camp-a"] });
+  assert.deepEqual(campaignScoped, { workspaceId: "client-a", campaignId: { in: ["camp-a"] } });
+  assert.deepEqual(recommendationScopeWhere({ workspaceId: "client-a", kind: "account_manager", accounts: ["acct-a"], campaigns: "all" }, { type: "pacing" }), {
+    type: "pacing",
+    adAccountId: { in: ["acct-a"] },
+    campaign: { workspaceId: "client-a" },
+  });
+  assert.throws(() => isolatedWhere("client-a", { workspaceId: "client-b" }), /workspace mismatch/);
+  for (const file of ["lib/marketing/fatigue-job.ts", "lib/marketing/pacing-job.ts"]) {
+    const text = readFileSync(path.join(ROOT, file), "utf8");
+    assert.equal(text.includes("WORKSPACE_ID"), false, file);
+    assert.match(text, /isolatedWhere\(/, file);
+    assert.match(text, /adAccount\.findMany/, file);
+  }
+  const fatigueBoard = readFileSync(path.join(ROOT, "lib/marketing/fatigue-job.ts"), "utf8");
+  const fatigueFn = fatigueBoard.slice(fatigueBoard.indexOf("export async function loadFatigueBoard"));
+  assert.ok(fatigueFn.indexOf("accessScopeWhere") < fatigueFn.indexOf("take: 300"));
+  assert.equal(fatigueFn.includes("coversCampaign"), false);
+  const pacingBoard = readFileSync(path.join(ROOT, "lib/marketing/pacing-job.ts"), "utf8");
+  const pacingFn = pacingBoard.slice(pacingBoard.indexOf("export async function loadPacingBoard"));
+  assert.ok(pacingFn.indexOf("accessScopeWhere") < pacingFn.indexOf("take: 200"));
+  assert.equal(pacingFn.includes("coversCampaign"), false);
 });
 
 test("fatigue and pacing code paths do not write budgets and migrations are unique", () => {

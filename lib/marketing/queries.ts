@@ -5,6 +5,7 @@ import { creativeFatigueEnabled, leadScoringEnabled } from "./config";
 import { alertSelect, alertWhere, campaignSelect, dailyMetricSelect, isCostContent, metricSum, recommendationSelect, recommendationWhere, redactMarketingPage, searchTermSelect } from "./cost-visibility";
 import { leadsSince, spendSince } from "./lead-score/store";
 import { buildLeadQualityTiles, effectiveLabel, splitByWindow } from "./lead-score/summary";
+import { clientMetricWhere, queuedTestingWhere } from "./scope";
 import { clientViewEvent, type ClientViewEvent } from "./share-link";
 
 function num(value: bigint | number | null | undefined) {
@@ -352,10 +353,14 @@ export function clientRange(range: string | undefined, now = new Date()) {
   return { start, end, label };
 }
 
-export async function loadClientPerformance(clientName: string, meta: { sharedBy?: string; expires?: string; range?: string; workspaceId: string }) {
-  const window = clientRange(meta?.range);
+export async function loadClientPerformance(
+  clientName: string,
+  meta: { workspaceId: string; adAccountIds?: "all" | string[]; sharedBy?: string; expires?: string; range?: string },
+) {
+  const window = clientRange(meta.range);
+  const adAccountIds = meta.adAccountIds ?? "all";
   const metrics = await prisma.dailyMetric.findMany({
-    where: { date: { gte: window.start, lte: window.end } },
+    where: clientMetricWhere(meta.workspaceId, adAccountIds, window.start, window.end),
     orderBy: [{ date: "desc" }],
     take: 200,
     select: {
@@ -388,7 +393,7 @@ export async function loadClientPerformance(clientName: string, meta: { sharedBy
   const qualified = await qualifiedForRange(window.start, window.end, window.label, meta.workspaceId);
   const notes: string[] = [];
   if (creativeFatigueEnabled()) {
-    const testing = await prisma.creativeVersion.count({ where: { status: "queued" } });
+    const testing = await prisma.creativeVersion.count({ where: queuedTestingWhere(meta.workspaceId, adAccountIds) });
     if (testing > 0) notes.push(CLIENT_TESTING_NOTE);
   }
   return buildClientShare({

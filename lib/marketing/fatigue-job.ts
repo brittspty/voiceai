@@ -1,11 +1,13 @@
 import type { AdPlatform } from "@prisma/client";
 import { prisma } from "../db";
 import { addDaysISO, zonedISODate } from "../time";
-import { coversCampaign, type MarketingAccess } from "./access";
+import type { MarketingAccess } from "./access";
 import { creativeFatigueEnabled } from "./config";
 import { detectFatigue, presentFatigueSignal, type FatigueHit, type FatiguePoint } from "./fatigue";
 import { readSeverity } from "./refire";
-import { AD_PLATFORMS, WORKSPACE_ID } from "./types";
+import { accessScopeWhere } from "./scope";
+import { AD_PLATFORMS } from "./types";
+import { isolatedWhere } from "./workspace";
 
 function dec(value: { toString(): string } | number | null | undefined) {
   if (value === null || value === undefined) return 0;
@@ -21,7 +23,7 @@ function dayStart(iso: string) {
   return new Date(`${iso}T00:00:00.000Z`);
 }
 
-async function saveSignal(hit: FatigueHit, fatigued: boolean, today: string, now: Date) {
+async function saveSignal(workspaceId: string, hit: FatigueHit, fatigued: boolean, today: string, now: Date) {
   const platform = asPlatform(hit.platform);
   if (!platform) return;
   const data = {
@@ -45,26 +47,26 @@ async function saveSignal(hit: FatigueHit, fatigued: boolean, today: string, now
     detectedAt: now,
   };
   const existing = await prisma.fatigueSignal.findFirst({
-    where: { adId: hit.adId, detectedAt: { gte: dayStart(today) } },
+    where: isolatedWhere(workspaceId, { adId: hit.adId, adAccountId: hit.adAccountId, detectedAt: { gte: dayStart(today) } }),
     select: { id: true },
   });
   if (existing) {
     await prisma.fatigueSignal.update({ where: { id: existing.id }, data });
     return;
   }
-  await prisma.fatigueSignal.create({ data: { workspaceId: WORKSPACE_ID, ...data } });
+  await prisma.fatigueSignal.create({ data: { ...isolatedWhere(workspaceId), ...data } });
 }
 
-async function draftVersion(hit: FatigueHit) {
+async function draftVersion(workspaceId: string, hit: FatigueHit) {
   if (!hit.variation || !hit.creativeId) return null;
   const existing = await prisma.creativeVersion.findUnique({
-    where: { workspaceId_fingerprint: { workspaceId: WORKSPACE_ID, fingerprint: hit.variation.fingerprint } },
+    where: { workspaceId_fingerprint: { workspaceId: isolatedWhere(workspaceId).workspaceId, fingerprint: hit.variation.fingerprint } },
     select: { id: true },
   });
   if (existing) return existing.id;
   const created = await prisma.creativeVersion.create({
     data: {
-      workspaceId: WORKSPACE_ID,
+      workspaceId: isolatedWhere(workspaceId).workspaceId,
       creativeId: hit.creativeId,
       versionLabel: "Draft variation",
       fingerprint: hit.variation.fingerprint,
@@ -77,13 +79,11 @@ async function draftVersion(hit: FatigueHit) {
   return created.id;
 }
 
-export async function runCreativeFatigue(now = new Date()) {
-  if (!creativeFatigueEnabled()) return { status: "skipped" as const };
-  const org = await prisma.org.findUnique({ where: { id: WORKSPACE_ID }, select: { timezone: true } });
-  const today = zonedISODate(now, org?.timezone || "America/New_York");
+async function runCreativeFatigueAccount(workspaceId: string, adAccountId: string, timezone: string, now: Date) {
+  const today = zonedISODate(now, timezone || "America/New_York");
   const since = dayStart(addDaysISO(today, -20));
   const metrics = await prisma.dailyMetric.findMany({
-    where: { date: { gte: since } },
+    where: isolatedWhere(workspaceId, { date: { gte: since }, campaign: { workspaceId, adAccountId } }),
     include: {
       ad: {
         select: {
@@ -119,7 +119,12 @@ export async function runCreativeFatigue(now = new Date()) {
     ];
   });
   const priorRecs = await prisma.recommendation.findMany({
-    where: { type: "creative_fatigue", createdAt: { gte: new Date(now.getTime() - 14 * 86_400_000) } },
+    where: {
+      type: "creative_fatigue",
+      adAccountId,
+      createdAt: { gte: new Date(now.getTime() - 14 * 86_400_000) },
+      campaign: { workspaceId: isolatedWhere(workspaceId).workspaceId },
+    },
     orderBy: { createdAt: "desc" },
     select: { adId: true, evidence: true, createdAt: true },
   });
@@ -134,10 +139,10 @@ export async function runCreativeFatigue(now = new Date()) {
   let signals = 0;
   let recommendations = 0;
   for (const hit of detected.flagged) {
-    await saveSignal(hit, true, today, now);
+    await saveSignal(workspaceId, hit, true, today, now);
     signals += 1;
     if (!hit.emit) continue;
-    const draftId = await draftVersion(hit);
+    const draftId = await draftVersion(workspaceId, hit);
     await prisma.adAlert.create({
       data: {
         adId: hit.adId,
@@ -198,7 +203,12 @@ export async function runCreativeFatigue(now = new Date()) {
   const stillTired = new Set(detected.flagged.map((hit) => hit.adId));
   const previousRows = detected.healthyAdIds.length
     ? await prisma.fatigueSignal.findMany({
-        where: { fatigued: true, detectedAt: { gte: new Date(now.getTime() - 14 * 86_400_000) }, adId: { in: detected.healthyAdIds } },
+        where: isolatedWhere(workspaceId, {
+          adAccountId,
+          fatigued: true,
+          detectedAt: { gte: new Date(now.getTime() - 14 * 86_400_000) },
+          adId: { in: detected.healthyAdIds },
+        }),
         orderBy: { detectedAt: "desc" },
       })
     : [];
@@ -211,7 +221,7 @@ export async function runCreativeFatigue(now = new Date()) {
   for (const prior of previous) {
     if (stillTired.has(prior.adId)) continue;
     const existing = await prisma.fatigueSignal.findFirst({
-      where: { adId: prior.adId, detectedAt: { gte: dayStart(today) } },
+      where: isolatedWhere(workspaceId, { adId: prior.adId, adAccountId, detectedAt: { gte: dayStart(today) } }),
       select: { id: true },
     });
     const data = {
@@ -229,7 +239,7 @@ export async function runCreativeFatigue(now = new Date()) {
     else {
       await prisma.fatigueSignal.create({
         data: {
-          workspaceId: prior.workspaceId,
+          workspaceId: isolatedWhere(workspaceId).workspaceId,
           platform: prior.platform,
           adId: prior.adId,
           creativeVersionId: prior.creativeVersionId,
@@ -244,13 +254,28 @@ export async function runCreativeFatigue(now = new Date()) {
       });
     }
   }
+  return { signals, recommendations };
+}
+
+export async function runCreativeFatigue(now = new Date()) {
+  if (!creativeFatigueEnabled()) return { status: "skipped" as const };
+  const accounts = await prisma.adAccount.findMany({ select: { id: true, workspaceId: true, timezone: true } });
+  let signals = 0;
+  let recommendations = 0;
+  for (const account of accounts) {
+    const ran = await runCreativeFatigueAccount(account.workspaceId, account.id, account.timezone, now);
+    signals += ran.signals;
+    recommendations += ran.recommendations;
+  }
   return { status: "ran" as const, signals, recommendations };
 }
 
 export async function loadFatigueBoard(access: MarketingAccess) {
   if (!creativeFatigueEnabled()) return { enabled: false as const, ads: [] as NonNullable<ReturnType<typeof presentFatigueSignal>>[] };
+  if (!access.workspaceId.trim()) return { enabled: true as const, ads: [] as NonNullable<ReturnType<typeof presentFatigueSignal>>[] };
+  const scope = accessScopeWhere(access);
   const signals = await prisma.fatigueSignal.findMany({
-    where: { detectedAt: { gte: new Date(Date.now() - 14 * 86_400_000) } },
+    where: { ...scope, detectedAt: { gte: new Date(Date.now() - 14 * 86_400_000) } },
     orderBy: { detectedAt: "desc" },
     take: 300,
     select: {
@@ -273,7 +298,6 @@ export async function loadFatigueBoard(access: MarketingAccess) {
   for (const signal of signals) {
     if (seen.has(signal.adId)) continue;
     seen.add(signal.adId);
-    if (!coversCampaign(access, { adAccountId: signal.adAccountId, campaignId: signal.campaignId })) continue;
     const cpaRecent = access.seesCost ? dec(signal.cpaRecent) : null;
     const cpaPrior = access.seesCost ? dec(signal.cpaPrior) : null;
     const cpaRisePct = cpaRecent && cpaPrior && cpaPrior > 0 ? ((cpaRecent - cpaPrior) / cpaPrior) * 100 : null;

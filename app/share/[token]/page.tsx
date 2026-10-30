@@ -63,7 +63,13 @@ export default async function SharePage({ params, searchParams }: { params: Prom
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
   const expires = link.expiresAt ? `expires ${link.expiresAt.toISOString().slice(0, 10)}` : "";
-  const payload = await loadClientPerformance(org?.name || "Performance", { sharedBy: manager, expires, range: query.range, workspaceId: link.workspaceId });
+  const payload = await loadClientPerformance(org?.name || "Performance", {
+    workspaceId: link.workspaceId,
+    adAccountIds: "all",
+    sharedBy: manager,
+    expires,
+    range: query.range,
+  });
   const meta = requestClientMeta(await headers());
   await recordClientView({ workspaceId: link.workspaceId, shareLinkId: link.id, page: query.export ? "/share/export" : "/share", ...meta });
   if (query.export === "csv") {

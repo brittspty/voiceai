@@ -1,11 +1,13 @@
 import type { AdPlatform, BudgetType } from "@prisma/client";
 import { prisma } from "../db";
 import { addDaysISO, zonedISODate } from "../time";
-import { coversCampaign, type MarketingAccess } from "./access";
+import type { MarketingAccess } from "./access";
 import { pacingRecsEnabled } from "./config";
 import { budgetSeenNote, evaluatePacing, pacingBarCopy, pacingChip, type HourRow, type PacingCampaign, type PacingRecommendationDraft, type SpendRow } from "./pacing";
 import { readSeverity } from "./refire";
-import { AD_PLATFORMS, WORKSPACE_ID } from "./types";
+import { accessScopeWhere, recommendationScopeWhere } from "./scope";
+import { AD_PLATFORMS } from "./types";
+import { isolatedWhere } from "./workspace";
 
 function dec(value: { toString(): string } | number | null | undefined) {
   if (value === null || value === undefined) return 0;
@@ -26,13 +28,13 @@ function iso(value: Date | null | undefined) {
   return value.toISOString().slice(0, 10);
 }
 
-export async function runPacingRecs(now = new Date()) {
-  if (!pacingRecsEnabled()) return { status: "skipped" as const };
-  const org = await prisma.org.findUnique({ where: { id: WORKSPACE_ID }, select: { timezone: true } });
-  const today = zonedISODate(now, org?.timezone || "America/New_York");
+async function runPacingAccount(workspaceId: string, adAccountId: string, timezone: string, now: Date) {
+  const today = zonedISODate(now, timezone || "America/New_York");
   const since = dayStart(addDaysISO(today, -62));
+  const scopedId = isolatedWhere(workspaceId).workspaceId;
   const [campaigns, metrics, hourly, ads, priorRecs] = await Promise.all([
     prisma.campaign.findMany({
+      where: isolatedWhere(workspaceId, { adAccountId }),
       select: {
         id: true,
         name: true,
@@ -46,16 +48,27 @@ export async function runPacingRecs(now = new Date()) {
       },
     }),
     prisma.dailyMetric.findMany({
-      where: { date: { gte: since } },
+      where: isolatedWhere(workspaceId, { date: { gte: since }, campaign: { workspaceId: scopedId, adAccountId } }),
       select: { campaignId: true, adId: true, date: true, spend: true, platformConversions: true, platformLeads: true, impressions: true },
     }),
     prisma.adHourlyMetric.findMany({
-      where: { date: { gte: since } },
+      where: isolatedWhere(workspaceId, {
+        date: { gte: since },
+        ad: { workspaceId: scopedId, adGroup: { campaign: { workspaceId: scopedId, adAccountId } } },
+      }),
       select: { adId: true, date: true, hour: true, impressions: true, conversions: true },
     }),
-    prisma.ad.findMany({ select: { id: true, adGroup: { select: { campaignId: true } } } }),
+    prisma.ad.findMany({
+      where: isolatedWhere(workspaceId, { adGroup: { campaign: { workspaceId: scopedId, adAccountId } } }),
+      select: { id: true, adGroup: { select: { campaignId: true } } },
+    }),
     prisma.recommendation.findMany({
-      where: { type: "pacing", createdAt: { gte: new Date(now.getTime() - 14 * 86_400_000) } },
+      where: {
+        type: "pacing",
+        adAccountId,
+        createdAt: { gte: new Date(now.getTime() - 14 * 86_400_000) },
+        campaign: { workspaceId: scopedId },
+      },
       orderBy: { createdAt: "desc" },
       select: { campaignId: true, evidence: true, createdAt: true },
     }),
@@ -142,13 +155,13 @@ export async function runPacingRecs(now = new Date()) {
       detectedAt: now,
     };
     const existing = await prisma.pacingSnapshot.findFirst({
-      where: { campaignId: snapshot.campaignId, detectedAt: { gte: dayStart(today) } },
+      where: isolatedWhere(workspaceId, { adAccountId, campaignId: snapshot.campaignId, detectedAt: { gte: dayStart(today) } }),
       select: { id: true },
     });
     if (existing) await prisma.pacingSnapshot.update({ where: { id: existing.id }, data });
     else {
       await prisma.pacingSnapshot.create({
-        data: { workspaceId: WORKSPACE_ID, campaignId: snapshot.campaignId, adAccountId: snapshot.adAccountId, ...data },
+        data: { ...isolatedWhere(workspaceId), campaignId: snapshot.campaignId, adAccountId: snapshot.adAccountId, ...data },
       });
     }
     snapshots += 1;
@@ -157,7 +170,12 @@ export async function runPacingRecs(now = new Date()) {
     const already = evaluated.recommendations.some((rec) => rec.campaignId === snapshot.campaignId);
     if (!already && snapshot.severity === "info") continue;
     const previousAlert = await prisma.adAlert.findFirst({
-      where: { campaignId: snapshot.campaignId, code: { in: ["pacing_over", "pacing_under", "pacing_critical"] } },
+      where: {
+        campaignId: snapshot.campaignId,
+        adAccountId,
+        code: { in: ["pacing_over", "pacing_under", "pacing_critical"] },
+        campaign: { workspaceId: scopedId },
+      },
       orderBy: { detectedAt: "desc" },
     });
     const blocked = previousAlert && now.getTime() - previousAlert.detectedAt.getTime() < 3 * 86_400_000 && previousAlert.severity === snapshot.severity;
@@ -188,6 +206,19 @@ export async function runPacingRecs(now = new Date()) {
   for (const draft of evaluated.recommendations) {
     await savePacingRecommendation(draft, now);
     recommendations += 1;
+  }
+  return { snapshots, recommendations };
+}
+
+export async function runPacingRecs(now = new Date()) {
+  if (!pacingRecsEnabled()) return { status: "skipped" as const };
+  const accounts = await prisma.adAccount.findMany({ select: { id: true, workspaceId: true, timezone: true } });
+  let snapshots = 0;
+  let recommendations = 0;
+  for (const account of accounts) {
+    const ran = await runPacingAccount(account.workspaceId, account.id, account.timezone, now);
+    snapshots += ran.snapshots;
+    recommendations += ran.recommendations;
   }
   return { status: "ran" as const, snapshots, recommendations };
 }
@@ -231,15 +262,19 @@ async function savePacingRecommendation(draft: PacingRecommendationDraft, now: D
 
 export async function loadPacingBoard(access: MarketingAccess) {
   if (!pacingRecsEnabled()) return { enabled: false as const, recommendationOnly: true as const, writesBudget: false as const, bars: [] as PacingBar[] };
+  if (!access.workspaceId.trim()) return { enabled: true as const, recommendationOnly: true as const, writesBudget: false as const, bars: [] as PacingBar[] };
+  const scope = accessScopeWhere(access);
   const [snapshots, done] = await Promise.all([
     prisma.pacingSnapshot.findMany({
+      where: scope,
       orderBy: { detectedAt: "desc" },
       take: 200,
       include: { campaign: { select: { name: true, reportedBudgetAmount: true } } },
     }),
     prisma.recommendation.findMany({
-      where: { type: "pacing", status: "accepted", decisionNote: "done" },
+      where: recommendationScopeWhere(access, { type: "pacing", status: "accepted", decisionNote: "done" }),
       orderBy: { decidedAt: "desc" },
+      take: 200,
       select: { campaignId: true, proposedBudgetAmount: true, proposedCurrency: true },
     }),
   ]);
@@ -248,7 +283,6 @@ export async function loadPacingBoard(access: MarketingAccess) {
   for (const snapshot of snapshots) {
     if (seen.has(snapshot.campaignId)) continue;
     seen.add(snapshot.campaignId);
-    if (!coversCampaign(access, { adAccountId: snapshot.adAccountId, campaignId: snapshot.campaignId })) continue;
     const budgetForPeriod = snapshot.budgetPeriod === "daily" ? dec(snapshot.budgetAmount) * snapshot.daysInPeriod : dec(snapshot.budgetAmount);
     const match = done.find((rec) => rec.campaignId === snapshot.campaignId);
     const reported = snapshot.campaign.reportedBudgetAmount === null ? null : dec(snapshot.campaign.reportedBudgetAmount);
