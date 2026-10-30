@@ -60,6 +60,13 @@ const BLOCKED = [
   "/api/marketing/compare",
   "/api/marketing/share-links",
   "/api/marketing/client-viewers",
+  "/marketing/search-waste",
+  "/marketing/competitors",
+  "/marketing/holdouts",
+  "/api/marketing/search-waste",
+  "/api/marketing/search-waste/export",
+  "/api/marketing/competitors",
+  "/api/marketing/holdouts",
 ];
 
 test("a client viewer is blocked from every internal route", () => {

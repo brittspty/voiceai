@@ -145,6 +145,29 @@ export function pageMonitorCanaryUrl(env: Env = process.env) {
   return raw;
 }
 
+/** Off unless MARKETING_SEARCH_WASTE is explicitly on. Reads SearchTermMetric and exports a CSV. */
+export function searchWasteEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_SEARCH_WASTE");
+}
+
+/** Off unless MARKETING_COMPETITOR_WATCH is explicitly on. Meta Ad Library only. */
+export function competitorWatchEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_COMPETITOR_WATCH");
+}
+
+/** Off unless MARKETING_HOLDOUTS is explicitly on. Design and readout only. */
+export function holdoutsEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_HOLDOUTS");
+}
+
+export function adLibraryCountries(env: Env = process.env) {
+  const parts = (env.META_AD_LIBRARY_COUNTRIES || "US")
+    .split(",")
+    .map((part) => part.trim().toUpperCase())
+    .filter((part) => /^[A-Z]{2}$/.test(part));
+  return parts.length ? parts : ["US"];
+}
+
 export function amBudgetCapUsd(env: Env = process.env) {
   const parsed = Number(env.MARKETING_AM_BUDGET_CAP_USD ?? 500);
   if (!Number.isFinite(parsed) || parsed < 0) return 500;
