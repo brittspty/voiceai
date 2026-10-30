@@ -1,4 +1,4 @@
-import { decideConversionTurnOn, requestConversionTurnOn, saveConversionClient, saveConversionStage } from "@/lib/marketing/offline/actions";
+import { decideConversionTurnOn, requestConversionTurnOn, saveConversionAccounts, saveConversionClient, saveConversionStage } from "@/lib/marketing/offline/actions";
 import { META_EVENT_NAMES } from "@/lib/marketing/offline/types";
 import type { ConversionFeedbackView } from "@/lib/marketing/offline/view";
 import { ConnectLink, ErrorDrawer, UndoToast } from "./conversion-widgets";
@@ -86,6 +86,12 @@ export function ConversionFeedback({
             <label className="block text-sm">GoHighLevel location id
               <input name="ghlLocationId" maxLength={80} className="mt-1 block h-11 w-full rounded-lg border border-line px-3" />
             </label>
+            <label className="block text-sm">Meta dataset id
+              <input name="metaDatasetId" inputMode="numeric" maxLength={20} className="mt-1 block h-11 w-full rounded-lg border border-line px-3" />
+            </label>
+            <label className="block text-sm">Google Ads customer id
+              <input name="googleCustomerId" inputMode="numeric" maxLength={20} className="mt-1 block h-11 w-full rounded-lg border border-line px-3" />
+            </label>
             <button className="btn-brand min-h-11 rounded-full px-4 text-sm md:col-span-2 md:w-fit" type="submit">Add client</button>
           </form>
         )}
@@ -95,6 +101,17 @@ export function ConversionFeedback({
               <h3 className="text-lg font-semibold">{client.name}</h3>
               <p className="text-sm">{client.statusLabel}</p>
             </div>
+            <form action={saveConversionAccounts} className="mt-3 grid gap-3 md:grid-cols-2">
+              <input type="hidden" name="clientId" value={client.id} />
+              <label className="block text-sm">Meta dataset id for {client.name}
+                <input name="metaDatasetId" inputMode="numeric" defaultValue={client.metaDatasetId} readOnly={!canEdit} className="mt-1 block h-11 w-full rounded-lg border border-line px-3" />
+              </label>
+              <label className="block text-sm">Google Ads customer id for {client.name}
+                <input name="googleCustomerId" inputMode="numeric" defaultValue={client.googleCustomerId} readOnly={!canEdit} className="mt-1 block h-11 w-full rounded-lg border border-line px-3" />
+              </label>
+              {canEdit && <button className="btn-brand min-h-11 rounded-full px-4 text-sm md:col-span-2 md:w-fit" type="submit">Save ad accounts</button>}
+            </form>
+            <p className="mt-2 text-sm text-muted">These ids are only for this client. A live send is refused when either one is missing.</p>
             <div className="mt-3 space-y-4">
               {client.stages.map((stage) => {
                 const actionIsId = /^\d+$/.test(stage.googleAction) || /^customers\/\d+\/conversionActions\/\d+$/.test(stage.googleAction);

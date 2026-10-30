@@ -1,43 +1,35 @@
 import type { Env } from "../config";
-import { graphVersion } from "../config";
+import { googleAdsApiVersion, graphVersion, normalizeCustomerId } from "../config";
 import { zonedParts } from "../../time";
 import type { ConversionPlatformName, EventRecord } from "./types";
 
-export function metaDatasetId(env: Env) {
-  const raw = (env.META_DATASET_ID || env.META_PIXEL_ID || "").trim();
-  return /^\d+$/.test(raw) ? raw : "";
-}
-
-export function googleCustomerId(env: Env) {
-  const raw = (env.GOOGLE_ADS_CUSTOMER_ID || "").replace(/\D/g, "");
-  return /^\d{6,12}$/.test(raw) ? raw : "";
-}
-
-export function googleAdsVersion(env: Env) {
-  const raw = (env.GOOGLE_ADS_API_VERSION || "v18").trim();
-  return /^v\d+$/.test(raw) ? raw : "v18";
+/** Meta dataset / pixel id saved on the client. Not read from the environment. */
+export function normalizeDatasetId(raw: string) {
+  const value = raw.trim();
+  return /^\d{6,20}$/.test(value) ? value : "";
 }
 
 export function metaCredentials(env: Env) {
-  const datasetId = metaDatasetId(env);
   const accessToken = (env.META_CAPI_ACCESS_TOKEN || "").trim();
-  if (!datasetId || !accessToken) return null;
-  return { datasetId, accessToken };
+  if (!accessToken) return null;
+  return { accessToken };
 }
 
 export function googleCredentials(env: Env) {
-  const customerId = googleCustomerId(env);
   const developerToken = (env.GOOGLE_ADS_DEVELOPER_TOKEN || "").trim();
   const accessToken = (env.GOOGLE_ADS_ACCESS_TOKEN || "").trim();
   const refreshToken = (env.GOOGLE_ADS_REFRESH_TOKEN || "").trim();
   const clientId = (env.GOOGLE_ADS_CLIENT_ID || "").trim();
   const clientSecret = (env.GOOGLE_ADS_CLIENT_SECRET || "").trim();
-  const loginCustomerId = (env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || "").replace(/\D/g, "");
-  if (!customerId || !developerToken) return null;
+  const rawLogin = (env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || "").trim();
+  const loginCustomerId = rawLogin ? normalizeCustomerId(rawLogin) : "";
+  if (!developerToken) return null;
+  if (rawLogin && !loginCustomerId) return null;
   if (!accessToken && !(refreshToken && clientId && clientSecret)) return null;
-  return { customerId, developerToken, accessToken, refreshToken, clientId, clientSecret, loginCustomerId };
+  return { developerToken, accessToken, refreshToken, clientId, clientSecret, loginCustomerId };
 }
 
+/** Shared token is present. The client's own dataset or customer id is checked separately. */
 export function platformReady(platform: ConversionPlatformName, env: Env) {
   return platform === "meta" ? Boolean(metaCredentials(env)) : Boolean(googleCredentials(env));
 }
@@ -60,13 +52,16 @@ export function googleConversionDateTime(date: Date, timeZone: string) {
 
 export function googleConversionAction(action: string, customerId: string) {
   const trimmed = action.trim();
-  if (/^customers\/\d+\/conversionActions\/\d+$/.test(trimmed)) return trimmed;
-  if (customerId && /^\d+$/.test(trimmed)) return `customers/${customerId}/conversionActions/${trimmed}`;
+  const customer = normalizeCustomerId(customerId);
+  if (/^customers\/\d{10}\/conversionActions\/\d+$/.test(trimmed)) return trimmed;
+  if (customer && /^\d+$/.test(trimmed)) return `customers/${customer}/conversionActions/${trimmed}`;
   return trimmed;
 }
 
 export function googleActionReady(action: string, customerId: string) {
-  return /^customers\/\d+\/conversionActions\/\d+$/.test(googleConversionAction(action, customerId));
+  const customer = normalizeCustomerId(customerId);
+  const resolved = googleConversionAction(action, customer);
+  return Boolean(customer) && resolved.startsWith(`customers/${customer}/`) && /^customers\/\d{10}\/conversionActions\/\d+$/.test(resolved);
 }
 
 export function buildMetaPayload(event: EventRecord, eventName: string) {
@@ -123,14 +118,14 @@ export function matchable(platform: ConversionPlatformName, event: EventRecord) 
   return platform === "meta" ? metaMatchable(event) : googleMatchable(event);
 }
 
-export function metaEventsUrl(env: Env) {
-  const datasetId = metaDatasetId(env);
-  if (!datasetId) return "";
-  return `https://graph.facebook.com/${graphVersion(env)}/${datasetId}/events`;
+export function metaEventsUrl(env: Env, datasetId: string) {
+  const dataset = normalizeDatasetId(datasetId);
+  if (!dataset) return "";
+  return `https://graph.facebook.com/${graphVersion(env)}/${dataset}/events`;
 }
 
-export function googleUploadUrl(env: Env) {
-  const customerId = googleCustomerId(env);
-  if (!customerId) return "";
-  return `https://googleads.googleapis.com/${googleAdsVersion(env)}/customers/${customerId}:uploadClickConversions`;
+export function googleUploadUrl(env: Env, customerId: string) {
+  const customer = normalizeCustomerId(customerId);
+  if (!customer) return "";
+  return `https://googleads.googleapis.com/${googleAdsApiVersion(env)}/customers/${customer}:uploadClickConversions`;
 }

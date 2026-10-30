@@ -12,6 +12,9 @@ ALTER TABLE "Contact" ADD COLUMN "utmCampaign" TEXT NOT NULL DEFAULT '';
 ALTER TABLE "Contact" ADD COLUMN "utmTerm" TEXT NOT NULL DEFAULT '';
 ALTER TABLE "Contact" ADD COLUMN "utmContent" TEXT NOT NULL DEFAULT '';
 
+-- These indexes are not created CONCURRENTLY, so they take a brief write lock on Contact.
+-- That is acceptable at the current table size. On a hot Contact table, build them
+-- CONCURRENTLY in the deploy window instead of inside this migration transaction.
 CREATE INDEX "Contact_gclid_idx" ON "Contact"("gclid");
 CREATE INDEX "Contact_fbclid_idx" ON "Contact"("fbclid");
 

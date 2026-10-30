@@ -12,8 +12,8 @@ export type ConversionAccess =
     };
 
 /** Super admins edit. Account managers view. Everyone else, including clients, is refused. */
-export function conversionAccess(user: { role: string; email: string }, env: Env = process.env): ConversionAccess {
-  const access = accessFromUser({ id: user.role, email: user.email, role: user.role }, [], env);
+export function conversionAccess(user: { id: string; role: string; email: string }, env: Env = process.env): ConversionAccess {
+  const access = accessFromUser({ id: user.id, email: user.email, role: user.role }, [], env);
   if (access.kind !== "super_admin" && access.kind !== "account_manager") return { ok: false };
   const edit = access.kind === "super_admin";
   return {
@@ -25,9 +25,9 @@ export function conversionAccess(user: { role: string; email: string }, env: Env
   };
 }
 
-export function googleOAuthStartUrl(env: Env, redirectUri: string) {
+export function googleOAuthStartUrl(env: Env, redirectUri: string, state: string) {
   const clientId = (env.GOOGLE_ADS_CLIENT_ID || "").trim();
-  if (!clientId || !redirectUri) return null;
+  if (!clientId || !redirectUri || !state) return null;
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -36,6 +36,7 @@ export function googleOAuthStartUrl(env: Env, redirectUri: string) {
   url.searchParams.set("access_type", "offline");
   url.searchParams.set("prompt", "consent");
   url.searchParams.set("include_granted_scopes", "false");
+  url.searchParams.set("state", state);
   return url.toString();
 }
 
@@ -51,6 +52,7 @@ export function connectPageModel(
   access: Extract<ConversionAccess, { ok: true }>,
   env: Env,
   redirectUri: string,
+  state = "",
 ): ConnectPage {
   if (platform === "google") {
     if (!access.reconnectGoogle) {
@@ -61,7 +63,7 @@ export function connectPageModel(
         asksForPassword: false,
       };
     }
-    const redirectUrl = googleOAuthStartUrl(env, redirectUri);
+    const redirectUrl = googleOAuthStartUrl(env, redirectUri, state);
     return {
       title: "Reconnect Google",
       body: redirectUrl
@@ -71,12 +73,9 @@ export function connectPageModel(
       asksForPassword: false,
     };
   }
-  const dataset = (env.META_DATASET_ID || "").trim();
   return {
     title: "Reconnect Meta",
-    body: dataset
-      ? "The Meta dataset is set. VoiceOps never asks for a password or a token on this page."
-      : "Meta is not connected yet. A super admin adds the dataset id and conversions token outside this page. VoiceOps never asks for a password.",
+    body: "Each client has its own Meta dataset id, saved on Conversion feedback. The conversions token is set outside this page. VoiceOps never asks for a password.",
     redirectUrl: null,
     asksForPassword: false,
   };

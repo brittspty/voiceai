@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Env } from "../config";
-import { offlineConversionsEnabled, offlineConversionsLiveEnabled } from "../config";
+import { normalizeCustomerId, offlineConversionsEnabled, offlineConversionsLiveEnabled } from "../config";
 import { finalizeDecision } from "./decision";
 import { hashContact } from "./hash";
 import { withFbc, type ParsedOpportunity } from "./click-ids";
@@ -8,10 +8,10 @@ import {
   buildGooglePayload,
   buildMetaPayload,
   googleActionReady,
-  googleCredentials,
   googleMatchable,
   matchable,
   metaMatchable,
+  normalizeDatasetId,
   platformReady,
 } from "./payloads";
 import type { PlannedUpload } from "./send";
@@ -226,12 +226,15 @@ export function planCycle(state: CycleState, env: Env, now: Date, ids: () => str
       const stage = stageFor(client, event);
       for (const platform of PLATFORMS) {
         if (state.uploads.some((upload) => upload.eventId === event.id && upload.platform === platform)) continue;
+        const datasetId = normalizeDatasetId(client.metaDatasetId);
+        const customerId = normalizeCustomerId(client.googleCustomerId);
         const payload =
           platform === "meta"
             ? buildMetaPayload(event, stage?.metaEventName || "Lead")
-            : buildGooglePayload(event, stage?.googleAction || "", googleCredentials(env)?.customerId || "", timeZone);
+            : buildGooglePayload(event, stage?.googleAction || "", customerId, timeZone);
         const canMatch = platform === "meta" ? metaMatchable(event) : googleMatchable(event);
         const hashesMissing = !(event.emailHashMeta || event.phoneHashMeta);
+        const destinationReady = platform === "meta" ? Boolean(datasetId) : Boolean(customerId);
         let status: UploadRecord["status"] = "dry_run";
         let errorCode = "";
         let errorMessage = "";
@@ -240,11 +243,15 @@ export function planCycle(state: CycleState, env: Env, now: Date, ids: () => str
           status = "skipped";
           errorCode = hashesMissing ? "no_email_or_phone" : "no_click_id";
           errorMessage = hashesMissing ? "No email or phone to match." : "No click id to match.";
-        } else if (live && platform === "google_ads" && !googleActionReady(stage?.googleAction || "", googleCredentials(env)?.customerId || "")) {
+        } else if (live && !destinationReady) {
+          status = "skipped";
+          errorCode = platform === "meta" ? "missing_dataset" : "missing_customer";
+          errorMessage = platform === "meta" ? "Add this client's Meta dataset id." : "Add this client's Google Ads customer id.";
+        } else if (live && platform === "google_ads" && !googleActionReady(stage?.googleAction || "", customerId)) {
           status = "skipped";
           errorCode = "missing_conversion_action";
           errorMessage = "Add the Google conversion action id.";
-        } else if (live && platformReady(platform, env)) {
+        } else if (live && platformReady(platform, env) && destinationReady) {
           send = true;
         }
         uploads.push({
@@ -259,6 +266,7 @@ export function planCycle(state: CycleState, env: Env, now: Date, ids: () => str
           createdAt: now.toISOString(),
           sentAt: null,
           send,
+          destination: { metaDatasetId: datasetId, googleCustomerId: customerId },
         });
       }
     }
@@ -280,7 +288,7 @@ export function planCycle(state: CycleState, env: Env, now: Date, ids: () => str
           platform,
           events,
           combined.filter((upload) => upload.platform === platform && eventIds.has(upload.eventId)),
-          live && platformReady(platform, env),
+          live && platformReady(platform, env) && (platform === "meta" ? Boolean(normalizeDatasetId(client.metaDatasetId)) : Boolean(normalizeCustomerId(client.googleCustomerId))),
           now.getTime(),
         );
         if (!desired) {

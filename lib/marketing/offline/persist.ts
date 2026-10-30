@@ -39,6 +39,8 @@ export async function loadCycleState(now = new Date()): Promise<CycleState> {
       id: client.id,
       name: client.name,
       ghlLocationId: client.ghlLocationId,
+      metaDatasetId: client.metaDatasetId,
+      googleCustomerId: client.googleCustomerId,
       enabledAt: iso(client.enabledAt),
       stages: client.stages.map((stage) => ({
         id: stage.id,
@@ -223,6 +225,8 @@ export async function recordConversionOpportunity(input: {
       id: client.id,
       name: client.name,
       ghlLocationId: client.ghlLocationId,
+      metaDatasetId: client.metaDatasetId,
+      googleCustomerId: client.googleCustomerId,
       enabledAt: iso(client.enabledAt),
       stages: client.stages.map((stage) => ({
         id: stage.id,

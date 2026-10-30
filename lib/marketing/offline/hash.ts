@@ -13,10 +13,11 @@ export function hashEmailForMeta(email: string) {
   return sha256Hex(normalized);
 }
 
-/** Meta: digits only, country code included, no leading plus. */
+/** Meta: E.164 first so a 10-digit US number includes country code 1, then drop the plus. */
 export function hashPhoneForMeta(phone: string) {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 8 || digits.length > 15) return "";
+  const e164 = normalizePhone(phone);
+  const digits = e164.replace(/\D/g, "");
+  if (!e164.startsWith("+") || digits.length < 8 || digits.length > 15) return "";
   return sha256Hex(digits);
 }
 

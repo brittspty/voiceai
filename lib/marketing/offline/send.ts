@@ -1,5 +1,6 @@
 import type { Env } from "../config";
 import { offlineConversionsLiveEnabled } from "../config";
+import { assertGoogleAdsAllowed, googleAdsGuard } from "../connectors/google-ads-client";
 import { conversionLogLine, payloadHasRawPii, type LogSink } from "./log";
 import {
   googleCredentials,
@@ -29,7 +30,7 @@ export function isAllowedConversionUpload(raw: string) {
   if (url.username || url.password) return false;
   if (url.searchParams.has("access_token")) return false;
   if (url.hostname === META_HOST) return /^\/v\d+\.\d+\/\d+\/events$/.test(url.pathname);
-  if (url.hostname === GOOGLE_HOST) return /^\/v\d+\/customers\/\d+:uploadClickConversions$/.test(url.pathname);
+  if (url.hostname === GOOGLE_HOST) return googleAdsGuard("upload", "POST", raw);
   return false;
 }
 
@@ -39,7 +40,12 @@ export function assertConversionUploadUrl(raw: string) {
   }
 }
 
-export type PlannedUpload = UploadRecord & { send: boolean };
+export type UploadDestination = {
+  metaDatasetId: string;
+  googleCustomerId: string;
+};
+
+export type PlannedUpload = UploadRecord & { send: boolean; destination: UploadDestination };
 
 export function storedUpload(upload: PlannedUpload, patch: Partial<UploadRecord> = {}): UploadRecord {
   return {
@@ -63,10 +69,16 @@ type Wire = {
   logBody: unknown;
 };
 
-export function buildWireRequest(platform: ConversionPlatformName, payload: unknown, env: Env, accessToken: string): Wire | { error: string } {
+export function buildWireRequest(
+  platform: ConversionPlatformName,
+  payload: unknown,
+  env: Env,
+  accessToken: string,
+  destination: UploadDestination,
+): Wire | { error: string } {
   if (platform === "meta") {
     const creds = metaCredentials(env);
-    const url = metaEventsUrl(env);
+    const url = metaEventsUrl(env, destination.metaDatasetId);
     if (!creds || !url) return { error: "missing_meta_credentials" };
     assertConversionUploadUrl(url);
     return {
@@ -77,8 +89,9 @@ export function buildWireRequest(platform: ConversionPlatformName, payload: unkn
     };
   }
   const creds = googleCredentials(env);
-  const url = googleUploadUrl(env);
+  const url = googleUploadUrl(env, destination.googleCustomerId);
   if (!creds || !url || !accessToken) return { error: "missing_google_credentials" };
+  assertGoogleAdsAllowed("upload", "POST", url);
   assertConversionUploadUrl(url);
   const headers: Record<string, string> = {
     "content-type": "application/json",
@@ -184,7 +197,7 @@ export async function executeUploads(input: {
       );
       continue;
     }
-    const wire = buildWireRequest(upload.platform, upload.payload, input.env, token);
+    const wire = buildWireRequest(upload.platform, upload.payload, input.env, token, upload.destination);
     if ("error" in wire) {
       uploads.push(
         storedUpload(upload, {

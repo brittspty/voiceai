@@ -9,7 +9,7 @@ import { prisma } from "../../db";
 import { offlineConversionsEnabled } from "../config";
 import { conversionAccess } from "./access";
 import { applyDecision, newTurnOnDecision, stagesReady } from "./decision";
-import { cleanLabel, cleanMetaEvent, parseDollarsToCents } from "./forms";
+import { cleanLabel, cleanMetaEvent, parseCustomerId, parseDatasetId, parseDollarsToCents } from "./forms";
 import { DEFAULT_STAGES } from "./types";
 
 function refresh() {
@@ -27,15 +27,35 @@ export async function saveConversionClient(formData: FormData) {
   const user = await editor();
   const name = cleanLabel(String(formData.get("name") || ""));
   const ghlLocationId = cleanLabel(String(formData.get("ghlLocationId") || ""), 80);
-  if (!name) return;
+  const metaDatasetId = parseDatasetId(String(formData.get("metaDatasetId") || ""));
+  const googleCustomerId = parseCustomerId(String(formData.get("googleCustomerId") || ""));
+  if (!name || metaDatasetId === "invalid" || googleCustomerId === "invalid") return;
   await prisma.conversionClient.create({
     data: {
       name,
       ghlLocationId,
+      metaDatasetId,
+      googleCustomerId,
       stages: { create: DEFAULT_STAGES.map((stage) => ({ ...stage })) },
     },
   });
   await audit({ id: user.id, name: user.name }, "Added a conversion client", { type: "conversion_client", label: name });
+  refresh();
+}
+
+export async function saveConversionAccounts(formData: FormData) {
+  const user = await editor();
+  const clientId = cleanLabel(String(formData.get("clientId") || ""), 80);
+  const metaDatasetId = parseDatasetId(String(formData.get("metaDatasetId") || ""));
+  const googleCustomerId = parseCustomerId(String(formData.get("googleCustomerId") || ""));
+  if (!clientId || metaDatasetId === "invalid" || googleCustomerId === "invalid") return;
+  const client = await prisma.conversionClient.findUnique({ where: { id: clientId } });
+  if (!client) return;
+  await prisma.conversionClient.update({
+    where: { id: clientId },
+    data: { metaDatasetId, googleCustomerId },
+  });
+  await audit({ id: user.id, name: user.name }, "Saved conversion ad accounts", { type: "conversion_client", id: client.id, label: client.name });
   refresh();
 }
 

@@ -2,15 +2,17 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { offlineConversionsEnabled, offlineConversionsLiveEnabled } from "./config";
+import { googleAdsApiVersion, googleAdsEnv, offlineConversionsEnabled, offlineConversionsLiveEnabled } from "./config";
 import { clientViewerAllowed } from "./client-gate";
 import { connectPageModel, conversionAccess, googleOAuthStartUrl, renderConnectPopup } from "./offline/access";
+import { createOAuthState, oauthStateMatches } from "./offline/oauth-state";
 import { extractAttribution, parseOpportunity } from "./offline/click-ids";
 import { applyDecision, decisionCardCopy, finalizeDecision, newTurnOnDecision, stagesReady, undoToast, UNDO_MS } from "./offline/decision";
 import { hashEmailForGoogle, hashEmailForMeta, hashPhoneForGoogle, hashPhoneForMeta, sha256Hex } from "./offline/hash";
 import { conversionLogLine, payloadHasRawPii, redactForLog } from "./offline/log";
 import { buildGooglePayload, buildMetaPayload, googleConversionDateTime, metaEventsUrl, googleUploadUrl } from "./offline/payloads";
 import { planCycle, planIngest } from "./offline/pipeline";
+import { googleAdsGuard } from "./connectors/google-ads-client";
 import { assertConversionUploadUrl, buildWireRequest, executeUploads, isAllowedConversionUpload } from "./offline/send";
 import { emptyAttribution, type ClientRecord, type CycleState, type EventRecord, type StageMap } from "./offline/types";
 import { buildConversionFeedbackView, matchHint, stoppedSentence } from "./offline/view";
@@ -39,6 +41,8 @@ function client(enabledAt: string | null = NOW.toISOString()): ClientRecord {
     id: "client-1",
     name: "Acme Marine",
     ghlLocationId: "loc_1",
+    metaDatasetId: "109911",
+    googleCustomerId: "1234567890",
     enabledAt,
     stages: [
       stage({ kind: "qualified", ghlStageName: "Qualified", ghlStageId: "st_qual", metaEventName: "Lead", googleAction: "Qualified lead" }),
@@ -95,6 +99,7 @@ test("hashes email and phone and never returns the raw value", () => {
   assert.equal(hashEmailForGoogle(EMAIL), sha256Hex("maryann@gmail.com"));
   assert.notEqual(hashEmailForMeta(EMAIL), hashEmailForGoogle(EMAIL));
   assert.equal(hashPhoneForMeta(PHONE), sha256Hex("19195550144"));
+  assert.equal(hashPhoneForMeta("9195550144"), sha256Hex("19195550144"));
   assert.equal(hashPhoneForGoogle(PHONE), sha256Hex("+19195550144"));
   assert.equal(hashEmailForMeta("not-an-email"), "");
   assert.equal(hashPhoneForMeta("123"), "");
@@ -230,9 +235,11 @@ test("live send posts only conversion uploads and blocks raw contact details", a
     META_DATASET_ID: "1099",
     META_CAPI_ACCESS_TOKEN: "meta-token-secret",
     GOOGLE_ADS_DEVELOPER_TOKEN: "dev-token-secret",
-    GOOGLE_ADS_CUSTOMER_ID: "123-456-7890",
     GOOGLE_ADS_ACCESS_TOKEN: "google-token-secret",
-    GOOGLE_ADS_API_VERSION: "v18",
+    GOOGLE_ADS_API_VERSION: "v21",
+    META_DATASET_ID: "999999",
+    GOOGLE_ADS_CUSTOMER_ID: "9999999999",
+    GOOGLE_ADS_CUSTOMER_IDS: "9999999999",
   };
   const cycle = planCycle(emptyState({ clients: [client()], events: [ingested.event!] }), env, NOW, () => "upl-live");
   assert.equal(cycle.uploads.every((upload) => upload.send), true);
@@ -257,15 +264,18 @@ test("live send posts only conversion uploads and blocks raw contact details", a
   });
   assert.equal(result.sent, 2);
   assert.deepEqual(urls.sort(), [
-    "https://googleads.googleapis.com/v18/customers/1234567890:uploadClickConversions",
-    "https://graph.facebook.com/v23.0/1099/events",
+    "https://googleads.googleapis.com/v26/customers/1234567890:uploadClickConversions",
+    "https://graph.facebook.com/v23.0/109911/events",
   ].sort());
   const joined = lines.join("\n");
   assert.equal(joined.includes(EMAIL), false);
   assert.equal(joined.includes("meta-token-secret"), false);
   assert.equal(joined.includes("google-token-secret"), false);
   assert.equal(joined.includes("dev-token-secret"), false);
-  const wire = buildWireRequest("meta", cycle.uploads[0].payload, env, env.META_CAPI_ACCESS_TOKEN);
+  const wire = buildWireRequest("meta", cycle.uploads.find((upload) => upload.platform === "meta")?.payload, env, env.META_CAPI_ACCESS_TOKEN, {
+    metaDatasetId: "109911",
+    googleCustomerId: "1234567890",
+  });
   assert.equal("url" in wire, true);
   if ("url" in wire) {
     assert.equal(isAllowedConversionUpload(wire.url), true);
@@ -300,8 +310,19 @@ test("refuses every ad-account change that is not a conversion upload", () => {
     assert.equal(isAllowedConversionUpload(url), false, url);
     assert.throws(() => assertConversionUploadUrl(url), /conversion upload/);
   }
-  assert.equal(isAllowedConversionUpload(metaEventsUrl({ META_DATASET_ID: "1099" })), true);
-  assert.equal(isAllowedConversionUpload(googleUploadUrl({ GOOGLE_ADS_CUSTOMER_ID: "1234567890" })), true);
+  assert.equal(isAllowedConversionUpload(metaEventsUrl({}, "109911")), true);
+  assert.equal(isAllowedConversionUpload(googleUploadUrl({}, "123-456-7890")), true);
+  assert.equal(googleAdsApiVersion({}), "v26");
+  assert.equal(googleAdsApiVersion({ GOOGLE_ADS_API_VERSION: "v21" }), "v26");
+  assert.equal(googleAdsApiVersion({ GOOGLE_ADS_API_VERSION: "v18" }), "v26");
+  assert.equal(googleUploadUrl({}, "1234567890").includes("/v26/customers/1234567890:"), true);
+  assert.deepEqual(googleAdsEnv({ GOOGLE_ADS_CUSTOMER_ID: "1111111111", GOOGLE_ADS_CUSTOMER_IDS: "123-456-7890" }).customerIds, ["1234567890"]);
+  const uploadUrl = googleUploadUrl({}, "1234567890");
+  assert.equal(googleAdsGuard("upload", "POST", uploadUrl), true);
+  assert.equal(googleAdsGuard("read", "POST", uploadUrl), false);
+  assert.equal(googleAdsGuard("upload", "POST", "https://googleads.googleapis.com/v26/customers/1234567890/campaigns:mutate"), false);
+  assert.equal(isAllowedConversionUpload(googleUploadUrl({}, "123")), false);
+  assert.equal(googleUploadUrl({ GOOGLE_ADS_CUSTOMER_ID: "1234567890", GOOGLE_ADS_CUSTOMER_IDS: "1234567890" }, ""), "");
   const offlineDir = path.join(ROOT, "lib/marketing/offline");
   const banned = ["campaignBudgets", "adGroupCriteria", "campaigns:mutate", "uploadConversionAdjustments", "keywords:mutate"];
   for (const file of readdirSync(offlineDir)) {
@@ -431,9 +452,9 @@ test("match rate, errors, and values stay staff-only", () => {
   assert.equal(hiddenText.includes("$"), false);
   assert.equal(staff.emptyCopy, "Send your qualified leads back to Meta and Google so they find more people like them.");
   const clients = ["client_viewer", "owner", "admin", "viewer"];
-  for (const role of clients) assert.equal(conversionAccess({ role, email: `${role}@example.com` }).ok, false, role);
-  const manager = conversionAccess({ role: "account_manager", email: "am@example.com" });
-  const admin = conversionAccess({ role: "super_admin", email: "sa@example.com" });
+  for (const role of clients) assert.equal(conversionAccess({ id: role, role, email: `${role}@example.com` }).ok, false, role);
+  const manager = conversionAccess({ id: "am", role: "account_manager", email: "am@example.com" });
+  const admin = conversionAccess({ id: "sa", role: "super_admin", email: "sa@example.com" });
   assert.equal(manager.ok && manager.seesValue && manager.edit === false && manager.reconnectGoogle === false, true);
   assert.equal(admin.ok && admin.edit && admin.seesValue && admin.reconnectGoogle, true);
   for (const route of ["/settings/conversions", "/api/marketing/conversions", "/api/marketing/conversions/connect/meta", "/api/marketing/conversions/connect/google/callback"]) {
@@ -488,20 +509,23 @@ test("alerts cool down for a day and rise when sending stops", () => {
 });
 
 test("reconnect never asks for a password", () => {
-  const access = conversionAccess({ role: "super_admin", email: "sa@example.com" });
+  const access = conversionAccess({ id: "sa", role: "super_admin", email: "sa@example.com" });
   assert.equal(access.ok, true);
   if (!access.ok) return;
-  const google = connectPageModel("google", access, { GOOGLE_ADS_CLIENT_ID: "client" }, "https://app.example.com/callback");
+  const state = createOAuthState("session-secret", Date.parse("2026-10-29T16:00:00.000Z"));
+  const google = connectPageModel("google", access, { GOOGLE_ADS_CLIENT_ID: "client" }, "https://app.example.com/callback", state);
   const html = renderConnectPopup(google);
   assert.equal(google.asksForPassword, false);
   assert.equal(/type="password"/i.test(html), false);
   assert.equal(/<input/i.test(html), false);
   assert.match(html, /never asks for your password/i);
-  const start = googleOAuthStartUrl({ GOOGLE_ADS_CLIENT_ID: "client" }, "https://app.example.com/callback");
+  const start = google.redirectUrl;
   assert.match(start ?? "", /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/);
   const scope = new URL(start ?? "").searchParams.get("scope");
   assert.equal(scope, "https://www.googleapis.com/auth/adwords");
-  const manager = conversionAccess({ role: "account_manager", email: "am@example.com" });
+  assert.equal(new URL(start ?? "").searchParams.get("state"), state);
+  assert.equal(googleOAuthStartUrl({ GOOGLE_ADS_CLIENT_ID: "client" }, "https://app.example.com/callback", ""), null);
+  const manager = conversionAccess({ id: "am", role: "account_manager", email: "am@example.com" });
   if (!manager.ok) return;
   const blocked = connectPageModel("google", manager, { GOOGLE_ADS_CLIENT_ID: "client" }, "https://app.example.com/callback");
   assert.equal(blocked.redirectUrl, null);
@@ -509,7 +533,7 @@ test("reconnect never asks for a password", () => {
 });
 
 test("the migration only adds columns and tables", () => {
-  const sql = readFileSync(path.join(ROOT, "prisma/migrations/20261029230000_offline_conversions/migration.sql"), "utf8");
+  const sql = readFileSync(path.join(ROOT, "prisma/migrations/20261030160000_offline_conversions/migration.sql"), "utf8");
   assert.match(sql, /ADD COLUMN "gclid"/);
   assert.match(sql, /ADD COLUMN "fbclid"/);
   assert.match(sql, /CREATE TABLE "ConversionEvent"/);
@@ -532,6 +556,77 @@ test("redaction removes raw contact details from a log line", () => {
   assert.equal(payloadHasRawPii({ email: EMAIL }), true);
   assert.equal(payloadHasRawPii({ em: [hashEmailForMeta(EMAIL)] }), false);
   assert.equal(JSON.stringify(redactForLog({ phone: PHONE })).includes("555"), false);
+});
+
+test("Meta short keys are redacted unless they are hashes", () => {
+  const raw = {
+    user_data: {
+      em: [EMAIL],
+      ph: ["19195550144"],
+      fn: ["Mary"],
+      ln: ["Ann"],
+      external_id: ["opp_1"],
+      client_ip_address: "203.0.113.8",
+      client_user_agent: "Mozilla/5.0",
+    },
+  };
+  assert.equal(payloadHasRawPii(raw), true);
+  const line = conversionLogLine({ mode: "dry_run", platform: "meta", status: "dry_run", eventId: "evt", uploadId: "upl", payload: raw });
+  assert.equal(line.includes(EMAIL), false);
+  assert.equal(line.includes("19195550144"), false);
+  assert.equal(line.includes("Mary"), false);
+  assert.equal(line.includes("Ann"), false);
+  assert.equal(line.includes("opp_1"), false);
+  assert.equal(line.includes("203.0.113.8"), false);
+  assert.equal(line.includes("Mozilla"), false);
+  const hash = hashEmailForMeta(EMAIL);
+  assert.equal(payloadHasRawPii({ user_data: { em: [hash], ph: [hash] } }), false);
+  assert.equal(conversionLogLine({ mode: "dry_run", platform: "meta", status: "dry_run", eventId: "evt", uploadId: "upl", payload: { user_data: { em: [hash] } } }).includes(hash), true);
+});
+
+test("OAuth state must match the signed cookie", () => {
+  const now = Date.parse("2026-10-29T16:00:00.000Z");
+  const state = createOAuthState("session-secret", now);
+  assert.equal(oauthStateMatches(state, state, "session-secret", now), true);
+  assert.equal(oauthStateMatches(state, `${state}x`, "session-secret", now), false);
+  assert.equal(oauthStateMatches("", state, "session-secret", now), false);
+  assert.equal(oauthStateMatches(state, state, "other-secret", now), false);
+  assert.equal(oauthStateMatches(state, state, "session-secret", now + 11 * 60 * 1000), false);
+});
+
+test("live send uses the client account and ignores a global customer id", () => {
+  const parsed = parseOpportunity(opportunityBody(), NOW)!;
+  const owned = client();
+  const ingested = planIngest({
+    opportunity: parsed,
+    email: EMAIL,
+    phone: PHONE,
+    clients: [owned],
+    contactId: null,
+    existingKeys: [],
+    env: { MARKETING_OFFLINE_CONVERSIONS: "on" },
+    now: NOW,
+    eventId: "evt_client",
+  });
+  const env = {
+    MARKETING_OFFLINE_CONVERSIONS: "on",
+    MARKETING_OFFLINE_CONVERSIONS_LIVE: "on",
+    META_CAPI_ACCESS_TOKEN: "meta-token",
+    META_DATASET_ID: "888888",
+    GOOGLE_ADS_DEVELOPER_TOKEN: "dev",
+    GOOGLE_ADS_ACCESS_TOKEN: "google-token",
+    GOOGLE_ADS_CUSTOMER_ID: "9999999999",
+    GOOGLE_ADS_CUSTOMER_IDS: "9999999999",
+  };
+  const sent = planCycle(emptyState({ clients: [owned], events: [ingested.event!] }), env, NOW, () => "owned");
+  assert.equal(sent.uploads.every((upload) => upload.send), true);
+  assert.equal(sent.uploads.find((upload) => upload.platform === "meta")?.destination.metaDatasetId, "109911");
+  assert.equal(sent.uploads.find((upload) => upload.platform === "google_ads")?.destination.googleCustomerId, "1234567890");
+  const unassigned = { ...owned, metaDatasetId: "", googleCustomerId: "" };
+  const blocked = planCycle(emptyState({ clients: [unassigned], events: [ingested.event!] }), env, NOW, () => "blocked");
+  assert.equal(blocked.uploads.every((upload) => upload.send === false), true);
+  assert.equal(blocked.uploads.find((upload) => upload.platform === "meta")?.errorCode, "missing_dataset");
+  assert.equal(blocked.uploads.find((upload) => upload.platform === "google_ads")?.errorCode, "missing_customer");
 });
 
 function sampleEvent(id: string, occurredAt: string, matched: boolean): EventRecord {

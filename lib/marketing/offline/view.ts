@@ -1,7 +1,8 @@
 import type { Env } from "../config";
 import { offlineConversionsEnabled, offlineConversionsLiveEnabled } from "../config";
 import { cardExpiryLabel, decisionCardCopy, stagesReady } from "./decision";
-import { googleCredentials, metaCredentials, platformReady } from "./payloads";
+import { normalizeCustomerId } from "../config";
+import { googleCredentials, metaCredentials, normalizeDatasetId, platformReady } from "./payloads";
 import { rateFor } from "./pipeline";
 import type { ClientRecord, ConversionPlatformName, CycleState, DecisionRecord, EventRecord, StageKind, UploadRecord } from "./types";
 
@@ -52,6 +53,8 @@ export type ConversionFeedbackView = {
     id: string;
     name: string;
     locationId: string;
+    metaDatasetId: string;
+    googleCustomerId: string;
     enabled: boolean;
     statusLabel: string;
     stages: {
@@ -141,6 +144,12 @@ function errorCopy(code: string, count: number, label: string): { cause: string;
   if (code === "missing_conversion_action") {
     return { cause: `${count} Google ${count === 1 ? "update is" : "updates are"} missing a conversion action id.`, fix: "Add the Google conversion action id." };
   }
+  if (code === "missing_dataset") {
+    return { cause: `${count} Meta ${count === 1 ? "update has" : "updates have"} no dataset for this client.`, fix: "Add this client's Meta dataset id." };
+  }
+  if (code === "missing_customer") {
+    return { cause: `${count} Google ${count === 1 ? "update has" : "updates have"} no customer id for this client.`, fix: "Add this client's Google Ads customer id." };
+  }
   return { cause: `${label} rejected ${count} ${count === 1 ? "update" : "updates"}.`, fix: "Reconnect to resume." };
 }
 
@@ -170,7 +179,7 @@ export function buildConversionFeedbackView(input: {
   const platforms = (["meta", "google_ads"] as const).map((platform) => platformRow(platform, input, now, featureOn, liveOn, input.seesValue));
   const empty = platforms.every((row) => row.status === "not_connected");
   const attention = platforms.find((row) => row.status === "needs_attention");
-  const waiting = platforms.some((row) => platformReady(row.platform, input.env) && row.lastSentLabel === "Nothing sent yet" && row.status !== "needs_attention");
+  const waiting = platforms.some((row) => row.status === "sending" && row.lastSentLabel === "Nothing sent yet");
   const clients = input.state.clients.map((client) => clientRow(client, input.state.decisions, input.now, input.seesValue));
   return {
     featureOn,
@@ -208,7 +217,10 @@ function platformRow(
   seesValue: boolean,
 ): PlatformRow {
   const label = platformLabel(platform);
-  const ready = platformReady(platform, input.env);
+  const ready = platformReady(platform, input.env) && input.state.clients.some((client) => {
+    if (!client.enabledAt) return false;
+    return platform === "meta" ? Boolean(normalizeDatasetId(client.metaDatasetId)) : Boolean(normalizeCustomerId(client.googleCustomerId));
+  });
   const events = input.state.events.filter((event) => inLastWeek(event.occurredAt, now));
   const uploads = input.state.uploads.filter((upload) => upload.platform === platform);
   const weekUploads = uploads.filter((upload) => inLastWeek(upload.createdAt, now));
@@ -270,7 +282,7 @@ function errorGroups(
   if (missingClick) groups.push({ code: "no_click_id", count: missingClick });
   const unmapped = issues.filter((issue) => issue.code === "unmapped_stage").length;
   if (unmapped) groups.push({ code: "unmapped_stage", count: unmapped });
-  for (const code of ["token_expired", "upload_rejected", "missing_conversion_action"]) {
+  for (const code of ["token_expired", "upload_rejected", "missing_conversion_action", "missing_dataset", "missing_customer"]) {
     const count = uploads.filter((upload) => upload.errorCode === code).length;
     if (count) groups.push({ code, count });
   }
@@ -290,6 +302,8 @@ function clientRow(client: ClientRecord, decisions: DecisionRecord[], now: Date,
     id: client.id,
     name: client.name,
     locationId: client.ghlLocationId,
+    metaDatasetId: client.metaDatasetId,
+    googleCustomerId: client.googleCustomerId,
     enabled: Boolean(client.enabledAt),
     statusLabel: client.enabledAt ? "On" : undoSeconds != null && undoSeconds > 0 ? "Approved. Waiting out the undo window" : "Off",
     stages: client.stages.map((stage) => ({

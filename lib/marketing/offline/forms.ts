@@ -1,3 +1,5 @@
+import { normalizeCustomerId } from "../config";
+import { normalizeDatasetId } from "./payloads";
 import { isMetaEventName } from "./types";
 
 const MAX_CENTS = 100_000_000;
@@ -13,6 +15,18 @@ export function parseDollarsToCents(raw: string): number | null | "invalid" {
 
 export function cleanLabel(raw: string, max = 120) {
   return raw.trim().replace(/\s+/g, " ").slice(0, max);
+}
+
+export function parseDatasetId(raw: string): string | "invalid" {
+  const value = raw.trim();
+  if (!value) return "";
+  return normalizeDatasetId(value) || "invalid";
+}
+
+export function parseCustomerId(raw: string): string | "invalid" {
+  const value = raw.trim();
+  if (!value) return "";
+  return normalizeCustomerId(value) || "invalid";
 }
 
 export function cleanMetaEvent(raw: string) {

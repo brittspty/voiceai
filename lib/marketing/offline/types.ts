@@ -40,6 +40,8 @@ export type ClientRecord = {
   id: string;
   name: string;
   ghlLocationId: string;
+  metaDatasetId: string;
+  googleCustomerId: string;
   enabledAt: string | null;
   stages: StageMap[];
 };
