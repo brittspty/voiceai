@@ -1,5 +1,6 @@
 /** Paths a signed-in client viewer may open. Everything else is blocked. */
 export function clientViewerAllowed(pathname: string) {
+  if (pathname === "/") return true;
   if (pathname === "/marketing/client") return true;
   if (pathname === "/sites/landing-pages") return true;
   if (pathname === "/api/marketing/client" || pathname === "/api/marketing/client/export") return true;

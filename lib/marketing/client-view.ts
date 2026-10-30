@@ -1,6 +1,6 @@
 import { clientQualifiedKpis } from "./lead-score/summary";
 
-const FORBIDDEN_KEY = /spend|budget|cpc|cpm|cpa|roas|cost|cpl|currency|amount|revenue/i;
+const FORBIDDEN_KEY = /spend|budget|cpc|cpm|cpa|roas|cost|cpl|currency|amount|revenue|leadvalue|callvalue|externalid/i;
 const FORBIDDEN_TEXT = /spend|cost|cpc|cpm|cpa|budget|roas|revenue|\$/i;
 
 export type ClientCampaign = {

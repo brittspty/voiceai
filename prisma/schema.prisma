@@ -138,6 +138,8 @@ model User {
   competitorIdeas    CompetitorIdea[]   @relation("CompetitorIdeaCreatedBy")
   liftTestsCreated   LiftTest[]         @relation("LiftTestCreatedBy")
   liftTestsStarted   LiftTest[]         @relation("LiftTestStartedBy")
+  leadValuesSet          ClientSettings[]     @relation("LeadValueSetBy")
+  leadValueAudits        LeadValueAudit[]
 }
 
 model Session {
@@ -161,6 +163,14 @@ model Org {
   mark            String  @default("S")
   testMode        Boolean @default(true)
   scheduleEnabled Boolean @default(false)
+}
+
+/// One row per client business. Voice is a paid add-on, off unless this client has it.
+model Workspace {
+  id           String   @id
+  name         String
+  voiceEnabled Boolean  @default(false)
+  createdAt    DateTime @default(now())
 }
 
 model Office {
@@ -980,6 +990,30 @@ model ClientShareLink {
   views       ClientViewAudit[]
 
   @@index([workspaceId])
+}
+
+model ClientSettings {
+  workspaceId      String    @id
+  leadValueCents   Int?
+  callValueCents   Int?
+  leadValueSetById String?
+  leadValueSetBy   User?     @relation("LeadValueSetBy", fields: [leadValueSetById], references: [id], onDelete: SetNull)
+  leadValueSetAt   DateTime?
+  updatedAt        DateTime  @updatedAt
+}
+
+model LeadValueAudit {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  oldLeadCents Int?
+  newLeadCents Int?
+  oldCallCents Int?
+  newCallCents Int?
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  setAt        DateTime @default(now())
+
+  @@index([workspaceId, setAt])
 }
 
 model ClientViewAudit {
