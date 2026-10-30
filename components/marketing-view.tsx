@@ -1,5 +1,7 @@
 import { DecisionQueue } from "@/components/decision-queue";
 import { HourlySummary } from "@/components/hourly-summary";
+import { SpeedToLeadTile } from "@/components/speed-to-lead-tile";
+import type { SpeedDashboardView } from "@/lib/marketing/speed-to-lead";
 import { ShareLinkButton } from "@/components/share-link-button";
 import { Pill } from "@/components/pills";
 import { PageTitle } from "@/components/shell";
@@ -210,6 +212,7 @@ export function MarketingView(props: {
   recommendations?: RecommendationRow[];
   digests?: DigestRow[];
   flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean };
+  speedToLead?: SpeedDashboardView | { error: true } | null;
 }) {
   const seesCost = Boolean(props.flags?.seesCost);
   const searchTerms = props.searchTerms ?? [];
@@ -259,6 +262,7 @@ export function MarketingView(props: {
           {props.lastRun.accounts.length ? ` · ${props.lastRun.accounts.length} account${props.lastRun.accounts.length === 1 ? "" : "s"}` : ""}
         </p>
       )}
+      {props.speedToLead ? <div className="mb-6"><SpeedToLeadTile speed={props.speedToLead} /></div> : null}
       {!props.accounts.length ? (
         <div className="rounded-xl border border-line bg-card p-6 text-sm text-muted">
           No ad accounts yet. Set a Meta system user token, app id, app secret, and <span className="font-medium text-ink">META_AD_ACCOUNT_IDS</span>{" "}
@@ -423,7 +427,7 @@ export function MarketingView(props: {
           <div id="queue">
             {props.flags?.monitor ? (
               <DecisionQueue
-                cards={(props.recommendations ?? []).filter((card) => seesCost || (card.type !== "budget_change" && card.type !== "roi" && !["cpc", "cpm", "cpa", "cpl", "budget", "roi", "spend", "cost"].includes(card.metric)))}
+                cards={(props.recommendations ?? []).filter((card) => card.type !== "speed_to_lead" && (seesCost || (card.type !== "budget_change" && card.type !== "roi" && !["cpc", "cpm", "cpa", "cpl", "budget", "roi", "spend", "cost"].includes(card.metric))))}
                 canAct={Boolean(props.flags.canEditBudget)}
                 isSuperAdmin={props.flags.isSuperAdmin}
                 budgetCap={props.flags.budgetCap}

@@ -1,6 +1,6 @@
 import { digestDeliveryEnabled, digestEnabled, type Env } from "./config";
 
-export type DigestItem = { id: string; title: string; summary: string; accountId: string };
+export type DigestItem = { id: string; title: string; summary: string; accountId: string; workspace?: boolean };
 
 export type DigestDraft = {
   userId: string;
@@ -28,7 +28,7 @@ export function buildManagerDigest(input: {
 }): DigestDraft | null {
   const env = input.env ?? process.env;
   if (!digestEnabled(env)) return null;
-  const allowed = (item: DigestItem) => input.accountIds === "all" || input.accountIds.includes(item.accountId);
+  const allowed = (item: DigestItem) => item.workspace === true || input.accountIds === "all" || input.accountIds.includes(item.accountId);
   const alerts = input.alerts.filter(allowed);
   const recommendations = input.recommendations.filter(allowed);
   if (!alerts.length && !recommendations.length) return null;

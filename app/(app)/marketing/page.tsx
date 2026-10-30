@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { MarketingView } from "@/components/marketing-view";
 import { requireUser } from "@/lib/auth";
-import { amBudgetCapUsd, clientLinksEnabled, digestEnabled, monitorEnabled } from "@/lib/marketing/config";
+import { amBudgetCapUsd, clientLinksEnabled, digestEnabled, monitorEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
 import { getMarketingPage, loadMarketingAccess } from "@/lib/marketing/queries";
+import { loadSpeedPage } from "@/lib/marketing/speed-to-lead-store";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +13,13 @@ export default async function MarketingPage() {
   if (access.kind === "client_viewer") redirect("/marketing/client");
   if (access.kind === "none") redirect("/");
   const data = await getMarketingPage(access);
+  const speedToLead = speedToLeadEnabled()
+    ? await loadSpeedPage().catch(() => ({ error: true as const }))
+    : null;
   return (
     <MarketingView
       {...data}
+      speedToLead={speedToLead}
       flags={{
         monitor: monitorEnabled(),
         digest: digestEnabled(),

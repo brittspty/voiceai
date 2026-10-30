@@ -8,6 +8,8 @@ import { SYSTEM_ACTOR } from "./types";
 import { buildTranscript } from "./transcript";
 import type { ElevenEvent, GhlEvent, TwilioEvent } from "./webhook-parse";
 import { mapVendorOutcome, parseGhl } from "./webhook-parse";
+import { noteVoiceTouch, recordSpeedLead } from "./marketing/speed-to-lead-store";
+import { errorText } from "./marketing/speed-to-lead";
 import { normalizePhone } from "./phone";
 
 export async function applyGhlEvent(event: GhlEvent) {
@@ -62,6 +64,18 @@ export async function applyGhlEvent(event: GhlEvent) {
       },
     }));
   await audit(SYSTEM_ACTOR, "Synced a lead from GoHighLevel", { type: "contact", id: contact.id, label: contact.name });
+  await recordSpeedLead({
+    contactId: contact.id,
+    name: contact.name,
+    phone: contact.phone,
+    email: contact.email,
+    sessionKey: event.sessionKey,
+    ghlId: contact.ghlContactId,
+    leadSource: event.leadSource || contact.source,
+    landedAt: event.landedAt,
+    submittedAt: event.submittedAt,
+    arrivalAt: new Date(),
+  }).catch((error) => console.error("[speed-to-lead] lead was not recorded", errorText(error)));
   const org = await prisma.org.findUnique({ where: { id: "org" } });
   if (org?.scheduleEnabled) {
     const call = await prisma.call.create({
@@ -113,7 +127,11 @@ export async function applyTwilioEvent(event: TwilioEvent) {
   if (status === "queued" || status === "ringing") {
     await prisma.call.update({ where: { id: call.id }, data: { status: "dialing" } });
   } else if (status === "in-progress") {
-    await prisma.call.update({ where: { id: call.id }, data: { status: "in_progress", startedAt: call.startedAt ?? new Date() } });
+    const startedAt = call.startedAt ?? new Date();
+    await prisma.call.update({ where: { id: call.id }, data: { status: "in_progress", startedAt } });
+    await noteVoiceTouch({ contactId: call.contactId, at: startedAt, callId: call.id }).catch((error) => {
+      console.error("[speed-to-lead] voice touch was not recorded", errorText(error));
+    });
   } else if (status === "busy" || status === "no-answer" || status === "failed" || status === "canceled") {
     await prisma.call.update({
       where: { id: call.id },

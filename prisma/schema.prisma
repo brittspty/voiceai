@@ -201,8 +201,9 @@ model Contact {
   ghlContactId String?
   timezone     String        @default("America/New_York")
   createdAt    DateTime      @default(now())
-  calls        Call[]
-  appointments Appointment[]
+  calls         Call[]
+  appointments  Appointment[]
+  leadResponses LeadResponse[]
 
   @@index([phone])
   @@index([ghlContactId])
@@ -862,6 +863,7 @@ enum RecommendationType {
   traffic
   roi
   budget_change
+  speed_to_lead
 }
 
 enum MarketingScopeKind {
@@ -1039,4 +1041,113 @@ model AdHourlyMetric {
 
   @@unique([adId, date, hour])
   @@index([date])
+}
+
+enum LeadClockSource {
+  landing
+  form_submit
+  call_start
+  webhook_arrival
+}
+
+enum LeadTouchChannel {
+  human
+  voice_ai
+  sms
+}
+
+enum LeadAlertState {
+  open
+  resolved
+  muted
+}
+
+/// Per-client response target. Missing row means the 30 second default.
+model ClientSla {
+  id              String   @id @default(cuid())
+  workspaceId     String   @unique @default("org")
+  targetSeconds   Int      @default(30)
+  criticalSeconds Int      @default(900)
+  openTime        String   @default("08:00")
+  closeTime       String   @default("21:00")
+  timezone        String   @default("America/New_York")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// Page-landing timestamp, matched to a later form by session key, phone, or email.
+model LeadLanding {
+  id          String   @id @default(cuid())
+  workspaceId String   @default("org")
+  sessionKey  String
+  landedAt    DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, sessionKey, landedAt])
+}
+
+model LeadResponse {
+  id               String            @id @default(cuid())
+  workspaceId      String            @default("org")
+  contactId        String?
+  contact          Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  callId           String?
+  name             String
+  phone            String            @default("")
+  email            String            @default("")
+  sessionKey       String            @default("")
+  leadSource       String            @default("Form")
+  landedAt         DateTime?
+  submittedAt      DateTime?
+  callStartedAt    DateTime?
+  clockStartAt     DateTime
+  clockSource      LeadClockSource
+  slaStartAt       DateTime
+  afterHours       Boolean           @default(false)
+  firstTouchAt     DateTime?
+  channel          LeadTouchChannel?
+  seconds          Int?
+  touchedById      String?
+  mutedUntil       DateTime?
+  recommendationId String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  alerts           LeadAlert[]
+
+  @@index([workspaceId, slaStartAt])
+  @@index([workspaceId, firstTouchAt])
+  @@index([contactId])
+  @@index([sessionKey])
+}
+
+model LeadAlert {
+  id             String         @id @default(cuid())
+  workspaceId    String         @default("org")
+  leadResponseId String
+  leadResponse   LeadResponse   @relation(fields: [leadResponseId], references: [id], onDelete: Cascade)
+  severity       AlertSeverity
+  code           String
+  title          String
+  summary        String
+  dedupeKey      String
+  state          LeadAlertState @default(open)
+  detectedAt     DateTime
+  resolvedAt     DateTime?
+  resolveNote    String         @default("")
+  createdAt      DateTime       @default(now())
+
+  @@unique([dedupeKey, severity])
+  @@index([workspaceId, detectedAt])
+  @@index([state])
+}
+
+/// In-app record of a push slot. This build does not send SMS or push.
+model SpeedNotify {
+  id          String        @id @default(cuid())
+  workspaceId String        @default("org")
+  userId      String
+  pushedAt    DateTime
+  severity    AlertSeverity
+
+  @@index([workspaceId, userId, pushedAt])
 }

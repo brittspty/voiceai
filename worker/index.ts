@@ -1,8 +1,10 @@
 import { prisma } from "../lib/db";
 import { runJob } from "../lib/dialer";
-import { digestEnabled, monitorEnabled } from "../lib/marketing/config";
+import { digestEnabled, monitorEnabled, speedToLeadEnabled } from "../lib/marketing/config";
 import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
 import { runGoogleAdsSync } from "../lib/marketing/google-sync";
+import { runSpeedToLeadSweep } from "../lib/marketing/speed-to-lead-store";
+import { errorText } from "../lib/marketing/speed-to-lead";
 import { marketingSyncIntervalMs, runMarketingSync } from "../lib/marketing/sync";
 import { claimJob, failOrRetry } from "../lib/queue";
 import { createRedis } from "../lib/redis";
@@ -23,6 +25,26 @@ async function tick() {
     await failOrRetry(job.id, job.attempts, job.maxAttempts, error);
   }
   return true;
+}
+
+function startSpeedToLead() {
+  if (!speedToLeadEnabled()) return () => {};
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const result = await runSpeedToLeadSweep();
+      if (result.status === "ran" && result.alerts) console.log(`[worker] speed-to-lead alerts ${result.alerts}`);
+    } catch (error) {
+      console.error("[worker] speed-to-lead failed", errorText(error));
+    } finally {
+      running = false;
+    }
+  };
+  void tick();
+  const timer = setInterval(() => void tick(), 10_000);
+  return () => clearInterval(timer);
 }
 
 function startMarketingSync() {
@@ -69,6 +91,7 @@ function startMarketingSync() {
 async function main() {
   console.log("[worker] voice operations dialer started");
   const stopMarketing = startMarketingSync();
+  const stopSpeed = startSpeedToLead();
   const redis = createRedis();
   let connected = false;
   try {
@@ -98,6 +121,7 @@ async function main() {
     }
   }
   stopMarketing();
+  stopSpeed();
   redis.disconnect();
   await prisma.$disconnect();
 }

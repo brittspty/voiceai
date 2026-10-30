@@ -109,6 +109,11 @@ export function clientViewersEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_CLIENT_VIEWERS");
 }
 
+/** Off unless MARKETING_SPEED_TO_LEAD is explicitly on. */
+export function speedToLeadEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_SPEED_TO_LEAD");
+}
+
 export function amBudgetCapUsd(env: Env = process.env) {
   const parsed = Number(env.MARKETING_AM_BUDGET_CAP_USD ?? 500);
   if (!Number.isFinite(parsed) || parsed < 0) return 500;
