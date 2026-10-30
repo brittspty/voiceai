@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { readToken, SESSION_COOKIE } from "@/lib/session-token";
 
-export async function POST(request: Request) {
+async function endSession(request: Request) {
   const token = request.headers.get("cookie")?.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`))?.[1];
   const payload = await readToken(token ? decodeURIComponent(token) : null);
   if (payload?.kind === "session") {
@@ -13,4 +13,12 @@ export async function POST(request: Request) {
   const res = NextResponse.redirect(new URL("/login", `${proto}://${host}`), 303);
   res.cookies.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
   return res;
+}
+
+export async function POST(request: Request) {
+  return endSession(request);
+}
+
+export async function GET(request: Request) {
+  return endSession(request);
 }
