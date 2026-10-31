@@ -59,7 +59,7 @@ export type RoutedFatigue = {
 
 export type DecisionViewer = {
   userId: string;
-  kind: "super_admin" | "account_manager" | "staff" | "client_owner" | "client_viewer" | "none";
+  kind: "super_admin" | "account_manager" | "all_clients_viewer" | "staff" | "client_owner" | "client_viewer" | "none";
   seesCost: boolean;
   creativeApprovalsEnabled: boolean;
 };
@@ -104,16 +104,24 @@ export function clientSeesCreativeApprovals(enabled: boolean | null | undefined)
   return enabled === true;
 }
 
-export function seesInboxCard(card: InboxCard, viewer: DecisionViewer) {
-  if (viewer.kind === "none") return false;
+function seesFatigueOrBudget(card: InboxCard, viewer: DecisionViewer) {
   if (card.kind === "fatigue_pause" || card.kind === "fatigue_rotation") {
+    if (viewer.kind === "all_clients_viewer") return false;
     if (viewer.kind === "super_admin") return true;
     if (viewer.kind === "account_manager") return card.assigneeId === viewer.userId;
     return false;
   }
   if (card.kind === "budget_recommendation" || card.kind === "pacing_recommendation") {
+    if (viewer.kind === "all_clients_viewer") return false;
     return viewer.seesCost && (viewer.kind === "super_admin" || viewer.kind === "account_manager" || viewer.kind === "staff");
   }
+  return null;
+}
+
+export function seesInboxCard(card: InboxCard, viewer: DecisionViewer) {
+  if (viewer.kind === "none") return false;
+  const restricted = seesFatigueOrBudget(card, viewer);
+  if (restricted !== null) return restricted;
   if (card.kind === "creative_approval") {
     if (viewer.kind === "client_owner" || viewer.kind === "client_viewer") return clientSeesCreativeApprovals(viewer.creativeApprovalsEnabled);
     return viewer.kind === "super_admin" || viewer.kind === "account_manager";

@@ -174,6 +174,23 @@ test("fatigue pauses and rotations are yes/no for the assigned manager and never
   assert.equal(seesInboxCard(creative, { userId: "owner", kind: "client_owner", seesCost: false, creativeApprovalsEnabled: true }), true);
 });
 
+test("an all-clients viewer gets no fatigue or budget cards", () => {
+  const hidden = { userId: "view", kind: "all_clients_viewer" as const, seesCost: false, creativeApprovalsEnabled: false };
+  const hiddenWithCost = { ...hidden, seesCost: true };
+  const cards = EXAMPLE_DECISIONS.filter((card) => card.kind === "fatigue_pause" || card.kind === "fatigue_rotation" || card.kind === "budget_recommendation");
+  assert.equal(cards.length >= 3, true);
+  for (const card of cards) {
+    assert.equal(seesInboxCard(card, hidden), false, card.id);
+    assert.equal(seesInboxCard(card, hiddenWithCost), false, card.id);
+  }
+  const pacing = { ...cards[0], id: "pace", kind: "pacing_recommendation" as const };
+  assert.equal(seesInboxCard(pacing, hiddenWithCost), false);
+  const budget = EXAMPLE_DECISIONS.find((card) => card.kind === "budget_recommendation");
+  assert.ok(budget);
+  assert.equal(seesInboxCard(budget, { userId: "s", kind: "staff", seesCost: true, creativeApprovalsEnabled: false }), true);
+  assert.equal(seesInboxCard(budget, { userId: "s", kind: "staff", seesCost: false, creativeApprovalsEnabled: false }), false);
+});
+
 test("every ad recommendation is a chip and pause does not write", () => {
   const pause = recommendAd({ name: "Before/After", leads: 0, clicksChangePct: 0, frequency: 1, confidence: 71, decisionId: "D-1049", productName: "Product", credit: learned });
   assert.equal(pause.action, "pause");
