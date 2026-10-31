@@ -8,6 +8,8 @@ export type VoicePlaceInput = {
   companyName?: string;
   openingLine: string;
   simulatedOutcome?: CallOutcomeName;
+  /** Set only while AIS2L compliance v2 is on. Mock voice ignores it. */
+  compliancePrompt?: string;
 };
 
 export type VoicePlaceResult = {
@@ -28,9 +30,16 @@ export type CrmWriteInput = {
   agentName: string;
   summary: string;
   forceFail?: boolean;
+  dialedAt?: string | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  /** Remove previous voiceops outcome tags, then set the new one. */
+  replaceOutcomeTags?: boolean;
+  alsoAddTags?: string[];
+  existingTags?: string[];
 };
 
-export type CrmWriteResult = { externalId: string };
+export type CrmWriteResult = { externalId: string; removedTags?: string[]; addedTags?: string[] };
 
 export interface VoicePort {
   placeCall(input: VoicePlaceInput): Promise<VoicePlaceResult>;
