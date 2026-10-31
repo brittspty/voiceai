@@ -12,12 +12,13 @@ export function clientViewerAllowed(pathname: string, env: Env = process.env) {
   if (pathname === "/share" || pathname.startsWith("/share/")) return true;
   if (pathname.startsWith("/api/share/")) return true;
   if (pathname === "/api/health") return true;
+  if (pathname === "/reports" || pathname.startsWith("/reports/")) return true;
+  if (pathname === "/api/marketing/reports" || pathname === "/api/marketing/reports/export") return true;
   if (jarvisUiV2Enabled(env)) {
     if (pathname === "/decisions" || pathname.startsWith("/decisions/")) return true;
     if (pathname === "/leads" || pathname.startsWith("/leads/")) return true;
     if (pathname === "/c" || pathname.startsWith("/c/")) return true;
     if (pathname === "/ais2l" || pathname.startsWith("/ais2l/")) return true;
-    if (pathname === "/reports" || pathname.startsWith("/reports/")) return true;
     if (pathname === "/settings" || pathname.startsWith("/settings/")) return true;
     if (pathname === "/api/marketing/jarvis/home") return true;
   }

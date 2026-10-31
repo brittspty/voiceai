@@ -7,7 +7,7 @@ import { BRAND_TAGLINE, BRAND_WORDMARK, LOGO_ON_DARK, LOGO_ON_LIGHT, PRODUCT_NAM
 import { prisma } from "@/lib/db";
 import { jarvisNav } from "@/lib/marketing/channels/nav";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
-import { audienceLibraryEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
+import { audienceLibraryEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { getOrg } from "@/lib/queries";
@@ -21,6 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (user.role === "client_viewer" && path && !clientViewerAllowed(path)) redirect(jarvis ? "/" : "/marketing/client");
   const showInbox = inboxEnabled() && user.role !== "client_viewer" && user.role !== "all_clients_viewer";
   const unread = showInbox ? await prisma.staffNotification.count({ where: { userId: user.id, readAt: null } }) : 0;
+  if (reportsV2Enabled() && (path === "/reports" || path.startsWith("/reports/"))) return <>{children}</>;
   if (jarvis) {
     const access = await loadMarketingAccess(user);
     const spaces = access.kind === "none" ? [] : await listHomeWorkspaces(access).catch(() => []);
@@ -51,6 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       unread={unread}
       showSegments={segmentEngineEnabled()}
       audienceLibrary={audienceLibraryEnabled()}
+      showReports={reportsV2Enabled()}
     >
       {children}
     </AppShell>

@@ -12,6 +12,7 @@ import { canApproveMarketing, passwordIssues } from "./access";
 import { clientViewersEnabled, skillApprovalFanoutEnabled } from "./config";
 import { loadMarketingAccess } from "./queries";
 import { decideRecommendation } from "./recommendations";
+import type { Prisma } from "@prisma/client";
 import { assertCanCreateShareLink, defaultShareExpiry, hashPasscode, newShareToken } from "./share-link";
 import { skillDecisionRecord } from "./skill-approval";
 import { OFFERED_SKILL, skillIsSafe } from "./skills";
@@ -171,7 +172,7 @@ export async function decideSkillOffer(formData: FormData) {
   revalidatePath("/marketing/inbox");
 }
 
-export async function createShareLink(input: { label?: string; expiresAt?: string | null; passcode?: string | null }) {
+export async function createShareLink(input: { label?: string; expiresAt?: string | null; passcode?: string | null; snapshot?: Prisma.InputJsonValue | null }) {
   const user = await requireStaffUser();
   const access = await loadMarketingAccess(user);
   assertCanCreateShareLink(access, WORKSPACE_ID);
@@ -179,7 +180,7 @@ export async function createShareLink(input: { label?: string; expiresAt?: strin
   const chosen = input.expiresAt ? new Date(input.expiresAt) : defaultShareExpiry();
   const expiresAt = Number.isNaN(chosen.getTime()) ? defaultShareExpiry() : chosen;
   const passcode = (input.passcode || "").trim();
-  await prisma.clientShareLink.create({
+  const created = await prisma.clientShareLink.create({
     data: {
       workspaceId: WORKSPACE_ID,
       tokenHash: minted.tokenHash,
@@ -187,10 +188,12 @@ export async function createShareLink(input: { label?: string; expiresAt?: strin
       createdById: user.id,
       expiresAt,
       passcodeHash: passcode ? hashPasscode(passcode) : null,
+      snapshot: input.snapshot ?? undefined,
     },
   });
   revalidatePath("/marketing");
-  return { token: minted.token };
+  revalidatePath("/reports");
+  return { token: minted.token, id: created.id };
 }
 
 export async function createClientViewer(input: { name: string; email: string; password: string }) {

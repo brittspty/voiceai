@@ -2,10 +2,12 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { stripForAudience } from "@/lib/marketing/channels/cost-strip";
-import { clientShareCsv } from "@/lib/marketing/client-view";
+import { clientShareCsv, reopenClientReport } from "@/lib/marketing/client-view";
+import { reportsV2Enabled } from "@/lib/marketing/config";
+import { buildReportPdf } from "@/lib/marketing/reports/pdf";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
-import { hashShareToken, SHARE_PASS_COOKIE, shareAccessDecision, shareLinkState } from "@/lib/marketing/share-link";
+import { hashShareToken, SHARE_PASS_COOKIE, shareAccessDecision, shareHttpStatus, shareLinkState } from "@/lib/marketing/share-link";
 
 function shareResponse(response: NextResponse) {
   response.headers.set("Referrer-Policy", "no-referrer");
@@ -29,11 +31,12 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
     passcodeHash: link?.passcodeHash ?? null,
     cookie: jar.get(SHARE_PASS_COOKIE)?.value,
   });
+  if (reportsV2Enabled() && state === "revoked") {
+    return shareResponse(NextResponse.json({ error: "This link was turned off" }, { status: shareHttpStatus(state, true) }));
+  }
   if (decision === "disabled") return shareResponse(NextResponse.json({ error: "Client links are turned off" }, { status: 404 }));
   if (decision === "passcode") return shareResponse(NextResponse.json({ error: "This link needs a code." }, { status: 401 }));
   if (decision !== "ok" || !link) return shareResponse(NextResponse.json({ error: "Link not found" }, { status: 404 }));
-  const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
-  const payload = stripForAudience(await loadClientPerformance(org?.name || "Performance", { workspaceId: link.workspaceId, adAccountIds: "all" }), "share");
   const meta = requestClientMeta(request.headers);
   const url = new URL(request.url);
   const isExport = url.pathname.endsWith("/export");
@@ -43,6 +46,20 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
     page: isExport ? "/api/share/export" : "/api/share",
     ...meta,
   });
+  if (reportsV2Enabled() && link.snapshot) {
+    try {
+      const report = reopenClientReport(link.snapshot);
+      if (isExport) {
+        const pdf = buildReportPdf(report);
+        return shareResponse(new NextResponse(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": "attachment; filename=\"report.pdf\"" } }));
+      }
+      return shareResponse(NextResponse.json(report));
+    } catch {
+      return shareResponse(NextResponse.json({ error: "This report can't be shown." }, { status: 404 }));
+    }
+  }
+  const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
+  const payload = stripForAudience(await loadClientPerformance(org?.name || "Performance", { workspaceId: link.workspaceId, adAccountIds: "all" }), "share");
   if (isExport) {
     return shareResponse(new NextResponse(clientShareCsv(payload), { headers: { "Content-Type": "text/csv; charset=utf-8" } }));
   }

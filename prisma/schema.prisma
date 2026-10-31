@@ -998,6 +998,8 @@ model ClientShareLink {
   createdBy   User      @relation(fields: [createdById], references: [id])
   expiresAt   DateTime?
   revokedAt   DateTime?
+  /** Client-safe report frozen when a Reports v2 link is created. */
+  snapshot    Json?
   createdAt   DateTime  @default(now())
   views       ClientViewAudit[]
 
