@@ -272,6 +272,7 @@ export async function refreshGoogleAdsAccessToken(input: {
     refresh_token: input.refreshToken,
   });
   const fetchImpl = input.fetchImpl ?? fetch;
+  assertNoAdBudgetWrite({ method: "POST", url: GOOGLE_ADS_TOKEN_URL, body });
   let response: Response;
   try {
     response = await fetchImpl(GOOGLE_ADS_TOKEN_URL, {

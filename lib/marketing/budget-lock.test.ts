@@ -14,17 +14,42 @@ import { googleAdsRequest } from "./connectors/google-ads-client";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const CONNECTORS = path.join(ROOT, "lib/marketing/connectors");
+const REQUIRED_CLIENTS = ["google-ads-client.ts", "meta-client.ts"];
+
+function stripComments(source: string) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
+/** Fetch calls in a client must follow assertNoAdBudgetWrite in the same function. */
+function fetchesBeforeBudgetLock(source: string) {
+  const text = stripComments(source);
+  const found: string[] = [];
+  for (const match of text.matchAll(/\b(?:fetch|fetchImpl)\s*\(/g)) {
+    const at = match.index ?? 0;
+    const before = text.slice(0, at);
+    const starts = [...before.matchAll(/(?:^|\n)[ \t]*(?:export[ \t]+)?(?:async[ \t]+)?function[ \t]+/g)];
+    const start = starts.length ? (starts[starts.length - 1].index ?? 0) : 0;
+    if (!/\bassertNoAdBudgetWrite\s*\(/.test(text.slice(start, at))) {
+      found.push(text.slice(at, text.indexOf("\n", at) === -1 ? text.length : text.indexOf("\n", at)).trim());
+    }
+  }
+  return found;
+}
 
 test("ad API client modules have no budget mutation endpoint or field", () => {
   const clients = readdirSync(CONNECTORS).filter((name) => name.endsWith("-client.ts")).sort();
-  assert.deepEqual(clients, ["google-ads-client.ts", "meta-client.ts"]);
+  for (const required of REQUIRED_CLIENTS) {
+    assert.equal(clients.includes(required), true, required);
+  }
+  assert.deepEqual(fetchesBeforeBudgetLock("async function late() {\n  await fetchImpl(url);\n  assertNoAdBudgetWrite({});\n}"), ["fetchImpl(url);"]);
+  assert.deepEqual(fetchesBeforeBudgetLock("async function covered() {\n  assertNoAdBudgetWrite({ method: \"GET\", url });\n  await fetch(url);\n}"), []);
   const needles = [...BUDGET_MUTATION_ENDPOINTS, ...BUDGET_MUTATION_FIELDS];
   for (const name of clients) {
     const text = readFileSync(path.join(CONNECTORS, name), "utf8");
     for (const needle of needles) {
       assert.equal(text.includes(needle), false, `${name} contains ${needle}`);
     }
-    assert.match(text, /assertNoAdBudgetWrite\(/);
+    assert.deepEqual(fetchesBeforeBudgetLock(text), [], name);
   }
 });
 
