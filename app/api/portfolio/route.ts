@@ -3,7 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { loginAnalyticsEnabled } from "@/lib/login-analytics";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { loadPortfolioModel } from "@/lib/portfolio-query";
-import { portfolioAllowed, portfolioHasSpend } from "@/lib/portfolio";
+import { forbiddenClientKeys, omitForbiddenClientFields } from "@/lib/marketing/client-view";
+import { portfolioAllowed } from "@/lib/portfolio";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,10 @@ export async function GET() {
   const access = await loadMarketingAccess(user);
   if (!portfolioAllowed(access.kind)) return NextResponse.json({ error: "Not allowed" }, { status: 403 });
   const model = await loadPortfolioModel(access);
-  if (!model || (!access.seesCost && portfolioHasSpend(model))) {
+  if (!model) return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+  const body = access.seesCost ? model : omitForbiddenClientFields(model);
+  if (!access.seesCost && forbiddenClientKeys(body).length) {
     return NextResponse.json({ error: "Not allowed" }, { status: 403 });
   }
-  return NextResponse.json(model, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json(body, { headers: { "Cache-Control": "private, no-store" } });
 }

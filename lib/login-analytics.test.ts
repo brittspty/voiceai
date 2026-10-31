@@ -37,6 +37,7 @@ import {
   sortPortfolio,
   type PortfolioFacts,
 } from "./portfolio";
+import { forbiddenClientKeys, omitForbiddenClientFields } from "./marketing/client-view";
 import { loginNextField, postLoginPath } from "./public-routing";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -308,6 +309,23 @@ test("portfolio scope rejects client roles and hides spend without permission", 
   assert.equal(staff.roleLine.includes("Spend visible"), true);
 });
 
+test("client roles lose spend entirely through client-view", () => {
+  const staff = assemblePortfolio({
+    facts: [facts("gulf", "Gulf Coast", 40, 1, { spend: 8400 })],
+    allowedIds: ["gulf"],
+    showMoney: true,
+    now: NOW,
+  });
+  assert.equal(staff.clients[0].spend, 8400);
+  const client = omitForbiddenClientFields(staff);
+  assert.deepEqual(forbiddenClientKeys(client), []);
+  assert.equal(JSON.stringify(client).includes('"spend"'), false);
+  assert.equal("spend" in client.clients[0], false);
+  assert.equal("spend" in client.totals, false);
+  assert.equal(client.clients[0].leads, 40);
+  assert.equal(client.clients[0].name, "Gulf Coast");
+});
+
 test("portfolio sort, pixel, match hold, and provisional quality", () => {
   const rows = [
     facts("a", "Alpha", 10, 0),
@@ -356,7 +374,10 @@ test("portfolio reads are isolated and do not write budgets or pause ads", () =>
   assert.match(view, /aria-sort/);
   assert.match(view, /scope="col"/);
   assert.match(view, /Scale/);
-  assert.match(view, /min-\[701px\]:hidden/);
+  assert.match(view, /min-\[640px\]:hidden/);
+  assert.match(view, /Sort by/);
+  assert.match(view, /min-h-11/);
+  assert.match(route, /omitForbiddenClientFields/);
   assert.match(view, /refreshed/);
   const html = renderToStaticMarkup(
     createElement(PortfolioDashboard, {

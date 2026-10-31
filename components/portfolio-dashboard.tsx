@@ -61,14 +61,73 @@ export function PortfolioDashboard({ initial }: { initial: PortfolioModel }) {
           <h1 className="text-[28px] font-semibold tracking-tight">Portfolio</h1>
           <p className="num text-xs text-muted">Live · refreshed {refreshed}s ago</p>
         </div>
-        <div className={`mt-6 grid grid-cols-2 gap-3 ${model.showMoney ? "min-[701px]:grid-cols-5" : "min-[701px]:grid-cols-4"}`}>
+        <div className={`mt-6 grid grid-cols-2 gap-3 ${model.showMoney ? "min-[640px]:grid-cols-5" : "min-[640px]:grid-cols-4"}`}>
           <Kpi value={model.totals.clients.toLocaleString("en-US")} label="Clients" />
           <Kpi value={model.totals.leads.toLocaleString("en-US")} label="Leads this month" />
           <Kpi value={model.totals.qualityMedian == null ? "—" : String(model.totals.qualityMedian)} label="Lead quality (median)" />
           <Kpi value={model.totals.openAlerts.toLocaleString("en-US")} label="Open alerts" alert={model.totals.openAlerts > 0} />
           {model.showMoney && model.totals.spend != null && <Kpi value={formatPortfolioSpend(model.totals.spend)} label="Spend MTD (staff only)" />}
         </div>
-        <div className="mt-6 hidden overflow-x-auto rounded-lg border border-line bg-card min-[701px]:block">
+        <div className="mt-6 flex items-center gap-2 min-[640px]:hidden">
+          <label htmlFor="portfolio-sort" className="text-sm text-soft">
+            Sort by
+          </label>
+          <select
+            id="portfolio-sort"
+            className="min-h-11 rounded-md border border-line bg-card px-2 text-sm text-ink"
+            value={customSort ? sortKey : "alerts"}
+            onChange={(event) => {
+              const key = event.target.value as PortfolioSortKey;
+              if (key === "alerts") {
+                setCustomSort(false);
+                setSortKey("alerts");
+                setDirection("desc");
+                return;
+              }
+              setSortKey(key);
+              setDirection(key === "client" ? "asc" : "desc");
+              setCustomSort(true);
+            }}
+          >
+            <option value="alerts">Alerts (most first)</option>
+            <option value="leads">Leads</option>
+            <option value="quality">Quality</option>
+            <option value="client">Client name</option>
+          </select>
+        </div>
+        <ul className="mt-3 grid list-none gap-3 p-0 min-[640px]:hidden" aria-label="Clients, sorted by alerts then leads">
+          {clients.map((client) => (
+            <li key={client.id} className="rounded-lg border border-line bg-card p-3.5">
+              <h2 className="text-base font-semibold">
+                <a className="inline-block py-0.5 font-semibold underline-offset-2 hover:underline" href={client.href}>
+                  {client.name}
+                </a>
+              </h2>
+              <p className={`mt-2 text-sm font-semibold ${client.alerts > 0 ? "text-danger" : ""}`}>Alerts: {client.alerts > 0 ? client.alertLabel : "No alerts"}</p>
+              <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
+                <dt className="text-soft">Leads</dt>
+                <dd className="num m-0">{client.leads.toLocaleString("en-US")}</dd>
+                <dt className="text-soft">Quality (0–100)</dt>
+                <dd className="num m-0">{client.quality == null ? "—" : client.provisional ? `${client.quality} (provisional)` : client.quality}</dd>
+                <dt className="text-soft">Segments</dt>
+                <dd className="m-0">
+                  <Mix client={client} />
+                </dd>
+                <dt className="text-soft">Pixel</dt>
+                <dd className={`num m-0 ${client.pixelTone === "ok" ? "text-success" : client.pixelTone === "warn" ? "text-warning" : client.pixelTone === "bad" ? "text-danger" : ""}`}>{client.pixelLabel}</dd>
+                <dt className="text-soft">Match rate</dt>
+                <dd className={`num m-0 ${client.matchOnHold ? "text-danger" : ""}`}>{client.matchLabel}</dd>
+                {model.showMoney && (
+                  <>
+                    <dt className="text-soft">Spend MTD (staff only)</dt>
+                    <dd className="num m-0">{formatPortfolioSpend(client.spend ?? 0)}</dd>
+                  </>
+                )}
+              </dl>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-6 hidden overflow-x-auto rounded-lg border border-line bg-card min-[640px]:block">
           <table className="w-full border-collapse text-sm">
             <caption className="num px-3 py-2.5 text-left text-xs text-muted">Sorted by alerts, then leads. Click a client to open its Command Center.</caption>
             <thead>
@@ -92,54 +151,6 @@ export function PortfolioDashboard({ initial }: { initial: PortfolioModel }) {
           </table>
           {!clients.length && <p className="px-3 py-6 text-sm text-muted">No clients in this view yet.</p>}
         </div>
-        <ul className="mt-6 grid gap-3 min-[701px]:hidden">
-          {clients.map((client) => (
-            <li key={client.id} className="rounded-lg border border-line bg-card p-4">
-              <a className="inline-flex min-h-11 items-center font-semibold underline-offset-2 hover:underline" href={client.href}>
-                {client.name}
-              </a>
-              {client.detail && <p className="num mt-1 text-xs text-muted">{client.detail}</p>}
-              <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <dt className="text-xs text-muted">Channels</dt>
-                  <dd className="num">{client.channels}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted">Leads</dt>
-                  <dd className="num">{client.leads.toLocaleString("en-US")}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted">Quality (0–100)</dt>
-                  <dd className="num">
-                    {client.quality == null ? "—" : client.quality}
-                    {client.provisional && <small className="ml-1 text-muted">provisional</small>}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted">Alerts</dt>
-                  <dd className={`num ${client.alerts > 0 ? "text-danger" : ""}`}>{client.alertLabel}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted">Pixel</dt>
-                  <dd className="num">{client.pixelLabel}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted">Match rate</dt>
-                  <dd className={`num ${client.matchOnHold ? "text-danger" : ""}`}>{client.matchLabel}</dd>
-                </div>
-                {model.showMoney && (
-                  <div>
-                    <dt className="text-xs text-muted">Spend MTD</dt>
-                    <dd className="num">{formatPortfolioSpend(client.spend ?? 0)}</dd>
-                  </div>
-                )}
-              </dl>
-              <p className="mt-3 flex flex-wrap gap-1">
-                <Mix client={client} />
-              </p>
-            </li>
-          ))}
-        </ul>
         <p className="num mt-4 text-xs text-muted">{model.budgetNote}</p>
       </main>
     </div>

@@ -140,6 +140,21 @@ export function forbiddenClientKeys(value: unknown) {
   return collectKeys(value).filter((key) => FORBIDDEN_KEY.test(key));
 }
 
+/** Drop spend, cost, and the other client-forbidden keys. Client payloads must not contain them at all. */
+export function omitForbiddenClientFields<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((item) => omitForbiddenClientFields(item)) as T;
+  if (value instanceof Date) return value;
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (FORBIDDEN_KEY.test(key)) continue;
+      out[key] = omitForbiddenClientFields(child);
+    }
+    return out as T;
+  }
+  return value;
+}
+
 export function clientShareHasMoney(view: ClientShareView) {
   return FORBIDDEN_TEXT.test(clientShareText(view)) || FORBIDDEN_TEXT.test(clientShareCsv(view));
 }
