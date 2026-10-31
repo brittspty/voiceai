@@ -7,6 +7,7 @@ import { BarChart3, Bell, BookOpen, FileText, Globe, LayoutDashboard, ListChecks
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
+import { AIS2L_NAME } from "@/lib/brand/names";
 import { roleLabel } from "@/lib/marketing/access";
 import { cn } from "@/lib/cn";
 
@@ -14,7 +15,7 @@ const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/marketing", label: "Marketing", icon: BarChart3 },
   { href: "/sites/landing-pages", label: "Sites", icon: Globe },
-  { href: "/calls", label: "Calls", icon: Phone },
+  { href: "/calls", label: AIS2L_NAME, icon: Phone },
   { href: "/knowledge", label: "Knowledge", icon: BookOpen },
   { href: "/settings/calling", label: "Settings", icon: Settings },
 ];
@@ -88,7 +89,7 @@ export function AppShell({
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
-              className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm", active ? "bg-hover font-medium text-ink" : "text-zinc-600 hover:bg-hover dark:text-zinc-300")}
+              className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm", active ? "bg-hover font-medium text-ink" : "text-muted hover:bg-hover")}
             >
               <Icon className="h-4 w-4" />
               {!collapsed && item.label}
@@ -97,7 +98,7 @@ export function AppShell({
         })}
       </nav>
       <div className="mt-auto px-2 pb-4">
-        {user.role !== "client_viewer" && <Link href="/docs" className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-zinc-600 hover:bg-hover dark:text-zinc-300", pathname === "/docs" && "bg-hover text-ink")}>
+        {user.role !== "client_viewer" && <Link href="/docs" className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted hover:bg-hover", pathname === "/docs" && "bg-hover text-ink")}>
           <FileText className="h-4 w-4" />
           {!collapsed && "Help"}
         </Link>}
@@ -106,7 +107,7 @@ export function AppShell({
   );
 
   return (
-    <div className="flex min-h-screen bg-canvas text-ink">
+    <div className="flex min-h-screen bg-canvas font-sans text-ink">
       <aside className={cn("sticky top-0 hidden h-screen shrink-0 border-r border-line bg-sidebar md:block", collapsed ? "w-[72px]" : "w-[220px]")}>{nav}</aside>
       {open && (
         <div className="fixed inset-0 z-40 md:hidden">
@@ -125,7 +126,7 @@ export function AppShell({
               href="/settings/production"
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-                mode.testMode ? "bg-amber-100 text-amber-950" : "bg-emerald-100 text-emerald-950",
+                mode.testMode ? "bg-warning-soft text-warning" : "bg-success-soft text-success",
               )}
             >
               <span aria-hidden="true">●</span>
@@ -175,7 +176,7 @@ export function AppShell({
           </div>
         </header>
         <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
-        <footer className="border-t border-line px-4 py-3 text-xs text-zinc-600 dark:text-zinc-300 md:px-8">
+        <footer className="border-t border-line px-4 py-3 text-xs text-muted md:px-8">
           © {mode.wordmark} · {mode.tagline} · <Link className="underline" href="/privacy">Privacy</Link> · <Link className="underline" href="/terms">Terms</Link> · <Link className="underline" href="/contact">Support</Link>
         </footer>
       </div>

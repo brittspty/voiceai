@@ -1,9 +1,8 @@
 import { brandTokens } from "./brand/tokens";
 import { clientConfig, type ClientConfig } from "./client-config";
 
-/** Customer-facing product name. Avery is the AI caller, not the product. */
-export const PRODUCT_NAME = "VoiceOps";
-export const PRODUCT_TITLE = "VoiceOps: AI calling for service businesses";
+export { AIS2L_LINE, AIS2L_NAME, PRODUCT_NAME, PRODUCT_TITLE, PRODUCT_WORDMARK } from "./brand/names";
+
 export const PRODUCT_TAGLINE =
   "Avery calls your new leads in minutes, follows calling rules, and logs every call to GoHighLevel.";
 
@@ -12,8 +11,8 @@ export const BRAND_WORDMARK = "Specificity";
 export const BRAND_TAGLINE = "Identify. Engage. Convert.";
 
 /** Placeholder tokens until a workspace sets its own color and logo. */
-export const BRAND_FONT = "Poppins";
-export const PLACEHOLDER_BRAND_COLOR = "#FF5800";
+export const BRAND_FONT = brandTokens.font.family;
+export const PLACEHOLDER_BRAND_COLOR = brandTokens.light.brand;
 export const PLACEHOLDER_LOGO_URL = "/brand/specificity-logo-reversed.png";
 
 /** Color stored by older seeds before the Specificity placeholder existed. */
