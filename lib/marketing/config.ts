@@ -333,6 +333,11 @@ export function audienceDataClientEnabled(env: Env = process.env) {
   return flagOn(env, "AUDIENCE_DATA_CLIENT");
 }
 
+/** Off unless RESOLUTION_DATA is explicitly on. Example counts only. No platform writes. */
+export function resolutionDataEnabled(env: Env = process.env) {
+  return flagOn(env, "RESOLUTION_DATA");
+}
+
 /** Days without a refresh before a source is stale. Default 7. */
 export function audienceDataStaleMs(env: Env = process.env) {
   const raw = (env.AUDIENCE_DATA_STALE_DAYS || "").trim();
