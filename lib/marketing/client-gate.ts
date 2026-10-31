@@ -9,6 +9,8 @@ export function clientViewerAllowed(pathname: string) {
   if (pathname === "/share" || pathname.startsWith("/share/")) return true;
   if (pathname.startsWith("/api/share/")) return true;
   if (pathname === "/api/health") return true;
+  if (pathname === "/api/homepage/contact") return true;
+  if (pathname === "/demo" || pathname.startsWith("/demo/")) return true;
   return false;
 }
 

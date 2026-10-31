@@ -11,7 +11,7 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-export function HomeDashboard({ model, choices }: { model: HomeModel; choices: { id: string; name: string }[] }) {
+export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeModel; choices: { id: string; name: string }[]; homeHref?: string }) {
   if (model.denied) {
     return (
       <div>
@@ -47,7 +47,7 @@ export function HomeDashboard({ model, choices }: { model: HomeModel; choices: {
           </form>
         )}
         {model.selectedId && choices.length > 1 && (
-          <Link className="inline-flex min-h-11 items-center font-medium text-info" href="/">
+          <Link className="inline-flex min-h-11 items-center font-medium text-info" href={homeHref}>
             ← All clients
           </Link>
         )}

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
+import { sameOriginPath } from "@/lib/same-origin-path";
 
 export type LoginBrand = {
   companyName: string;
@@ -22,15 +23,15 @@ export type DemoHint = {
   adminEmail: string;
 };
 
-export function LoginScreen({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }) {
+export function LoginScreen({ brand, hint, homeHref = "/" }: { brand: LoginBrand; hint: DemoHint | null; homeHref?: string }) {
   return (
     <Suspense>
-      <LoginForm brand={brand} hint={hint} />
+      <LoginForm brand={brand} hint={hint} homeHref={homeHref} />
     </Suspense>
   );
 }
 
-function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }) {
+function LoginForm({ brand, hint, homeHref }: { brand: LoginBrand; hint: DemoHint | null; homeHref: string }) {
   const router = useRouter();
   const params = useSearchParams();
   const queryError = params.get("error") === "credentials" ? "Email or password is wrong." : params.get("error") === "rate" ? "Too many attempts. Wait a few minutes and try again." : params.get("error") === "totp" ? "This account needs the in-app two-step step. Sign in from this page after it finishes loading." : null;
@@ -70,7 +71,7 @@ function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }
               setPending(false);
               if (!res.ok) { setError(data.error || "Could not sign in"); return; }
               if (data.totpRequired) { setTicket(data.ticket); return; }
-              router.push("/");
+              router.push(sameOriginPath(data.next, homeHref));
               router.refresh();
             }}
           >
@@ -96,7 +97,7 @@ function LoginForm({ brand, hint }: { brand: LoginBrand; hint: DemoHint | null }
               const data = await res.json();
               setPending(false);
               if (!res.ok) { setError(data.error || "Could not verify"); return; }
-              router.push("/");
+              router.push(sameOriginPath(data.next, homeHref));
               router.refresh();
             }}
           >

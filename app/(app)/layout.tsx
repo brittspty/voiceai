@@ -6,6 +6,7 @@ import { BRAND_TAGLINE, BRAND_WORDMARK, resolveBrandColor, resolveLogoUrl } from
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
 import { leadScoringEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
 import { getOrg } from "@/lib/queries";
+import { appHomePath } from "@/lib/public-routing";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       mode={{ testMode: org.testMode, agentName: org.agentName, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE }}
       showSpeedToLead={speedToLeadEnabled()}
       leadScoring={leadScoringEnabled()}
+      homeHref={appHomePath()}
     >
       {children}
     </AppShell>

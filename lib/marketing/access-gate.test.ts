@@ -78,7 +78,7 @@ test("a client viewer is blocked from every internal route", () => {
   assert.equal(clientViewerAllowed("/api/marketing/client/export"), true);
   assert.equal(clientViewerAllowed("/api/auth/logout"), true);
   const discovered = routes(path.join(ROOT, "app"));
-  const allowed = new Set(["/", "/login", "/api/health", "/marketing/client", "/sites/landing-pages", "/api/marketing/client", "/api/marketing/client/export", "/api/auth/logout"]);
+  const allowed = new Set(["/", "/login", "/api/health", "/marketing/client", "/sites/landing-pages", "/api/marketing/client", "/api/marketing/client/export", "/api/auth/logout", "/api/homepage/contact", "/demo"]);
   for (const route of discovered) {
     if (route.startsWith("/share") || route.startsWith("/api/share")) {
       assert.equal(clientViewerAllowed(route), true, route);
@@ -151,6 +151,7 @@ test("share links expire in 30 days and a passcode locks after five tries", () =
 test("public links use https and integrations are not healthy without a live check", () => {
   assert.equal(publicHttpsBase({ APP_URL: "http://127.0.0.1:43109" }), null);
   assert.equal(publicHttpsBase({ APP_URL: "http://voiceai.specificityinc.com" }), "https://voiceai.specificityinc.com");
+  assert.equal(publicHttpsBase({ APP_URL: "http://jarvis.specificityinc.com" }), "https://jarvis.specificityinc.com");
   assert.equal(shownIntegrationStatus({ status: "healthy", keysSet: false, live: false }), "Not connected");
   assert.equal(shownIntegrationStatus({ status: "healthy", keysSet: true, live: true }), "Healthy");
   const hints = readinessItems({

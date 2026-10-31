@@ -51,7 +51,9 @@ test("rejects colors and logos that are not safe to render", () => {
 
 test("hides the demo sign-in hint on a public host unless asked", () => {
   assert.equal(showDemoLogin({ APP_URL: "https://voiceai.specificityinc.com" }), false);
+  assert.equal(showDemoLogin({ APP_URL: "https://jarvis.specificityinc.com" }), false);
   assert.equal(showDemoLogin({ APP_URL: "https://voiceai.specificityinc.com", SHOW_DEMO_LOGIN: "true" }), true);
+  assert.equal(showDemoLogin({ APP_URL: "https://jarvis.specificityinc.com", SHOW_DEMO_LOGIN: "true" }), true);
   assert.equal(showDemoLogin({ APP_URL: "http://127.0.0.1:43123" }), true);
   assert.equal(showDemoLogin({ NODE_ENV: "production", APP_URL: "http://127.0.0.1:43123", SHOW_DEMO_LOGIN: "true" }), false);
 });

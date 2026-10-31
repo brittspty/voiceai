@@ -7,6 +7,8 @@ export const brandTokens = {
   tagline: "Identify. Engage. Convert.",
   logo: {
     src: "/brand/specificity-mark.png",
+    full: "/brand/specificity-logo-full.png",
+    reversed: "/brand/specificity-logo-reversed.png",
     mark: "S",
     alt: "Specificity Inc",
   },
@@ -14,6 +16,9 @@ export const brandTokens = {
     /** Placeholder until official fonts are confirmed. */
     family: "Poppins",
     stack: "var(--font-brand), \"Segoe UI\", Arial, Helvetica, sans-serif",
+    /** Data and the homepage feed. Headings stay on Poppins. */
+    mono: "IBM Plex Mono",
+    monoStack: "var(--font-plex-mono), \"IBM Plex Mono\", ui-monospace, monospace",
   },
   light: {
     canvas: "#F7F7F7",

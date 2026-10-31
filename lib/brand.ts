@@ -14,7 +14,7 @@ export const BRAND_TAGLINE = "Identify. Engage. Convert.";
 /** Placeholder tokens until a workspace sets its own color and logo. */
 export const BRAND_FONT = "Poppins";
 export const PLACEHOLDER_BRAND_COLOR = "#FF5800";
-export const PLACEHOLDER_LOGO_URL = "/brand/specificity-logo-reversed.png";
+export const PLACEHOLDER_LOGO_URL = brandTokens.logo.reversed;
 
 /** Color stored by older seeds before the Specificity placeholder existed. */
 const UNSET_BRAND_COLOR = "#2563eb";
