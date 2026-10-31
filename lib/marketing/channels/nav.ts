@@ -24,6 +24,7 @@ export function jarvisNav(input: {
   showAudiences?: boolean;
   channelLinks?: NavItem[] | null;
   showAudienceData?: boolean;
+  showAudienceDataClient?: boolean;
 }): NavItem[] {
   const decisions: NavItem = { href: "/decisions", label: "Decisions", group: "Overview", count: input.decisionCount };
   if (input.audience === "client") {
@@ -37,6 +38,7 @@ export function jarvisNav(input: {
       { href: "/sites/landing-pages", label: "Landing pages", group: "Conversion" },
     );
     if (input.showAis2l) items.push({ href: "/ais2l", label: "AIS2L", group: "Conversion" });
+    if (input.showAudienceDataClient) items.push({ href: "/audience-data", label: "Audience Data", group: "Results" });
     if (input.showSegments) items.push({ href: "/marketing/segments", label: "Audience Data", group: "Results" });
     items.push({ href: "/reports", label: "Reports", group: "Share" });
     items.push({ href: "/settings", label: "Settings & connections", group: "Account" });

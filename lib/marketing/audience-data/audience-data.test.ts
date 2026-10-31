@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { audienceDataEnabled } from "../config";
+import { audienceDataClientEnabled, audienceDataEnabled, audienceDataStaleMs } from "../config";
 import { clientViewerAllowed } from "../client-gate";
 import { jarvisNav } from "../channels/nav";
 import { collectsCostKeys } from "../channels/cost-strip";
-import { EXAMPLE_SOURCES } from "./example";
-import { audienceDataPayload, audienceSourceDetail, canOpenAudienceData, listAudienceSources } from "./present";
+import { AUDIENCE_DATA_NOW, EXAMPLE_SOURCES } from "./example";
+import { audienceDataPayload, audienceSourceDetail, canOpenAudienceData, listAudienceSources, listClientSources, readClientAudienceData, refreshLabel } from "./present";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
 const COST = ["dataCostCpm", "cpm", "spend", "cpl", "cpa", "roas"];
@@ -16,8 +16,13 @@ test("AUDIENCE_DATA stays off until it is turned on", () => {
   assert.equal(audienceDataEnabled({}), false);
   assert.equal(audienceDataEnabled({ AUDIENCE_DATA: "off" }), false);
   assert.equal(audienceDataEnabled({ AUDIENCE_DATA: "on" }), true);
+  assert.equal(audienceDataClientEnabled({}), false);
+  assert.equal(audienceDataClientEnabled({ AUDIENCE_DATA: "on" }), false);
+  assert.equal(audienceDataClientEnabled({ AUDIENCE_DATA_CLIENT: "on" }), true);
   const example = readFileSync(path.join(ROOT, ".env.example"), "utf8");
   assert.match(example, /AUDIENCE_DATA=off/);
+  assert.match(example, /AUDIENCE_DATA_CLIENT=off/);
+  assert.match(example, /AUDIENCE_DATA_STALE_DAYS=7/);
 });
 
 test("client roles and share links cannot open Audience Data", () => {
@@ -28,12 +33,14 @@ test("client roles and share links cannot open Audience Data", () => {
     assert.equal(canOpenAudienceData(kind), true, kind);
   }
   assert.equal(clientViewerAllowed("/audience-data"), false);
-  assert.equal(clientViewerAllowed("/audience-data/vendor-a"), false);
-  assert.equal(clientViewerAllowed("/api/marketing/audience-data"), false);
-  assert.equal(clientViewerAllowed("/api/marketing/audience-data/vendor-a"), false);
-  assert.equal(clientViewerAllowed("/audience-data", { JARVIS_UI_V2: "on" }), false);
-  const client = jarvisNav({ audience: "client", showAis2l: true, decisionCount: 0, showLive: false, showAudienceData: true, showSegments: true });
-  assert.equal(client.some((item) => item.href === "/audience-data"), false);
+  assert.equal(clientViewerAllowed("/audience-data/1", { AUDIENCE_DATA_CLIENT: "on" }), true);
+  assert.equal(clientViewerAllowed("/api/marketing/audience-data", { AUDIENCE_DATA_CLIENT: "off" }), false);
+  const client = jarvisNav({ audience: "client", showAis2l: true, decisionCount: 0, showLive: false, showAudienceData: true, showAudienceDataClient: true, showSegments: true });
+  const clientItem = client.find((item) => item.href === "/audience-data");
+  assert.equal(clientItem?.label, "Audience Data");
+  assert.equal(clientItem?.group, "Results");
+  const hiddenClient = jarvisNav({ audience: "client", showAis2l: false, decisionCount: 0, showLive: false, showAudienceDataClient: false });
+  assert.equal(hiddenClient.some((item) => item.href === "/audience-data"), false);
   const staff = jarvisNav({ audience: "staff", showAis2l: true, decisionCount: 1, showLive: true, showAudienceData: true });
   const item = staff.find((row) => row.href === "/audience-data");
   assert.equal(item?.label, "Audience Data");
@@ -49,10 +56,16 @@ test("the server strips data cost, spend, CPL, CPA, and ROAS from client and sha
     for (const key of COST) {
       assert.equal(JSON.stringify(payload).includes(`"${key}"`), false, `${reader} ${key}`);
     }
-    assert.equal(payload.list.rows[0]?.leads, 412);
-    assert.equal(payload.detail?.vendor, "Vendor A");
+    const text = JSON.stringify(payload);
+    assert.equal(payload.list.rows[0]?.label, "Intent data source 1");
+    assert.equal(payload.list.rows[0]?.id, "1");
+    assert.equal(payload.list.rows[0]?.leads, 206);
+    assert.equal(payload.detail && "vendor" in payload.detail, false);
+    assert.equal(payload.detail && "decisions" in payload.detail, false);
+    assert.equal(/vendor|vnd_|seg_/i.test(text), false, reader);
     assert.equal(payload.detail?.recommendationOnly, true);
     assert.equal("dataCostCpm" in (payload.detail || {}), false);
+    assert.equal(payload.list.rows.some((row) => row.id === "vendor-a"), false);
   }
   const staff = audienceDataPayload("staff");
   assert.equal(staff.detail?.dataCostCpm, 3.1);
@@ -102,6 +115,43 @@ test("level 2 shows every selection group, lineage counts, and a recommendation"
     assert.equal(view?.groups.length, 6, source.id);
     assert.equal(collectsCostKeys(view).length, 0, source.id);
   }
+});
+
+test("clients see only their account, by plain id, with narrowing marked not measurable", () => {
+  const harbor = listClientSources({ accountId: "org" });
+  assert.equal(harbor.summary, "4 source types · 10 audiences · 3.18M MAIDs");
+  assert.deepEqual(harbor.rows.map((row) => row.label), ["Intent data source 1", "Demographic data source", "Purchase data source", "Device and app data source"]);
+  assert.equal(harbor.rows.some((row) => row.label === "Firmographic data source"), false);
+  const gulf = listClientSources({ accountId: "gulf" });
+  assert.deepEqual(gulf.rows.map((row) => row.id), ["1"]);
+  assert.equal(gulf.rows[0]?.label, "Firmographic data source");
+  const refused = readClientAudienceData({ ownAccountId: "org", requestedAccountId: "gulf", reader: "client" });
+  assert.equal(refused.ok, false);
+  if (!refused.ok) assert.equal(refused.status, 403);
+  const vendorUrl = readClientAudienceData({ ownAccountId: "org", sourceId: "vendor-a", reader: "share" });
+  assert.equal(vendorUrl.ok, false);
+  const own = readClientAudienceData({ ownAccountId: "org", sourceId: "1", reader: "share" });
+  assert.equal(own.ok, true);
+  if (own.ok && "groups" in own.body) {
+    assert.equal(own.body.id, "1");
+    assert.equal(own.body.maidsLabel, "1.20M");
+    assert.equal(own.body.leads, 206);
+    const narrowing = own.body.groups.flatMap((group) => group.selections).filter((row) => row.logic.startsWith("AND") || row.logic === "Exclude");
+    assert.ok(narrowing.length > 0);
+    assert.ok(narrowing.every((row) => row.qualityLabel === "Not measurable alone"));
+    assert.equal(collectsCostKeys(own.body).length, 0);
+  }
+  const day = 24 * 60 * 60 * 1000;
+  assert.equal(audienceDataStaleMs({}), 7 * day);
+  assert.equal(audienceDataStaleMs({ AUDIENCE_DATA_STALE_DAYS: "3" }), 3 * day);
+  const now = AUDIENCE_DATA_NOW;
+  const fresh = refreshLabel(new Date(Date.parse(now) - 6 * day).toISOString(), now, audienceDataStaleMs({}));
+  const old = refreshLabel(new Date(Date.parse(now) - 8 * day).toISOString(), now, audienceDataStaleMs({}));
+  const sooner = refreshLabel(new Date(Date.parse(now) - 4 * day).toISOString(), now, audienceDataStaleMs({ AUDIENCE_DATA_STALE_DAYS: "3" }));
+  assert.equal(fresh.stale, false);
+  assert.equal(old.stale, true);
+  assert.match(old.label, /stale/);
+  assert.equal(sooner.stale, true);
 });
 
 test("example audience data makes no outbound call", () => {

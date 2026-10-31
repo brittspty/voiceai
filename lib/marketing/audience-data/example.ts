@@ -291,3 +291,117 @@ export const EXAMPLE_SOURCES: RawSource[] = [
     ],
   },
 ];
+
+export type ClientSource = RawSource & {
+  accountId: string;
+  accountName: string;
+  /** Plain id used in client URLs. Not a vendor id. */
+  publicId: string;
+  label: string;
+  vendorId: string;
+  vendorSegmentIds: string[];
+};
+
+const implants = { id: "implants", name: "Implants 55+" };
+const crowns = { id: "crowns", name: "Same-day crowns" };
+const spring = { id: "spring", name: "Spring offer" };
+
+function numbered(source: RawSource): RawSelection[] {
+  return source.selections.map((row, index) => ({ ...row, id: String(index + 1) }));
+}
+
+const intent = EXAMPLE_SOURCES[0];
+const demographic = EXAMPLE_SOURCES[1];
+const purchase = EXAMPLE_SOURCES[2];
+const device = EXAMPLE_SOURCES[3];
+const firm = EXAMPLE_SOURCES[4];
+
+/** Per-account slices. Harbor matches the client mock. Gulf is a different account. */
+export const CLIENT_SOURCES: ClientSource[] = [
+  {
+    ...intent,
+    accountId: "org",
+    accountName: "Harbor Dental",
+    publicId: "1",
+    label: "Intent data source 1",
+    vendorId: "vnd_a",
+    vendorSegmentIds: ["seg_a_1", "seg_a_2"],
+    campaigns: [implants, crowns],
+    audienceCount: 4,
+    maids: 1_200_000,
+    leads: 206,
+    leadQuality: 71,
+    provisional: false,
+    selections: numbered(intent),
+    why: "Intent topics bring in most of this source's leads. The 14-day recency window shrinks the audience, but leads from it score higher on quality.",
+    recommendation: "Your Specificity team may suggest testing a 30-day window.",
+    workedOut: [
+      "Inputs: topic selections, keyword selections, and a 14-day recency window.",
+      "206 leads were counted once per person on this account.",
+      "The recency window only narrows the pool, so it has no leads of its own.",
+      "Recommendation only. Nothing is written to the data market or an ad account.",
+    ],
+  },
+  {
+    ...demographic,
+    accountId: "org",
+    accountName: "Harbor Dental",
+    publicId: "2",
+    label: "Demographic data source",
+    vendorId: "vnd_b",
+    vendorSegmentIds: ["seg_b_1"],
+    campaigns: [implants, crowns],
+    audienceCount: 3,
+    maids: 940_000,
+    leads: 149,
+    leadQuality: 64,
+    provisional: false,
+    selections: numbered(demographic),
+  },
+  {
+    ...purchase,
+    accountId: "org",
+    accountName: "Harbor Dental",
+    publicId: "3",
+    label: "Purchase data source",
+    vendorId: "vnd_c",
+    vendorSegmentIds: ["seg_c_1"],
+    campaigns: [implants],
+    audienceCount: 2,
+    maids: 480_000,
+    leads: 66,
+    leadQuality: 58,
+    provisional: true,
+    selections: numbered(purchase),
+  },
+  {
+    ...device,
+    accountId: "org",
+    accountName: "Harbor Dental",
+    publicId: "4",
+    label: "Device and app data source",
+    vendorId: "vnd_d",
+    vendorSegmentIds: ["seg_d_1"],
+    campaigns: [crowns],
+    audienceCount: 1,
+    maids: 560_000,
+    leads: 44,
+    leadQuality: 49,
+    provisional: true,
+    selections: numbered(device),
+  },
+  {
+    ...firm,
+    accountId: "gulf",
+    accountName: "Gulf Pest",
+    publicId: "1",
+    label: "Firmographic data source",
+    vendorId: "vnd_e",
+    vendorSegmentIds: ["seg_e_9"],
+    campaigns: [spring],
+    audienceCount: 1,
+    maids: 80_000,
+    leads: 9,
+    selections: numbered(firm),
+  },
+];

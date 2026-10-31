@@ -1,9 +1,11 @@
 import { stripForAudience, type CostAudience } from "../channels/cost-strip";
+import { audienceDataStaleMs, type Env } from "../config";
 import {
   AUDIENCE_DATA_NOW,
+  CLIENT_SOURCES,
   EXAMPLE_SOURCES,
   LOW_MATCH_RATE,
-  STALE_AFTER_MS,
+  type ClientSource,
   type PlatformId,
   type RawSelection,
   type RawSource,
@@ -60,9 +62,9 @@ export function formatDelta(value: number | null) {
   return body;
 }
 
-export function refreshLabel(refreshedAt: string, now: string) {
+export function refreshLabel(refreshedAt: string, now: string, staleAfterMs = audienceDataStaleMs()) {
   const age = Date.parse(now) - Date.parse(refreshedAt);
-  const stale = age > STALE_AFTER_MS;
+  const stale = age > staleAfterMs;
   const hours = Math.max(0, Math.round(age / (60 * 60 * 1000)));
   const base = hours >= 48 ? `${Math.round(hours / 24)}d ago` : hours >= 24 ? "1d ago" : `${hours}h ago`;
   return { label: stale ? `${base} · stale` : base, stale, age };
@@ -87,7 +89,8 @@ export type PresentedMatch = {
 
 export type PresentedRow = {
   id: string;
-  vendor: string;
+  vendor?: string;
+  label?: string;
   type: string;
   campaigns: number;
   campaignIds: string[];
@@ -101,7 +104,7 @@ export type PresentedRow = {
   leadQuality: number | null;
   qualityLabel: string;
   provisional: boolean;
-  decisions: { scale: number; learning: number; cut: number };
+  decisions?: { scale: number; learning: number; cut: number };
   dataCostCpm?: number;
   cpm?: number;
   spend?: number;
@@ -154,21 +157,25 @@ function qualityLabel(quality: number | null, provisional: boolean) {
   return provisional ? `${quality} provisional` : String(quality);
 }
 
+function narrowsPool(logic: SelectionLogic) {
+  return logic === "and" || logic === "and_narrows" || logic === "exclude" || logic === "unused";
+}
+
 function presentSelection(row: RawSelection): PresentedSelection {
-  const measurable = row.leads !== null;
+  const measurable = !narrowsPool(row.logic) && row.leads !== null;
   return {
     id: row.id,
     value: row.value,
     logic: logicLabel(row.logic),
     maidsLabel: formatDelta(row.maidsDelta),
-    leadsLabel: row.leads === null ? "—" : String(row.leads),
+    leadsLabel: measurable ? String(row.leads) : "—",
     qualityLabel: measurable ? qualityLabel(row.quality, row.provisional) : "Not measurable alone",
     measurable,
   };
 }
 
-function presentRow(source: RawSource, now: string): PresentedRow {
-  const refresh = refreshLabel(source.refreshedAt, now);
+function presentRow(source: RawSource, now: string, staleAfterMs: number): PresentedRow {
+  const refresh = refreshLabel(source.refreshedAt, now, staleAfterMs);
   const row: PresentedRow = {
     id: source.id,
     vendor: source.vendor,
@@ -196,10 +203,27 @@ function presentRow(source: RawSource, now: string): PresentedRow {
   return row;
 }
 
+const VENDOR_KEY = /vendor|segmentid/i;
+
+function stripIdentity<T>(value: T): T {
+  return walk(value) as T;
+}
+
+function walk(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(walk);
+  if (!value || typeof value !== "object") return value;
+  const next: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (VENDOR_KEY.test(key) || key === "decisions") continue;
+    next[key] = walk(child);
+  }
+  return next;
+}
+
 function stripClient<T>(value: T, reader: AudienceReader): T {
   if (reader === "staff") return value;
   const audience: CostAudience = reader === "share" ? "share" : "client";
-  return stripForAudience(value, audience);
+  return stripIdentity(stripForAudience(value, audience));
 }
 
 export function listAudienceSources(input: {
@@ -210,8 +234,10 @@ export function listAudienceSources(input: {
   sort?: SortKey;
   direction?: "asc" | "desc";
   sources?: RawSource[];
+  staleAfterMs?: number;
 }) {
   const now = input.now ?? AUDIENCE_DATA_NOW;
+  const staleAfterMs = input.staleAfterMs ?? audienceDataStaleMs();
   const sources = input.sources ?? EXAMPLE_SOURCES;
   const campaignId = (input.campaignId || "all").trim();
   const search = (input.search || "").trim().toLowerCase();
@@ -223,15 +249,16 @@ export function listAudienceSources(input: {
   const sort = input.sort ?? "leads";
   const direction = input.direction ?? "desc";
   rows = [...rows].sort((a, b) => compareSources(a, b, sort, direction, now));
-  const presented = rows.map((source) => presentRow(source, now));
+  const presented = rows.map((source) => presentRow(source, now, staleAfterMs));
   const audiences = presented.reduce((sum, row) => sum + row.audiences, 0);
   const maids = presented.reduce((sum, row) => sum + row.maids, 0);
+  const noun = input.reader === "staff" ? "sources" : presented.length === 1 ? "source type" : "source types";
   const body = {
     example: true as const,
     recommendationOnly: true as const,
-    summary: `${presented.length} sources · ${audiences} audiences · ${formatMaids(maids)} MAIDs`,
+    summary: `${presented.length} ${noun} · ${audiences} audiences · ${formatMaids(maids)} MAIDs`,
     rows: presented,
-    campaigns: campaignChoices(sources),
+    campaigns: campaignChoices(rows),
   };
   return stripClient(body, input.reader);
 }
@@ -264,10 +291,10 @@ function lowestMatch(source: RawSource) {
   return Math.min(...source.match.map((row) => row.rate));
 }
 
-export function audienceSourceDetail(id: string, reader: AudienceReader, now = AUDIENCE_DATA_NOW, sources: RawSource[] = EXAMPLE_SOURCES): PresentedDetail | null {
+export function audienceSourceDetail(id: string, reader: AudienceReader, now = AUDIENCE_DATA_NOW, sources: RawSource[] = EXAMPLE_SOURCES, staleAfterMs = audienceDataStaleMs()): PresentedDetail | null {
   const source = sources.find((row) => row.id === id);
   if (!source) return null;
-  const base = presentRow(source, now);
+  const base = presentRow(source, now, staleAfterMs);
   const groups = GROUP_ORDER.map((group) => {
     const selections = source.selections.filter((row) => row.group === group.id).map(presentSelection);
     return { id: group.id, title: group.title, count: selections.length, selections };
@@ -287,9 +314,128 @@ export function audienceSourceDetail(id: string, reader: AudienceReader, now = A
   return stripClient(detail, reader);
 }
 
-/** Client and share payloads lose data cost, spend, CPL, CPA, and ROAS. Staff keeps data cost. */
-export function audienceDataPayload(reader: AudienceReader) {
-  const list = listAudienceSources({ reader });
-  const detail = audienceSourceDetail("vendor-a", reader);
+function clientRows(accountId: string) {
+  return CLIENT_SOURCES.filter((source) => source.accountId === accountId);
+}
+
+function formatClientMaids(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${(abs / 1_000_000).toFixed(2)}M`;
+  return formatMaids(value);
+}
+
+function presentClientRow(source: ClientSource, now: string, staleAfterMs: number) {
+  const refresh = refreshLabel(source.refreshedAt, now, staleAfterMs);
+  return {
+    id: source.publicId,
+    label: source.label,
+    type: source.type,
+    campaigns: source.campaigns.length,
+    campaignIds: source.campaigns.map((campaign) => campaign.id),
+    audiences: source.audienceCount,
+    maids: source.maids,
+    maidsLabel: formatClientMaids(source.maids),
+    match: matchRows(source.match),
+    refreshed: refresh.label,
+    stale: refresh.stale,
+    leads: source.leads,
+    leadQuality: source.leadQuality,
+    qualityLabel: qualityLabel(source.leadQuality, source.provisional),
+    provisional: source.provisional && source.leadQuality !== null,
+  };
+}
+
+export function listClientSources(input: {
+  accountId: string;
+  reader?: "client" | "share";
+  now?: string;
+  campaignId?: string;
+  search?: string;
+  staleAfterMs?: number;
+  env?: Env;
+}) {
+  const now = input.now ?? AUDIENCE_DATA_NOW;
+  const staleAfterMs = input.staleAfterMs ?? audienceDataStaleMs(input.env);
+  const campaignId = (input.campaignId || "all").trim();
+  const search = (input.search || "").trim().toLowerCase();
+  const rows = clientRows(input.accountId).filter((source) => {
+    if (campaignId !== "all" && !source.campaigns.some((campaign) => campaign.id === campaignId)) return false;
+    if (!search) return true;
+    return source.label.toLowerCase().includes(search) || source.type.toLowerCase().includes(search);
+  });
+  const presented = rows
+    .sort((a, b) => b.leads - a.leads)
+    .map((source) => presentClientRow(source, now, staleAfterMs));
+  const audiences = presented.reduce((sum, row) => sum + row.audiences, 0);
+  const maids = presented.reduce((sum, row) => sum + row.maids, 0);
+  const accountName = clientRows(input.accountId)[0]?.accountName || "";
+  const body = {
+    example: true as const,
+    recommendationOnly: true as const,
+    accountId: input.accountId,
+    accountName,
+    summary: `${presented.length} source types · ${audiences} audiences · ${formatClientMaids(maids)} MAIDs`,
+    rows: presented,
+    campaigns: campaignChoices(rows),
+  };
+  return stripClient(body, input.reader ?? "client");
+}
+
+export function clientSourceDetail(accountId: string, publicId: string, reader: "client" | "share" = "client", now = AUDIENCE_DATA_NOW, staleAfterMs = audienceDataStaleMs()) {
+  if (/vendor/i.test(publicId)) return null;
+  const source = clientRows(accountId).find((row) => row.publicId === publicId);
+  if (!source) return null;
+  const base = presentClientRow(source, now, staleAfterMs);
+  const groups = GROUP_ORDER.map((group) => {
+    const selections = source.selections.filter((row) => row.group === group.id).map(presentSelection);
+    return { id: group.id, title: group.title, count: selections.length, selections };
+  });
+  const detail = {
+    ...base,
+    audienceId: source.publicId,
+    audienceName: source.audienceName,
+    accountName: source.accountName,
+    selectionCount: source.selections.length,
+    why: source.why,
+    recommendation: source.recommendation,
+    workedOut: source.workedOut,
+    groups,
+    recommendationOnly: true as const,
+    example: true as const,
+  };
+  return stripClient(detail, reader);
+}
+
+/** Refuses another account. Strips vendor identity and cost. Plain public ids only. */
+export function readClientAudienceData(input: {
+  ownAccountId: string;
+  requestedAccountId?: string | null;
+  sourceId?: string | null;
+  reader?: "client" | "share";
+  now?: string;
+  env?: Env;
+}) {
+  const own = input.ownAccountId.trim();
+  const requested = (input.requestedAccountId || own).trim();
+  if (!own || requested !== own) return { ok: false as const, status: 403 as const, error: "Not allowed" as const };
+  const reader = input.reader ?? "client";
+  const sourceId = (input.sourceId || "").trim();
+  if (sourceId) {
+    const detail = clientSourceDetail(own, sourceId, reader, input.now, audienceDataStaleMs(input.env));
+    if (!detail) return { ok: false as const, status: 404 as const, error: "Not found" as const };
+    return { ok: true as const, body: detail };
+  }
+  return { ok: true as const, body: listClientSources({ accountId: own, reader, now: input.now, env: input.env }) };
+}
+
+/** Client and share payloads lose vendor identity and cost. Staff keeps both. */
+export function audienceDataPayload(reader: AudienceReader, accountId = "org") {
+  if (reader === "staff") {
+    const list = listAudienceSources({ reader });
+    const detail = audienceSourceDetail("vendor-a", reader);
+    return { list, detail };
+  }
+  const list = listClientSources({ accountId, reader });
+  const detail = clientSourceDetail(accountId, "1", reader);
   return { list, detail };
 }

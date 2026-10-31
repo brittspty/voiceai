@@ -323,9 +323,22 @@ export function audienceLibraryEnabled(env: Env = process.env) {
   return flagOn(env, "AUDIENCE_LIBRARY");
 }
 
-/** Off unless AUDIENCE_DATA is explicitly on. Staff-only example screen. No outbound calls. */
+/** Off unless AUDIENCE_DATA is explicitly on. Staff example screen. No outbound calls. */
 export function audienceDataEnabled(env: Env = process.env) {
   return flagOn(env, "AUDIENCE_DATA");
+}
+
+/** Off unless AUDIENCE_DATA_CLIENT is explicitly on. Client example screen. Independent of the staff switch. */
+export function audienceDataClientEnabled(env: Env = process.env) {
+  return flagOn(env, "AUDIENCE_DATA_CLIENT");
+}
+
+/** Days without a refresh before a source is stale. Default 7. */
+export function audienceDataStaleMs(env: Env = process.env) {
+  const raw = (env.AUDIENCE_DATA_STALE_DAYS || "").trim();
+  const days = raw ? Number(raw) : 7;
+  const safe = Number.isFinite(days) && days > 0 ? days : 7;
+  return safe * 24 * 60 * 60 * 1000;
 }
 
 /**

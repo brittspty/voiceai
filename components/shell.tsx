@@ -39,6 +39,7 @@ export function AppShell({
   homeHref = "/",
   showPortfolio = false,
   showAudienceData = false,
+  showAudienceDataClient = false,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
@@ -54,6 +55,7 @@ export function AppShell({
   homeHref?: string;
   showPortfolio?: boolean;
   showAudienceData?: boolean;
+  showAudienceDataClient?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -100,6 +102,7 @@ export function AppShell({
     ...CLIENT_NAV.slice(0, 1),
     ...reportNav,
     ...CLIENT_NAV.slice(1),
+    ...(showAudienceDataClient ? [{ href: "/audience-data", label: "Audience Data", icon: Database }] : []),
     ...(showSegments ? [{ href: "/marketing/segments", label: "Audience Data", icon: Layers }] : []),
   ];
 
