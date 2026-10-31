@@ -65,7 +65,7 @@ export async function pullStackAdaptCtv(input: { apiKey: string; from: string; t
 
 export const stackAdaptCtvAdapter: CtvPlatformAdapter = {
   platform: "stackadapt",
-  label: "StackAdapt",
+  label: "CTV (StackAdapt)",
   async pull(input: CtvPullRequest) {
     if (input.mode === "mock") return exampleCtvPull();
     const apiKey = (input.apiKey || "").trim();

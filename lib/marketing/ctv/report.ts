@@ -6,17 +6,23 @@ import type { CtvAudience, CtvConversion, CtvDelivery, CtvExposure, CtvPull, Ctv
 import { defaultIsVerifiedHuman, VERIFIED_HUMAN_LABEL, verificationStatus, type IsVerifiedHuman } from "./verified";
 import { creditConversions, jasonWindows, lagBucket, LAG_BUCKETS, windowLabel, type Credit } from "./windows";
 
-export function ctvPlatformLabel(platform: string) {
+export const CTV_STAFF_LABEL = "CTV (StackAdapt)";
+export const CTV_CLIENT_LABEL = "CTV";
+export const CTV_CLIENT_PHRASE = "Connected TV ads";
+
+/** CTV in this product is StackAdapt. Staff see the vendor. Clients do not. */
+export function ctvPlatformLabel(platform: string, audience: "staff" | "client" = "staff") {
   const key = platform.trim().toLowerCase().replace(/[_-]+/g, " ");
-  if (key === "stackadapt" || key === "ctv" || key === "other ctv") return "StackAdapt";
+  if (key === "stackadapt" || key === "ctv") return audience === "staff" ? CTV_STAFF_LABEL : CTV_CLIENT_LABEL;
   if (key === "google ads" || key === "google") return "Google Ads";
   if (key === "meta" || key === "facebook") return "Meta";
-  return platform.trim() || "StackAdapt";
+  if (audience === "client") return CTV_CLIENT_LABEL;
+  return platform.trim() || CTV_STAFF_LABEL;
 }
 
 function otherChannel(channel: string) {
-  const key = channel.trim().toLowerCase();
-  if (!key || key === "stackadapt" || key === "ctv" || key === "other ctv" || key === "other_ctv") return "";
+  const key = channel.trim().toLowerCase().replace(/[_-]+/g, " ");
+  if (!key || key === "stackadapt" || key === "ctv") return "";
   return ctvPlatformLabel(channel);
 }
 
@@ -63,7 +69,8 @@ export type CtvSegmentView = {
 };
 
 export type CtvView = {
-  platformLabel: "StackAdapt";
+  platformLabel: typeof CTV_STAFF_LABEL;
+  publicName: typeof CTV_CLIENT_PHRASE;
   exampleData: boolean;
   verifiedHumanLabel: typeof VERIFIED_HUMAN_LABEL;
   windows: { clickDays: number; viewDays: number; label: string; nativeLabel: string };
@@ -305,10 +312,11 @@ export function buildCtvView(pull: CtvPull, options: { env?: Env; hook?: IsVerif
   totals.cpl = verifiedLeads > 0 ? totals.spend / verifiedLeads : null;
   const warnings = [...pull.warnings];
   if (!warnings.some((warning) => warning.includes("unique impressions"))) {
-    warnings.push("Unique impressions are StackAdapt's documented reach field. A household id is not on the public delivery objects. TODO(verify).");
+    warnings.push("Unique impressions are the documented reach field. A household id is not on the public delivery objects. TODO(verify).");
   }
   return {
-    platformLabel: "StackAdapt",
+    platformLabel: CTV_STAFF_LABEL,
+    publicName: CTV_CLIENT_PHRASE,
     exampleData: pull.exampleData,
     verifiedHumanLabel: VERIFIED_HUMAN_LABEL,
     windows: {
@@ -400,10 +408,24 @@ function canonical(key: string) {
 export function ctvPayloadForViewer<T>(value: T, audience: CtvAudience): T {
   if (audience === "staff") return value;
   const stripIdentity = audience === "client" || audience === "share";
-  return stripValue(value, stripIdentity) as T;
+  const stripped = stripValue(value, stripIdentity) as T;
+  if (!stripIdentity || !stripped || typeof stripped !== "object") return stripped;
+  const record = stripped as Record<string, unknown>;
+  if ("platformLabel" in record) record.platformLabel = CTV_CLIENT_LABEL;
+  return stripped;
+}
+
+function clientFacingText(value: string) {
+  return value
+    .split(CTV_STAFF_LABEL).join(CTV_CLIENT_LABEL)
+    .replace(/stackadapt/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([:,.])/g, "$1")
+    .trim();
 }
 
 function stripValue(value: unknown, stripIdentity: boolean): unknown {
+  if (typeof value === "string") return stripIdentity ? clientFacingText(value) : value;
   if (Array.isArray(value)) return value.map((item) => stripValue(item, stripIdentity));
   if (!value || typeof value !== "object") return value;
   const next: Record<string, unknown> = {};

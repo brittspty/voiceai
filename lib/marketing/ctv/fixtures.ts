@@ -122,7 +122,7 @@ export function exampleCtvPull(): CtvPull {
   return {
     platform: "stackadapt",
     exampleData: true,
-    warnings: ["EXAMPLE DATA. No StackAdapt call was made."],
+    warnings: ["EXAMPLE DATA. No platform call was made."],
     delivery,
     exposures,
     households,
@@ -131,7 +131,7 @@ export function exampleCtvPull(): CtvPull {
       clickDays: 30,
       viewDays: 30,
       source: "example",
-      label: "StackAdapt native: 30-day click, 30-day view",
+      label: "CTV (StackAdapt) native: 30-day click, 30-day view",
     },
     platformLifts: [],
   };

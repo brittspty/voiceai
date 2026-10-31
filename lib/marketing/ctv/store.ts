@@ -412,7 +412,7 @@ export async function readCtvPull(workspaceId = WORKSPACE_ID): Promise<CtvPull |
     nativeWindow: {
       clickDays: window?.clickDays ?? null,
       viewDays: window?.viewDays ?? null,
-      label: window?.label || "StackAdapt native window: not in this response. TODO(verify) the conversion tracker window fields.",
+      label: window?.label || "CTV (StackAdapt) native window: not in this response. TODO(verify) the conversion tracker window fields.",
       source: window?.source || "missing",
     },
     platformLifts: lifts.flatMap((row) => {

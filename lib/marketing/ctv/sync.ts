@@ -71,7 +71,7 @@ export async function loadCtvAttributionView(env: Env = process.env): Promise<Ct
   try {
     const stored = await readCtvPull();
     if (!stored) {
-      return buildCtvView({ ...exampleCtvPull(), exampleData: false, exposures: [], conversions: [], delivery: [], households: [], warnings: ["No StackAdapt CTV rows stored yet."] }, { env });
+      return buildCtvView({ ...exampleCtvPull(), exampleData: false, exposures: [], conversions: [], delivery: [], households: [], warnings: ["No CTV (StackAdapt) rows stored yet."] }, { env });
     }
     return buildCtvView(stored, { env });
   } catch {

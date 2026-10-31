@@ -168,12 +168,12 @@ export function parseNativeWindow(body: unknown): CtvNativeWindow {
       clickDays: null,
       viewDays: null,
       source: "missing",
-      label: "StackAdapt native window: not in this response. TODO(verify) the conversion tracker window fields.",
+      label: "CTV (StackAdapt) native window: not in this response. TODO(verify) the conversion tracker window fields.",
     };
   }
   const click = clickDays == null ? "click window unknown" : `${clickDays}-day click`;
   const view = viewDays == null ? "view window unknown" : `${viewDays}-day view`;
-  return { clickDays, viewDays, source: "conversion_tracker", label: `StackAdapt native: ${click}, ${view}` };
+  return { clickDays, viewDays, source: "conversion_tracker", label: `CTV (StackAdapt) native: ${click}, ${view}` };
 }
 
 export function parsePlatformLifts(body: unknown): CtvPlatformLift[] {

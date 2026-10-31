@@ -13,19 +13,20 @@ export const dynamic = "force-dynamic";
 export default async function CtvAttributionPage() {
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
+  const staff = canViewCtvAttribution(access);
   if (!ctvAttributionEnabled()) {
     return (
       <div>
-        <PageTitle title="CTV attribution" subtitle="CTV attribution is turned off." />
+        <PageTitle title={staff ? "CTV (StackAdapt)" : "CTV"} subtitle="CTV attribution is turned off." />
       </div>
     );
   }
-  if (!canViewCtvAttribution(access)) return <NoAccess title="CTV attribution" />;
+  if (!staff) return <NoAccess title="CTV" />;
   const audience = access.seesCost ? "staff" : "staff_nocost";
   const view = ctvPayloadForViewer(await loadCtvAttributionView(), audience);
   return (
     <div>
-      <PageTitle title="CTV attribution" subtitle="StackAdapt, read only. Jason's 7-day click and 1-day view sit beside StackAdapt's native window." />
+      <PageTitle title="CTV (StackAdapt)" subtitle="Read only. Jason's 7-day click and 1-day view sit beside the platform window." />
       <CtvAttributionView view={view} showMoney={audience === "staff"} />
     </div>
   );

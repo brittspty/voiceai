@@ -92,7 +92,7 @@ export function AppShell({
     ...(leadScoring ? [{ href: "/marketing/leads", label: "Leads", icon: ListChecks }] : []),
     ...(showSegments ? [{ href: "/marketing/segments", label: "Segments", icon: Layers }] : []),
     ...(audienceLibrary ? [{ href: "/marketing/audiences", label: "Audiences", icon: Users }, { href: "/marketing/audiences/pixel", label: "Pixel tracking", icon: Activity }] : []),
-    ...(showCtv ? [{ href: "/marketing/ctv", label: "CTV attribution", icon: Tv }] : []),
+    ...(showCtv ? [{ href: "/marketing/ctv", label: "CTV (StackAdapt)", icon: Tv }] : []),
   ];
   const baseNav = [...NAV.slice(0, 2), ...extras, ...reportNav, ...NAV.slice(2)];
   const staffNav = showPortfolio ? [{ href: "/portfolio", label: "Portfolio", icon: LayoutDashboard }, ...baseNav] : baseNav;

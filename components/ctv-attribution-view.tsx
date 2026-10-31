@@ -65,7 +65,7 @@ export function CtvAttributionView({ view, showMoney }: { view: CtvView; showMon
         </div>
       </section>
       <section className="rounded-xl border border-line bg-card p-4">
-        <h2 className="font-semibold">StackAdapt delivery</h2>
+        <h2 className="font-semibold">{view.platformLabel}</h2>
         <p className="mt-2 text-sm text-muted">Impressions {num(view.delivery.impressions)}. Unique impressions {num(view.delivery.uniqueImpressions)}. Frequency {num(view.delivery.frequency, 1)}. Completions at 25/50/75/100: {num(view.delivery.completion25)} / {num(view.delivery.completion50)} / {num(view.delivery.completion75)} / {num(view.delivery.completion100)}.</p>
         <p className="mt-1 text-sm text-muted">Reported click-through {num(view.delivery.reportedClickConversions)} and view-through {num(view.delivery.reportedViewConversions)}. Household and IP conversions {num(view.delivery.ipConversions)}. Cross-device {num(view.delivery.cookieConversions)}.</p>
         {showMoney ? <p className="mt-1 text-sm">Spend {money(view.delivery.spend)}. CPM {money(view.delivery.cpm)}. CPA {money(view.delivery.cpa)}. CPL {money(view.delivery.cpl)}. ROAS {num(view.delivery.roas, 2)}.</p> : null}

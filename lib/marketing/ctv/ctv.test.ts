@@ -5,7 +5,7 @@ import test from "node:test";
 import { clientViewerAllowed } from "../client-gate";
 import { ctvAttributionEnabled, decideCtvAttribution } from "../config";
 import { STACKADAPT_ENDPOINT, stackAdaptGet } from "../connectors/stackadapt-client";
-import { getCtvAdapter, registerCtvAdapter } from "./adapter";
+import { getCtvAdapter } from "./adapter";
 import { CTV_EXAMPLE_SPEND, CTV_EXAMPLE_VENDOR, exampleCtvPull, exampleStackAdaptBodies } from "./fixtures";
 import { costPerIncremental, incrementalLift, planMaidHoldout, recommendFromLift } from "./incrementality";
 import { hashIp } from "./quality";
@@ -98,7 +98,7 @@ test("the StackAdapt CTV pull is GET only and keeps the budget lock", async () =
   assert.equal(saved.view.delivery.impressions, 10000);
   assert.equal(saved.view.delivery.spend, 250.25);
   assert.match(saved.view.windows.nativeLabel, /30-day click/);
-  assert.equal(saved.view.platformLabel, "StackAdapt");
+  assert.equal(saved.view.platformLabel, "CTV (StackAdapt)");
   const client = readFileSync(path.join(ROOT, "lib/marketing/connectors/stackadapt-client.ts"), "utf8");
   assert.match(client, /assertNoAdBudgetWrite\(/);
   assert.match(client, /method: "GET"/);
@@ -144,14 +144,17 @@ test("Jason's windows, click wins, verified-human, and the sensitivity panel", (
   const view = buildCtvView(exampleCtvPull());
   const segment = view.segments[0];
   assert.ok(segment);
-  assert.equal(view.platformLabel, "StackAdapt");
+  assert.equal(view.platformLabel, "CTV (StackAdapt)");
+  assert.equal(view.publicName, "Connected TV ads");
+  assert.equal(ctvPlatformLabel("stackadapt"), "CTV (StackAdapt)");
+  assert.equal(ctvPlatformLabel("ctv", "client"), "CTV");
   assert.equal(JSON.stringify(view).includes("Other CTV"), false);
-  assert.equal(ctvPlatformLabel("Other CTV"), "StackAdapt");
+  assert.equal(JSON.stringify(view).includes("Trade Desk"), false);
   assert.equal(view.verifiedHumanLabel, "pending Jason confirmation");
   assert.equal(view.windows.clickDays, 7);
   assert.equal(view.windows.viewDays, 1);
   assert.match(view.windows.label, /7-day click, 1-day view/);
-  assert.match(view.windows.nativeLabel, /StackAdapt native/);
+  assert.match(view.windows.nativeLabel, /CTV \(StackAdapt\) native/);
   assert.equal(view.sensitivity.changesDefault, false);
   assert.equal(segment.verifiedClickConversions, 2);
   assert.equal(segment.verifiedViewConversions, 1);
@@ -236,10 +239,14 @@ test("client roles and share links lose spend, cost, and identity ids", () => {
       assert.equal(names.includes(key), false, key);
     }
     const text = JSON.stringify(payload);
+    assert.equal(payload.platformLabel, "CTV");
+    assert.equal(payload.publicName, "Connected TV ads");
     assert.equal(text.includes(CTV_EXAMPLE_VENDOR), false);
     assert.equal(text.includes("hh-det"), false);
     assert.equal(text.includes(String(CTV_EXAMPLE_SPEND)), false);
+    assert.equal(text.includes("StackAdapt"), false);
     assert.equal(text.includes("Other CTV"), false);
+    assert.equal(text.includes("Trade Desk"), false);
   }
   const internalNames = keysOf(internal);
   assert.equal(internalNames.includes("spend"), false);
@@ -249,18 +256,11 @@ test("client roles and share links lose spend, cost, and identity ids", () => {
   assert.equal(ctvHttpDecision({ enabled: true, kind: "client_owner" }).status, 403);
   assert.equal(ctvHttpDecision({ enabled: true, kind: "super_admin", seesCost: true }).audience, "staff");
   assert.equal(ctvHttpDecision({ enabled: true, share: true, kind: "none" }).audience, "share");
-  registerCtvAdapter({
-    platform: "example-ctv",
-    label: "Example CTV",
-    async pull() {
-      return exampleCtvPull();
-    },
-  });
-  assert.equal(getCtvAdapter("example-ctv").label, "Example CTV");
-  assert.equal(getCtvAdapter("stackadapt").label, "StackAdapt");
+  assert.equal(getCtvAdapter("stackadapt").label, "CTV (StackAdapt)");
+  assert.equal(internal.platformLabel, "CTV (StackAdapt)");
 });
 
-test("a second platform can be registered without changing StackAdapt's read-only pull", () => {
+test("CTV stays StackAdapt only in the staff label", () => {
   const pull: CtvPull = { ...exampleCtvPull(), platform: "stackadapt" };
-  assert.equal(buildCtvView(pull).platformLabel, "StackAdapt");
+  assert.equal(buildCtvView(pull).platformLabel, "CTV (StackAdapt)");
 });
