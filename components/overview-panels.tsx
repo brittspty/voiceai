@@ -49,9 +49,9 @@ export function KpiRow({ kpis }: { kpis: { dials: number; connectRate: number; m
 export function LiveNow({ initial, range }: { initial: Live; range: string }) {
   const router = useRouter();
   const [live, setLive] = useState(initial);
-  const [liveSource, setLiveSource] = useState(initial);
-  if (liveSource !== initial) {
-    setLiveSource(initial);
+  const [seen, setSeen] = useState(initial);
+  if (seen !== initial) {
+    setSeen(initial);
     setLive(initial);
   }
   useEffect(() => {

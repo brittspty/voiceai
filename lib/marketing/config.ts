@@ -308,6 +308,11 @@ export function dashboardsV2Enabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_DASHBOARDS_V2");
 }
 
+/** Off unless JARVIS_UI_V2 is explicitly on. The current UI stays in place. */
+export function jarvisUiV2Enabled(env: Env = process.env) {
+  return flagOn(env, "JARVIS_UI_V2");
+}
+
 export function amBudgetCapUsd(env: Env = process.env) {
   const parsed = Number(env.MARKETING_AM_BUDGET_CAP_USD ?? 500);
   if (!Number.isFinite(parsed) || parsed < 0) return 500;
