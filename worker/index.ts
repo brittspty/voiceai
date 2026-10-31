@@ -1,4 +1,7 @@
 import { prisma } from "../lib/db";
+import { demoWorkspaceEnabled } from "../lib/demo/flags";
+import { reseedDue } from "../lib/demo/reseed";
+import { applyDemoDataset } from "../lib/demo/seed-apply";
 import { runJob } from "../lib/dialer";
 import { adFatigueEnabled, amRealtimeEnabled, creativeFatigueEnabled, digestEnabled, googleBusinessProfileEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, skillApprovalFanoutEnabled, speedToLeadEnabled, stackAdaptEnabled } from "../lib/marketing/config";
 import { runAdFatigue } from "../lib/marketing/ad-fatigue-job";
@@ -75,6 +78,28 @@ function startOfflineConversions() {
   };
   void tick();
   const timer = setInterval(() => void tick(), 15 * 60 * 1000);
+  return () => clearInterval(timer);
+}
+
+function startDemoReseed() {
+  if (!demoWorkspaceEnabled()) return () => {};
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const last = await prisma.demoReseed.findUnique({ where: { id: "demo" } });
+      if (!reseedDue(last?.finishedAt ?? null, new Date())) return;
+      const result = await applyDemoDataset(prisma);
+      console.log(`[worker] demo reseed rows ${result.rows}`);
+    } catch (error) {
+      console.error("[worker] demo reseed failed", error);
+    } finally {
+      running = false;
+    }
+  };
+  void tick();
+  const timer = setInterval(() => void tick(), 60 * 60 * 1000);
   return () => clearInterval(timer);
 }
 
@@ -180,6 +205,7 @@ function startMarketingSync() {
 async function main() {
   console.log("[worker] voice operations dialer started");
   const stopMarketing = startMarketingSync();
+  const stopDemo = startDemoReseed();
   const stopSpeed = startSpeedToLead();
   const stopConversions = startOfflineConversions();
   const redis = createRedis();
@@ -211,6 +237,7 @@ async function main() {
     }
   }
   stopMarketing();
+  stopDemo();
   stopSpeed();
   stopConversions();
   redis.disconnect();

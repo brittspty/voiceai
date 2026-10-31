@@ -1,4 +1,5 @@
 import { PRODUCT_NAME } from "./brand/names";
+import { assertOutboundOpen } from "./demo/outbound";
 
 export async function sendDigestEmail(input: {
   to: string;
@@ -6,6 +7,7 @@ export async function sendDigestEmail(input: {
   text: string;
   env?: Record<string, string | undefined>;
 }) {
+  assertOutboundOpen("resend");
   const env = input.env ?? process.env;
   const key = env.RESEND_API_KEY?.trim();
   const from = env.MAIL_FROM?.trim();
@@ -24,6 +26,7 @@ export async function sendDigestEmail(input: {
 }
 
 export async function sendInviteEmail(input: { to: string; name: string; link: string }) {
+  assertOutboundOpen("resend");
   const key = process.env.RESEND_API_KEY?.trim();
   const from = process.env.MAIL_FROM?.trim();
   if (!key || !from) return { sent: false as const };
@@ -41,6 +44,7 @@ export async function sendInviteEmail(input: { to: string; name: string; link: s
 }
 
 export async function sendHandoffEmail(input: { toEmail: string | null; toName: string; subject: string; body: string }) {
+  assertOutboundOpen("resend");
   const key = process.env.RESEND_API_KEY?.trim();
   const from = process.env.MAIL_FROM?.trim();
   if (!key || !from || !input.toEmail) return { sent: false as const };

@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [user, org] = await Promise.all([requireUser(), getOrg()]);
   const path = (await headers()).get("x-voiceops-path") || "";
+  if (user.role === "demo_viewer") redirect("/demo");
   const jarvis = jarvisUiV2Enabled();
   if (user.role === "client_viewer" && path && !clientViewerAllowed(path)) redirect(jarvis ? "/" : "/marketing/client");
   const showInbox = inboxEnabled() && user.role !== "client_viewer" && user.role !== "all_clients_viewer";
