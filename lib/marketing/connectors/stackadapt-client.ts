@@ -250,3 +250,81 @@ export async function pullStackAdaptBundle(input: {
   if (!campaigns.length) warnings.push("StackAdapt returned no campaigns.");
   return { campaigns, warnings };
 }
+
+export const STACKADAPT_REST_BASE = "https://api.stackadapt.com/service/v2";
+
+const STACKADAPT_GET_PATHS = new Set([
+  "/delivery",
+  "/stats",
+  "/campaigns",
+  "/native_ads",
+  "/conversion_trackers",
+  "/insights/campaign_device",
+  "/insights/campaign_supply_source",
+  "/supply_sources",
+  "/conversion_paths",
+  "/brand_lift_studies",
+  "/custom_segments",
+]);
+
+export function assertStackAdaptGetPath(path: string) {
+  if (!path.startsWith("/") || path.includes("..") || path.includes("?") || path.includes("#") || path.includes("\\")) {
+    throw new StackAdaptWriteBlockedError("StackAdapt client is read-only. The path is invalid.");
+  }
+  if (!STACKADAPT_GET_PATHS.has(path)) {
+    throw new StackAdaptWriteBlockedError("StackAdapt client is read-only. That path is not a reporting GET.");
+  }
+  return path;
+}
+
+/** Read-only REST GET. GraphQL delivery stays on stackAdaptGraphql. No request body. */
+export async function stackAdaptGet(input: {
+  apiKey: string;
+  path: string;
+  query?: Record<string, string>;
+  fetchImpl?: FetchLike;
+  optional?: boolean;
+}) {
+  const path = assertStackAdaptGetPath(input.path);
+  const url = new URL(`${STACKADAPT_REST_BASE}${path}`);
+  for (const [key, value] of Object.entries(input.query ?? {})) {
+    if (value) url.searchParams.set(key, value);
+  }
+  if (url.protocol !== "https:" || url.hostname !== "api.stackadapt.com" || !url.pathname.startsWith("/service/v2/")) {
+    throw new StackAdaptWriteBlockedError("StackAdapt client is read-only. Only https://api.stackadapt.com/service/v2 is allowed.");
+  }
+  const endpoint = url.toString();
+  assertNoAdBudgetWrite({ method: "GET", url: endpoint, params: input.query ?? {} });
+  const apiKey = input.apiKey.trim();
+  if (!apiKey) throw new StackAdaptApiError("STACKADAPT_API_KEY is empty");
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const secrets = [apiKey];
+  let response: Response;
+  try {
+    response = await fetchImpl(endpoint, {
+      method: "GET",
+      headers: {
+        "X-AUTHORIZATION": apiKey,
+        accept: "application/json",
+      },
+      redirect: "error",
+    });
+  } catch (error) {
+    throw new StackAdaptApiError(redactStackAdaptSecrets(error instanceof Error ? error.message : "StackAdapt request failed", secrets));
+  }
+  if (input.optional && response.status === 404) return null;
+  const textBody = await response.text();
+  let body: unknown = {};
+  if (textBody) {
+    try {
+      body = JSON.parse(textBody);
+    } catch {
+      body = textBody;
+    }
+  }
+  if (!response.ok) {
+    const message = typeof body === "string" ? body : "StackAdapt request failed";
+    throw new StackAdaptApiError(redactStackAdaptSecrets(`StackAdapt ${response.status}: ${message}`.slice(0, 400), secrets), response.status);
+  }
+  return body;
+}

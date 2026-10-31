@@ -3,7 +3,7 @@ import { demoWorkspaceEnabled } from "../lib/demo/flags";
 import { reseedDue } from "../lib/demo/reseed";
 import { applyDemoDataset } from "../lib/demo/seed-apply";
 import { runJob } from "../lib/dialer";
-import { adFatigueEnabled, amRealtimeEnabled, creativeFatigueEnabled, digestEnabled, googleBusinessProfileEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, skillApprovalFanoutEnabled, speedToLeadEnabled, stackAdaptEnabled } from "../lib/marketing/config";
+import { adFatigueEnabled, amRealtimeEnabled, creativeFatigueEnabled, ctvAttributionEnabled, digestEnabled, googleBusinessProfileEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, skillApprovalFanoutEnabled, speedToLeadEnabled, stackAdaptEnabled } from "../lib/marketing/config";
 import { runAdFatigue } from "../lib/marketing/ad-fatigue-job";
 import { runAmRealtimeFeed } from "../lib/marketing/feed-job";
 import { ensureSkillOfferInbox } from "../lib/marketing/skill-approval-job";
@@ -14,6 +14,7 @@ import { runStoredOfflineCycle } from "../lib/marketing/offline/persist";
 import { runPageMonitor } from "../lib/marketing/pages/store";
 import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
 import { runStackAdaptSync } from "../lib/marketing/stackadapt-sync";
+import { runCtvAttributionSync } from "../lib/marketing/ctv/sync";
 import { runGoogleAdsSync } from "../lib/marketing/google-sync";
 import { runSpeedToLeadSweep } from "../lib/marketing/speed-to-lead-store";
 import { errorText } from "../lib/marketing/speed-to-lead";
@@ -148,6 +149,14 @@ function startMarketingSync() {
         }
       } catch (error) {
         console.error("[worker] stackadapt failed", error);
+      }
+      try {
+        if (ctvAttributionEnabled()) {
+          const ctv = await runCtvAttributionSync();
+          if (ctv.status !== "skipped") console.log(`[worker] ctv attribution ${ctv.status}`);
+        }
+      } catch (error) {
+        console.error("[worker] ctv attribution failed", error);
       }
       try {
         if (googleBusinessProfileEnabled()) {

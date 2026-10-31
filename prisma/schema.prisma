@@ -2812,3 +2812,227 @@ model ClientPlanView {
 
   @@index([planId, viewedAt])
 }
+
+// CTV attribution. Read-only ingest. Raw IPs are not stored.
+// Holdout drafts cannot be uploaded. Segment reads cannot change spend.
+
+model CtvExposure {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  eventId       String
+  occurredAt    DateTime
+  platform      String   @default("stackadapt")
+  campaignId    String   @default("")
+  campaignName  String   @default("")
+  lineItemId    String   @default("")
+  lineItemName  String   @default("")
+  creativeId    String   @default("")
+  creativeName  String   @default("")
+  audienceId    String   @default("")
+  maidListId    String   @default("")
+  vendorId      String   @default("")
+  subSegmentKey String   @default("")
+  householdId   String   @default("")
+  ipHash        String   @default("")
+  deviceType    String   @default("")
+  publisher     String   @default("")
+  appBundle     String   @default("")
+  completionPct Int      @default(0)
+  interaction   String   @default("view")
+  maid          String   @default("")
+  excluded      Boolean  @default(false)
+  excludeReason String   @default("")
+  createdAt     DateTime @default(now())
+
+  @@unique([workspaceId, eventId], map: "CtvExposure_workspace_event_key")
+  @@index([workspaceId, occurredAt])
+  @@index([workspaceId, maidListId])
+  @@index([workspaceId, householdId])
+}
+
+model CtvHousehold {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  householdId     String
+  ipHash          String   @default("")
+  linkedMaids     String[] @default([])
+  linkedCookies   String[] @default([])
+  matchMethod     String
+  matchConfidence Float    @default(0)
+  updatedAt       DateTime @updatedAt
+
+  @@unique([workspaceId, householdId], map: "CtvHousehold_workspace_household_key")
+  @@index([workspaceId, ipHash])
+}
+
+model CtvConversion {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  conversionId       String
+  pixelEvent         String   @default("")
+  occurredAt         DateTime
+  value              Decimal  @default(0) @db.Decimal(18, 4)
+  verificationStatus String
+  crmOutcome         String   @default("")
+  maidListId         String   @default("")
+  vendorId           String   @default("")
+  subSegmentKey      String   @default("")
+  audienceId         String   @default("")
+  householdId        String   @default("")
+  ipHash             String   @default("")
+  deviceType         String   @default("")
+  maid               String   @default("")
+  cookie             String   @default("")
+  passesDedupe       Boolean  @default(false)
+  leadInvolved       Boolean  @default(false)
+  contactValid       Boolean?
+  crmOrPixelEngaged  Boolean  @default(false)
+  siteVisit          Boolean  @default(false)
+  creditedChannel    String   @default("stackadapt")
+  createdAt          DateTime @default(now())
+
+  @@unique([workspaceId, conversionId], map: "CtvConversion_workspace_conversion_key")
+  @@index([workspaceId, occurredAt])
+  @@index([workspaceId, maidListId])
+}
+
+model CtvTouchpointLink {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  exposureEventId String
+  conversionId    String
+  linkType        String
+  matchMethod     String
+  matchConfidence Float    @default(0)
+  lagHours        Float
+  counted         Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@unique([workspaceId, exposureEventId, conversionId, linkType], map: "CtvTouchpointLink_workspace_link_key")
+  @@index([workspaceId, conversionId])
+}
+
+model CtvDeliveryDay {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  date              DateTime @db.Date
+  platform          String   @default("stackadapt")
+  identityKey       String
+  campaignId        String   @default("")
+  campaignName      String   @default("")
+  lineItemId        String   @default("")
+  lineItemName      String   @default("")
+  creativeId        String   @default("")
+  creativeName      String   @default("")
+  audienceId        String   @default("")
+  audienceName      String   @default("")
+  maidListId        String   @default("")
+  vendorId          String   @default("")
+  subSegmentKey     String   @default("")
+  deviceType        String   @default("")
+  publisher         String   @default("")
+  impressions       BigInt   @default(0)
+  uniqueImpressions BigInt   @default(0)
+  frequency         Decimal  @default(0) @db.Decimal(12, 4)
+  completion25      BigInt   @default(0)
+  completion50      BigInt   @default(0)
+  completion75      BigInt   @default(0)
+  completion100     BigInt   @default(0)
+  spend             Decimal  @default(0) @db.Decimal(18, 4)
+  clickConversions  Decimal  @default(0) @db.Decimal(18, 4)
+  viewConversions   Decimal  @default(0) @db.Decimal(18, 4)
+  conversionValue   Decimal  @default(0) @db.Decimal(18, 4)
+  ipConversions     Decimal  @default(0) @db.Decimal(18, 4)
+  cookieConversions Decimal  @default(0) @db.Decimal(18, 4)
+  siteVisits        Decimal  @default(0) @db.Decimal(18, 4)
+  currency          String   @default("USD")
+  exampleData       Boolean  @default(false)
+  ingestedAt        DateTime @default(now())
+
+  @@unique([workspaceId, identityKey], map: "CtvDeliveryDay_workspace_identity_key")
+  @@index([workspaceId, date])
+}
+
+/// Dry run only. uploaded is constrained false. Nothing is sent to a platform.
+model CtvHoldoutDraft {
+  id          String   @id @default(cuid())
+  workspaceId String
+  maidListId  String
+  householdId String
+  role        String
+  percent     Int      @default(10)
+  uploaded    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@unique([workspaceId, maidListId, householdId], map: "CtvHoldoutDraft_workspace_household_key")
+  @@index([workspaceId, maidListId])
+}
+
+/// Recommendation only. changesSpend and writesAds are constrained false.
+model CtvSegmentRead {
+  id                       String   @id @default(cuid())
+  workspaceId              String
+  platform                 String   @default("stackadapt")
+  maidListId               String   @default("")
+  vendorId                 String   @default("")
+  subSegmentKey            String   @default("")
+  householdsReached        Int      @default(0)
+  deterministicMatchRate   Float?
+  verifiedClickConversions Int      @default(0)
+  verifiedViewConversions  Int      @default(0)
+  deterministicClick       Int      @default(0)
+  deterministicView        Int      @default(0)
+  lift                     Float?
+  liftCiLow                Float?
+  liftCiHigh               Float?
+  liftLabel                String   @default("")
+  spend                    Decimal? @db.Decimal(18, 4)
+  costPerIncremental       Decimal? @db.Decimal(18, 4)
+  cpm                      Decimal? @db.Decimal(18, 4)
+  cpa                      Decimal? @db.Decimal(18, 4)
+  cpl                      Decimal? @db.Decimal(18, 4)
+  roas                     Decimal? @db.Decimal(18, 4)
+  recommendation           String   @default("")
+  recommendationOnly       Boolean  @default(true)
+  changesSpend             Boolean  @default(false)
+  writesAds                Boolean  @default(false)
+  windowLabel              String   @default("")
+  nativeWindowLabel        String   @default("")
+  exampleData              Boolean  @default(false)
+  readAt                   DateTime @default(now())
+
+  @@index([workspaceId, readAt])
+}
+
+model CtvWindowSetting {
+  id          String   @id @default(cuid())
+  workspaceId String
+  platform    String   @default("stackadapt")
+  clickDays   Int?
+  viewDays    Int?
+  label       String   @default("")
+  source      String   @default("")
+  exampleData Boolean  @default(false)
+  warnings    String[] @default([])
+  pulledAt    DateTime @default(now())
+
+  @@index([workspaceId, pulledAt])
+}
+
+model CtvPlatformLift {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  platform      String   @default("stackadapt")
+  kind          String
+  name          String   @default("")
+  maidListId    String   @default("")
+  vendorId      String   @default("")
+  subSegmentKey String   @default("")
+  exposedCvr    Float?
+  controlCvr    Float?
+  exposedTrials Int      @default(0)
+  controlTrials Int      @default(0)
+  pulledAt      DateTime @default(now())
+
+  @@index([workspaceId, pulledAt])
+}
