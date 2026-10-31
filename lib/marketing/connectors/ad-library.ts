@@ -1,3 +1,4 @@
+import { assertNoAdBudgetWrite } from "./budget-lock";
 import { appSecretProof, redactSecrets } from "./meta-client";
 import { asRecord, str } from "./meta-map";
 import type { FetchLike } from "./meta-client";
@@ -138,6 +139,7 @@ export async function fetchAdLibraryAds(input: {
   const url = adLibraryUrl(input);
   const fetchImpl = input.fetchImpl ?? fetch;
   try {
+    assertNoAdBudgetWrite({ method: "GET", url: url.toString() });
     const response = await fetchImpl(url.toString(), { method: "GET" });
     const body: unknown = await response.json().catch(() => null);
     if (!response.ok) {

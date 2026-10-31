@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "../../brand/names";
 import type { Env } from "../config";
 import { accessFromUser } from "../access";
 
@@ -67,15 +68,15 @@ export function connectPageModel(
     return {
       title: "Reconnect Google",
       body: redirectUrl
-        ? "Google's sign-in opens next. VoiceOps never asks for your password."
-        : "Google is not connected yet. A super admin adds the developer token and OAuth client outside this page. VoiceOps never asks for a password.",
+        ? `Google's sign-in opens next. ${PRODUCT_NAME} never asks for your password.`
+        : `Google is not connected yet. A super admin adds the developer token and OAuth client outside this page. ${PRODUCT_NAME} never asks for a password.`,
       redirectUrl,
       asksForPassword: false,
     };
   }
   return {
     title: "Reconnect Meta",
-    body: "Each client has its own Meta dataset id, saved on Conversion feedback. The conversions token is set outside this page. VoiceOps never asks for a password.",
+    body: `Each client has its own Meta dataset id, saved on Conversion feedback. The conversions token is set outside this page. ${PRODUCT_NAME} never asks for a password.`,
     redirectUrl: null,
     asksForPassword: false,
   };

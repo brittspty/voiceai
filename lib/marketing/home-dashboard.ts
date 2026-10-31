@@ -1,3 +1,4 @@
+import { AIS2L_NAME } from "../brand/names";
 import { formatCount, formatMoney } from "./dashboard-model";
 import type { HomeScope } from "./isolation";
 import { scopeWorkspaceIds } from "./isolation";
@@ -203,8 +204,8 @@ export function assembleHome(input: {
     canPickClient: input.canPickClient,
     title,
     subtitle: aggregate
-      ? "Ads, leads, and the rest of the marketing system. Voice is its own add-on."
-      : "This client's ads and leads. Voice shows only when this client has it.",
+      ? `Ads, leads, and the rest of the marketing system. ${AIS2L_NAME} is its own add-on.`
+      : `This client's ads and leads. ${AIS2L_NAME} shows only when this client has it.`,
     selectedId: input.scope.kind === "one" ? input.scope.workspaceId : null,
     clients,
     features: input.showMoney ? input.features : input.features.filter((feature) => feature.id !== "pacing"),

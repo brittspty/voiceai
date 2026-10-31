@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { PRODUCT_NAME } from "@/lib/brand/names";
 import { getCurrentUser } from "@/lib/auth";
 import { sessionSecret } from "@/lib/env";
 import { conversionAccess, renderConnectPopup } from "@/lib/marketing/offline/access";
@@ -37,13 +38,13 @@ export async function GET(request: Request) {
   if (!oauthStateMatches(cookie, queryState, sessionSecret())) {
     return page(
       "Google sign-in",
-      "Google sign-in could not be checked. Start again from Conversion feedback. VoiceOps never asks for your password.",
+      `Google sign-in could not be checked. Start again from Conversion feedback. ${PRODUCT_NAME} never asks for your password.`,
       400,
     );
   }
   return page(
     "Google sign-in",
-    "Google sent you back. This dry run does not store a refresh token. Add it outside this page when you are ready to send. VoiceOps never asks for your password.",
+    `Google sent you back. This dry run does not store a refresh token. Add it outside this page when you are ready to send. ${PRODUCT_NAME} never asks for your password.`,
     200,
   );
 }
