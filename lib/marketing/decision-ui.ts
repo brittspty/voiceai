@@ -22,6 +22,9 @@ export type DecisionInput = {
   createdAt?: string;
   decidedAt?: string | null;
   decisionNote?: string | null;
+  confidence?: number | null;
+  assigneeUserId?: string | null;
+  action?: string | null;
   currentBudgetAmount?: number | null;
   proposedBudgetAmount?: number | null;
   proposedCurrency?: string | null;
@@ -110,6 +113,9 @@ export function decisionVisibleText(input: DecisionInput) {
     const copy = fatigueCardCopy(input);
     return [copy.tag, copy.headline, copy.fix, copy.current, copy.proposed, copy.fixed, "Approve new version", "Decline", "Later"].join(" ");
   }
+  if (input.type === "ad_fatigue" || input.type === "stackadapt" || input.type === "business_profile") {
+    return [input.title, input.summary, input.rationale, "Yes", "No"].join(" ");
+  }
   return [input.title, input.summary, "Approve", "Decline", "Later", "Show evidence"].join(" ");
 }
 
@@ -164,11 +170,46 @@ export function decisionIsOpen(card: DecisionInput, now: Date) {
   return false;
 }
 
-export function visibleDecisionCards<T extends { type: string; metric: string }>(
+const RECOMMEND_ONLY = new Set(["ad_fatigue", "stackadapt", "business_profile"]);
+
+export function inboxMeta(evidence: unknown) {
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
+    return { assigneeUserId: null as string | null, confidence: null as number | null, action: null as string | null };
+  }
+  const row = evidence as { assigneeUserId?: unknown; confidence?: unknown; action?: unknown };
+  const confidence = typeof row.confidence === "number" && Number.isFinite(row.confidence) ? row.confidence : null;
+  return {
+    assigneeUserId: typeof row.assigneeUserId === "string" && row.assigneeUserId ? row.assigneeUserId : null,
+    confidence,
+    action: typeof row.action === "string" ? row.action : null,
+  };
+}
+
+export function visibleDecisionCards<T extends { type: string; metric: string; assigneeUserId?: string | null }>(
   cards: T[],
-  input: { seesCost: boolean; monitor: boolean; fatigue: boolean; pacing: boolean },
+  input: {
+    seesCost: boolean;
+    monitor: boolean;
+    fatigue: boolean;
+    pacing: boolean;
+    adFatigue?: boolean;
+    stackAdapt?: boolean;
+    gbp?: boolean;
+    userId?: string | null;
+    isSuperAdmin?: boolean;
+  },
 ) {
   return cards.filter((card) => {
+    if (RECOMMEND_ONLY.has(card.type)) {
+      const enabled =
+        (card.type === "ad_fatigue" && input.adFatigue) ||
+        (card.type === "stackadapt" && input.stackAdapt) ||
+        (card.type === "business_profile" && input.gbp);
+      if (!enabled) return false;
+      if (!input.seesCost && COST_DECISION_METRICS.has(card.metric)) return false;
+      if (input.isSuperAdmin) return true;
+      return Boolean(input.userId && card.assigneeUserId && card.assigneeUserId === input.userId);
+    }
     if (card.type === "creative_fatigue") {
       if (!input.fatigue) return false;
       if (!input.seesCost && COST_DECISION_METRICS.has(card.metric)) return false;
@@ -183,7 +224,7 @@ export function visibleDecisionCards<T extends { type: string; metric: string }>
 
 export function batchApproveAllowed(cards: { type: string; tier: string }[]) {
   if (!cards.length) return { ok: false, reason: "Select at least one decision." };
-  if (cards.some((card) => card.type === "budget_change" || card.type === "pacing" || card.type === "creative_fatigue")) {
+  if (cards.some((card) => card.type === "budget_change" || card.type === "pacing" || card.type === "creative_fatigue" || RECOMMEND_ONLY.has(card.type))) {
     return { ok: false, reason: "Budget cards are not included in a batch." };
   }
   const type = cards[0]?.type;

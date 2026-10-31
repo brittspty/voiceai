@@ -122,7 +122,13 @@ export async function decideMarketingRecommendation(formData: FormData) {
       ? "waiting"
       : rec.type === "creative_fatigue" && choice === "accept"
         ? "queued"
-        : reason || choice;
+        : rec.type === "ad_fatigue" || rec.type === "stackadapt" || rec.type === "business_profile"
+          ? choice === "accept"
+            ? "yes"
+            : choice === "decline"
+              ? "no"
+              : choice
+          : reason || choice;
   await prisma.recommendation.update({
     where: { id: rec.id },
     data: {
