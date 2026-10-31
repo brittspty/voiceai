@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { speedToLeadEnabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { appHomePath } from "@/lib/public-routing";
 import { loadSpeedLead } from "@/lib/marketing/speed-to-lead-store";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default async function SpeedLeadPage({ params }: { params: Promise<{ id: 
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
   if (access.kind === "client_viewer") redirect("/marketing/client");
-  if (access.kind === "none") redirect("/");
+  if (access.kind === "none") redirect(appHomePath());
   if (!speedToLeadEnabled()) redirect("/marketing/speed-to-lead");
   const { id } = await params;
   const loaded = await loadSpeedLead(id);

@@ -899,6 +899,16 @@ model AccessRequest {
   createdAt DateTime @default(now())
 }
 
+// Homepage demo requests. Stored only. Nothing is emailed until a destination is chosen.
+model HomepageContact {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  company   String   @default("")
+  message   String
+  createdAt DateTime @default(now())
+}
+
 model MarketingRawRecord {
   id          String     @id @default(cuid())
   workspaceId String     @default("org")

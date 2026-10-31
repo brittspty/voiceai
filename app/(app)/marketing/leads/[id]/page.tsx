@@ -8,6 +8,7 @@ import { markAudience } from "@/lib/marketing/lead-score/permissions";
 import { leadScopeFor } from "@/lib/marketing/lead-score/scope";
 import { getLeadRow } from "@/lib/marketing/lead-score/store";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { appHomePath } from "@/lib/public-routing";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
   if (access.kind === "client_viewer") redirect("/marketing/client");
-  if (access.kind === "none") redirect("/");
+  if (access.kind === "none") redirect(appHomePath());
   if (!leadScoringEnabled()) {
     return <PageTitle title="Lead" subtitle="Lead quality scoring is off." />;
   }

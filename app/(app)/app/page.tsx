@@ -4,9 +4,10 @@ import { HomeDashboard } from "@/components/home-dashboard";
 import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
 import { jarvisUiV2Enabled } from "@/lib/marketing/config";
-import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { listHomeWorkspaces, loadHome } from "@/lib/marketing/home-query";
+import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { one, type SP } from "@/lib/params";
+import { appHomePath } from "@/lib/public-routing";
 
 export const metadata = { title: "Home" };
 
@@ -24,5 +25,5 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     loadHome({ access, requestedId: requested }),
     listHomeWorkspaces(access),
   ]);
-  return <HomeDashboard model={model} choices={choices.map((row) => ({ id: row.id, name: row.name }))} />;
+  return <HomeDashboard homeHref={appHomePath()} model={model} choices={choices.map((row) => ({ id: row.id, name: row.name }))} />;
 }

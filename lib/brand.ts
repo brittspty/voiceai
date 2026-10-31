@@ -15,10 +15,10 @@ export const BRAND_FONT = brandTokens.font.family;
 export const BRAND_MONO = brandTokens.font.mono;
 export const PLACEHOLDER_BRAND_COLOR = brandTokens.light.brand;
 /** Dark surfaces, including the ink sidebar. */
-export const LOGO_ON_DARK = "/brand/specificity-logo-reversed.png";
+export const LOGO_ON_DARK = brandTokens.logo.reversed;
 /** Light surfaces: mobile header, login, share, reports. */
-export const LOGO_ON_LIGHT = "/brand/specificity-logo-full.png";
-export const LOGO_MARK = "/brand/specificity-mark.png";
+export const LOGO_ON_LIGHT = brandTokens.logo.full;
+export const LOGO_MARK = brandTokens.logo.src;
 export const PLACEHOLDER_LOGO_URL = LOGO_ON_DARK;
 
 /** Color stored by older seeds before the Specificity placeholder existed. */

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
+import { loginNextField, postLoginPath } from "@/lib/public-routing";
 import { signToken, SESSION_COOKIE } from "@/lib/session-token";
 
 const attempts = new Map<string, { n: number; at: number }>();
@@ -62,8 +63,8 @@ export async function POST(request: Request) {
   });
   const token = await signToken({ kind: "session", sid: session.id, role: user.role, exp: Math.floor(session.expiresAt.getTime() / 1000) });
   await audit({ id: user.id, name: user.name }, "Signed in", { type: "session", id: session.id, label: user.email });
-  const home = user.role === "client_viewer" ? "/marketing/client" : "/";
-  const res = form ? NextResponse.redirect(new URL(home, originOf(request)), 303) : NextResponse.json({ ok: true });
+  const home = postLoginPath(user.role);
+  const res = form ? NextResponse.redirect(new URL(home, originOf(request)), 303) : NextResponse.json({ ok: true, ...loginNextField(user.role) });
   res.cookies.set(SESSION_COOKIE, token, cookie(token));
   return res;
 }
