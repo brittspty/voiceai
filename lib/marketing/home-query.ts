@@ -13,6 +13,7 @@ import {
   speedToLeadEnabled,
   type Env,
 } from "./config";
+import { presentWithoutCost } from "./client-view";
 import { resultCounts } from "./dashboard-model";
 import { effectiveLabel } from "./lead-score/summary";
 import { assembleHome, homeFeatures, type HomeFeature, type HomeMetric, type HomeModel, type HomeWorkspace } from "./home-dashboard";
@@ -47,7 +48,7 @@ async function countEach(ids: string[], read: (workspaceId: string) => Promise<n
  * Every other role is limited to their own id before any other table is read.
  */
 export async function listHomeWorkspaces(access: MarketingAccess): Promise<HomeWorkspace[]> {
-  if (access.kind === "super_admin" || access.kind === "account_manager") {
+  if (access.kind === "super_admin" || access.kind === "all_clients_viewer" || access.kind === "account_manager") {
     const rows = await prisma.workspace.findMany({ orderBy: { name: "asc" } });
     if (rows.length) return rows;
     const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
@@ -140,8 +141,9 @@ export async function loadFeatureCards(input: {
 
 export async function loadHome(input: { access: MarketingAccess; requestedId?: string | null; now?: Date; env?: Env }): Promise<HomeModel> {
   const env = input.env ?? process.env;
-  const seesCost = input.access.kind === "super_admin" || input.access.kind === "account_manager";
-  const canPickClient = seesCost;
+  const rollsUp = input.access.kind === "super_admin" || input.access.kind === "all_clients_viewer" || input.access.kind === "account_manager";
+  const seesCost = rollsUp && input.access.seesCost;
+  const canPickClient = rollsUp;
   const known = await listHomeWorkspaces(input.access);
   const scope = homeScope({
     roleKind: input.access.kind,
@@ -223,13 +225,16 @@ export async function loadHome(input: { access: MarketingAccess; requestedId?: s
     };
   }
 
-  return assembleHome({
-    scope,
-    showMoney: seesCost,
-    canPickClient,
-    workspaces,
-    metrics,
-    features,
-    voice,
-  });
+  return presentWithoutCost(
+    assembleHome({
+      scope,
+      showMoney: seesCost,
+      canPickClient,
+      workspaces,
+      metrics,
+      features,
+      voice,
+    }),
+    seesCost,
+  );
 }

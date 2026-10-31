@@ -139,6 +139,40 @@ export function collectKeys(value: unknown, keys: string[] = []): string[] {
   return keys;
 }
 
+const VIEW_COST_KEY = /spend|budget|cpc|cpm|cpa|cpl|roas|cost|revenue|overpace|paceratio|conversionvalue|currency/i;
+const VIEW_COST_TEXT = /\$|\b(spend|budgets?|cpc|cpm|cpa|cpl|roas|revenue|costs?)\b/i;
+
+function isEmptyObject(value: unknown) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && Object.keys(value as object).length === 0);
+}
+
+/** Drops spend, budgets, and cost metrics. Client names such as "Gulf Coast" stay. */
+export function stripClientViewCost<T>(value: T): T {
+  return walkCost(value) as T;
+}
+
+function walkCost(value: unknown): unknown {
+  if (typeof value === "string") return VIEW_COST_TEXT.test(value) ? undefined : value;
+  if (Array.isArray(value)) {
+    return value.map(walkCost).filter((item) => item !== undefined && !isEmptyObject(item));
+  }
+  if (!value || typeof value !== "object") return value;
+  const next: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (VIEW_COST_KEY.test(key)) continue;
+    const cleaned = walkCost(child);
+    if (cleaned === undefined) continue;
+    next[key] = cleaned;
+  }
+  return next;
+}
+
+/** Cost-hidden roles get the stripped payload. Super admins and account managers pass through. */
+export function presentWithoutCost<T>(value: T, seesCost: boolean): T {
+  if (seesCost) return value;
+  return stripClientViewCost(value);
+}
+
 export function forbiddenClientKeys(value: unknown) {
   return collectKeys(value).filter((key) => FORBIDDEN_KEY.test(key));
 }

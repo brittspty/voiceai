@@ -6,7 +6,11 @@ export type HomeScope =
   | { kind: "one"; workspaceId: string }
   | { kind: "none" };
 
-/** Super admins and account managers may roll up every client. Everyone else is one workspace. */
+/** Super admins and all-clients viewers see every known client. Account managers may roll up the clients they were given. */
+export function seesEveryClient(kind: string) {
+  return kind === "super_admin" || kind === "all_clients_viewer";
+}
+
 export function homeScope(input: {
   roleKind: MarketingAccess["kind"];
   workspaceId: string;
@@ -15,7 +19,7 @@ export function homeScope(input: {
 }): HomeScope {
   const known = [...new Set(input.knownIds.map((id) => id.trim()).filter(Boolean))];
   const own = input.workspaceId.trim();
-  if (input.roleKind === "super_admin" || input.roleKind === "account_manager") {
+  if (seesEveryClient(input.roleKind) || input.roleKind === "account_manager") {
     if (input.requestedId) {
       const requested = input.requestedId.trim();
       if (!requested || !known.includes(requested)) return { kind: "none" };

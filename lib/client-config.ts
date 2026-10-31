@@ -1,6 +1,8 @@
+import { AIS2L_NAME } from "./brand/names";
+
 export type Env = Record<string, string | undefined>;
 
-export const PRODUCT_NAME = "VoiceOps";
+export const DEFAULT_ORG_SUBTITLE = AIS2L_NAME;
 export const DEFAULT_BRAND_COLOR = "#FF5800";
 export const DEFAULT_MARK = "S";
 export const DEFAULT_TIMEZONE = "America/New_York";
@@ -122,7 +124,7 @@ export function clientConfig(env: Env = process.env): ClientConfig {
   const offices = parseOffices(env.SEED_OFFICES, timezone);
   return {
     companyName,
-    subtitle: text(env, "SEED_ORG_SUBTITLE", "Voice Ops"),
+    subtitle: text(env, "SEED_ORG_SUBTITLE", DEFAULT_ORG_SUBTITLE),
     agentName,
     timezone,
     brandColor: brandColorOrDefault(env.SEED_BRAND_COLOR),

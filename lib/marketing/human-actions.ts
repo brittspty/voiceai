@@ -8,12 +8,13 @@ import { denyAccess } from "../deny";
 import { prisma } from "../db";
 import { setCampaignBudget } from "./budget";
 import { prismaBudgetStore } from "./budget-store";
-import { passwordIssues } from "./access";
-import { clientViewersEnabled } from "./config";
+import { canApproveMarketing, passwordIssues } from "./access";
+import { clientViewersEnabled, skillApprovalFanoutEnabled } from "./config";
 import { loadMarketingAccess } from "./queries";
 import { decideRecommendation } from "./recommendations";
 import type { Prisma } from "@prisma/client";
 import { assertCanCreateShareLink, defaultShareExpiry, hashPasscode, newShareToken } from "./share-link";
+import { skillDecisionRecord } from "./skill-approval";
 import { OFFERED_SKILL, skillIsSafe } from "./skills";
 import { WORKSPACE_ID } from "./types";
 
@@ -43,7 +44,7 @@ export async function decideMarketingRecommendation(formData: FormData) {
   const decision = String(formData.get("decision") || "dismiss");
   const rec = await prisma.recommendation.findUnique({ where: { id } });
   if (!rec) throw new Error("That suggestion was not found.");
-  if (access.kind === "client_viewer" || access.kind === "none" || (!access.seesAlerts && access.kind !== "account_manager")) {
+  if (access.kind === "all_clients_viewer" || access.kind === "client_viewer" || access.kind === "none" || (!access.seesAlerts && access.kind !== "account_manager")) {
     denyAccess();
   }
   if (rec.type === "pacing" && (!access.seesCost || (access.kind !== "super_admin" && access.kind !== "account_manager"))) {
@@ -88,6 +89,17 @@ export async function decideMarketingRecommendation(formData: FormData) {
     revalidatePath("/marketing");
     return;
   }
+  if (decision === "pause") {
+    if (rec.type !== "creative_fatigue") throw new Error("Only a tired ad can be paused from this card.");
+    if (!canApproveMarketing(access)) denyAccess();
+    await prisma.recommendation.update({
+      where: { id: rec.id },
+      data: { status: "declined", decidedById: user.id, decidedAt: new Date(), decisionNote: "pause" },
+    });
+    await audit(user, "Answered pause on a tired ad", { type: "recommendation", id: rec.id, label: rec.title });
+    revalidatePath("/marketing");
+    return;
+  }
   const choice = decision === "accept" || decision === "decline" ? decision : "dismiss";
   const reason = String(formData.get("reason") || "");
   const result = await decideRecommendation({
@@ -111,7 +123,13 @@ export async function decideMarketingRecommendation(formData: FormData) {
       ? "waiting"
       : rec.type === "creative_fatigue" && choice === "accept"
         ? "queued"
-        : reason || choice;
+        : rec.type === "ad_fatigue" || rec.type === "stackadapt" || rec.type === "business_profile"
+          ? choice === "accept"
+            ? "yes"
+            : choice === "decline"
+              ? "no"
+              : choice
+          : reason || choice;
   await prisma.recommendation.update({
     where: { id: rec.id },
     data: {
@@ -142,9 +160,16 @@ export async function decideSkillOffer(formData: FormData) {
   const access = await loadMarketingAccess(user);
   if (access.kind !== "super_admin") denyAccess();
   if (!skillIsSafe(OFFERED_SKILL)) throw new Error("This skill cannot be added.");
-  const choice = String(formData.get("choice") || "no");
+  const choice = String(formData.get("choice") || "no") === "yes" ? "yes" : "no";
   await audit(user, choice === "yes" ? "Added a skill" : "Skipped a skill", { type: "skill", label: OFFERED_SKILL.name });
+  if (skillApprovalFanoutEnabled()) {
+    const record = skillDecisionRecord({ userId: user.id, choice });
+    await prisma.skillDecision.create({
+      data: { userId: record.userId, skillName: record.skillName, choice: record.choice },
+    });
+  }
   revalidatePath("/marketing/skills");
+  revalidatePath("/marketing/inbox");
 }
 
 export async function createShareLink(input: { label?: string; expiresAt?: string | null; passcode?: string | null; snapshot?: Prisma.InputJsonValue | null }) {

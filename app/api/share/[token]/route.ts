@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { stripForAudience } from "@/lib/marketing/channels/cost-strip";
 import { clientShareCsv, reopenClientReport } from "@/lib/marketing/client-view";
 import { reportsV2Enabled } from "@/lib/marketing/config";
 import { buildReportPdf } from "@/lib/marketing/reports/pdf";
@@ -58,7 +59,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
     }
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
-  const payload = await loadClientPerformance(org?.name || "Performance", { workspaceId: link.workspaceId, adAccountIds: "all" });
+  const payload = stripForAudience(await loadClientPerformance(org?.name || "Performance", { workspaceId: link.workspaceId, adAccountIds: "all" }), "share");
   if (isExport) {
     return shareResponse(new NextResponse(clientShareCsv(payload), { headers: { "Content-Type": "text/csv; charset=utf-8" } }));
   }
