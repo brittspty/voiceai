@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { collectsCostKeys } from "../channels/cost-strip";
 import { resolutionDataEnabled } from "../config";
-import { rateBand, readResolution } from "./resolution";
+import { classifyPlatforms, rateBand, readResolution, withIdentifier } from "./resolution";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
 const COST = ["cpm", "spend", "cpl", "cpa", "roas", "dataCostCpm"];
@@ -32,9 +32,21 @@ test("the staff summary matches the example and includes The Trade Desk as a pla
   const body = result.body;
   assert.equal(body.title, "Resolution Data across all audiences");
   assert.equal(body.uploaded, 5_030_000);
-  assert.deepEqual(body.parts.map((part) => part.id), ["maid", "email", "phone", "ip"]);
+  assert.deepEqual(body.parts.map((part) => part.id), ["maid", "email", "phone", "ipv4", "ipv6"]);
+  assert.deepEqual(body.parts.map((part) => part.label), [
+    "MAID (mobile ad ID)",
+    "Hashed email",
+    "Phone",
+    "IPv4 / household",
+    "IPv6 / household",
+  ]);
   assert.equal(body.parts.reduce((sum, part) => sum + part.uploaded, 0), body.uploaded);
+  assert.equal(body.parts.reduce((sum, part) => sum + part.matched, 0), body.matchedAny);
+  assert.equal(body.parts.reduce((sum, part) => sum + part.unmatched, 0), body.unmatched);
   assert.deepEqual(body.platforms.map((row) => row.label), ["Meta", "Google", "StackAdapt", "The Trade Desk (other)"]);
+  for (const id of ["meta", "google_ads", "stackadapt"]) {
+    assert.equal(body.platforms.find((row) => row.id === id)?.placeholder, false, id);
+  }
   assert.equal(body.platforms.find((row) => row.id === "trade_desk")?.placeholder, true);
   assert.equal(body.platforms.find((row) => row.id === "trade_desk")?.percent, 27);
   assert.ok(body.bySource.some((row) => row.label === "Vendor A"));
@@ -76,10 +88,38 @@ test("client and share resolution drops vendor identity and cost and stays on th
   if (gulf.ok) {
     assert.equal(gulf.body.bySource[0]?.label, "Firmographic data source");
     assert.equal(gulf.body.uploaded, 80_000);
+    assert.deepEqual(gulf.body.parts.map((part) => part.id), ["maid", "email", "phone", "ipv4", "ipv6"]);
+    assert.equal(gulf.body.parts.reduce((sum, part) => sum + part.uploaded, 0), 80_000);
+    assert.equal(gulf.body.parts.reduce((sum, part) => sum + part.matched, 0), gulf.body.matchedAny);
+    assert.equal(gulf.body.platforms.every((row) => row.placeholder === false), true);
     assert.equal(/vendor/i.test(JSON.stringify(gulf.body)), false);
   }
   const leaked = readResolution({ reader: "client", ownAccountId: "org", sourceId: "vendor-a" });
   assert.equal(leaked.ok, false);
+});
+
+test("identifier types and platforms stay open for later additions", () => {
+  const result = readResolution({ reader: "staff" });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const extended = withIdentifier(result.body.parts, {
+    id: "address",
+    label: "Postal address",
+    short: "addresses",
+    uploaded: 10,
+    matched: 4,
+    unmatched: 6,
+    percent: 40,
+  });
+  assert.equal(extended.length, result.body.parts.length + 1);
+  assert.equal(extended.at(-1)?.id, "address");
+  const rows = classifyPlatforms([
+    { id: "meta", label: "Meta" },
+    { id: "google_ads", label: "Google" },
+    { id: "stackadapt", label: "StackAdapt" },
+    { id: "linkedin", label: "LinkedIn" },
+  ]);
+  assert.deepEqual(rows.map((row) => row.placeholder), [false, false, false, true]);
 });
 
 test("resolution screens make no outbound call", () => {

@@ -84,7 +84,7 @@ export function ResolutionScreen({
         <article>
           <span>Records uploaded</span>
           <b className="ad-mono">{formatCount(report.uploaded)}</b>
-          <span className="ad-prov">MAIDs {formatCount(report.parts[0]?.uploaded || 0)} · emails {formatCount(report.parts[1]?.uploaded || 0)} · phones {formatCount(report.parts[2]?.uploaded || 0)} · IP/household {formatCount(report.parts[3]?.uploaded || 0)}</span>
+          <span className="ad-prov">{report.parts.map((part) => `${part.short} ${formatCount(part.uploaded)}`).join(" · ")}</span>
         </article>
         <article>
           <span>Matched (any platform)</span>
@@ -125,7 +125,7 @@ export function ResolutionScreen({
           <tbody>
             {report.platforms.map((row) => (
               <tr key={row.id}>
-                <th scope="row">{row.label}{row.placeholder ? " " : ""}</th>
+                <th scope="row">{row.label}{row.placeholder ? " · placeholder" : ""}</th>
                 <td className="ad-mono">{formatCount(row.sent)}</td>
                 <td className="ad-mono">{formatCount(row.matched)}</td>
                 <td className="ad-mono">{formatCount(row.unmatched)}</td>
@@ -137,7 +137,7 @@ export function ResolutionScreen({
         <div className="ad-cards">
           {report.platforms.map((row) => (
             <article key={row.id} className="ad-card">
-              <h3>{row.label}</h3>
+              <h3>{row.label}{row.placeholder ? " · placeholder" : ""}</h3>
               <dl>
                 <dt>Records sent</dt><dd>{formatCount(row.sent)}</dd>
                 <dt>Matched</dt><dd>{formatCount(row.matched)}</dd>
@@ -173,6 +173,19 @@ export function ResolutionScreen({
               ))}
             </tbody>
           </table>
+          <div className="ad-cards">
+            {report.parts.map((row) => (
+              <article key={row.id} className="ad-card">
+                <h3>{row.label}</h3>
+                <dl>
+                  <dt>Uploaded</dt><dd>{formatCount(row.uploaded)}</dd>
+                  <dt>Matched</dt><dd>{formatCount(row.matched)}</dd>
+                  <dt>Unmatched</dt><dd>{formatCount(row.unmatched)}</dd>
+                </dl>
+                <RateBar percent={row.percent} hold={rateBand(row.percent).hold} />
+              </article>
+            ))}
+          </div>
         </section>
         <section className="ad-grp" aria-labelledby="by-source">
           <h2 id="by-source">{mode === "client" ? "By data source type" : "By data source"}</h2>
@@ -198,6 +211,19 @@ export function ResolutionScreen({
               ))}
             </tbody>
           </table>
+          <div className="ad-cards">
+            {report.bySource.map((row) => (
+              <article key={row.id} className="ad-card">
+                <h3>{row.label}</h3>
+                <dl>
+                  <dt>{mode === "client" ? "Source type" : "Data source"}</dt><dd>{row.category}</dd>
+                  <dt>Uploaded</dt><dd>{formatCount(row.sent)}</dd>
+                  <dt>Matched</dt><dd>{formatCount(row.matched)}</dd>
+                </dl>
+                <RateBar percent={row.percent} hold={rateBand(row.percent).hold} />
+              </article>
+            ))}
+          </div>
         </section>
       </div>
       <section className="ad-grp" aria-labelledby="trend">

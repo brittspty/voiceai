@@ -28,6 +28,30 @@ export type RateRow = {
   placeholder?: boolean;
 };
 
+/** Confirmed platforms. Anything else is a placeholder until it is added here. */
+export const CONFIRMED_PLATFORMS = ["meta", "google_ads", "stackadapt"] as const;
+
+export type IdentifierPart = {
+  id: string;
+  label: string;
+  /** Short name used in the records-uploaded line. */
+  short: string;
+  uploaded: number;
+  matched: number;
+  unmatched: number;
+  percent: number;
+};
+
+export function classifyPlatforms<T extends { id: string }>(rows: T[]) {
+  const confirmed = new Set<string>(CONFIRMED_PLATFORMS);
+  return rows.map((row) => ({ ...row, placeholder: !confirmed.has(row.id) }));
+}
+
+/** Appends an identifier type. The list is not fixed at five. */
+export function withIdentifier(parts: IdentifierPart[], extra: IdentifierPart) {
+  return [...parts, extra];
+}
+
 export type ResolutionReport = {
   id: string;
   title: string;
@@ -39,7 +63,7 @@ export type ResolutionReport = {
   updated: string;
   definition: string;
   uploaded: number;
-  parts: { id: string; label: string; uploaded: number; matched: number; unmatched: number; percent: number }[];
+  parts: IdentifierPart[];
   matchedAny: number;
   unmatched: number;
   platforms: RateRow[];
@@ -52,19 +76,20 @@ export type ResolutionReport = {
   vendorId?: string;
 };
 
-const PARTS = [
-  { id: "maid", label: "MAID (mobile ad ID)", uploaded: 2_410_000, matched: 1_620_000, unmatched: 790_000, percent: 67 },
-  { id: "email", label: "Hashed email", uploaded: 1_100_000, matched: 720_000, unmatched: 380_000, percent: 65 },
-  { id: "phone", label: "Phone", uploaded: 640_000, matched: 330_000, unmatched: 310_000, percent: 52 },
-  { id: "ip", label: "IP / household", uploaded: 880_000, matched: 210_000, unmatched: 670_000, percent: 24 },
+const PARTS: IdentifierPart[] = [
+  { id: "maid", label: "MAID (mobile ad ID)", short: "MAIDs", uploaded: 2_410_000, matched: 1_620_000, unmatched: 790_000, percent: 67 },
+  { id: "email", label: "Hashed email", short: "emails", uploaded: 1_100_000, matched: 720_000, unmatched: 380_000, percent: 65 },
+  { id: "phone", label: "Phone", short: "phones", uploaded: 640_000, matched: 330_000, unmatched: 310_000, percent: 52 },
+  { id: "ipv4", label: "IPv4 / household", short: "IPv4/household", uploaded: 620_000, matched: 150_000, unmatched: 470_000, percent: 24 },
+  { id: "ipv6", label: "IPv6 / household", short: "IPv6/household", uploaded: 260_000, matched: 60_000, unmatched: 200_000, percent: 23 },
 ];
 
-const PLATFORMS: RateRow[] = [
+const PLATFORMS: RateRow[] = classifyPlatforms([
   { id: "meta", label: "Meta", sent: 5_030_000, matched: 3_220_000, unmatched: 1_810_000, percent: 64 },
   { id: "google_ads", label: "Google", sent: 5_030_000, matched: 2_460_000, unmatched: 2_570_000, percent: 49 },
   { id: "stackadapt", label: "StackAdapt", sent: 5_030_000, matched: 2_870_000, unmatched: 2_160_000, percent: 57 },
-  { id: "trade_desk", label: "The Trade Desk (other)", sent: 5_030_000, matched: 1_360_000, unmatched: 3_670_000, percent: 27, placeholder: true },
-];
+  { id: "trade_desk", label: "The Trade Desk (other)", sent: 5_030_000, matched: 1_360_000, unmatched: 3_670_000, percent: 27 },
+]);
 
 const SOURCES: (RateRow & { vendor: string; vendorId: string; vendorSegmentIds: string[]; clientLabel: string })[] = [
   { id: "1", vendor: "Vendor A", vendorId: "vnd_a", vendorSegmentIds: ["seg_a_1"], clientLabel: "Intent data source", label: "Vendor A", category: "Intent (B2C)", sent: 2_100_000, matched: 1_360_000, unmatched: 740_000, percent: 65 },
@@ -105,8 +130,8 @@ function harborReport(reader: "staff" | "client" | "share", sourcePublicId?: str
     ? staff ? `${source.vendor} · ${source.category}` : `${source.clientLabel} · ${source.category}`
     : staff ? "Resolution Data across all audiences" : "Resolution Data across your audiences";
   const why = staff
-    ? "This audience is under 30% on The Trade Desk (27%), so it is on hold there. IP / household IDs match at only 24% and make up 17% of the upload; Vendor D matches at 29%."
-    : "Your audience is under 30% on The Trade Desk (27%), so it is on hold there. IP / household IDs match at only 24% and make up 17% of the upload; Device and app data source matches at 29%.";
+    ? "This audience is under 30% on The Trade Desk (27%), so it is on hold there. IPv4 / household matches at 24% and IPv6 / household matches at 23%; Vendor D matches at 29%."
+    : "Your audience is under 30% on The Trade Desk (27%), so it is on hold there. IPv4 / household matches at 24% and IPv6 / household matches at 23%; Device and app data source matches at 29%.";
   const recommendation = staff
     ? "consider adding hashed emails for these records or rebuilding the audience with fewer IP-only records. Nothing changes until your team builds it in the data market."
     : "your Specificity team may suggest adding hashed emails for these records or rebuilding the audience with fewer IP-only records. Nothing changes until your Specificity team makes the change.";
@@ -139,8 +164,8 @@ function harborReport(reader: "staff" | "client" | "share", sourcePublicId?: str
     recommendation,
     workedOut: [
       "Inputs: records sent, matched counts, and the 30% hold line.",
-      "The Trade Desk is a placeholder platform. It matched 27%.",
-      "IP / household is 24% and about 17% of the upload.",
+      "The Trade Desk is a placeholder. Only Meta, Google, and StackAdapt are confirmed. It matched 27%.",
+      "IPv4 / household matches at 24%. IPv6 / household matches at 23%.",
       "Recommendation only. Nothing is paused, edited, or rebuilt.",
     ],
   };
@@ -162,18 +187,19 @@ function gulfReport(): ResolutionReport {
     definition: "Match rate = matched records ÷ records sent to that platform. Counts are de-duplicated per identifier type.",
     uploaded: 80_000,
     parts: [
-      { id: "maid", label: "MAID (mobile ad ID)", uploaded: 50_000, matched: 30_000, unmatched: 20_000, percent: 60 },
-      { id: "email", label: "Hashed email", uploaded: 20_000, matched: 12_000, unmatched: 8_000, percent: 60 },
-      { id: "phone", label: "Phone", uploaded: 8_000, matched: 4_000, unmatched: 4_000, percent: 50 },
-      { id: "ip", label: "IP / household", uploaded: 2_000, matched: 1_000, unmatched: 1_000, percent: 50 },
+      { id: "maid", label: "MAID (mobile ad ID)", short: "MAIDs", uploaded: 50_000, matched: 30_000, unmatched: 20_000, percent: 60 },
+      { id: "email", label: "Hashed email", short: "emails", uploaded: 20_000, matched: 12_000, unmatched: 8_000, percent: 60 },
+      { id: "phone", label: "Phone", short: "phones", uploaded: 6_000, matched: 3_000, unmatched: 3_000, percent: 50 },
+      { id: "ipv4", label: "IPv4 / household", short: "IPv4/household", uploaded: 2_400, matched: 1_200, unmatched: 1_200, percent: 50 },
+      { id: "ipv6", label: "IPv6 / household", short: "IPv6/household", uploaded: 1_600, matched: 800, unmatched: 800, percent: 50 },
     ],
     matchedAny: 47_000,
     unmatched: 33_000,
-    platforms: [
+    platforms: classifyPlatforms([
       { id: "meta", label: "Meta", sent: 80_000, matched: 48_000, unmatched: 32_000, percent: 60 },
       { id: "google_ads", label: "Google", sent: 80_000, matched: 40_000, unmatched: 40_000, percent: 50 },
       { id: "stackadapt", label: "StackAdapt", sent: 80_000, matched: 36_000, unmatched: 44_000, percent: 45 },
-    ],
+    ]),
     bySource: [
       { id: "1", label: "Firmographic data source", category: "Firmographic (B2B)", sent: 80_000, matched: 47_000, unmatched: 33_000, percent: 59 },
     ],
