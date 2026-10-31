@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { BRAND_TAGLINE, BRAND_WORDMARK, resolveBrandColor, resolveLogoUrl } from "@/lib/brand";
 import { prisma } from "@/lib/db";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
-import { inboxEnabled, leadScoringEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
+import { inboxEnabled, leadScoringEnabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
 import { getOrg } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       leadScoring={leadScoringEnabled()}
       showInbox={showInbox}
       unread={unread}
+      showSegments={segmentEngineEnabled()}
     >
       {children}
     </AppShell>

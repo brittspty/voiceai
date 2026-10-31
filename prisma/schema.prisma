@@ -2083,3 +2083,246 @@ model BusinessProfileSnapshot {
   @@unique([workspaceId, locationId, date])
   @@index([workspaceId, fetchedAt])
 }
+
+/// Dictionary overrides. The catalog module is the default. Fact tables stay on DailyMetric
+/// and the cross-channel model. This table does not duplicate them.
+model MetricDefinition {
+  id          String   @id @default(cuid())
+  workspaceId String
+  metricKey   String
+  definition  String   @default("")
+  formula     String   @default("")
+  benchmarks  Json     @default("{}")
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, metricKey])
+  @@index([workspaceId])
+}
+
+model IntakeSource {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  clientKey      String   @default("")
+  name           String
+  kind           String
+  audienceSource String
+  vendor         String   @default("")
+  listId         String   @default("")
+  trustTier      String
+  truthRole      String
+  mapping        Json     @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([workspaceId])
+}
+
+model IntakeKey {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  keyId        String
+  secretSealed String
+  secretHash   String
+  label        String    @default("")
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@unique([workspaceId, keyId])
+  @@index([workspaceId])
+}
+
+model IntakeBatch {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  sourceId        String
+  idempotencyKey  String
+  status          String
+  accepted        Int      @default(0)
+  rejected        Int      @default(0)
+  receivedAt      DateTime @default(now())
+
+  @@unique([workspaceId, sourceId, idempotencyKey])
+  @@index([workspaceId])
+}
+
+model IntakeRow {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  batchId        String
+  sourceId       String
+  externalId     String
+  audienceSource String
+  vendor         String   @default("")
+  listId         String   @default("")
+  trustTier      String
+  truthRole      String
+  status         String
+  reasons        String[] @default([])
+  verified       Boolean  @default(false)
+  fields         Json     @default("{}")
+  segmentKey     String   @default("")
+  subSegmentKey  String   @default("")
+  audienceKey    String   @default("")
+  createdAt      DateTime @default(now())
+
+  @@unique([workspaceId, sourceId, externalId])
+  @@index([workspaceId, batchId])
+}
+
+model RecommendationDriver {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  recommendationId String
+  sourceKind       String
+  sourceId         String   @default("")
+  metricKey        String
+  weight           Float
+  trustTier        String
+  truthRole        String
+  vendor           String   @default("")
+  listId           String   @default("")
+  createdAt        DateTime @default(now())
+
+  @@index([workspaceId, recommendationId])
+}
+
+model CoverageSnapshot {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  clientKey        String   @default("")
+  campaignId       String   @default("")
+  score            Int
+  explanation      String
+  freshness        Json
+  metricsCovered   Int
+  metricsTotal     Int
+  qualityPassRate  Float
+  computedAt       DateTime @default(now())
+
+  @@index([workspaceId, campaignId, computedAt])
+}
+
+model LearningConsent {
+  workspaceId          String
+  clientKey            String   @default("")
+  crossClientConsent   Boolean  @default(false)
+  updatedAt            DateTime @updatedAt
+
+  @@id([workspaceId, clientKey])
+}
+
+model SegmentEngineConfig {
+  id          String   @id @default(cuid())
+  workspaceId String
+  clientKey   String   @default("")
+  settings    Json
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, clientKey])
+}
+
+model Segment {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  clientKey      String   @default("")
+  key            String
+  name           String
+  audienceSource String
+  vendor         String   @default("")
+  listId         String   @default("")
+  action         String   @default("test")
+  createdAt      DateTime @default(now())
+
+  @@unique([workspaceId, clientKey, key])
+  @@index([workspaceId])
+}
+
+model SubSegment {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  clientKey      String   @default("")
+  segmentKey     String
+  key            String
+  name           String
+  attribute      String
+  attributeValue String
+  action         String   @default("test")
+  createdAt      DateTime @default(now())
+
+  @@unique([workspaceId, clientKey, segmentKey, key])
+  @@index([workspaceId, segmentKey])
+}
+
+model SegmentLineage {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  intakeRowId       String   @default("")
+  contactId         String   @default("")
+  conversionEventId String   @default("")
+  audienceSource    String
+  vendor            String   @default("")
+  listId            String   @default("")
+  intent            String   @default("")
+  geo               String   @default("")
+  demographics      String   @default("")
+  behavior          String   @default("")
+  segmentKey        String   @default("")
+  subSegmentKey     String   @default("")
+  audienceKey       String   @default("")
+  verified          Boolean  @default(false)
+  taggedAt          DateTime @default(now())
+
+  @@index([workspaceId, audienceKey])
+  @@index([workspaceId, listId])
+}
+
+model SegmentTest {
+  id             String          @id @default(cuid())
+  workspaceId    String
+  clientKey      String          @default("")
+  name           String
+  controlKind    String
+  controlListId  String
+  controlVendor  String
+  status         String          @default("still_learning")
+  startedAt      DateTime        @default(now())
+  createdAt      DateTime        @default(now())
+  arms           SegmentTestArm[]
+
+  @@index([workspaceId])
+}
+
+model SegmentTestArm {
+  id            String      @id @default(cuid())
+  workspaceId   String
+  testId        String
+  test          SegmentTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+  armKey        String
+  vendor        String
+  listId        String
+  subSegmentKey String      @default("")
+  role          String
+  successes     Int         @default(0)
+  trials        Int         @default(0)
+
+  @@unique([workspaceId, testId, armKey])
+  @@index([testId])
+}
+
+model SegmentDecision {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  clientKey    String    @default("")
+  type         String
+  status       String    @default("verified")
+  title        String
+  summary      String
+  vendor       String    @default("")
+  listId       String    @default("")
+  basedOn      String    @default("")
+  decisionNote String    @default("")
+  decidedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([workspaceId, createdAt])
+}

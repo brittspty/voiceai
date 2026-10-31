@@ -270,6 +270,31 @@ export function decideGoogleBusinessProfile(env: Env): GoogleBusinessDecision {
   return { action: "live", clientId, clientSecret, refreshToken, accountId, locationIds };
 }
 
+/** Off unless MARKETING_DATA_INTAKE is explicitly on. */
+export function dataIntakeEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_DATA_INTAKE");
+}
+
+/** Off unless MARKETING_METRIC_DICTIONARY is explicitly on. */
+export function metricDictionaryEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_METRIC_DICTIONARY");
+}
+
+/** Off unless MARKETING_PROVENANCE is explicitly on. */
+export function provenanceEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_PROVENANCE");
+}
+
+/** Off unless MARKETING_COVERAGE is explicitly on. */
+export function coverageScoreEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_COVERAGE");
+}
+
+/** Off unless SEGMENT_ENGINE is explicitly on. */
+export function segmentEngineEnabled(env: Env = process.env) {
+  return flagOn(env, "SEGMENT_ENGINE");
+}
+
 export function adLibraryCountries(env: Env = process.env) {
   const parts = (env.META_AD_LIBRARY_COUNTRIES || "US")
     .split(",")

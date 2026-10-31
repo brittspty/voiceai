@@ -26,14 +26,14 @@ export function conversionAccess(user: { id: string; role: string; email: string
   };
 }
 
-export function googleOAuthStartUrl(env: Env, redirectUri: string, state: string) {
+export function googleOAuthStartUrl(env: Env, redirectUri: string, state: string, scope = "https://www.googleapis.com/auth/adwords") {
   const clientId = (env.GOOGLE_ADS_CLIENT_ID || "").trim();
   if (!clientId || !redirectUri || !state) return null;
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", "https://www.googleapis.com/auth/adwords");
+  url.searchParams.set("scope", scope);
   url.searchParams.set("access_type", "offline");
   url.searchParams.set("prompt", "consent");
   url.searchParams.set("include_granted_scopes", "false");

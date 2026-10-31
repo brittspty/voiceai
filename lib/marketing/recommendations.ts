@@ -101,7 +101,16 @@ export async function decideRecommendation(input: {
     throw new Error("Only a confirmed recommendation can be decided.");
   }
   if (input.decision === "accept") {
-    if (input.recommendation.type === "pacing" || input.recommendation.type === "creative_fatigue" || input.recommendation.type === "ad_fatigue" || input.recommendation.type === "stackadapt" || input.recommendation.type === "business_profile") {
+    if (
+      input.recommendation.type === "pacing" ||
+      input.recommendation.type === "creative_fatigue" ||
+      input.recommendation.type === "ad_fatigue" ||
+      input.recommendation.type === "stackadapt" ||
+      input.recommendation.type === "business_profile" ||
+      input.recommendation.type === "segment_scale" ||
+      input.recommendation.type === "segment_test" ||
+      input.recommendation.type === "segment_cut"
+    ) {
       return { status: "accepted" as const, budgetWrite: "none" as const };
     }
     if (input.recommendation.type === "budget_change") {
