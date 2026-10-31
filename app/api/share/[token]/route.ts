@@ -7,6 +7,7 @@ import { reportsV2Enabled } from "@/lib/marketing/config";
 import { buildReportPdf } from "@/lib/marketing/reports/pdf";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
+import { attachShareCtv } from "@/lib/marketing/ctv/sync";
 import { hashShareToken, SHARE_PASS_COOKIE, shareAccessDecision, shareHttpStatus, shareLinkState } from "@/lib/marketing/share-link";
 
 function shareResponse(response: NextResponse) {
@@ -63,5 +64,5 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   if (isExport) {
     return shareResponse(new NextResponse(clientShareCsv(payload), { headers: { "Content-Type": "text/csv; charset=utf-8" } }));
   }
-  return shareResponse(NextResponse.json(payload));
+  return shareResponse(NextResponse.json(await attachShareCtv(payload)));
 }
