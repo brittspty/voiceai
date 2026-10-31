@@ -1,7 +1,9 @@
 import { headers } from "next/headers";
+import { LandingPage as JarvisLanding } from "@/components/jarvis/pages";
 import { LandingPagesView } from "@/components/landing-pages-view";
 import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
+import { jarvisUiV2Enabled } from "@/lib/marketing/config";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
 import { loadMarketingAccess, recordClientView } from "@/lib/marketing/queries";
 import { loadLandingScreen } from "@/lib/marketing/pages/store";
@@ -10,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LandingPagesPage() {
   const user = await requireUser();
+  if (jarvisUiV2Enabled()) return <JarvisLanding />;
   const access = await loadMarketingAccess(user);
   if (access.kind === "none" || (access.kind === "client_viewer" && !access.workspaceId)) return <NoAccess title="Landing pages" />;
   if (access.kind === "client_viewer") {

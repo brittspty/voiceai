@@ -2,11 +2,13 @@ import { digestDeliveryEnabled, digestEnabled, type Env } from "./config";
 
 export type DigestItem = { id: string; title: string; summary: string; accountId: string; workspace?: boolean };
 
+export type DigestDecisionItem = { id: string; title: string; reasoning: string; kind: string; summary: string };
+
 export type DigestDraft = {
   userId: string;
   periodStart: Date;
   periodEnd: Date;
-  payload: { alerts: DigestItem[]; recommendations: DigestItem[]; notes?: string[] };
+  payload: { alerts: DigestItem[]; recommendations: DigestItem[]; notes?: string[]; decisions?: DigestDecisionItem[] };
   delivery: "not_sent";
 };
 
@@ -25,6 +27,8 @@ export function buildManagerDigest(input: {
   periodStart: Date;
   periodEnd: Date;
   notes?: string[];
+  decisions?: { id: string; title: string; reasoning: string; kind: string; assigneeId: string; accountId: string }[];
+  seesAllDecisions?: boolean;
   env?: Env;
 }): DigestDraft | null {
   const env = input.env ?? process.env;
@@ -33,14 +37,22 @@ export function buildManagerDigest(input: {
   const alerts = input.alerts.filter(allowed);
   const recommendations = input.recommendations.filter(allowed);
   const notes = (input.notes ?? []).map((note) => note.trim()).filter(Boolean);
-  if (!alerts.length && !recommendations.length && !notes.length) return null;
+  const decisions = (input.decisions ?? [])
+    .filter((item) => input.seesAllDecisions || item.assigneeId === input.userId)
+    .map((item) => ({ id: item.id, title: item.title, reasoning: item.reasoning, kind: item.kind, summary: item.reasoning }));
+  if (!alerts.length && !recommendations.length && !notes.length && !decisions.length) return null;
   const plan = digestDeliveryPlan(env);
   if (plan.send) throw new Error("Digest delivery must not send.");
   return {
     userId: input.userId,
     periodStart: input.periodStart,
     periodEnd: input.periodEnd,
-    payload: notes.length ? { alerts, recommendations, notes } : { alerts, recommendations },
+    payload: {
+      alerts,
+      recommendations,
+      ...(notes.length ? { notes } : {}),
+      ...(decisions.length ? { decisions } : {}),
+    },
     delivery: "not_sent",
   };
 }

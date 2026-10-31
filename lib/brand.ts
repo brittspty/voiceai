@@ -11,10 +11,16 @@ export const PRODUCT_TAGLINE =
 export const BRAND_WORDMARK = "Specificity";
 export const BRAND_TAGLINE = "Identify. Engage. Convert.";
 
-/** Placeholder tokens until a workspace sets its own color and logo. */
+/** Official Specificity orange. Poppins is the UI face. IBM Plex Mono is only for small labels. */
 export const BRAND_FONT = "Poppins";
+export const BRAND_MONO = "IBM Plex Mono";
 export const PLACEHOLDER_BRAND_COLOR = "#FF5800";
-export const PLACEHOLDER_LOGO_URL = "/brand/specificity-logo-reversed.png";
+/** Dark surfaces, including the ink sidebar. */
+export const LOGO_ON_DARK = "/brand/specificity-logo-reversed.png";
+/** Light surfaces: mobile header, login, share, reports. */
+export const LOGO_ON_LIGHT = "/brand/specificity-logo-full.png";
+export const LOGO_MARK = "/brand/specificity-mark.png";
+export const PLACEHOLDER_LOGO_URL = LOGO_ON_DARK;
 
 /** Color stored by older seeds before the Specificity placeholder existed. */
 const UNSET_BRAND_COLOR = "#2563eb";
