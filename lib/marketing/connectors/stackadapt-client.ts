@@ -4,6 +4,8 @@
  * Mutations and subscriptions are refused before any network call.
  */
 
+import { assertNoAdBudgetWrite } from "./budget-lock";
+
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 export const STACKADAPT_ENDPOINT = "https://api.stackadapt.com/graphql";
@@ -104,6 +106,7 @@ export async function stackAdaptGraphql(input: {
   const query = input.query ?? STACKADAPT_DELIVERY_QUERY;
   const endpoint = assertStackAdaptEndpoint(input.endpoint ?? STACKADAPT_ENDPOINT);
   assertStackAdaptReadOnly(query);
+  assertNoAdBudgetWrite({ method: "POST", url: endpoint, body: { query, variables: input.variables ?? {} } });
   const apiKey = input.apiKey.trim();
   if (!apiKey) throw new StackAdaptApiError("STACKADAPT_API_KEY is empty");
   const fetchImpl = input.fetchImpl ?? fetch;

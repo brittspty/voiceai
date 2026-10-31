@@ -1,7 +1,7 @@
 -- Recommend-only ad fatigue, StackAdapt platform, and Business Profile snapshots.
 -- recommendationOnly is forced on. These tables do not record an ad write or a budget write.
 
-ALTER TYPE "AdPlatform" ADD VALUE 'stackadapt';
+ALTER TYPE "AdPlatform" ADD VALUE IF NOT EXISTS 'stackadapt';
 ALTER TYPE "RecommendationType" ADD VALUE 'ad_fatigue';
 ALTER TYPE "RecommendationType" ADD VALUE 'stackadapt';
 ALTER TYPE "RecommendationType" ADD VALUE 'business_profile';

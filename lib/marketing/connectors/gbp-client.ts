@@ -4,7 +4,8 @@
  * Reply, update, and delete URLs are refused before fetch.
  */
 
-import { redactGoogleSecrets, refreshGoogleAdsAccessToken, type FetchLike } from "./google-ads-client";
+import { assertNoAdBudgetWrite } from "./budget-lock";
+import { GOOGLE_ADS_TOKEN_URL, redactGoogleSecrets, refreshGoogleAdsAccessToken, type FetchLike } from "./google-ads-client";
 
 export type { FetchLike };
 
@@ -127,6 +128,7 @@ function dateParts(iso: string) {
 }
 
 async function businessGet(url: string, accessToken: string, fetchImpl: FetchLike, secrets: string[]) {
+  assertNoAdBudgetWrite({ method: "GET", url });
   assertBusinessProfileReadOnly("GET", url);
   let response: Response;
   try {
@@ -395,6 +397,16 @@ export async function pullBusinessProfileWithGoogleOAuth(input: {
 }) {
   const fetchImpl = input.fetchImpl ?? fetch;
   const secrets = [input.clientSecret, input.refreshToken, input.clientId].filter((value) => value.length >= 6);
+  assertNoAdBudgetWrite({
+    method: "POST",
+    url: GOOGLE_ADS_TOKEN_URL,
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: input.clientId,
+      client_secret: input.clientSecret,
+      refresh_token: input.refreshToken,
+    }),
+  });
   const accessToken = await refreshGoogleAdsAccessToken({
     clientId: input.clientId,
     clientSecret: input.clientSecret,
