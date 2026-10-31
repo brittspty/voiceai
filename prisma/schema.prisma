@@ -1927,3 +1927,173 @@ model LiftResult {
   @@index([workspaceId, testId, computedAt])
   @@index([testId])
 }
+
+// Audience library. Source is the top of the segment taxonomy.
+// platform_native is a legacy import value and is not a targeting arm.
+
+enum AudienceSourceKind {
+  data_market_maid
+  pixel_retargeting
+  crm_first_party
+  platform_native
+}
+
+enum AudiencePlatformKind {
+  meta
+  google_customer_match
+  tiktok
+  stackadapt
+  generic_dsp
+}
+
+enum MaidIdentifierType {
+  idfa
+  gaid
+  email_sha256
+  phone_sha256
+}
+
+enum AudienceRefreshCadence {
+  daily
+  weekly
+  monthly
+  quarterly
+}
+
+enum SegmentDimensionKind {
+  intent
+  geo
+  demographics
+  behavior
+}
+
+enum AudiencePushStatus {
+  pending
+  approved
+  declined
+}
+
+enum AudienceConversionStatus {
+  verified
+  unverified
+}
+
+model MaidAudience {
+  id              String                 @id @default(cuid())
+  workspaceId     String
+  name            String
+  source          AudienceSourceKind     @default(data_market_maid)
+  vendor          String
+  listId          String
+  acquisitionDate DateTime?              @db.Date
+  costAmount      Decimal?               @db.Decimal(18, 4)
+  costCurrency    String                 @default("USD")
+  consentBasis    String
+  refreshCadence  AudienceRefreshCadence
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  members         MaidIdentifier[]
+  tags            MaidAudienceTag[]
+  platformStats   AudiencePlatformStat[]
+  pushes          AudiencePush[]
+  pixelEvents     AudiencePixelEvent[]
+  conversions     AudienceConversion[]
+
+  @@unique([workspaceId, vendor, listId])
+  @@index([workspaceId])
+}
+
+model MaidIdentifier {
+  id           String             @id @default(cuid())
+  workspaceId  String
+  audienceId   String
+  audience     MaidAudience       @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  idType       MaidIdentifierType
+  hash         String
+  rawEncrypted String?
+  createdAt    DateTime           @default(now())
+
+  @@unique([audienceId, idType, hash])
+  @@index([workspaceId])
+}
+
+model MaidAudienceTag {
+  id          String               @id @default(cuid())
+  workspaceId String
+  audienceId  String
+  audience    MaidAudience         @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  dimension   SegmentDimensionKind
+  key         String
+  label       String
+
+  @@unique([audienceId, dimension, key])
+  @@index([workspaceId])
+}
+
+model AudiencePlatformStat {
+  id          String               @id @default(cuid())
+  workspaceId String
+  audienceId  String
+  audience    MaidAudience         @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  platform    AudiencePlatformKind
+  uploaded    Int                  @default(0)
+  matched     Int                  @default(0)
+  reach       Int                  @default(0)
+  spend       Decimal              @default(0) @db.Decimal(18, 4)
+  updatedAt   DateTime             @updatedAt
+
+  @@unique([audienceId, platform])
+  @@index([workspaceId])
+}
+
+model AudiencePush {
+  id            String               @id @default(cuid())
+  workspaceId   String
+  audienceId    String
+  audience      MaidAudience         @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  platform      AudiencePlatformKind
+  status        AudiencePushStatus   @default(pending)
+  payload       Json
+  manualSteps   String               @default("")
+  logLine       String               @default("")
+  requestedById String
+  decidedById   String?
+  decidedAt     DateTime?
+  undoUntil     DateTime?
+  createdAt     DateTime             @default(now())
+
+  @@index([workspaceId, status])
+  @@index([audienceId])
+}
+
+model AudiencePixelEvent {
+  id          String       @id @default(cuid())
+  workspaceId String
+  audienceId  String
+  audience    MaidAudience @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  visitorId   String
+  eventName   String
+  pageUrl     String       @default("")
+  occurredAt  DateTime     @default(now())
+
+  @@index([workspaceId, audienceId])
+  @@index([visitorId])
+}
+
+model AudienceConversion {
+  id          String                   @id @default(cuid())
+  workspaceId String
+  audienceId  String
+  audience    MaidAudience             @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  dedupeKey   String
+  kind        String                   @default("lead")
+  status      AudienceConversionStatus
+  reason      String                   @default("")
+  qualified   Boolean                  @default(false)
+  contactHash String                   @default("")
+  occurredAt  DateTime                 @default(now())
+
+  @@unique([workspaceId, audienceId, dedupeKey])
+  @@index([workspaceId, status])
+  @@index([audienceId])
+}

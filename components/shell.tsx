@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, BookOpen, FileText, Globe, LayoutDashboard, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer } from "lucide-react";
+import { Activity, BarChart3, BookOpen, FileText, Globe, LayoutDashboard, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
@@ -30,6 +30,7 @@ export function AppShell({
   mode,
   showSpeedToLead = false,
   leadScoring = false,
+  audienceLibrary = false,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
@@ -37,6 +38,7 @@ export function AppShell({
   mode: { testMode: boolean; agentName: string; wordmark: string; tagline: string };
   showSpeedToLead?: boolean;
   leadScoring?: boolean;
+  audienceLibrary?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -57,8 +59,10 @@ export function AppShell({
     if (href === "/") return pathname === "/";
     if (href === "/marketing/leads") return pathname === "/marketing/leads" || pathname.startsWith("/marketing/leads/");
     if (href === "/marketing/speed-to-lead") return pathname === "/marketing/speed-to-lead" || pathname.startsWith("/marketing/speed-to-lead/");
+    if (href === "/marketing/audiences/pixel") return pathname.startsWith("/marketing/audiences/pixel");
+    if (href === "/marketing/audiences") return pathname === "/marketing/audiences";
     if (href === "/marketing") {
-      return pathname === "/marketing" || (pathname.startsWith("/marketing/") && !pathname.startsWith("/marketing/leads") && !pathname.startsWith("/marketing/speed-to-lead"));
+      return pathname === "/marketing" || (pathname.startsWith("/marketing/") && !pathname.startsWith("/marketing/leads") && !pathname.startsWith("/marketing/speed-to-lead") && !pathname.startsWith("/marketing/audiences"));
     }
     const base = href === "/settings/calling" ? "/settings" : href;
     return pathname === href || pathname.startsWith(base);
@@ -66,6 +70,7 @@ export function AppShell({
   const extras = [
     ...(showSpeedToLead ? [{ href: "/marketing/speed-to-lead", label: "Speed-to-lead", icon: Timer }] : []),
     ...(leadScoring ? [{ href: "/marketing/leads", label: "Leads", icon: ListChecks }] : []),
+    ...(audienceLibrary ? [{ href: "/marketing/audiences", label: "Audiences", icon: Users }, { href: "/marketing/audiences/pixel", label: "Pixel tracking", icon: Activity }] : []),
   ];
   const staffNav = extras.length ? [...NAV.slice(0, 2), ...extras, ...NAV.slice(2)] : NAV;
 

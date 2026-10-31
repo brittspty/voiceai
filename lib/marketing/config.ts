@@ -183,6 +183,28 @@ export function dashboardsV2Enabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_DASHBOARDS_V2");
 }
 
+/** Off unless AUDIENCE_LIBRARY is explicitly on. MAID import, dry-run sync, and pixel tracking. */
+export function audienceLibraryEnabled(env: Env = process.env) {
+  return flagOn(env, "AUDIENCE_LIBRARY");
+}
+
+/**
+ * Off unless AUDIENCE_PUSH_ENABLED is explicitly on.
+ * Has no effect while the audience library is off. Default is dry-run logging.
+ */
+export function audiencePushEnabled(env: Env = process.env) {
+  return audienceLibraryEnabled(env) && flagOn(env, "AUDIENCE_PUSH_ENABLED");
+}
+
+/** Off unless AUDIENCE_RETAIN_RAW_MAIDS is explicitly on. Raw values are encrypted. */
+export function retainRawMaids(env: Env = process.env) {
+  return flagOn(env, "AUDIENCE_RETAIN_RAW_MAIDS");
+}
+
+export function audienceMaidKey(env: Env = process.env) {
+  return (env.AUDIENCE_MAID_KEY || "").trim();
+}
+
 export function amBudgetCapUsd(env: Env = process.env) {
   const parsed = Number(env.MARKETING_AM_BUDGET_CAP_USD ?? 500);
   if (!Number.isFinite(parsed) || parsed < 0) return 500;
