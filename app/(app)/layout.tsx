@@ -4,6 +4,7 @@ import { AppShell } from "@/components/shell";
 import { requireUser } from "@/lib/auth";
 import { BRAND_TAGLINE, BRAND_WORDMARK, resolveBrandColor, resolveLogoUrl } from "@/lib/brand";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
+import { loginAnalyticsEnabled } from "@/lib/login-analytics";
 import { leadScoringEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
 import { getOrg } from "@/lib/queries";
 import { appHomePath } from "@/lib/public-routing";
@@ -22,6 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showSpeedToLead={speedToLeadEnabled()}
       leadScoring={leadScoringEnabled()}
       homeHref={appHomePath()}
+      showPortfolio={loginAnalyticsEnabled() && (user.role === "super_admin" || user.role === "account_manager")}
     >
       {children}
     </AppShell>

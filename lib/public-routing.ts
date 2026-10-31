@@ -12,12 +12,14 @@ import { clientViewerBlock } from "./marketing/client-gate";
  * for workspace roles. Existing paths (/marketing, /calls, /settings, /api,
  * webhooks, OAuth callbacks) stay where they are. Deep links are not prefixed.
  *
- * After sign-in, with the switch on:
+ * After sign-in, with the public homepage on:
  * - client_viewer opens the client view
  * - super_admin and account_manager open the staff marketing view
  * - owner, admin, and viewer open /app
- * With the switch off, client_viewer still opens the client view and everyone
- * else still opens "/". There is one sign-in, not a second auth system.
+ * With the homepage off, client_viewer still opens the client view and everyone
+ * else still opens "/". LOGIN_ANALYTICS sends super admins and account managers
+ * to /portfolio instead, and leaves every client role on its own view.
+ * There is one sign-in, not a second auth system.
  */
 
 export type Env = Record<string, string | undefined>;
@@ -68,12 +70,24 @@ export function isHomepageContactPath(pathname: string) {
   return normalizePath(pathname) === "/api/homepage/contact";
 }
 
+export function loginAnalyticsEnabled(env: Env = process.env) {
+  return envEnabled(env.LOGIN_ANALYTICS);
+}
+
+/** Public aggregate for the sign-in panel. The handler returns 404 while the switch is off. */
+export function isLoginAnalyticsPath(pathname: string) {
+  return normalizePath(pathname) === "/api/public/login-analytics";
+}
+
+export const PORTFOLIO_PATH = "/portfolio";
+
 export function isLegacyPublic(pathname: string) {
   return LEGACY_PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix));
 }
 
 export function isPublicPath(pathname: string, env: Env) {
   if (isLegacyPublic(pathname)) return true;
+  if (isLoginAnalyticsPath(pathname)) return true;
   if (publicHomepageEnabled(env) && normalizePath(pathname) === "/") return true;
   if (publicHomepageEnabled(env) && isHomepageContactPath(pathname)) return true;
   if (demoWorkspaceEnabled(env) && isDemoPath(pathname)) return true;
@@ -86,15 +100,18 @@ export function appHomePath(env: Env = process.env) {
 
 export function postLoginPath(role: string | null | undefined, env: Env = process.env) {
   if (role === "client_viewer") return CLIENT_VIEW_PATH;
+  if (loginAnalyticsEnabled(env) && (role === "super_admin" || role === "account_manager")) return PORTFOLIO_PATH;
   if (!publicHomepageEnabled(env)) return "/";
   if (role === "super_admin" || role === "account_manager") return STAFF_VIEW_PATH;
   return APP_PATH;
 }
 
-/** Omitted while the public homepage is off so the sign-in page keeps its current destination. */
+/** Omitted while both switches are off so the sign-in page keeps its current destination. */
 export function loginNextField(role: string | null | undefined, env: Env = process.env): { next?: string } {
-  if (!publicHomepageEnabled(env)) return {};
-  return { next: postLoginPath(role, env) };
+  if (!publicHomepageEnabled(env) && !loginAnalyticsEnabled(env)) return {};
+  const next = postLoginPath(role, env);
+  if (!publicHomepageEnabled(env) && next === "/") return {};
+  return { next };
 }
 
 /** Next.js calls proxy with a fetch event. Tests pass a plain env object. */

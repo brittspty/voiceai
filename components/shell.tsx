@@ -31,6 +31,7 @@ export function AppShell({
   showSpeedToLead = false,
   leadScoring = false,
   homeHref = "/",
+  showPortfolio = false,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
@@ -39,6 +40,7 @@ export function AppShell({
   showSpeedToLead?: boolean;
   leadScoring?: boolean;
   homeHref?: string;
+  showPortfolio?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -59,6 +61,7 @@ export function AppShell({
     if (href === homeHref) return pathname === homeHref;
     if (href === "/marketing/leads") return pathname === "/marketing/leads" || pathname.startsWith("/marketing/leads/");
     if (href === "/marketing/speed-to-lead") return pathname === "/marketing/speed-to-lead" || pathname.startsWith("/marketing/speed-to-lead/");
+    if (href === "/portfolio") return pathname === "/portfolio";
     if (href === "/marketing") {
       return pathname === "/marketing" || (pathname.startsWith("/marketing/") && !pathname.startsWith("/marketing/leads") && !pathname.startsWith("/marketing/speed-to-lead"));
     }
@@ -69,7 +72,8 @@ export function AppShell({
     ...(showSpeedToLead ? [{ href: "/marketing/speed-to-lead", label: "Speed-to-lead", icon: Timer }] : []),
     ...(leadScoring ? [{ href: "/marketing/leads", label: "Leads", icon: ListChecks }] : []),
   ];
-  const staffNav = extras.length ? [...NAV.slice(0, 2), ...extras, ...NAV.slice(2)] : NAV;
+  const baseNav = extras.length ? [...NAV.slice(0, 2), ...extras, ...NAV.slice(2)] : NAV;
+  const staffNav = showPortfolio ? [{ href: "/portfolio", label: "Portfolio", icon: LayoutDashboard }, ...baseNav] : baseNav;
 
   const nav = (
     <div className="flex h-full flex-col">

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import bcrypt from "bcryptjs";
 import { PrismaClient, type CallOutcome, type Consent, type Prisma } from "@prisma/client";
 import { clientConfig, defaultKnowledge } from "../lib/client-config";
+import { ensureLoginAnalyticsDemo } from "./seed-login-analytics";
 import { plannedSeedUsers, plannedSuperAdmins, SAMPLE_ACTIVITY_ACTIONS, seedStartupLines } from "../lib/seed-plan";
 import { zonedTimeToUtc } from "../lib/time";
 import { buildTranscript } from "../lib/transcript";
@@ -69,6 +70,7 @@ async function ensureWorkspaces() {
 async function main() {
   await ensureSuperAdmins();
   await ensureWorkspaces();
+  await ensureLoginAnalyticsDemo(prisma);
   const existing = await prisma.org.findUnique({ where: { id: "org" } });
   if (existing) {
     console.log("Seed already applied. Workspace values stay as they are in the database.");

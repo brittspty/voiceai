@@ -49,6 +49,8 @@ const BLOCKED = [
   "/knowledge",
   "/docs",
   "/marketing",
+  "/portfolio",
+  "/api/portfolio",
   "/marketing/compare",
   "/marketing/skills",
   "/marketing/links",

@@ -132,3 +132,58 @@ export function brandTokenCss() {
   const font = `:root {\n  --font-sans: ${brandTokens.font.stack};\n}`;
   return `${block(":root", brandTokens.light)}\n${block(".dark", brandTokens.dark)}\n${font}`;
 }
+
+/**
+ * Dark Jarvis surfaces for the public login panel and the staff portfolio.
+ * Values live here so components keep reading CSS variables.
+ */
+export const analyticsTheme = {
+  brand: brandTokens.light.brand,
+  ink: brandTokens.light.ink,
+  bg: "#161314",
+  bg2: "#1E1A1B",
+  panel: "#231F20",
+  line: "#3A3435",
+  line2: "#2B2627",
+  text: "#F4F1EF",
+  text2: "#C9C3C0",
+  text3: "#9C9592",
+  ok: "#4ADE80",
+  warn: "#FBBF24",
+  bad: "#F87171",
+  focus: "#7FB8E6",
+  scale: "#14361f",
+  learning: "#3a2f12",
+  cut: "#3a1c1c",
+  font: brandTokens.font.monoStack,
+} as const;
+
+/** Scoped theme for `.jarvis-dark`. Does not replace the app shell tokens. */
+export function analyticsThemeCss() {
+  const theme = analyticsTheme;
+  return `.jarvis-dark {
+  --brand: ${theme.brand};
+  --on-brand: ${theme.ink};
+  --canvas: ${theme.bg};
+  --card: ${theme.panel};
+  --line: ${theme.line};
+  --ink: ${theme.text};
+  --muted: ${theme.text3};
+  --chip: ${theme.bg2};
+  --hover: ${theme.bg2};
+  --warning: ${theme.warn};
+  --success: ${theme.ok};
+  --danger: ${theme.bad};
+  --info: ${theme.focus};
+  background: ${theme.bg};
+  color: ${theme.text};
+  font-family: ${brandTokens.font.stack};
+}
+.jarvis-dark .num { font-family: ${theme.font}; font-variant-numeric: tabular-nums; }
+.jarvis-dark .text-soft { color: ${theme.text2}; }
+.jarvis-dark .chip-scale { background: ${theme.scale}; color: ${theme.ok}; }
+.jarvis-dark .chip-learning { background: ${theme.learning}; color: ${theme.warn}; }
+.jarvis-dark .chip-cut { background: ${theme.cut}; color: ${theme.bad}; }
+.jarvis-dark :focus-visible { outline: 3px solid ${theme.focus}; outline-offset: 3px; }
+.jarvis-dark .sticky-col { position: sticky; left: 0; background: ${theme.panel}; }`;
+}

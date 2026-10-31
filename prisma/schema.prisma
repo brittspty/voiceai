@@ -878,6 +878,18 @@ model Invite {
   @@index([email])
 }
 
+/// One-time sign-in link. The raw token is never stored. Nothing is emailed until Jason approves a sender.
+model MagicLink {
+  id        String    @id @default(cuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+}
+
 model AccessRequest {
   id        String   @id @default(cuid())
   name      String
