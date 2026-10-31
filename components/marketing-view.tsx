@@ -214,7 +214,7 @@ export function MarketingView(props: {
   alerts?: AlertRow[];
   recommendations?: RecommendationRow[];
   digests?: DigestRow[];
-  flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean; searchWaste?: boolean; competitorWatch?: boolean; holdouts?: boolean; creativeFatigue?: boolean; pacing?: boolean };
+  flags?: { monitor: boolean; digest: boolean; digestSend?: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean; searchWaste?: boolean; competitorWatch?: boolean; holdouts?: boolean; creativeFatigue?: boolean; pacing?: boolean };
   speedToLead?: SpeedDashboardView | { error: true } | null;
   leadQuality?: { qualified: number; total: number; rateLabel: string; trend: string; costPerQualifiedLead?: string } | null;
   pacing?: { enabled: boolean; bars: { campaignId: string; name: string; status: string; chip: string; text: string; verification: string }[]; stale?: boolean };
@@ -543,7 +543,7 @@ export function MarketingView(props: {
               <p className="text-sm text-muted">Decision cards are turned off.</p>
             )}
           </div>
-          <HourlySummary enabled={Boolean(props.flags?.digest)} digests={props.digests ?? []} />
+          <HourlySummary enabled={Boolean(props.flags?.digest)} emailOn={Boolean(props.flags?.digestSend)} digests={props.digests ?? []} />
 
           <section>
             <h2 className="mb-2 font-medium">Client link</h2>
