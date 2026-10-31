@@ -318,6 +318,18 @@ export function channelRegistryEnabled(env: Env = process.env) {
   return flagOn(env, "CHANNEL_REGISTRY");
 }
 
+/** Off unless CHANNEL_REGISTRY and CHATGPT_ADS are both on. Keys are sealed by the registry. */
+export function chatgptAdsEnabled(env: Env = process.env) {
+  return channelRegistryEnabled(env) && flagOn(env, "CHATGPT_ADS");
+}
+
+/** `dollars` or `micros`. Unset means the first live Insights response still needs a person to confirm units. */
+export function chatgptAdsSpendUnit(env: Env = process.env): "dollars" | "micros" | "unverified" {
+  const raw = (env.CHATGPT_ADS_SPEND_UNIT || "").trim().toLowerCase();
+  if (raw === "dollars" || raw === "micros") return raw;
+  return "unverified";
+}
+
 /** Off unless AUDIENCE_LIBRARY is explicitly on. MAID import, dry-run sync, and pixel tracking. */
 export function audienceLibraryEnabled(env: Env = process.env) {
   return flagOn(env, "AUDIENCE_LIBRARY");

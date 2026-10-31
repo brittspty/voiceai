@@ -1,7 +1,10 @@
 /**
- * No code path may send a budget, bid, or spend cap to Meta or Google.
- * Workers and other bots may only store recommendations. A person changes
- * the number in the ad account. This app never sends that change.
+ * No automated path may send a budget, bid, or spend cap to an ad platform.
+ * Workers and other bots may only store recommendations.
+ * Meta and Google numbers are changed by a person in the ad account.
+ * ChatGPT Ads budget and bid fields, and going live, are refused unless the
+ * human staff route passes `CHATGPT_ADS_STAFF_GRANT` for api.ads.openai.com.
+ * Creating an object with status active stays refused. Launch is the activate action.
  */
 
 export const BUDGET_MUTATION_ENDPOINTS = [
@@ -43,7 +46,29 @@ export const BUDGET_MUTATION_FIELDS = [
   "biddingStrategy",
   "bidConstraints",
   "campaignBudgetRecommendation",
+  "lifetime_spend_limit_micros",
+  "max_bid_micros",
+  "lifetimeSpendLimitMicros",
+  "maxBidMicros",
+  "bid_multiplier_micros",
+  "bidMultiplierMicros",
 ] as const;
+
+/** Human form fields for ChatGPT Ads. The staff grant skips only these, and only on that host. */
+export const CHATGPT_ADS_BUDGET_FIELDS = [
+  "lifetime_spend_limit_micros",
+  "max_bid_micros",
+  "lifetimeSpendLimitMicros",
+  "maxBidMicros",
+  "bid_multiplier_micros",
+  "bidMultiplierMicros",
+] as const;
+
+/** Only the human staff route may pass this into a ChatGPT Ads write. */
+export const CHATGPT_ADS_STAFF_GRANT = Symbol.for("jarvis.chatgptAds.staffHumanGrant");
+
+const CHATGPT_ADS_HOST = "api.ads.openai.com";
+const CHATGPT_BUDGET_CANON = new Set(CHATGPT_ADS_BUDGET_FIELDS.map((field) => canon(field)));
 
 const FIELD_CANON = new Set(BUDGET_MUTATION_FIELDS.map((field) => canon(field)));
 
@@ -62,6 +87,8 @@ export type AdBudgetWrite = {
   url?: string;
   body?: unknown;
   params?: unknown;
+  /** Present only when the human staff route is sending a ChatGPT Ads create or launch. */
+  staffGrant?: symbol;
 };
 
 function canon(value: string) {
@@ -102,11 +129,43 @@ function maskHasField(value: string) {
   });
 }
 
-function walk(value: unknown, hits: string[]) {
+function chatgptAdsHost(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && parsed.hostname === CHATGPT_ADS_HOST;
+  } catch {
+    return false;
+  }
+}
+
+function activatePath(url: string) {
+  try {
+    return /\/activate$/.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+}
+
+function isWriteMethod(method: string | undefined) {
+  const verb = (method || "GET").toUpperCase();
+  return verb !== "GET" && verb !== "HEAD";
+}
+
+function isActiveStatus(value: unknown) {
+  if (typeof value !== "string") return false;
+  const token = value.trim().toLowerCase();
+  return token === "active" || token === "enabled" || token === "live";
+}
+
+function walk(value: unknown, hits: string[], skip: Set<string>, blockActive: boolean) {
   for (const [key, child] of pairs(value)) {
     const normalized = canon(key);
     if (FIELD_CANON.has(normalized)) {
-      hits.push(key);
+      if (!skip.has(normalized)) hits.push(key);
+      continue;
+    }
+    if (blockActive && normalized === "status" && isActiveStatus(child)) {
+      hits.push("launch");
       continue;
     }
     if (normalized === "updatemask" && typeof child === "string" && maskHasField(child)) {
@@ -114,7 +173,7 @@ function walk(value: unknown, hits: string[]) {
       continue;
     }
     if (READ_VALUE_KEYS.has(normalized)) continue;
-    if (child && typeof child === "object") walk(child, hits);
+    if (child && typeof child === "object") walk(child, hits, skip, blockActive);
   }
 }
 
@@ -124,17 +183,30 @@ export function adBudgetWriteIssue(input: AdBudgetWrite) {
   for (const endpoint of BUDGET_MUTATION_ENDPOINTS) {
     if (url.includes(endpoint)) return endpoint;
   }
+  const onChatgptAds = chatgptAdsHost(url);
+  const staffOk = input.staffGrant === CHATGPT_ADS_STAFF_GRANT && onChatgptAds;
+  const skip = staffOk ? CHATGPT_BUDGET_CANON : new Set<string>();
+  const blockActive = isWriteMethod(input.method) && onChatgptAds;
+  if (blockActive && activatePath(url) && !staffOk) return "launch";
   const hits: string[] = [];
   if (url) {
     try {
-      walk(Object.fromEntries(new URL(url).searchParams.entries()), hits);
+      walk(Object.fromEntries(new URL(url).searchParams.entries()), hits, skip, blockActive);
     } catch {
       // A relative or invalid URL has no search params to inspect.
     }
   }
-  walk(input.params, hits);
-  walk(input.body, hits);
+  walk(input.params, hits, skip, blockActive);
+  walk(input.body, hits, skip, blockActive);
   return hits[0] ?? null;
+}
+
+/** Staff writes still go through the lock. A missing grant is refused before the body is judged. */
+export function assertStaffChatgptWrite(input: AdBudgetWrite) {
+  if (input.staffGrant !== CHATGPT_ADS_STAFF_GRANT || !chatgptAdsHost(input.url || "")) {
+    throw new AdBudgetWriteBlockedError("staff route");
+  }
+  assertNoAdBudgetWrite(input);
 }
 
 export function assertNoAdBudgetWrite(input: AdBudgetWrite) {

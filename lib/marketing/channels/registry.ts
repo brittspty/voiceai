@@ -1,4 +1,4 @@
-import { createCipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { omitForbiddenClientFields } from "../client-view";
 import { stripForAudience } from "./cost-strip";
 import { integrationsMode, type Env } from "../../env";
@@ -271,6 +271,26 @@ export const SEED_REGISTRY: PlatformRegistryRow[] = [
     contracted: false,
   }),
   row({
+    key: "chatgpt_ads",
+    staffLabel: "ChatGPT Ads",
+    clientLabel: "ChatGPT ads",
+    channelType: "other",
+    vendor: "OpenAI",
+    parentKey: null,
+    auth: "api_key",
+    scopesRead: ["ads"],
+    writeCapable: true,
+    writesEnabled: false,
+    idUpload: NONE,
+    matchRateSource: null,
+    metrics: ["impressions", "clicks", "leads"],
+    hierarchy: "Campaign > Ad group > Ad",
+    colourToken: "#231F20",
+    status: "available",
+    aliases: ["openai", "chatgpt"],
+    contracted: true,
+  }),
+  row({
     key: "internal_probe",
     staffLabel: "Internal probe",
     clientLabel: "Internal probe",
@@ -411,6 +431,16 @@ export function sealToken(secret: string, env: Env = process.env) {
   const tokenRef = `v1.${iv.toString("base64url")}.${tag.toString("base64url")}.${data.toString("base64url")}`;
   if (tokenRef.includes(trimmed)) throw new Error("Token reference leaked the secret.");
   return tokenRef;
+}
+
+/** Opens a token sealed by `sealToken`. Callers must not return or log the result. */
+export function openToken(tokenRef: string, env: Env = process.env) {
+  const [version, iv, tag, data] = tokenRef.split(".");
+  if (version !== "v1" || !iv || !tag || !data) throw new Error("Stored token is unreadable.");
+  const key = tokenKey(env);
+  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"));
+  decipher.setAuthTag(Buffer.from(tag, "base64url"));
+  return Buffer.concat([decipher.update(Buffer.from(data, "base64url")), decipher.final()]).toString("utf8");
 }
 
 export function idUploadLine(id: IdUpload) {

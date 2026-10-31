@@ -2363,6 +2363,7 @@ enum ChannelDailyKind {
   landing_page
   lead
   ais2l
+  chatgpt_ads
 }
 
 model ChannelDailyMetric {
