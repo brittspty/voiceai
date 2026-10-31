@@ -49,6 +49,8 @@ const BLOCKED = [
   "/knowledge",
   "/docs",
   "/marketing",
+  "/portfolio",
+  "/api/portfolio",
   "/marketing/compare",
   "/marketing/skills",
   "/marketing/links",
@@ -80,7 +82,7 @@ test("a client viewer is blocked from every internal route", () => {
   const discovered = routes(path.join(ROOT, "app"));
   const allowed = new Set(["/", "/login", "/api/health", "/marketing/client", "/sites/landing-pages", "/api/marketing/client", "/api/marketing/client/export", "/api/auth/logout", "/marketing/segments", "/marketing/segments/lineage", "/marketing/segments/drill", "/marketing/segments/tests", "/reports", "/reports/print", "/api/marketing/reports", "/api/marketing/reports/export", "/api/homepage/contact", "/demo"]);
   for (const route of discovered) {
-    if (route.startsWith("/share") || route.startsWith("/api/share") || route.startsWith("/demo") || route.startsWith("/plan") || route === "/api/homepage/contact") {
+    if (route.startsWith("/share") || route.startsWith("/api/share") || route.startsWith("/demo") || route === "/plan" || route.startsWith("/plan/") || route === "/api/homepage/contact") {
       assert.equal(clientViewerAllowed(route), true, route);
       continue;
     }

@@ -37,6 +37,7 @@ export function AppShell({
   audienceLibrary = false,
   showReports = false,
   homeHref = "/",
+  showPortfolio = false,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
@@ -50,6 +51,7 @@ export function AppShell({
   audienceLibrary?: boolean;
   showReports?: boolean;
   homeHref?: string;
+  showPortfolio?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -74,6 +76,7 @@ export function AppShell({
     if (href === "/marketing/segments") return pathname === "/marketing/segments" || pathname.startsWith("/marketing/segments/");
     if (href === "/marketing/audiences/pixel") return pathname.startsWith("/marketing/audiences/pixel");
     if (href === "/marketing/audiences") return pathname === "/marketing/audiences";
+    if (href === "/portfolio") return pathname === "/portfolio";
     if (href === "/marketing") {
       return pathname === "/marketing" || (pathname.startsWith("/marketing/") && !pathname.startsWith("/marketing/leads") && !pathname.startsWith("/marketing/speed-to-lead") && !pathname.startsWith("/marketing/segments") && !pathname.startsWith("/marketing/audiences"));
     }
@@ -87,7 +90,8 @@ export function AppShell({
     ...(showSegments ? [{ href: "/marketing/segments", label: "Segments", icon: Layers }] : []),
     ...(audienceLibrary ? [{ href: "/marketing/audiences", label: "Audiences", icon: Users }, { href: "/marketing/audiences/pixel", label: "Pixel tracking", icon: Activity }] : []),
   ];
-  const staffNav = [...NAV.slice(0, 2), ...extras, ...reportNav, ...NAV.slice(2)];
+  const baseNav = [...NAV.slice(0, 2), ...extras, ...reportNav, ...NAV.slice(2)];
+  const staffNav = showPortfolio ? [{ href: "/portfolio", label: "Portfolio", icon: LayoutDashboard }, ...baseNav] : baseNav;
   const clientNav = [
     ...CLIENT_NAV.slice(0, 1),
     ...reportNav,

@@ -7,6 +7,7 @@ import "./globals.css";
 
 const brandFont = Poppins({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"], variable: "--font-brand", display: "swap" });
 const labelFont = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-label", display: "swap" });
+const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-plex-mono", display: "swap" });
 
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await loadBrand();
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${brandFont.variable} ${labelFont.variable} h-full antialiased`} data-font={BRAND_FONT} suppressHydrationWarning>
+    <html lang="en" className={`${brandFont.variable} ${labelFont.variable} ${plexMono.variable} h-full antialiased`} data-font={BRAND_FONT} suppressHydrationWarning>
       <body className="min-h-full font-sans">
         <style dangerouslySetInnerHTML={{ __html: brandTokenCss() }} />
         <ThemeProvider>{children}</ThemeProvider>

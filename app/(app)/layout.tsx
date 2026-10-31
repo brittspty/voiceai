@@ -7,6 +7,7 @@ import { BRAND_TAGLINE, BRAND_WORDMARK, LOGO_ON_DARK, LOGO_ON_LIGHT, PRODUCT_NAM
 import { prisma } from "@/lib/db";
 import { jarvisNav } from "@/lib/marketing/channels/nav";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
+import { loginAnalyticsEnabled } from "@/lib/login-analytics";
 import { audienceLibraryEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
@@ -56,6 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       audienceLibrary={audienceLibraryEnabled()}
       showReports={reportsV2Enabled()}
       homeHref={appHomePath()}
+      showPortfolio={loginAnalyticsEnabled() && (user.role === "super_admin" || user.role === "account_manager")}
     >
       {children}
     </AppShell>
