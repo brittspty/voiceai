@@ -30,11 +30,11 @@
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-overlay: var(--overlay);
-  --font-sans: var(--font-brand), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-brand), "Segoe UI", Arial, Helvetica, sans-serif;
 }
 
 html, body { height: 100%; }
-body { background: var(--canvas); color: var(--ink); font-family: var(--font-sans), "Segoe UI", Arial, Helvetica, sans-serif; }
+body { background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
 :focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

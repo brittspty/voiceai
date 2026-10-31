@@ -14,6 +14,7 @@ enum Role {
   super_admin
   account_manager
   client_viewer
+  all_clients_viewer
 }
 
 enum Consent {
@@ -140,6 +141,8 @@ model User {
   liftTestsStarted   LiftTest[]         @relation("LiftTestStartedBy")
   leadValuesSet          ClientSettings[]     @relation("LeadValueSetBy")
   leadValueAudits        LeadValueAudit[]
+  notifications          StaffNotification[]
+  skillDecisions         SkillDecision[]
 }
 
 model Session {
@@ -448,6 +451,7 @@ enum AdPlatform {
   google_ads
   tiktok
   linkedin
+  stackadapt
 }
 
 enum MarketingAuthType {
@@ -581,6 +585,7 @@ model AdAccount {
   liftTests    LiftTest[]
   fatigueSignals  FatigueSignal[]
   pacingSnapshots PacingSnapshot[]
+  adFatigueChecks AdFatigueCheck[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([connectionId])
@@ -623,6 +628,7 @@ model Campaign {
   liftTests       LiftTest[]
   fatigueSignals  FatigueSignal[]
   pacingSnapshots PacingSnapshot[]
+  adFatigueChecks AdFatigueCheck[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([adAccountId])
@@ -719,6 +725,7 @@ model Ad {
   recommendations   Recommendation[]
   systemPauses      SystemPausedAd[]
   fatigueSignals    FatigueSignal[]
+  adFatigueChecks   AdFatigueCheck[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([adGroupId])
@@ -922,6 +929,9 @@ enum RecommendationType {
   speed_to_lead
   creative_fatigue
   pacing
+  ad_fatigue
+  stackadapt
+  business_profile
 }
 
 enum CreativeVersionStatus {
@@ -1906,6 +1916,67 @@ model LiftObservation {
   @@index([testId])
 }
 
+/// In-app inbox row. Digests, live feed items, and skill offers land here.
+model StaffNotification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  title     String
+  body      String
+  href      String    @default("")
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+/// Mail that stayed in-process. Test mode writes here and does not call Resend.
+model MailLog {
+  id        String   @id @default(cuid())
+  toAddress String
+  subject   String
+  body      String
+  transport String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Live account-manager feed. One row per source so a sweep cannot double-post.
+model AmFeedEvent {
+  id          String   @id @default(cuid())
+  workspaceId String
+  campaignId  String   @default("")
+  adAccountId String   @default("")
+  kind        String
+  title       String
+  body        String
+  reason      String   @default("")
+  decision    String   @default("")
+  sourceId    String
+  createdAt   DateTime @default(now())
+
+  @@unique([sourceId])
+  @@index([workspaceId, createdAt])
+  @@index([campaignId, createdAt])
+}
+
+/// Who answered a skill offer. Every super admin can answer. The owner is not special.
+model SkillDecision {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillName String
+  choice    String
+  createdAt DateTime @default(now())
+
+  @@index([skillName, createdAt])
+  @@index([userId, createdAt])
+}
+
 model LiftResult {
   id               String      @id @default(cuid())
   workspaceId      String
@@ -1926,6 +1997,91 @@ model LiftResult {
 
   @@index([workspaceId, testId, computedAt])
   @@index([testId])
+}
+
+enum AdFatigueAction {
+  keep
+  rotate
+  pause
+}
+
+/// Learned attribution window and resume rule for one client. The 7-day click, 1-day view, and 2-check values are priors.
+model AdFatiguePrior {
+  id                     String   @id @default(cuid())
+  workspaceId            String   @default("org")
+  clientKey              String   @default("")
+  confidenceThreshold    Decimal  @default(0.8000) @db.Decimal(6, 4)
+  clickDays              Decimal  @default(7) @db.Decimal(8, 4)
+  viewDays               Decimal  @default(1) @db.Decimal(8, 4)
+  goodChecksBeforeResume Decimal  @default(2) @db.Decimal(8, 4)
+  observations           Int      @default(0)
+  resumeEpisodes         Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([workspaceId, clientKey])
+  @@index([workspaceId])
+}
+
+/// One daily read per ad. recommendationOnly is forced on. This row does not change the ad.
+model AdFatigueCheck {
+  id                  String          @id @default(cuid())
+  workspaceId         String          @default("org")
+  clientKey           String          @default("")
+  platform            AdPlatform
+  adId                String
+  ad                  Ad              @relation(fields: [adId], references: [id], onDelete: Cascade)
+  campaignId          String
+  campaign            Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adAccountId         String
+  adAccount           AdAccount       @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  action              AdFatigueAction
+  confidence          Decimal         @db.Decimal(6, 4)
+  emitted             Boolean         @default(false)
+  reason              String
+  metric              String          @default("")
+  clickDays           Decimal         @db.Decimal(8, 4)
+  viewDays            Decimal         @db.Decimal(8, 4)
+  goodChecks          Decimal         @db.Decimal(8, 4)
+  threshold           Decimal         @db.Decimal(6, 4)
+  sampleSize          Int
+  signals             Json
+  windowStart         DateTime        @db.Date
+  windowEnd           DateTime        @db.Date
+  recommendationOnly  Boolean         @default(true)
+  changesSpend        Boolean         @default(false)
+  detectedAt          DateTime
+  createdAt           DateTime        @default(now())
+
+  @@unique([workspaceId, adId, windowEnd])
+  @@index([adId, detectedAt])
+  @@index([adAccountId])
+  @@index([campaignId])
+}
+
+/// Read-only Google Business Profile daily totals, reviews, and missing-profile notes.
+model BusinessProfileSnapshot {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @default("org")
+  locationId         String
+  accountId          String   @default("")
+  title              String   @default("")
+  date               DateTime @db.Date
+  views              Int      @default(0)
+  searches           Int      @default(0)
+  calls              Int      @default(0)
+  directionRequests  Int      @default(0)
+  websiteClicks      Int      @default(0)
+  rating             Decimal? @db.Decimal(4, 2)
+  reviewCount        Int      @default(0)
+  unansweredReviews  Int      @default(0)
+  missingInfo        String[] @default([])
+  recommendationOnly Boolean  @default(true)
+  fetchedAt          DateTime
+  createdAt          DateTime @default(now())
+
+  @@unique([workspaceId, locationId, date])
+  @@index([workspaceId, fetchedAt])
 }
 
 /// Dictionary overrides. The catalog module is the default. Fact tables stay on DailyMetric

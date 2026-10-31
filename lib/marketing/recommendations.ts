@@ -104,6 +104,9 @@ export async function decideRecommendation(input: {
     if (
       input.recommendation.type === "pacing" ||
       input.recommendation.type === "creative_fatigue" ||
+      input.recommendation.type === "ad_fatigue" ||
+      input.recommendation.type === "stackadapt" ||
+      input.recommendation.type === "business_profile" ||
       input.recommendation.type === "segment_scale" ||
       input.recommendation.type === "segment_test" ||
       input.recommendation.type === "segment_cut"

@@ -60,7 +60,11 @@ export function Explorer<T extends { id: string }>({
 
   useEffect(() => {
     const raw = localStorage.getItem(`cols:${storageKey}`);
-    if (raw) setHidden(JSON.parse(raw) as string[]);
+    // Column choices live in the browser. Reading them after paint avoids a server/client mismatch.
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as string[];
+    const timer = window.setTimeout(() => setHidden(parsed), 0);
+    return () => window.clearTimeout(timer);
   }, [storageKey]);
 
   function writeHidden(next: string[]) {
