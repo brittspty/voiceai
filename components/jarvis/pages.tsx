@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import type { Ais2lCallView, TestPill } from "@/lib/ais2l/screen";
 import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_NAME } from "@/lib/brand";
 import { EXAMPLE_FEED } from "@/lib/marketing/channels/catalog";
 import { scopeLiveFeed, urgentEmail, type FeedViewer } from "@/lib/marketing/channels/feed";
@@ -311,35 +312,38 @@ export function SettingsConnections() {
   );
 }
 
-export function Ais2lPage({ testMode }: { testMode: boolean }) {
-  const [open, setOpen] = useState(false);
+export function Ais2lPage({ testPill, calls, example }: { testPill: TestPill; calls: Ais2lCallView[]; example: boolean }) {
   return (
     <main>
       <Crumbs items={[{ label: "All clients", href: "/" }, { label: "AIS2L" }]} />
       <div className="top">
         <div>
-          <div className="sub">AIS2L voice module · {testMode ? "TEST MODE" : "LIVE"} · server-enforced</div>
-          <h1>AIS2L answered 94% of calls and booked 9 consults this week.</h1>
+          <div className="sub">AIS2L voice module · {testPill.show ? "TEST MODE" : "Voice is not in test mode"} · the server decides</div>
+          <h1>AIS2L calls, summary first.</h1>
         </div>
-        <span className="ex">EXAMPLE DATA</span>
+        {example && <span className="ex">EXAMPLE DATA</span>}
       </div>
-      {testMode && <p className="pill t">TEST MODE · only test numbers are called</p>}
-      <section className="mt" style={{ marginTop: 16 }}>
-        <Tile hero glossaryId="speed_to_lead" label="Speed to lead" value="22s" prior="▼ 9s faster" priorGood goal="8s under 30s" why="Outbound calls start after landing. Goal 30 seconds." />
-        <Tile glossaryId="booked" label="Booked" value="9" prior="▲ 3" priorGood goal="▼ 1 under" why="Most bookings came from emergency-dentist searches." />
-        <Tile glossaryId="leads" label="Leads" value="118" prior="▲ 12%" priorGood goal="over 100" why="AIS2L calls Google leads first." />
-        <Tile glossaryId="qual_rate" label="Qual. rate" value="41%" prior="▲ 5 pts" priorGood goal="over 35%" why="The insurance question is asked earlier." />
-      </section>
+      {testPill.show && <p className="pill t" role="status">{testPill.text}</p>}
       <h2 style={{ margin: "24px 0 8px" }}>Calls</h2>
-      <article className="dec">
-        <div className="tag">Ray S. · Coastal Roofing · Booked</div>
-        <h3>Summary</h3>
-        <p>Asked for a roof inspection after the storm ad. Booked Thursday at 10.</p>
-        <button type="button" className="btn" aria-expanded={open} onClick={() => setOpen((value) => !value)}>{open ? "Hide transcript" : "Show transcript"}</button>
-        {open && <p>Caller: The leak is over the kitchen. Agent: I can hold Thursday at 10.</p>}
-      </article>
+      {calls.map((call) => <Ais2lCall key={call.id} call={call} />)}
       <End {...end} />
     </main>
+  );
+}
+
+function Ais2lCall({ call }: { call: Ais2lCallView }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <article className="dec">
+      <div className="tag">{call.title}</div>
+      <h3>Summary</h3>
+      <p>{call.summary}</p>
+      <p>GoHighLevel: {call.ghl.label}</p>
+      <div className="acts">
+        <button type="button" className="btn" aria-expanded={open} onClick={() => setOpen((value) => !value)}>{open ? "Hide transcript" : "Show transcript"}</button>
+      </div>
+      {open && <p>{call.transcript || "The transcript arrives when the call wraps up."}</p>}
+    </article>
   );
 }
 

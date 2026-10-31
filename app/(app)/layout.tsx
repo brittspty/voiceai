@@ -9,7 +9,9 @@ import { exampleRegistryState, projectSurfaces } from "@/lib/marketing/channels/
 import { jarvisNav } from "@/lib/marketing/channels/nav";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
 import { loginAnalyticsEnabled } from "@/lib/login-analytics";
+import { insightsEnabled } from "@/lib/insights/learn";
 import { audienceLibraryEnabled, channelRegistryEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
+import { pushNotificationsEnabled } from "@/lib/push/notify";
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { getOrg } from "@/lib/queries";
@@ -40,6 +42,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showSegments: segmentEngineEnabled(),
       showAudiences: staff && audienceLibraryEnabled(),
       channelLinks: registry ? (staff ? registry.nav : registry.clientNav) : undefined,
+      showInsights: staff && insightsEnabled(),
+      showNotifications: staff && pushNotificationsEnabled(),
     });
     return (
       <JarvisShell productName={PRODUCT_NAME} wordmark={BRAND_WORDMARK} logoOnDark={LOGO_ON_DARK} logoOnLight={LOGO_ON_LIGHT} items={items} unread={unread} moreChannels={registry?.commandCenter.moreLabel}>
