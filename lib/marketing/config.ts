@@ -109,6 +109,35 @@ export function digestDeliveryEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_DIGEST_DELIVERY");
 }
 
+/** Off unless MARKETING_DIGEST and MARKETING_DIGEST_SEND are both on. This is the send switch. */
+export function digestSendEnabled(env: Env = process.env) {
+  return digestEnabled(env) && flagOn(env, "MARKETING_DIGEST_SEND");
+}
+
+/** Off unless AM_REALTIME_FEED is explicitly on. */
+export function amRealtimeEnabled(env: Env = process.env) {
+  return flagOn(env, "AM_REALTIME_FEED");
+}
+
+/** Off unless MARKETING_SKILL_APPROVAL is explicitly on. Fans a skill offer out to every super admin. */
+export function skillApprovalFanoutEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_SKILL_APPROVAL");
+}
+
+/** Off unless MARKETING_ROLE_ADMIN is explicitly on. */
+export function roleAdminEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_ROLE_ADMIN");
+}
+
+export function inboxEnabled(env: Env = process.env) {
+  return digestSendEnabled(env) || amRealtimeEnabled(env) || skillApprovalFanoutEnabled(env);
+}
+
+/** Off unless ALL_CLIENTS_VIEWER_SEES_COST is explicitly on. Spend stays with super admins and account managers. */
+export function allClientsViewerSeesCost(env: Env = process.env) {
+  return flagOn(env, "ALL_CLIENTS_VIEWER_SEES_COST");
+}
+
 /** Off unless MARKETING_CLIENT_LINKS is explicitly on. */
 export function clientLinksEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_CLIENT_LINKS");
@@ -168,6 +197,102 @@ export function competitorWatchEnabled(env: Env = process.env) {
 /** Off unless MARKETING_HOLDOUTS is explicitly on. Design and readout only. */
 export function holdoutsEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_HOLDOUTS");
+}
+
+/** Off unless MARKETING_AD_FATIGUE is explicitly on. Recommendations only. No ad or budget writes. */
+export function adFatigueEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_AD_FATIGUE");
+}
+
+/** Off unless MARKETING_STACKADAPT is explicitly on. Read-only GraphQL. */
+export function stackAdaptEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_STACKADAPT");
+}
+
+/** Off unless MARKETING_GBP is explicitly on. Read-only Business Profile reads. */
+export function googleBusinessProfileEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_GBP");
+}
+
+export type StackAdaptDecision = { action: "skip"; reason: string } | { action: "mock" } | { action: "live"; apiKey: string };
+
+/** Missing STACKADAPT_API_KEY skips. It does not throw. */
+export function decideStackAdapt(env: Env): StackAdaptDecision {
+  if (!stackAdaptEnabled(env)) return { action: "skip", reason: "MARKETING_STACKADAPT is off" };
+  const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
+  if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };
+  if (mode === "mock") return { action: "mock" };
+  if (mode !== "auto" && mode !== "live") return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
+  const apiKey = (env.STACKADAPT_API_KEY || "").trim();
+  if (!apiKey) return { action: "skip", reason: "missing STACKADAPT_API_KEY" };
+  return { action: "live", apiKey };
+}
+
+export type GoogleBusinessDecision =
+  | { action: "skip"; reason: string }
+  | { action: "mock"; accountId: string; locationIds: string[] }
+  | { action: "live"; clientId: string; clientSecret: string; refreshToken: string; accountId: string; locationIds: string[] };
+
+function businessIds(raw: string | undefined) {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const part of (raw || "").split(",")) {
+    const digits = part.trim().replace(/^locations\//, "");
+    if (!/^\d+$/.test(digits) || seen.has(digits)) continue;
+    seen.add(digits);
+    ids.push(digits);
+  }
+  return ids;
+}
+
+/**
+ * Business Profile uses the same Google OAuth client id, secret, and refresh token as Google Ads.
+ * This connector only GETs. A missing location list skips.
+ */
+export function decideGoogleBusinessProfile(env: Env): GoogleBusinessDecision {
+  if (!googleBusinessProfileEnabled(env)) return { action: "skip", reason: "MARKETING_GBP is off" };
+  const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
+  const locationIds = businessIds(env.GOOGLE_BUSINESS_LOCATION_IDS);
+  const accountId = (env.GOOGLE_BUSINESS_ACCOUNT_ID || "").trim().replace(/^accounts\//, "");
+  if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };
+  if (mode === "mock") return { action: "mock", accountId, locationIds };
+  if (mode !== "auto" && mode !== "live") return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
+  const clientId = (env.GOOGLE_ADS_CLIENT_ID || "").trim();
+  const clientSecret = (env.GOOGLE_ADS_CLIENT_SECRET || "").trim();
+  const refreshToken = (env.GOOGLE_ADS_REFRESH_TOKEN || "").trim();
+  const missing = [
+    !clientId ? "GOOGLE_ADS_CLIENT_ID" : "",
+    !clientSecret ? "GOOGLE_ADS_CLIENT_SECRET" : "",
+    !refreshToken ? "GOOGLE_ADS_REFRESH_TOKEN" : "",
+    !locationIds.length ? "GOOGLE_BUSINESS_LOCATION_IDS" : "",
+  ].filter(Boolean);
+  if (missing.length) return { action: "skip", reason: `missing ${missing.join(", ")}` };
+  return { action: "live", clientId, clientSecret, refreshToken, accountId, locationIds };
+}
+
+/** Off unless MARKETING_DATA_INTAKE is explicitly on. */
+export function dataIntakeEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_DATA_INTAKE");
+}
+
+/** Off unless MARKETING_METRIC_DICTIONARY is explicitly on. */
+export function metricDictionaryEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_METRIC_DICTIONARY");
+}
+
+/** Off unless MARKETING_PROVENANCE is explicitly on. */
+export function provenanceEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_PROVENANCE");
+}
+
+/** Off unless MARKETING_COVERAGE is explicitly on. */
+export function coverageScoreEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_COVERAGE");
+}
+
+/** Off unless SEGMENT_ENGINE is explicitly on. */
+export function segmentEngineEnabled(env: Env = process.env) {
+  return flagOn(env, "SEGMENT_ENGINE");
 }
 
 export function adLibraryCountries(env: Env = process.env) {

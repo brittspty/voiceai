@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AIS2L_NAME } from "@/lib/brand/names";
 import { cn } from "@/lib/cn";
 
 const TABS = [
@@ -11,7 +12,7 @@ const TABS = [
   ["/calls/contacts", "Contacts"],
   ["/calls/do-not-call", "Do-not-call"],
   ["/calls/crm", "CRM"],
-  ["/calls/voice", "Voice"],
+  ["/calls/voice", AIS2L_NAME],
 ] as const;
 
 export function CallsTabs() {

@@ -4,6 +4,7 @@ import { jarvisUiV2Enabled, type Env } from "./config";
 export function clientViewerAllowed(pathname: string, env: Env = process.env) {
   if (pathname === "/") return true;
   if (pathname === "/marketing/client") return true;
+  if (pathname === "/marketing/segments" || pathname === "/marketing/segments/lineage" || pathname === "/marketing/segments/drill" || pathname === "/marketing/segments/tests") return true;
   if (pathname === "/sites/landing-pages") return true;
   if (pathname === "/api/marketing/client" || pathname === "/api/marketing/client/export") return true;
   if (pathname === "/api/auth/logout") return true;

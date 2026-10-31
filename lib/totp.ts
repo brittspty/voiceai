@@ -1,3 +1,5 @@
+import { PRODUCT_NAME } from "./brand/names";
+
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 export function base32Encode(bytes: Uint8Array) {
@@ -91,7 +93,7 @@ export function randomTotpSecret() {
   return base32Encode(bytes);
 }
 
-export function totpUri(email: string, secret: string, issuer = "VoiceOps") {
+export function totpUri(email: string, secret: string, issuer = PRODUCT_NAME) {
   const label = encodeURIComponent(`${issuer}:${email}`);
   return `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
 }

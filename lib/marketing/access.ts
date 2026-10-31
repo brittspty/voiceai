@@ -1,4 +1,4 @@
-import type { Env } from "./config";
+import { allClientsViewerSeesCost, type Env } from "./config";
 import { WORKSPACE_ID } from "./types";
 
 export const DEFAULT_SUPER_ADMINS = [
@@ -25,7 +25,7 @@ export type MarketingAccess = {
   email: string;
   role: string;
   workspaceId: string;
-  kind: "super_admin" | "account_manager" | "staff" | "client_owner" | "client_viewer" | "none";
+  kind: "super_admin" | "account_manager" | "all_clients_viewer" | "staff" | "client_owner" | "client_viewer" | "none";
   accounts: "all" | string[];
   campaigns: "all" | string[];
   seesCost: boolean;
@@ -55,6 +55,7 @@ export function roleLabel(role: string) {
   const labels: Record<string, string> = {
     super_admin: "Super admin",
     account_manager: "Account manager",
+    all_clients_viewer: "All clients",
     client_viewer: "Client viewer",
     owner: "Owner",
     admin: "Admin",
@@ -96,6 +97,18 @@ export function accessFromUser(user: AccessUser, assignments: ScopeAssignment[],
       seesAlerts: true,
       canEditBudget: true,
       canCreateShareLink: true,
+    };
+  }
+  if (user.role === "all_clients_viewer") {
+    return {
+      ...base,
+      kind: "all_clients_viewer",
+      accounts: "all",
+      campaigns: "all",
+      seesCost: allClientsViewerSeesCost(env),
+      seesAlerts: true,
+      canEditBudget: false,
+      canCreateShareLink: false,
     };
   }
   if (user.role === "client_viewer") {
@@ -177,6 +190,11 @@ export function coversCampaign(access: MarketingAccess, input: { adAccountId: st
   if (access.kind === "client_viewer") return access.workspaceId === WORKSPACE_ID;
   if (access.campaigns === "all") return coversAccount(access, input.adAccountId);
   return access.campaigns.includes(input.campaignId);
+}
+
+/** Approvals stay with super admins and account managers. All-clients viewers are read-only. */
+export function canApproveMarketing(access: MarketingAccess) {
+  return access.kind === "super_admin" || access.kind === "account_manager";
 }
 
 export function canEditCampaignBudget(access: MarketingAccess, input: { adAccountId: string; campaignId: string }) {

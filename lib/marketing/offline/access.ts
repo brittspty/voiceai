@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "../../brand/names";
 import type { Env } from "../config";
 import { accessFromUser } from "../access";
 
@@ -25,14 +26,14 @@ export function conversionAccess(user: { id: string; role: string; email: string
   };
 }
 
-export function googleOAuthStartUrl(env: Env, redirectUri: string, state: string) {
+export function googleOAuthStartUrl(env: Env, redirectUri: string, state: string, scope = "https://www.googleapis.com/auth/adwords") {
   const clientId = (env.GOOGLE_ADS_CLIENT_ID || "").trim();
   if (!clientId || !redirectUri || !state) return null;
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", "https://www.googleapis.com/auth/adwords");
+  url.searchParams.set("scope", scope);
   url.searchParams.set("access_type", "offline");
   url.searchParams.set("prompt", "consent");
   url.searchParams.set("include_granted_scopes", "false");
@@ -67,15 +68,15 @@ export function connectPageModel(
     return {
       title: "Reconnect Google",
       body: redirectUrl
-        ? "Google's sign-in opens next. VoiceOps never asks for your password."
-        : "Google is not connected yet. A super admin adds the developer token and OAuth client outside this page. VoiceOps never asks for a password.",
+        ? `Google's sign-in opens next. ${PRODUCT_NAME} never asks for your password.`
+        : `Google is not connected yet. A super admin adds the developer token and OAuth client outside this page. ${PRODUCT_NAME} never asks for a password.`,
       redirectUrl,
       asksForPassword: false,
     };
   }
   return {
     title: "Reconnect Meta",
-    body: "Each client has its own Meta dataset id, saved on Conversion feedback. The conversions token is set outside this page. VoiceOps never asks for a password.",
+    body: `Each client has its own Meta dataset id, saved on Conversion feedback. The conversions token is set outside this page. ${PRODUCT_NAME} never asks for a password.`,
     redirectUrl: null,
     asksForPassword: false,
   };

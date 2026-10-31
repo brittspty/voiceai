@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Poppins } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
-import { BRAND_FONT, loadBrand, PRODUCT_TAGLINE, PRODUCT_TITLE } from "@/lib/brand";
+import { BRAND_FONT, loadBrand, PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_TITLE } from "@/lib/brand";
 import { brandTokenCss } from "@/lib/brand/tokens";
 import "./globals.css";
 
@@ -11,7 +11,7 @@ const labelFont = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], va
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await loadBrand();
   return {
-    title: { default: PRODUCT_TITLE, template: "%s · VoiceOps" },
+    title: { default: PRODUCT_TITLE, template: `%s · ${PRODUCT_NAME}` },
     description: PRODUCT_TAGLINE,
     icons: brand.logoUrl ? { icon: brand.logoUrl } : undefined,
   };
@@ -20,9 +20,8 @@ export async function generateMetadata(): Promise<Metadata> {
 export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const brand = await loadBrand();
   return (
-    <html lang="en" className={`${brandFont.variable} ${labelFont.variable} h-full antialiased`} data-font={BRAND_FONT} style={{ ["--brand" as string]: brand.brandColor }} suppressHydrationWarning>
+    <html lang="en" className={`${brandFont.variable} ${labelFont.variable} h-full antialiased`} data-font={BRAND_FONT} suppressHydrationWarning>
       <body className="min-h-full font-sans">
         <style dangerouslySetInnerHTML={{ __html: brandTokenCss() }} />
         <ThemeProvider>{children}</ThemeProvider>

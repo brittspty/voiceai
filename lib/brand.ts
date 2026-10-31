@@ -1,9 +1,8 @@
 import { brandTokens } from "./brand/tokens";
 import { clientConfig, type ClientConfig } from "./client-config";
 
-/** Customer-facing product name. Avery is the AI caller, not the product. */
-export const PRODUCT_NAME = "VoiceOps";
-export const PRODUCT_TITLE = "VoiceOps: AI calling for service businesses";
+export { AIS2L_LINE, AIS2L_NAME, PRODUCT_NAME, PRODUCT_TITLE, PRODUCT_WORDMARK } from "./brand/names";
+
 export const PRODUCT_TAGLINE =
   "Avery calls your new leads in minutes, follows calling rules, and logs every call to GoHighLevel.";
 
@@ -11,10 +10,10 @@ export const PRODUCT_TAGLINE =
 export const BRAND_WORDMARK = "Specificity";
 export const BRAND_TAGLINE = "Identify. Engage. Convert.";
 
-/** Official Specificity orange. Poppins is the UI face. IBM Plex Mono is only for small labels. */
-export const BRAND_FONT = "Poppins";
-export const BRAND_MONO = "IBM Plex Mono";
-export const PLACEHOLDER_BRAND_COLOR = "#FF5800";
+/** Official Specificity orange and Poppins live in the token file. IBM Plex Mono is only for small labels. */
+export const BRAND_FONT = brandTokens.font.family;
+export const BRAND_MONO = brandTokens.font.mono;
+export const PLACEHOLDER_BRAND_COLOR = brandTokens.light.brand;
 /** Dark surfaces, including the ink sidebar. */
 export const LOGO_ON_DARK = "/brand/specificity-logo-reversed.png";
 /** Light surfaces: mobile header, login, share, reports. */
