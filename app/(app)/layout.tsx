@@ -4,7 +4,7 @@ import { AppShell } from "@/components/shell";
 import { requireUser } from "@/lib/auth";
 import { BRAND_TAGLINE, BRAND_WORDMARK, resolveBrandColor, resolveLogoUrl } from "@/lib/brand";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
-import { leadScoringEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
+import { leadScoringEnabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
 import { getOrg } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       mode={{ testMode: org.testMode, agentName: org.agentName, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE }}
       showSpeedToLead={speedToLeadEnabled()}
       leadScoring={leadScoringEnabled()}
+      showSegments={segmentEngineEnabled()}
     >
       {children}
     </AppShell>

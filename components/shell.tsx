@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, BookOpen, FileText, Globe, LayoutDashboard, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer } from "lucide-react";
+import { BarChart3, BookOpen, FileText, Globe, Layers, LayoutDashboard, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
@@ -30,6 +30,7 @@ export function AppShell({
   mode,
   showSpeedToLead = false,
   leadScoring = false,
+  showSegments = false,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
@@ -37,6 +38,7 @@ export function AppShell({
   mode: { testMode: boolean; agentName: string; wordmark: string; tagline: string };
   showSpeedToLead?: boolean;
   leadScoring?: boolean;
+  showSegments?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -57,8 +59,9 @@ export function AppShell({
     if (href === "/") return pathname === "/";
     if (href === "/marketing/leads") return pathname === "/marketing/leads" || pathname.startsWith("/marketing/leads/");
     if (href === "/marketing/speed-to-lead") return pathname === "/marketing/speed-to-lead" || pathname.startsWith("/marketing/speed-to-lead/");
+    if (href === "/marketing/segments") return pathname === "/marketing/segments" || pathname.startsWith("/marketing/segments/");
     if (href === "/marketing") {
-      return pathname === "/marketing" || (pathname.startsWith("/marketing/") && !pathname.startsWith("/marketing/leads") && !pathname.startsWith("/marketing/speed-to-lead"));
+      return pathname === "/marketing" || (pathname.startsWith("/marketing/") && !pathname.startsWith("/marketing/leads") && !pathname.startsWith("/marketing/speed-to-lead") && !pathname.startsWith("/marketing/segments"));
     }
     const base = href === "/settings/calling" ? "/settings" : href;
     return pathname === href || pathname.startsWith(base);
@@ -66,8 +69,10 @@ export function AppShell({
   const extras = [
     ...(showSpeedToLead ? [{ href: "/marketing/speed-to-lead", label: "Speed-to-lead", icon: Timer }] : []),
     ...(leadScoring ? [{ href: "/marketing/leads", label: "Leads", icon: ListChecks }] : []),
+    ...(showSegments ? [{ href: "/marketing/segments", label: "Segments", icon: Layers }] : []),
   ];
   const staffNav = extras.length ? [...NAV.slice(0, 2), ...extras, ...NAV.slice(2)] : NAV;
+  const clientNav = showSegments ? [...CLIENT_NAV, { href: "/marketing/segments", label: "Segments", icon: Layers }] : CLIENT_NAV;
 
   const nav = (
     <div className="flex h-full flex-col">
@@ -76,7 +81,7 @@ export function AppShell({
         {!collapsed && <div className="text-sm font-semibold">{mode.wordmark}</div>}
       </div>
       <nav className="flex flex-col gap-0.5 px-2">
-        {(user.role === "client_viewer" ? CLIENT_NAV : staffNav).map((item) => {
+        {(user.role === "client_viewer" ? clientNav : staffNav).map((item) => {
           const Icon = item.icon;
           const active = itemActive(item.href);
           return (
