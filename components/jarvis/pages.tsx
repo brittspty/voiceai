@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_NAME } from "@/lib/brand";
 import { EXAMPLE_FEED } from "@/lib/marketing/channels/catalog";
+import { presentedVideoChannels } from "@/lib/marketing/channels/video-channels";
 import { scopeLiveFeed, snoozeUntil, urgentEmail, type FeedViewer, type SnoozeChoice } from "@/lib/marketing/channels/feed";
 import { measureSpeed } from "@/lib/marketing/channels/speed";
 import { logJarvisLeadMark, saveUrgentEmailOptIn, undoJarvisLeadMark } from "@/lib/marketing/human-actions";
 import { Crumbs, End, Tile, Tip } from "./bits";
+import { MoreChannels } from "./more-channels";
 
 const end = { productName: PRODUCT_NAME, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
 
@@ -50,6 +52,7 @@ export function ClientHome({ channels = null }: { channels?: { href?: string; la
               )}
             </tbody>
           </table>
+          <MoreChannels items={presentedVideoChannels("client").map((row) => ({ id: row.id, href: row.href, label: row.label, detail: `${row.status} · ${row.leads} leads` }))} />
           <p className="sub">Counted once per person. Last non-direct touch, 7-day click / 1-day view.</p>
         </section>
         <aside>
@@ -81,7 +84,9 @@ export function ClientHome({ channels = null }: { channels?: { href?: string; la
   );
 }
 
-export function ClientChannel() {
+export function ClientChannel({ channel = "facebook" }: { channel?: string }) {
+  if (channel === "youtube") return <ClientYouTube />;
+  if (channel === "ctv") return <ClientCtv />;
   return (
     <main>
       <Crumbs items={[{ label: "Home", href: "/" }, { label: "Facebook & Instagram ads" }]} />
@@ -115,6 +120,54 @@ export function ClientChannel() {
           <tr><td>Smile Again 55+ video</td><td>24</td><td>6</td><td>2</td><td><span className="st w">▲ Getting tired, new version coming</span></td></tr>
         </tbody>
       </table>
+      <End {...end} />
+    </main>
+  );
+}
+
+function ClientYouTube() {
+  const row = presentedVideoChannels("client").find((item) => item.id === "youtube");
+  return (
+    <main>
+      <Crumbs items={[{ label: "Home", href: "/" }, { label: "YouTube video ads" }]} />
+      <div className="top">
+        <div>
+          <div className="sub">Harbor Dental · YouTube video ads · Through the Google Ads account · Last 30 days · Updated 9:12 PM ET</div>
+          <h1>Your YouTube ads brought {row?.leads ?? 0} leads; {row?.qualified ?? 0} were qualified.</h1>
+        </div>
+        <span className="ex">EXAMPLE DATA</span>
+      </div>
+      <section className="mt">
+        {(row?.metrics || []).map((metric) => (
+          <div className="m" key={metric.id}><div className="lab">{metric.label}</div><div className="v">{metric.value}</div><div className="sub">EXAMPLE DATA</div></div>
+        ))}
+        <Tile hero glossaryId="leads" label="Leads" value={String(row?.leads ?? 0)} prior="▲ 2 vs prior" priorGood goal="over goal" why="YouTube uses the same Google account. Match rate follows Google." />
+      </section>
+      <h2 style={{ margin: "28px 0 8px" }}>Campaign › Ad group › Video ad</h2>
+      <table className="stack">
+        <thead><tr><th>Video ad</th><th>Views</th><th>Completed views</th><th>Leads</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Smile Again 55+</td><td>128K</td><td>32.1K</td><td>12</td><td><span className="st ok">● Working well</span></td></tr>
+          <tr><td>Consult :15</td><td>56K</td><td>14.1K</td><td>6</td><td><span className="st ok">● Working well</span></td></tr>
+        </tbody>
+      </table>
+      <End {...end} />
+    </main>
+  );
+}
+
+function ClientCtv() {
+  return (
+    <main>
+      <Crumbs items={[{ label: "Home", href: "/" }, { label: "Connected TV ads" }]} />
+      <div className="top">
+        <div>
+          <div className="sub">Harbor Dental · Connected TV ads · Updated 9:12 PM ET</div>
+          <h1>Other CTV needs setup.</h1>
+        </div>
+        <span className="ex">EXAMPLE DATA</span>
+      </div>
+      <p>Connected TV ads are not connected yet. Completion rate, households reached, and frequency appear after setup. Nothing is sent from here.</p>
       <End {...end} />
     </main>
   );
@@ -333,7 +386,9 @@ export function SettingsConnections() {
         <tbody>
           <tr><td>Meta</td><td><span className="st ok">● Connected</span></td><td>Read only</td><td><span className="pill t">PENDING JASON APPROVAL</span> <button type="button" className="btn" disabled>Request write access</button></td></tr>
           <tr><td>Google Ads</td><td><span className="st ok">● Connected</span></td><td>Read only</td><td><span className="pill t">PENDING JASON APPROVAL</span> <button type="button" className="btn" disabled>Request write access</button></td></tr>
+          <tr><td>YouTube</td><td><span className="st ok">● Through the Google Ads account</span></td><td>Read only</td><td>Same as Google Ads</td></tr>
           <tr><td>StackAdapt</td><td><span className="st ok">● Connected</span></td><td>Read only</td><td>Not needed</td></tr>
+          <tr><td>Other CTV</td><td><span className="st w">▲ Needs setup</span></td><td>Not connected</td><td>—</td></tr>
           <tr><td>Google Business Profile</td><td><span className="st ok">● Connected</span></td><td>Read</td><td>—</td></tr>
           <tr><td>AIS2L / GoHighLevel</td><td><span className="st ok">● Synced</span></td><td>Leads</td><td>—</td></tr>
         </tbody>

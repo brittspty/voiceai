@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { PresentedDetail, PresentedMatch, PresentedRow, SortKey } from "@/lib/marketing/audience-data/present";
+import type { MoreMatch } from "@/lib/marketing/channels/video-channels";
 import { SourceTabs } from "./resolution-panel";
 import "./audience-data.css";
 
@@ -19,7 +20,7 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: "decisions", label: "Decisions" },
 ];
 
-function MatchRates({ match }: { match: PresentedMatch[] }) {
+function MatchRates({ match, more }: { match: PresentedMatch[]; more?: MoreMatch[] }) {
   return (
     <div>
       {match.map((row) => (
@@ -31,6 +32,19 @@ function MatchRates({ match }: { match: PresentedMatch[] }) {
           {row.hold ? <span className="ad-hold"> On hold: low match rate</span> : null}
         </div>
       ))}
+      {more?.length ? (
+        <div>
+          More channels <span className="ad-mono">+{more.length} more</span>
+          {more.map((row) => (
+            <div key={row.id}>
+              {row.label}
+              {row.percent == null ? "" : ` ${row.percent}%`}
+              {` · ${row.status}`}
+              {row.hold ? <span className="ad-hold"> On hold: low match rate</span> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -200,7 +214,7 @@ export function AudienceDataList({
                   <td className="ad-mono">{row.campaigns}</td>
                   <td className="ad-mono">{row.audiences}</td>
                   <td className="ad-mono">{row.maidsLabel}</td>
-                  <td><MatchRates match={row.match} /></td>
+                  <td><MatchRates match={row.match} more={row.moreChannels} /></td>
                   <td>{row.refreshed}</td>
                   <td className="ad-mono">{row.leads}</td>
                   <td>{row.leadQuality === null ? <>— <span className="ad-prov">no CRM outcome yet</span></> : <><span className="ad-mono">{row.leadQuality}</span>{row.provisional ? <span className="ad-prov"> provisional</span> : null}</>}</td>
@@ -221,7 +235,7 @@ export function AudienceDataList({
                   <dt>Leads</dt><dd>{row.leads}</dd>
                   <dt>Lead quality</dt><dd>{row.qualityLabel}</dd>
                 </dl>
-                <MatchRates match={row.match} />
+                <MatchRates match={row.match} more={row.moreChannels} />
                 {mode === "staff" && row.decisions ? <div style={{ marginTop: 6 }}><DecisionChips decisions={row.decisions} /></div> : null}
               </article>
             ))}
@@ -271,6 +285,7 @@ export function AudienceDataSource({ detail, mode = "staff", accountName = "", s
       </div>
       <p className="ad-prov" id="audience">
         Match rate: {detail.match.map((row) => `${row.full} ${row.percent}%`).join(" · ")} · Refreshed {detail.refreshed}
+        {detail.moreChannels?.length ? <> · More channels +{detail.moreChannels.length} more: {detail.moreChannels.map((row) => `${row.label}${row.percent == null ? "" : ` ${row.percent}%`} · ${row.status}`).join("; ")}</> : null}
         {cost != null ? <> · <span className="ad-prov">Staff only:</span> data cost ${cost.toFixed(2)} CPM</> : null}
       </p>
       <div className="ad-why" id="campaigns">

@@ -1,4 +1,6 @@
 import { collectsCostKeys, stripForAudience } from "../channels/cost-strip";
+import { resolutionMoreChannels, type MoreResolution } from "../channels/video-channels";
+import { jarvisUiV2Enabled, type Env } from "../config";
 
 /** Good ≥ 50%, Fair 30–49%, Low — on hold under 30%. */
 export function rateBand(percent: number) {
@@ -67,6 +69,8 @@ export type ResolutionReport = {
   matchedAny: number;
   unmatched: number;
   platforms: RateRow[];
+  /** YouTube and CTV sit under the platform table. Omitted while JARVIS_UI_V2 is off. */
+  moreChannels?: MoreResolution[];
   bySource: RateRow[];
   windows: Record<ResolutionWindow, { from: number; to: number; points: { label: string; percent: number }[] }>;
   why: string;
@@ -123,7 +127,14 @@ const STAFF_SOURCE_IDS: Record<string, string> = {
   "vendor-d": "4",
 };
 
-function harborReport(reader: "staff" | "client" | "share", sourcePublicId?: string): ResolutionReport {
+function withMoreChannels(report: ResolutionReport, env?: Env): ResolutionReport {
+  const google = report.platforms.find((row) => row.id === "google_ads");
+  const moreChannels = resolutionMoreChannels(google?.percent ?? null, jarvisUiV2Enabled(env));
+  if (!moreChannels) return report;
+  return { ...report, moreChannels };
+}
+
+function harborReport(reader: "staff" | "client" | "share", sourcePublicId?: string, env?: Env): ResolutionReport {
   const source = sourcePublicId ? SOURCES.find((row) => row.id === sourcePublicId) : undefined;
   const staff = reader === "staff";
   const title = source
@@ -171,10 +182,11 @@ function harborReport(reader: "staff" | "client" | "share", sourcePublicId?: str
   };
   if (staff && source) report.vendor = source.vendor;
   if (staff && source) report.vendorId = source.vendorId;
-  return reader === "staff" ? report : stripResolution(report);
+  const withMore = withMoreChannels(report, env);
+  return reader === "staff" ? withMore : stripResolution(withMore);
 }
 
-function gulfReport(): ResolutionReport {
+function gulfReport(env?: Env): ResolutionReport {
   const report: ResolutionReport = {
     id: "1",
     title: "Resolution Data across your audiences",
@@ -212,7 +224,7 @@ function gulfReport(): ResolutionReport {
     recommendation: "your Specificity team may suggest leaving this audience as it is. Nothing changes until your Specificity team makes the change.",
     workedOut: ["Inputs: records sent and the 30% hold line.", "Recommendation only. Nothing is written."],
   };
-  return stripResolution(report);
+  return stripResolution(withMoreChannels(report, env));
 }
 
 function stripResolution<T>(value: T): T {
@@ -243,6 +255,7 @@ export function readResolution(input: {
   ownAccountId?: string;
   requestedAccountId?: string | null;
   campaignId?: string | null;
+  env?: Env;
 }) {
   const campaignId = (input.campaignId || "all").trim() || "all";
   if (input.reader !== "staff") {
@@ -256,18 +269,18 @@ export function readResolution(input: {
     if (/vendor/i.test(sourceId)) return { ok: false as const, status: 404 as const, error: "Not found" as const };
     if (own === "gulf") {
       if (sourceId && sourceId !== "1") return { ok: false as const, status: 404 as const, error: "Not found" as const };
-      const body = gulfReport();
+      const body = gulfReport(input.env);
       if (collectsCostKeys(body).length) return { ok: false as const, status: 500 as const, error: "Not allowed" as const };
       return { ok: true as const, body };
     }
     if (own !== "org") return { ok: false as const, status: 404 as const, error: "Not found" as const };
     if (sourceId && !SOURCES.some((row) => row.id === sourceId)) return { ok: false as const, status: 404 as const, error: "Not found" as const };
-    const body = harborReport(input.reader, sourceId || undefined);
+    const body = harborReport(input.reader, sourceId || undefined, input.env);
     if (collectsCostKeys(body).length) return { ok: false as const, status: 500 as const, error: "Not allowed" as const };
     return { ok: true as const, body };
   }
   const sourceId = (input.sourceId || "").trim();
   const publicId = STAFF_SOURCE_IDS[sourceId] || (SOURCES.some((row) => row.id === sourceId) ? sourceId : "");
   if (sourceId && !publicId) return { ok: false as const, status: 404 as const, error: "Not found" as const };
-  return { ok: true as const, body: harborReport("staff", publicId || undefined) };
+  return { ok: true as const, body: harborReport("staff", publicId || undefined, input.env) };
 }

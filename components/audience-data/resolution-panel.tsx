@@ -147,6 +147,20 @@ export function ResolutionScreen({
             </article>
           ))}
         </div>
+        {report.moreChannels?.length ? (
+          <div>
+            <p>More channels <span className="ad-mono">+{report.moreChannels.length} more</span></p>
+            {report.moreChannels.map((row) => (
+              <p key={row.id}>
+                {row.label}
+                {row.percent == null ? "" : ` · ${row.percent}%`}
+                {` · ${row.status}`}
+                {row.placeholder ? " · placeholder" : ""}
+                {row.percent != null && rateBand(row.percent).hold ? <span className="ad-hold"> On hold: low match rate</span> : null}
+              </p>
+            ))}
+          </div>
+        ) : null}
       </section>
       <div className="ad-res-split">
         <section className="ad-grp" aria-labelledby="by-id">
