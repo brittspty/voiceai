@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { PresentedDetail, PresentedMatch, PresentedRow, SortKey } from "@/lib/marketing/audience-data/present";
+import type { PresentedResolution } from "@/lib/marketing/audience-data/resolution";
+import { ResolutionPanel } from "./resolution-panel";
 import "./audience-data.css";
 
 const SORTS: { key: SortKey; label: string }[] = [
@@ -78,11 +80,13 @@ export function AudienceDataList({
   rows,
   campaigns,
   accountName = "",
+  resolutionRates,
 }: {
   mode: "staff" | "client";
   rows: PresentedRow[];
   campaigns: { id: string; name: string }[];
   accountName?: string;
+  resolutionRates?: Record<string, string>;
 }) {
   const [campaignId, setCampaignId] = useState("all");
   const [search, setSearch] = useState("");
@@ -191,7 +195,7 @@ export function AudienceDataList({
             <tbody>
               {model.rows.map((row) => (
                 <tr key={row.id}>
-                  <td><Link className="ad-src" href={`/audience-data/${row.id}`}>{sourceName(row)}</Link></td>
+                  <td><Link className="ad-src" href={`/audience-data/${row.id}`}>{sourceName(row)}</Link>{resolutionRates?.[row.id] ? <div className="ad-prov">Resolved {resolutionRates[row.id]}</div> : null}</td>
                   <td>{row.type}</td>
                   <td className="ad-mono">{row.campaigns}</td>
                   <td className="ad-mono">{row.audiences}</td>
@@ -229,7 +233,7 @@ export function AudienceDataList({
   );
 }
 
-export function AudienceDataSource({ detail, mode = "staff", accountName = "" }: { detail: PresentedDetail; mode?: "staff" | "client"; accountName?: string }) {
+export function AudienceDataSource({ detail, mode = "staff", accountName = "", resolution = null }: { detail: PresentedDetail; mode?: "staff" | "client"; accountName?: string; resolution?: PresentedResolution | null }) {
   const [worked, setWorked] = useState(false);
   const [notice, setNotice] = useState("");
   const cost = mode === "staff" ? detail.dataCostCpm : undefined;
@@ -277,6 +281,7 @@ export function AudienceDataSource({ detail, mode = "staff", accountName = "" }:
           </ol>
         ) : null}
       </div>
+      {resolution ? <ResolutionPanel resolution={resolution} /> : null}
       <p className="ad-prov" id="leads">Logic reads top to bottom: OR selections widen the pool, AND selections narrow it, Exclude removes devices. “Not measurable alone” means the selection only filters and has no leads of its own.</p>
       <div id="selections">
         {detail.groups.map((group) => (
