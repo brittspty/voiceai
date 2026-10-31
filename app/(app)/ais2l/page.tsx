@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Ais2lPage } from "@/components/jarvis/pages";
+import { loadAis2lCalls } from "@/lib/ais2l/load";
 import { requireUser } from "@/lib/auth";
 import { jarvisUiV2Enabled } from "@/lib/marketing/config";
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
@@ -21,5 +22,6 @@ export default async function Ais2lRoute() {
     );
   }
   const org = await getOrg();
-  return <Ais2lPage testMode={org.testMode} />;
+  const screen = await loadAis2lCalls(org.testMode);
+  return <Ais2lPage testPill={screen.testPill} calls={screen.calls} example={screen.example} />;
 }

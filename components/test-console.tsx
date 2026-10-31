@@ -108,7 +108,8 @@ export function TestConsole({ canWrite = true, offices, contacts }: { canWrite?:
           <div className="mt-4 border-t border-line pt-3 text-sm">
             <div className="font-medium">Call {call.status.replaceAll("_", " ")}</div>
             {call.outcome && <div className="text-muted">Outcome: {call.outcome.replaceAll("_", " ")}</div>}
-            {call.transcript?.[0] && <p className="mt-2 text-muted">{call.transcript[0].text}</p>}
+            {call.summary && <p className="mt-2">{call.summary}</p>}
+            {call.ghlSync && <p className="text-muted">GoHighLevel: {call.ghlSync.label}</p>}
             <a className="mt-2 inline-block underline" href="/calls">Open {AIS2L_NAME}</a>
           </div>
         )}

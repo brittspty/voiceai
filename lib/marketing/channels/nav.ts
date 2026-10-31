@@ -22,6 +22,8 @@ export function jarvisNav(input: {
   showSegments?: boolean;
   showAudiences?: boolean;
   channelLinks?: NavItem[] | null;
+  showInsights?: boolean;
+  showNotifications?: boolean;
 }): NavItem[] {
   const decisions: NavItem = { href: "/decisions", label: "Decisions", group: "Overview", count: input.decisionCount };
   if (input.audience === "client") {
@@ -65,6 +67,8 @@ export function jarvisNav(input: {
     items.push({ href: "/marketing/audiences/pixel", label: "Pixel tracking", group: "Audiences" });
   }
   items.push({ href: "/reports", label: "Reports", group: "Share" });
+  if (input.showInsights) items.push({ href: "/insights", label: "Insights", group: "Share" });
+  if (input.showNotifications) items.push({ href: "/notifications", label: "Notifications", group: "Overview" });
   items.push({ href: "/settings", label: "Settings & connections", group: "Account" });
   return items;
 }

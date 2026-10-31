@@ -18,6 +18,7 @@ import { sendInviteEmail } from "./mail";
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "./db";
 import { unknownTimezoneGate } from "./ais2l/hours";
+import { testDialDecision } from "./ais2l/screen";
 import { gateContextForContact } from "./dialer";
 import { evaluateGates } from "./gates";
 import { enqueue } from "./queue";
@@ -96,6 +97,9 @@ export async function startTestCall(input: {
       });
     }
   }
+  const org = await prisma.org.findUnique({ where: { id: "org" }, select: { testMode: true } });
+  const decision = testDialDecision({ orgTestMode: Boolean(org?.testMode), phone: contact.phone });
+  if (!decision.allowed) throw new Error(decision.reason);
   const call = await prisma.call.create({
     data: {
       contactId: contact.id,

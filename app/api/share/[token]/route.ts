@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { stripForAudience } from "@/lib/marketing/channels/cost-strip";
+import { presentForAudience } from "@/lib/marketing/share-payload";
 import { clientShareCsv, reopenClientReport } from "@/lib/marketing/client-view";
 import { reportsV2Enabled } from "@/lib/marketing/config";
 import { buildReportPdf } from "@/lib/marketing/reports/pdf";
@@ -48,7 +48,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   });
   if (reportsV2Enabled() && link.snapshot) {
     try {
-      const report = reopenClientReport(link.snapshot);
+      const report = presentForAudience(reopenClientReport(link.snapshot), "share");
       if (isExport) {
         const pdf = buildReportPdf(report);
         return shareResponse(new NextResponse(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": "attachment; filename=\"report.pdf\"" } }));
@@ -59,7 +59,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
     }
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
-  const payload = stripForAudience(await loadClientPerformance(org?.name || "Performance", { workspaceId: link.workspaceId, adAccountIds: "all" }), "share");
+  const payload = presentForAudience(await loadClientPerformance(org?.name || "Performance", { workspaceId: link.workspaceId, adAccountIds: "all" }), "share");
   if (isExport) {
     return shareResponse(new NextResponse(clientShareCsv(payload), { headers: { "Content-Type": "text/csv; charset=utf-8" } }));
   }
