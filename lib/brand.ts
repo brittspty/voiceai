@@ -1,9 +1,8 @@
 import { brandTokens } from "./brand/tokens";
 import { clientConfig, type ClientConfig } from "./client-config";
 
-/** Customer-facing product name. Avery is the AI caller, not the product. */
-export const PRODUCT_NAME = "VoiceOps";
-export const PRODUCT_TITLE = "VoiceOps: AI calling for service businesses";
+export { AIS2L_LINE, AIS2L_NAME, PRODUCT_NAME, PRODUCT_TITLE, PRODUCT_WORDMARK } from "./brand/names";
+
 export const PRODUCT_TAGLINE =
   "Avery calls your new leads in minutes, follows calling rules, and logs every call to GoHighLevel.";
 
@@ -11,10 +10,16 @@ export const PRODUCT_TAGLINE =
 export const BRAND_WORDMARK = "Specificity";
 export const BRAND_TAGLINE = "Identify. Engage. Convert.";
 
-/** Placeholder tokens until a workspace sets its own color and logo. */
-export const BRAND_FONT = "Poppins";
-export const PLACEHOLDER_BRAND_COLOR = "#FF5800";
-export const PLACEHOLDER_LOGO_URL = brandTokens.logo.reversed;
+/** Official Specificity orange and Poppins live in the token file. IBM Plex Mono is only for small labels. */
+export const BRAND_FONT = brandTokens.font.family;
+export const BRAND_MONO = brandTokens.font.mono;
+export const PLACEHOLDER_BRAND_COLOR = brandTokens.light.brand;
+/** Dark surfaces, including the ink sidebar. */
+export const LOGO_ON_DARK = brandTokens.logo.reversed;
+/** Light surfaces: mobile header, login, share, reports. */
+export const LOGO_ON_LIGHT = brandTokens.logo.full;
+export const LOGO_MARK = brandTokens.logo.src;
+export const PLACEHOLDER_LOGO_URL = LOGO_ON_DARK;
 
 /** Color stored by older seeds before the Specificity placeholder existed. */
 const UNSET_BRAND_COLOR = "#2563eb";

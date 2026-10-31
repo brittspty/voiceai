@@ -1,6 +1,7 @@
 import { decideConversionTurnOn, requestConversionTurnOn, saveConversionAccounts, saveConversionClient, saveConversionStage } from "@/lib/marketing/offline/actions";
 import { META_EVENT_NAMES } from "@/lib/marketing/offline/types";
 import type { ConversionFeedbackView } from "@/lib/marketing/offline/view";
+import { DataChip } from "./data-chip";
 import { ConnectLink, ErrorDrawer, UndoToast } from "./conversion-widgets";
 
 const GOOGLE_EVENTS = ["Qualified lead", "Booked call", "Sold"];
@@ -20,15 +21,17 @@ export function ConversionFeedback({
   canEdit,
   reconnectMeta,
   reconnectGoogle,
+  demoData = false,
 }: {
   view: ConversionFeedbackView;
   canEdit: boolean;
   reconnectMeta: boolean;
   reconnectGoogle: boolean;
+  demoData?: boolean;
 }) {
   return (
     <div className="space-y-4">
-      {view.exampleData && <p className="rounded-lg border border-line bg-chip px-3 py-2 text-xs font-semibold">EXAMPLE DATA</p>}
+      {view.exampleData && <p className="rounded-lg border border-line bg-chip px-3 py-2 text-xs font-semibold"><DataChip demo={demoData} /></p>}
       <p className="rounded-xl border border-line bg-card px-4 py-3 text-sm" role="status" aria-live="polite">{view.banner}</p>
       {view.empty && (
         <section className="rounded-xl border border-line bg-card p-4">

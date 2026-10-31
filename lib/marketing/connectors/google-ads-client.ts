@@ -8,7 +8,11 @@
  * - `upload` — `customers/{id}:uploadClickConversions` only (offline conversions)
  *
  * `googleAdsRequest` always uses `read`. It cannot send a mutate or an upload.
+ * Budget, bid, and spend-cap writes are refused by `assertNoAdBudgetWrite` before that allowlist.
  */
+
+import { assertOutboundOpen } from "../../demo/outbound";
+import { assertNoAdBudgetWrite } from "./budget-lock";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 export type Sleep = (ms: number) => Promise<void>;
@@ -34,16 +38,13 @@ const GUARD_PATHS: Record<GoogleAdsGuardKind, RegExp> = {
  */
 export const GOOGLE_ADS_MUTATE_PATHS = [
   "campaigns:mutate",
-  "campaignBudgets:mutate",
   "campaignCriteria:mutate",
   "campaignAssets:mutate",
   "campaignSharedSets:mutate",
-  "campaignBidModifiers:mutate",
   "adGroups:mutate",
   "adGroupAds:mutate",
   "adGroupCriteria:mutate",
   "adGroupAssets:mutate",
-  "adGroupBidModifiers:mutate",
   "ads:mutate",
   "assets:mutate",
   "assetGroups:mutate",
@@ -55,7 +56,6 @@ export const GOOGLE_ADS_MUTATE_PATHS = [
   "customerClientLinks:mutate",
   "customerUserAccesses:mutate",
   "userLists:mutate",
-  "biddingStrategies:mutate",
   "recommendations:apply",
   "experiments:mutate",
   "experimentArms:mutate",
@@ -66,7 +66,6 @@ export const GOOGLE_ADS_MUTATE_PATHS = [
   "sharedCriteria:mutate",
   "sharedSets:mutate",
   "billingSetups:mutate",
-  "accountBudgetProposals:mutate",
   "paymentsAccounts:mutate",
   "keywordPlanAdGroupKeywords:mutate",
   ":uploadClickConversions",
@@ -210,6 +209,8 @@ function errorMessage(body: unknown, status: number, secrets: string[]) {
 
 /** Performs one read call. Page-status and upload URLs throw and do not call fetch. */
 export async function googleAdsRequest(input: GoogleAdsCall) {
+  assertOutboundOpen("google");
+  assertNoAdBudgetWrite({ method: input.method, url: input.url, body: input.body });
   assertGoogleAdsAllowed("read", input.method, input.url);
   const fetchImpl = input.fetchImpl ?? fetch;
   const sleep = input.sleep ?? defaultSleep;
@@ -273,6 +274,7 @@ export async function refreshGoogleAdsAccessToken(input: {
     refresh_token: input.refreshToken,
   });
   const fetchImpl = input.fetchImpl ?? fetch;
+  assertNoAdBudgetWrite({ method: "POST", url: GOOGLE_ADS_TOKEN_URL, body });
   let response: Response;
   try {
     response = await fetchImpl(GOOGLE_ADS_TOKEN_URL, {

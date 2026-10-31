@@ -1,5 +1,7 @@
+import { assertOutboundOpen } from "../../demo/outbound";
 import type { Env } from "../config";
 import { offlineConversionsLiveEnabled } from "../config";
+import { AdBudgetWriteBlockedError, assertNoAdBudgetWrite } from "../connectors/budget-lock";
 import { assertGoogleAdsAllowed, googleAdsGuard } from "../connectors/google-ads-client";
 import { conversionLogLine, payloadHasRawPii, type LogSink } from "./log";
 import {
@@ -131,6 +133,7 @@ export async function resolveGoogleAccessToken(
     refresh_token: creds.refreshToken,
     grant_type: "refresh_token",
   });
+  assertOutboundOpen("google");
   const response = await fetchImpl(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -210,6 +213,23 @@ export async function executeUploads(input: {
       continue;
     }
     assertConversionUploadUrl(wire.url);
+    assertOutboundOpen(upload.platform === "meta" ? "meta" : "google");
+    try {
+      assertNoAdBudgetWrite({ method: "POST", url: wire.url, body: wire.body });
+    } catch (error) {
+      if (error instanceof AdBudgetWriteBlockedError) {
+        uploads.push(
+          storedUpload(upload, {
+            status: "failed",
+            attempts: upload.attempts + 1,
+            errorCode: "budget_write_blocked",
+            errorMessage: "The upload was blocked before it was sent.",
+          }),
+        );
+        continue;
+      }
+      throw error;
+    }
     const response = await input.fetchImpl(wire.url, {
       method: "POST",
       headers: wire.headers,
