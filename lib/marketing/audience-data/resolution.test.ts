@@ -25,7 +25,7 @@ test("match rate uses a number, a word, and a hold under 30%", () => {
   assert.equal(rateBand(27).word, "Low — on hold");
 });
 
-test("the staff summary matches the example and includes The Trade Desk as a placeholder", () => {
+test("the staff summary matches the example and does not use a Trade Desk placeholder", () => {
   const result = readResolution({ reader: "staff" });
   assert.equal(result.ok, true);
   if (!result.ok) return;
@@ -43,12 +43,12 @@ test("the staff summary matches the example and includes The Trade Desk as a pla
   assert.equal(body.parts.reduce((sum, part) => sum + part.uploaded, 0), body.uploaded);
   assert.equal(body.parts.reduce((sum, part) => sum + part.matched, 0), body.matchedAny);
   assert.equal(body.parts.reduce((sum, part) => sum + part.unmatched, 0), body.unmatched);
-  assert.deepEqual(body.platforms.map((row) => row.label), ["Meta", "Google", "StackAdapt", "The Trade Desk (other)"]);
+  assert.deepEqual(body.platforms.map((row) => row.label), ["Meta", "Google", "StackAdapt"]);
   for (const id of ["meta", "google_ads", "stackadapt"]) {
     assert.equal(body.platforms.find((row) => row.id === id)?.placeholder, false, id);
   }
-  assert.equal(body.platforms.find((row) => row.id === "trade_desk")?.placeholder, true);
-  assert.equal(body.platforms.find((row) => row.id === "trade_desk")?.percent, 27);
+  assert.equal(body.platforms.some((row) => row.id === "trade_desk"), false);
+  assert.equal(JSON.stringify(body).includes("Trade Desk"), false);
   assert.ok(body.bySource.some((row) => row.label === "Vendor A"));
   assert.deepEqual(body.windows[30].points.map((point) => point.percent), [58, 59, 61, 60, 62, 63]);
   assert.equal(body.windows[60].points[0]?.percent, 54);

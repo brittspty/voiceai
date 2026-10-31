@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { EXAMPLE_ASSIGNMENTS, clientChannelPayload } from "@/lib/marketing/channels/catalog";
+import { presentedVideoChannels } from "@/lib/marketing/channels/video-channels";
 import { readScopedClient } from "@/lib/marketing/client-contract";
 import { jarvisUiV2Enabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
       ownClientId: own,
       assignedClientIds: [own],
       requestedClientId: requested || own,
-      payload: { ...clientChannelPayload(), spend: 8300, budget: 100, cost: 12, cpl: 41, cpql: 124, roas: 3.2 },
+      payload: { ...clientChannelPayload(), moreChannels: presentedVideoChannels("client"), spend: 8300, budget: 100, cost: 12, cpl: 41, cpql: 124, roas: 3.2 },
     });
     if (!scoped.ok) return NextResponse.json({ error: scoped.error }, { status: scoped.status });
     return NextResponse.json(scoped.body);
@@ -30,10 +31,10 @@ export async function GET(request: Request) {
       ownClientId: access.workspaceId,
       assignedClientIds: EXAMPLE_ASSIGNMENTS.dana,
       requestedClientId: requested,
-      payload: { qualified: 71, spend: 8300, cpl: 41, cpql: 124, roas: 3.2, leads: 212 },
+      payload: { qualified: 71, spend: 8300, cpl: 41, cpql: 124, roas: 3.2, leads: 212, moreChannels: presentedVideoChannels("staff") },
     });
     if (!scoped.ok) return NextResponse.json({ error: scoped.error }, { status: scoped.status });
     return NextResponse.json(scoped.body);
   }
-  return NextResponse.json({ qualified: 71, spend: 8300, cpl: 41, cpql: 124, roas: 3.2, leads: 212 });
+  return NextResponse.json({ qualified: 71, spend: 8300, cpl: 41, cpql: 124, roas: 3.2, leads: 212, moreChannels: presentedVideoChannels("staff") });
 }

@@ -43,6 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       channelLinks: registry ? (staff ? registry.nav : registry.clientNav) : undefined,
       showAudienceData: audienceDataEnabled() && canOpenAudienceData(access.kind),
       showAudienceDataClient: audienceDataClientEnabled() && (access.kind === "client_owner" || access.kind === "client_viewer"),
+      showVideoChannels: !registry,
     });
     return (
       <JarvisShell productName={PRODUCT_NAME} wordmark={BRAND_WORDMARK} logoOnDark={LOGO_ON_DARK} logoOnLight={LOGO_ON_LIGHT} items={items} unread={unread} moreChannels={registry?.commandCenter.moreLabel}>

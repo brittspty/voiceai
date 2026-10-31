@@ -12,8 +12,8 @@ export const dynamic = "force-dynamic";
 export default async function ConnectionsPage({ searchParams }: { searchParams: Promise<SP> }) {
   if (!jarvisUiV2Enabled()) redirect("/settings/integrations");
   const user = await requireUser();
-  if (!channelRegistryEnabled()) return <SettingsConnections />;
   const access = await loadMarketingAccess(user);
+  if (!channelRegistryEnabled()) return <SettingsConnections staff={access.seesCost} />;
   const query = await searchParams;
   if (!canUseChannelRegistry(access)) {
     return <ClientConnectionList channels={presentClientChannels(exampleRegistryState(), "harbor").channels} />;

@@ -1,4 +1,6 @@
 import { collectsCostKeys, stripForAudience } from "../channels/cost-strip";
+import type { MoreResolution } from "../channels/video-channels";
+import { jarvisUiV2Enabled, type Env } from "../config";
 
 /** Good ≥ 50%, Fair 30–49%, Low — on hold under 30%. */
 export function rateBand(percent: number) {
@@ -67,6 +69,8 @@ export type ResolutionReport = {
   matchedAny: number;
   unmatched: number;
   platforms: RateRow[];
+  /** YouTube and CTV sit under the platform table. Omitted while JARVIS_UI_V2 is off. */
+  moreChannels?: MoreResolution[];
   bySource: RateRow[];
   windows: Record<ResolutionWindow, { from: number; to: number; points: { label: string; percent: number }[] }>;
   why: string;
@@ -88,7 +92,6 @@ const PLATFORMS: RateRow[] = classifyPlatforms([
   { id: "meta", label: "Meta", sent: 5_030_000, matched: 3_220_000, unmatched: 1_810_000, percent: 64 },
   { id: "google_ads", label: "Google", sent: 5_030_000, matched: 2_460_000, unmatched: 2_570_000, percent: 49 },
   { id: "stackadapt", label: "StackAdapt", sent: 5_030_000, matched: 2_870_000, unmatched: 2_160_000, percent: 57 },
-  { id: "trade_desk", label: "The Trade Desk (other)", sent: 5_030_000, matched: 1_360_000, unmatched: 3_670_000, percent: 27 },
 ]);
 
 const SOURCES: (RateRow & { vendor: string; vendorId: string; vendorSegmentIds: string[]; clientLabel: string })[] = [
@@ -123,15 +126,54 @@ const STAFF_SOURCE_IDS: Record<string, string> = {
   "vendor-d": "4",
 };
 
-function harborReport(reader: "staff" | "client" | "share", sourcePublicId?: string): ResolutionReport {
+function withVideoPlatforms(report: ResolutionReport, staff: boolean, env?: Env): ResolutionReport {
+  const enabled = jarvisUiV2Enabled(env);
+  const base = report.platforms.filter((row) => row.id !== "trade_desk" && row.id !== "youtube" && row.id !== "ctv");
+  if (!enabled) return { ...report, platforms: base };
+  const google = base.find((row) => row.id === "google_ads");
+  const platforms: RateRow[] = [];
+  for (const row of base) {
+    platforms.push({ ...row, placeholder: false });
+    if (row.id === "google_ads" && google) {
+      platforms.push({
+        id: "youtube",
+        label: "YouTube (via Google)",
+        sent: google.sent,
+        matched: google.matched,
+        unmatched: google.unmatched,
+        percent: google.percent,
+        placeholder: false,
+      });
+    }
+  }
+  const sent = google?.sent ?? report.uploaded;
+  const matched = Math.round(sent * 0.27);
+  platforms.push({
+    id: "ctv",
+    label: staff ? "CTV (StackAdapt)" : "CTV",
+    sent,
+    matched,
+    unmatched: sent - matched,
+    percent: 27,
+    placeholder: false,
+  });
+  return { ...report, platforms };
+}
+
+function harborReport(reader: "staff" | "client" | "share", sourcePublicId?: string, env?: Env): ResolutionReport {
   const source = sourcePublicId ? SOURCES.find((row) => row.id === sourcePublicId) : undefined;
   const staff = reader === "staff";
   const title = source
     ? staff ? `${source.vendor} · ${source.category}` : `${source.clientLabel} · ${source.category}`
     : staff ? "Resolution Data across all audiences" : "Resolution Data across your audiences";
-  const why = staff
-    ? "This audience is under 30% on The Trade Desk (27%), so it is on hold there. IPv4 / household matches at 24% and IPv6 / household matches at 23%; Vendor D matches at 29%."
-    : "Your audience is under 30% on The Trade Desk (27%), so it is on hold there. IPv4 / household matches at 24% and IPv6 / household matches at 23%; Device and app data source matches at 29%.";
+  const video = jarvisUiV2Enabled(env);
+  const why = video
+    ? staff
+      ? "This audience is under 30% on CTV (StackAdapt) (27%), so it is on hold there. YouTube uses the Google match rate. IPv4 / household matches at 24% and IPv6 / household matches at 23%; Vendor D matches at 29%."
+      : "Your audience is under 30% on CTV (27%), so it is on hold there. YouTube uses the Google match rate. IPv4 / household matches at 24% and IPv6 / household matches at 23%; Device and app data source matches at 29%."
+    : staff
+      ? "IPv4 / household matches at 24% and IPv6 / household matches at 23%; Vendor D matches at 29%."
+      : "IPv4 / household matches at 24% and IPv6 / household matches at 23%; Device and app data source matches at 29%.";
   const recommendation = staff
     ? "consider adding hashed emails for these records or rebuilding the audience with fewer IP-only records. Nothing changes until your team builds it in the data market."
     : "your Specificity team may suggest adding hashed emails for these records or rebuilding the audience with fewer IP-only records. Nothing changes until your Specificity team makes the change.";
@@ -164,17 +206,22 @@ function harborReport(reader: "staff" | "client" | "share", sourcePublicId?: str
     recommendation,
     workedOut: [
       "Inputs: records sent, matched counts, and the 30% hold line.",
-      "The Trade Desk is a placeholder. Only Meta, Google, and StackAdapt are confirmed. It matched 27%.",
+      ...(video
+        ? [staff
+          ? "CTV runs through StackAdapt and matched 27%. YouTube uses the Google match rate."
+          : "CTV matched 27%. YouTube uses the Google match rate."]
+        : []),
       "IPv4 / household matches at 24%. IPv6 / household matches at 23%.",
       "Recommendation only. Nothing is paused, edited, or rebuilt.",
     ],
   };
   if (staff && source) report.vendor = source.vendor;
   if (staff && source) report.vendorId = source.vendorId;
-  return reader === "staff" ? report : stripResolution(report);
+  const withVideo = withVideoPlatforms(report, staff, env);
+  return reader === "staff" ? withVideo : stripResolution(withVideo);
 }
 
-function gulfReport(): ResolutionReport {
+function gulfReport(env?: Env): ResolutionReport {
   const report: ResolutionReport = {
     id: "1",
     title: "Resolution Data across your audiences",
@@ -208,11 +255,13 @@ function gulfReport(): ResolutionReport {
       60: { from: 52, to: 59, points: [{ label: "Wk 1", percent: 52 }, { label: "Now", percent: 59 }] },
       90: { from: 50, to: 59, points: [{ label: "Wk 1", percent: 50 }, { label: "Now", percent: 59 }] },
     },
-    why: "Your audience is above the hold line on every connected platform.",
+    why: jarvisUiV2Enabled(env)
+      ? "Your audience is under 30% on CTV (27%), so it is on hold there."
+      : "Your audience is above the hold line on every connected platform.",
     recommendation: "your Specificity team may suggest leaving this audience as it is. Nothing changes until your Specificity team makes the change.",
     workedOut: ["Inputs: records sent and the 30% hold line.", "Recommendation only. Nothing is written."],
   };
-  return stripResolution(report);
+  return stripResolution(withVideoPlatforms(report, false, env));
 }
 
 function stripResolution<T>(value: T): T {
@@ -243,6 +292,7 @@ export function readResolution(input: {
   ownAccountId?: string;
   requestedAccountId?: string | null;
   campaignId?: string | null;
+  env?: Env;
 }) {
   const campaignId = (input.campaignId || "all").trim() || "all";
   if (input.reader !== "staff") {
@@ -256,18 +306,18 @@ export function readResolution(input: {
     if (/vendor/i.test(sourceId)) return { ok: false as const, status: 404 as const, error: "Not found" as const };
     if (own === "gulf") {
       if (sourceId && sourceId !== "1") return { ok: false as const, status: 404 as const, error: "Not found" as const };
-      const body = gulfReport();
+      const body = gulfReport(input.env);
       if (collectsCostKeys(body).length) return { ok: false as const, status: 500 as const, error: "Not allowed" as const };
       return { ok: true as const, body };
     }
     if (own !== "org") return { ok: false as const, status: 404 as const, error: "Not found" as const };
     if (sourceId && !SOURCES.some((row) => row.id === sourceId)) return { ok: false as const, status: 404 as const, error: "Not found" as const };
-    const body = harborReport(input.reader, sourceId || undefined);
+    const body = harborReport(input.reader, sourceId || undefined, input.env);
     if (collectsCostKeys(body).length) return { ok: false as const, status: 500 as const, error: "Not allowed" as const };
     return { ok: true as const, body };
   }
   const sourceId = (input.sourceId || "").trim();
   const publicId = STAFF_SOURCE_IDS[sourceId] || (SOURCES.some((row) => row.id === sourceId) ? sourceId : "");
   if (sourceId && !publicId) return { ok: false as const, status: 404 as const, error: "Not found" as const };
-  return { ok: true as const, body: harborReport("staff", publicId || undefined) };
+  return { ok: true as const, body: harborReport("staff", publicId || undefined, input.env) };
 }
