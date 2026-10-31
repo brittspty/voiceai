@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
+import { loginHeading } from "@/lib/login-copy";
 import { sameOriginPath } from "@/lib/same-origin-path";
 
 export type LoginBrand = {
@@ -35,6 +36,7 @@ function LoginForm({ brand, hint, homeHref }: { brand: LoginBrand; hint: DemoHin
   const router = useRouter();
   const params = useSearchParams();
   const queryError = params.get("error") === "credentials" ? "Email or password is wrong." : params.get("error") === "rate" ? "Too many attempts. Wait a few minutes and try again." : params.get("error") === "totp" ? "This account needs the in-app two-step step. Sign in from this page after it finishes loading." : null;
+  const heading = loginHeading(params.get("audience"), brand.wordmark);
   const [error, setError] = useState<string | null>(queryError);
   const [ticket, setTicket] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -46,7 +48,7 @@ function LoginForm({ brand, hint, homeHref }: { brand: LoginBrand; hint: DemoHin
           <div className="flex items-center gap-2.5">
             <BrandMark brandColor={brand.brandColor} logoUrl={brand.logoUrl} mark={brand.mark} letter alt={brand.wordmark} />
             <div>
-              <h1 className="text-sm font-semibold">Sign in to {brand.wordmark}</h1>
+              <h1 className="text-base font-semibold">{heading}</h1>
               <p className="text-xs italic text-zinc-600 dark:text-zinc-300">{brand.tagline}</p>
             </div>
           </div>
