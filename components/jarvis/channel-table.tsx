@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { channelColumns } from "@/lib/marketing/channels/columns";
+import { Tip } from "./bits";
 
 export type TreeRow = {
   id: string;
@@ -11,10 +13,12 @@ export type TreeRow = {
   children?: TreeRow[];
 };
 
-export function ChannelTable({ rows }: { rows: TreeRow[] }) {
+export function ChannelTable({ rows, audience = "staff" }: { rows: TreeRow[]; audience?: "staff" | "client" }) {
+  const columns = channelColumns(audience);
   const [open, setOpen] = useState<Record<string, boolean>>({ harbor: true, retirees: true });
   const render = (row: TreeRow, depth: number): ReactNode => {
     const expanded = Boolean(open[row.id]);
+    const cells = audience === "client" ? row.cells.filter((_, index) => index !== 0 && index !== 2) : row.cells;
     return (
       <>
         <tr key={row.id} className={depth === 1 ? "lv1" : depth === 2 ? "lv2" : undefined}>
@@ -34,7 +38,7 @@ export function ChannelTable({ rows }: { rows: TreeRow[] }) {
             )}
             <Link href={row.href}>{row.name}</Link>
           </td>
-          {row.cells.map((cell) => (
+          {cells.map((cell) => (
             <td key={cell}>{cell}</td>
           ))}
         </tr>
@@ -46,12 +50,12 @@ export function ChannelTable({ rows }: { rows: TreeRow[] }) {
     <table>
       <thead>
         <tr>
-          <th>Campaign / ad set / ad</th>
-          <th>Spend</th>
-          <th>Leads</th>
-          <th>CPL</th>
-          <th>CTR</th>
-          <th>Status</th>
+          {columns.map((column) => (
+            <th key={column.id}>
+              {column.label}
+              {column.glossaryId ? <Tip glossaryId={column.glossaryId} /> : null}
+            </th>
+          ))}
         </tr>
       </thead>
       <tbody>{rows.map((row) => render(row, 0))}</tbody>

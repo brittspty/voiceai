@@ -87,7 +87,7 @@ export function AppShell({
   const extras = [
     ...(showSpeedToLead ? [{ href: "/marketing/speed-to-lead", label: "Speed-to-lead", icon: Timer }] : []),
     ...(leadScoring ? [{ href: "/marketing/leads", label: "Leads", icon: ListChecks }] : []),
-    ...(showSegments ? [{ href: "/marketing/segments", label: "Segments", icon: Layers }] : []),
+    ...(showSegments ? [{ href: "/marketing/segments", label: "Audience Data", icon: Layers }] : []),
     ...(audienceLibrary ? [{ href: "/marketing/audiences", label: "Audiences", icon: Users }, { href: "/marketing/audiences/pixel", label: "Pixel tracking", icon: Activity }] : []),
   ];
   const baseNav = [...NAV.slice(0, 2), ...extras, ...reportNav, ...NAV.slice(2)];
@@ -96,7 +96,7 @@ export function AppShell({
     ...CLIENT_NAV.slice(0, 1),
     ...reportNav,
     ...CLIENT_NAV.slice(1),
-    ...(showSegments ? [{ href: "/marketing/segments", label: "Segments", icon: Layers }] : []),
+    ...(showSegments ? [{ href: "/marketing/segments", label: "Audience Data", icon: Layers }] : []),
   ];
 
   const nav = (

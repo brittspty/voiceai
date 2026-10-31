@@ -34,6 +34,16 @@ function Bars({ count }: { count: number }) {
   );
 }
 
+export function AudienceCrumb({ page }: { page: string }) {
+  return (
+    <nav className="crumb mb-3 text-sm text-muted" aria-label="Breadcrumb">
+      <a href="/marketing/segments">Audience Data</a>
+      <span className="sep"> › </span>
+      <b aria-current="page">{page}</b>
+    </nav>
+  );
+}
+
 export function SegmentTabs({ current }: { current: "board" | "lineage" | "tests" }) {
   const tabs = [
     ["/marketing/segments", "Leaderboard", current === "board"],
@@ -41,7 +51,7 @@ export function SegmentTabs({ current }: { current: "board" | "lineage" | "tests
     ["/marketing/segments/tests", "Tests", current === "tests"],
   ] as const;
   return (
-    <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Segment views">
+    <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Audience Data">
       {tabs.map(([href, label, on]) => (
         <Link key={href} href={href} role="tab" aria-selected={on} className={`inline-flex min-h-11 items-center rounded-full border px-3 text-sm ${on ? "border-ink bg-ink text-on-ink" : "border-line"}`}>{label}</Link>
       ))}
@@ -56,6 +66,7 @@ export function ExampleBadge() {
 export function SegmentLeaderboard({ board, staff }: { board: Board; staff: boolean }) {
   return (
     <div>
+      <AudienceCrumb page="Leaderboard" />
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-muted">{staff ? "Staff view" : "Client view"} · Last 30 days</p>
@@ -133,6 +144,7 @@ export function SegmentLeaderboard({ board, staff }: { board: Board; staff: bool
 export function SegmentLineageView({ nodes, staff }: { nodes: ReturnType<typeof exampleLineage>; staff: boolean }) {
   return (
     <div>
+      <AudienceCrumb page="Lineage" />
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-muted">{staff ? "Lineage · vendor and list id travel with every MAID row" : "Lineage"}</p>
@@ -162,6 +174,7 @@ export function SegmentLineageView({ nodes, staff }: { nodes: ReturnType<typeof 
 export function SegmentDrillView({ drill }: { drill: ReturnType<typeof exampleDrill> }) {
   return (
     <div>
+      <AudienceCrumb page="Drill-down" />
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-muted">One attribute at a time. Order: {DRILL_LEVELS.join(" → ")}</p>
@@ -200,6 +213,7 @@ export function SegmentTestView({ test, staff }: { test: ReturnType<typeof examp
   const ready = test.judgment.status === "winner";
   return (
     <div>
+      <AudienceCrumb page="Tests" />
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-muted">Head-to-head · control is the {test.kind === "current_best" ? "current best list" : "chosen baseline list"}</p>
@@ -254,8 +268,9 @@ export function SegmentDecisions({
 }) {
   return (
     <div>
+      <AudienceCrumb page="Decisions" />
       <div className="mb-4 flex items-end justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Decisions</h1>
+        <h1 className="text-2xl font-semibold">Audience Data</h1>
         <ExampleBadge />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -266,19 +281,34 @@ export function SegmentDecisions({
             <p className="mt-2 text-sm text-muted">{card.summary}</p>
             <p className="mt-2 text-xs text-muted">{card.basedOn}</p>
             <p className="mt-2 rounded-lg border border-dashed border-warning p-2 text-sm">Yes logs the decision and shows the steps to do it by hand. Nothing is sent to an ad account.</p>
+            {card.type === "segment_cut" ? (
+              <p className="mt-2 text-sm">Dry run · confirm preview: pause {card.vendor} list {card.listId} by hand. Nothing is sent.</p>
+            ) : null}
             <form action={answerSegmentDecision} className="mt-3 flex flex-wrap gap-2">
               <input type="hidden" name="id" value={card.id} />
               <input type="hidden" name="type" value={card.type} />
               <input type="hidden" name="vendor" value={card.vendor} />
               <input type="hidden" name="listId" value={card.listId} />
-              <button name="decision" value="accept" className="btn-brand min-h-11 rounded-lg px-3">Yes</button>
+              {card.type === "segment_cut" ? (
+                <label className="flex w-full items-start gap-2 text-sm">
+                  <input type="checkbox" name="confirmPreview" value="dry-run" required className="mt-1" />
+                  <span>Dry run · confirm preview before Yes, cut.</span>
+                </label>
+              ) : null}
+              <button name="decision" value="accept" className="btn-brand min-h-11 rounded-lg px-3">{card.type === "segment_cut" ? "Yes, cut" : "Yes"}</button>
+            </form>
+            <form action={answerSegmentDecision} className="mt-2 flex flex-wrap gap-2">
+              <input type="hidden" name="id" value={card.id} />
+              <input type="hidden" name="type" value={card.type} />
+              <input type="hidden" name="vendor" value={card.vendor} />
+              <input type="hidden" name="listId" value={card.listId} />
               <button name="decision" value="decline" className="min-h-11 rounded-lg border border-line px-3">No</button>
               <Link href="/marketing/segments/tests" className="inline-flex min-h-11 items-center rounded-lg border border-line px-3 text-sm">See test</Link>
             </form>
           </article>
         ))}
         <article className="rounded-xl border border-line p-4">
-          <p className="text-[11px] uppercase tracking-wide text-muted">Follow-up · recommendation only</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted">RECOMMENDATION ONLY</p>
           <h2 className="mt-1 font-semibold">A person changes the campaign amount, if they want to.</h2>
           <p className="mt-2 text-sm text-muted">This card does not write that amount. Mark it only after you have done it yourself.</p>
           <form action={answerSegmentDecision} className="mt-3 flex flex-wrap gap-2">

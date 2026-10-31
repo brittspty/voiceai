@@ -3,7 +3,7 @@ import { LiveFeed } from "@/components/jarvis/pages";
 import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
 import { EXAMPLE_ASSIGNMENTS } from "@/lib/marketing/channels/catalog";
-import { jarvisUiV2Enabled } from "@/lib/marketing/config";
+import { amRealtimeEnabled, jarvisUiV2Enabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +19,7 @@ export default async function LivePage() {
         role: access.kind,
         assignedClientIds: access.kind === "super_admin" ? [] : EXAMPLE_ASSIGNMENTS.dana,
       }}
+      realtime={amRealtimeEnabled()}
     />
   );
 }

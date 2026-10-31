@@ -1,3 +1,5 @@
+import { addDaysISO, zonedISODate, zonedParts, zonedTimeToUtc } from "../../time";
+
 export type FeedSeverity = "urgent" | "decision" | "note";
 
 export type LiveFeedItem = {
@@ -57,6 +59,38 @@ export function deliveryPlan(item: Pick<LiveFeedItem, "severity">, now: Date, ti
 
 export function urgentEmail(optIn: boolean) {
   return optIn ? URGENT_CHANNEL : ("in_app" as const);
+}
+
+export const SNOOZE_CHOICES = ["1h", "tonight", "tomorrow_8am"] as const;
+export type SnoozeChoice = (typeof SNOOZE_CHOICES)[number];
+
+/** 1 hour, 10 PM local (tonight), or 8 AM local on the next calendar day. */
+export function snoozeUntil(choice: SnoozeChoice, now: Date, timeZone: string) {
+  if (choice === "1h") return new Date(now.getTime() + 60 * 60 * 1000);
+  const today = zonedISODate(now, timeZone);
+  if (choice === "tomorrow_8am") return zonedTimeToUtc(`${addDaysISO(today, 1)}T08:00:00`, timeZone);
+  const hour = zonedParts(now, timeZone).hour;
+  const day = hour < QUIET_START_HOUR ? today : addDaysISO(today, 1);
+  return zonedTimeToUtc(`${day}T22:00:00`, timeZone);
+}
+
+const urgentOptIn = new Map<string, boolean>();
+
+/** Per account manager. Off until that person opts in. Nothing is emailed. */
+export function setUrgentEmailOptIn(userId: string, on: boolean) {
+  urgentOptIn.set(userId, on);
+  return { userId, optIn: urgentOptIn.get(userId) === true };
+}
+
+export function urgentEmailOptIn(userId: string) {
+  return urgentOptIn.get(userId) === true;
+}
+
+/** Mock only. A real send is not implemented; the log line is "would send". */
+export function deliverUrgentEmail(input: { optIn: boolean; title: string }, log: (line: string) => void = (line) => console.info(line)) {
+  if (!input.optIn) return { sent: false as const, logged: null };
+  log("would send");
+  return { sent: false as const, logged: "would send" as const };
 }
 
 const FIFTEEN_MIN = 15 * 60 * 1000;

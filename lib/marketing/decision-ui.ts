@@ -59,7 +59,7 @@ export function budgetCardCopy(input: DecisionInput) {
   const unit = input.proposedBudgetPeriod === "lifetime" ? " lifetime" : "/day";
   const sign = delta >= 0 ? "+" : "−";
   return {
-    tag: "Budget change · You make this change",
+    tag: "RECOMMENDATION ONLY · You make this change",
     headline: input.title,
     why: input.summary,
     current: `${usd(current)}${unit}`,
@@ -103,7 +103,7 @@ export function plainCardLine(input: Pick<DecisionInput, "metric" | "title" | "s
 export function decisionVisibleText(input: DecisionInput) {
   if (input.type === "budget_change") {
     const copy = budgetCardCopy(input);
-    return [copy.tag, copy.headline, copy.why, copy.fixed, "Approve and get steps", "Decline", "Later"].join(" ");
+    return [copy.tag, copy.headline, copy.why, copy.fixed, "RECOMMENDATION ONLY", "Approve and get steps", "Decline", "Later"].join(" ");
   }
   if (input.type === "pacing") {
     const copy = pacingCardCopy(input);
@@ -111,7 +111,7 @@ export function decisionVisibleText(input: DecisionInput) {
   }
   if (input.type === "creative_fatigue") {
     const copy = fatigueCardCopy(input);
-    return [copy.tag, copy.headline, copy.fix, copy.current, copy.proposed, copy.fixed, "Approve new version", "Decline", "Later"].join(" ");
+    return [copy.tag, copy.headline, copy.fix, copy.current, copy.proposed, copy.fixed, "Dry run", "Confirm preview", "Approve new version", "Decline", "Later"].join(" ");
   }
   if (input.type === "ad_fatigue" || input.type === "stackadapt" || input.type === "business_profile") {
     return [input.title, input.summary, input.rationale, "Yes", "No"].join(" ");

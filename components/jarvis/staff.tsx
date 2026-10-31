@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_NAME } from "@/lib/brand";
 import { recommendAd, type AdSignal } from "@/lib/marketing/channels/recommend";
-import { Crumbs, End, Flag, RecChip, Tile } from "./bits";
+import { Crumbs, End, Flag, RecChip, Tile, Tip } from "./bits";
 import { ChannelTable } from "./channel-table";
 
 const brand = { productName: PRODUCT_NAME, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
@@ -65,10 +65,10 @@ export function StaffHome({ surfaces = null }: { surfaces?: RegistrySurfaces | n
             <thead>
               <tr>
                 <th>Channel</th>
-                <th>Spend</th>
-                <th>Leads</th>
-                <th>CPL</th>
-                <th>Qualified</th>
+                <th>Spend <Tip glossaryId="spend" /></th>
+                <th>Leads <Tip glossaryId="leads" /></th>
+                <th>CPL <Tip glossaryId="cpl" /></th>
+                <th>Qualified <Tip glossaryId="qualified_leads" /></th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -141,7 +141,7 @@ export function StaffHome({ surfaces = null }: { surfaces?: RegistrySurfaces | n
           <Flag tone="an" label="ANOMALY" href="/decisions/D-1042">Meta · Harbor Dental · Retirees FL: leads −38% in 7 days; top ad frequency 4.6 (threshold 3.5).</Flag>
           <Flag tone="an" label="ANOMALY" href="/decisions/D-1043">Landing page /spring-offer failed 3 checks. 2 Meta ads point there.</Flag>
           <Flag tone="op" label="OPPORTUNITY" href="/decisions/D-1044">Google Ads “emergency dentist” converts at 14%, 2× the account average.</Flag>
-          <Flag tone="oo" label="OPPORTUNITY" href="/decisions/D-1045">StackAdapt cost per lead is 2.1× Google’s. Reallocation is a recommendation only.</Flag>
+          <Flag tone="oo" label="RECOMMENDATION ONLY" href="/decisions/D-1045">StackAdapt cost per lead is 2.1× Google’s. Reallocation is a recommendation only.</Flag>
           <div className="sec-h" style={{ marginTop: 16 }}>
             <h2>Top decision</h2>
             <Link href="/decisions">Open inbox (7)</Link>
