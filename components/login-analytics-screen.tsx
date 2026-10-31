@@ -396,18 +396,20 @@ function CountUp({ value }: { value: number }) {
   const [shown, setShown] = useState(value);
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let frame = 0;
     if (media.matches) {
-      setShown(value);
-      return;
+      frame = requestAnimationFrame(() => setShown(value));
+      return () => cancelAnimationFrame(frame);
     }
     const start = performance.now();
-    let frame = 0;
     const tick = (now: number) => {
       setShown(countUpValue(now - start, value, false));
       if (now - start < 900) frame = requestAnimationFrame(tick);
     };
-    setShown(0);
-    frame = requestAnimationFrame(tick);
+    frame = requestAnimationFrame((now) => {
+      setShown(0);
+      tick(now);
+    });
     return () => cancelAnimationFrame(frame);
   }, [value]);
   return <p className="num text-[44px] leading-none font-semibold tracking-tight max-[700px]:text-[34px]">{shown.toLocaleString("en-US")}</p>;
