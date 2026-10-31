@@ -25,3 +25,18 @@ export async function redisPush(key: string, value: string) {
     client.disconnect();
   }
 }
+
+/** Push a wake-up token and keep the list short. Postgres remains the source of truth. */
+export async function redisPushTrim(key: string, value: string, keep = 100) {
+  const client = createRedis();
+  try {
+    await client.connect();
+    await client.lpush(key, value);
+    await client.ltrim(key, 0, Math.max(0, keep - 1));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    client.disconnect();
+  }
+}

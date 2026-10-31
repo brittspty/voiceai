@@ -1,5 +1,6 @@
 import type { Env } from "../config";
 import { offlineConversionsLiveEnabled } from "../config";
+import { AdBudgetWriteBlockedError, assertNoAdBudgetWrite } from "../connectors/budget-lock";
 import { assertGoogleAdsAllowed, googleAdsGuard } from "../connectors/google-ads-client";
 import { conversionLogLine, payloadHasRawPii, type LogSink } from "./log";
 import {
@@ -210,6 +211,22 @@ export async function executeUploads(input: {
       continue;
     }
     assertConversionUploadUrl(wire.url);
+    try {
+      assertNoAdBudgetWrite({ method: "POST", url: wire.url, body: wire.body });
+    } catch (error) {
+      if (error instanceof AdBudgetWriteBlockedError) {
+        uploads.push(
+          storedUpload(upload, {
+            status: "failed",
+            attempts: upload.attempts + 1,
+            errorCode: "budget_write_blocked",
+            errorMessage: "The upload was blocked before it was sent.",
+          }),
+        );
+        continue;
+      }
+      throw error;
+    }
     const response = await input.fetchImpl(wire.url, {
       method: "POST",
       headers: wire.headers,

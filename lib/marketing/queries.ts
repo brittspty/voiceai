@@ -1,8 +1,9 @@
 import { prisma } from "../db";
 import { accessFromUser, type MarketingAccess } from "./access";
-import { buildClientShare, CLIENT_TESTING_NOTE } from "./client-view";
+import { buildClientShare, CLIENT_TESTING_NOTE, presentWithoutCost } from "./client-view";
 import { creativeFatigueEnabled, leadScoringEnabled } from "./config";
 import { alertSelect, alertWhere, campaignSelect, dailyMetricSelect, isCostContent, metricSum, recommendationSelect, recommendationWhere, redactMarketingPage, searchTermSelect } from "./cost-visibility";
+import { inboxMeta } from "./decision-ui";
 import { leadsSince, spendSince } from "./lead-score/store";
 import { buildLeadQualityTiles, effectiveLabel, splitByWindow } from "./lead-score/summary";
 import { clientMetricWhere, queuedTestingWhere } from "./scope";
@@ -284,6 +285,7 @@ export async function getMarketingPage(access?: MarketingAccess) {
     recommendations: recommendations
       .filter((rec) => inScope(access, { adAccountId: rec.adAccountId, campaignId: rec.campaignId }) && (seesCost || !isCostContent(rec)))
       .map((rec) => {
+        const meta = inboxMeta("evidence" in rec ? rec.evidence : null);
         const row = {
           id: rec.id,
           type: rec.type,
@@ -304,6 +306,9 @@ export async function getMarketingPage(access?: MarketingAccess) {
           verifierNote: rec.verifierNote,
           campaignId: rec.campaignId,
           adAccountId: rec.adAccountId,
+          confidence: meta.confidence,
+          assigneeUserId: meta.assigneeUserId,
+          action: meta.action,
         };
         if (!seesCost || !("currentBudgetAmount" in rec)) return row;
         return {
@@ -323,7 +328,7 @@ export async function getMarketingPage(access?: MarketingAccess) {
     })),
     leadQuality: await leadQualityTilesFor(seesCost, access?.workspaceId || ""),
   };
-  return redactMarketingPage(page, seesCost);
+  return presentWithoutCost(redactMarketingPage(page, seesCost), seesCost);
 }
 
 async function leadQualityTilesFor(seesCost: boolean, workspaceId: string) {
