@@ -1,4 +1,5 @@
 import { AlertTriangle, Check, MinusCircle } from "lucide-react";
+import { DataChip } from "@/components/data-chip";
 import type { GoogleAdsConnectionView } from "@/lib/marketing/google-connection";
 
 function when(iso: string, timeZone: string) {
@@ -32,10 +33,12 @@ export function GoogleAdsConnection({
   view,
   timeZone,
   canManage,
+  demoData = false,
 }: {
   view: GoogleAdsConnectionView;
   timeZone: string;
   canManage: boolean;
+  demoData?: boolean;
 }) {
   const primary =
     view.chip === "not_connected"
@@ -46,7 +49,7 @@ export function GoogleAdsConnection({
     <div className="space-y-4">
       {view.exampleData && (
         <div className="rounded-xl border border-line bg-card px-4 py-3 text-sm" role="note">
-          <span className="font-semibold">EXAMPLE DATA</span>
+          <DataChip demo={demoData} />
           <span className="ml-2 text-muted">Fixtures only. Google Ads is not called.</span>
         </div>
       )}

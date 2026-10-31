@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { AmFeed } from "@/components/am-feed";
 import { MarketingDashboard } from "@/components/marketing-dashboard";
 import { MarketingView } from "@/components/marketing-view";
 import { requireUser } from "@/lib/auth";
@@ -10,11 +11,15 @@ import {
   creativeFatigueEnabled,
   dashboardsV2Enabled,
   digestEnabled,
+  digestSendEnabled,
+  googleBusinessProfileEnabled,
   holdoutsEnabled,
   monitorEnabled,
   pacingRecsEnabled,
   searchWasteEnabled,
   speedToLeadEnabled,
+  stackAdaptEnabled,
+  adFatigueEnabled,
 } from "@/lib/marketing/config";
 import { parseDashQuery } from "@/lib/marketing/dashboard-model";
 import { loadDashboardForAccess } from "@/lib/marketing/dashboard-query";
@@ -23,6 +28,7 @@ import { canReviewSearchWaste, canViewHoldouts, canWatchCompetitors } from "@/li
 import { loadPacingBoard } from "@/lib/marketing/pacing-job";
 import { loadFeatureCards } from "@/lib/marketing/home-query";
 import { getMarketingPage, loadMarketingAccess } from "@/lib/marketing/queries";
+import { appHomePath } from "@/lib/public-routing";
 import { loadSpeedPage } from "@/lib/marketing/speed-to-lead-store";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +37,7 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
   if (access.kind === "client_viewer") redirect("/marketing/client");
-  if (access.kind === "none") redirect("/");
+  if (access.kind === "none") redirect(appHomePath());
   const query = await searchParams;
   const classic = !dashboardsV2Enabled() || query.view === "budget";
   if (classic) {
@@ -44,6 +50,8 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
     const fatigue = fatigueOn ? await loadFatigueBoard(access) : { enabled: false as const, ads: [] };
     const pacing = pacingOn ? await loadPacingBoard(access) : { enabled: false as const, recommendationOnly: true as const, writesBudget: false as const, bars: [] };
     return (
+      <>
+      <AmFeed access={access} />
       <MarketingView
         {...data}
         speedToLead={speedToLead}
@@ -52,6 +60,7 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
         flags={{
           monitor: monitorEnabled(),
           digest: digestEnabled(),
+          digestSend: digestSendEnabled(),
           clientLinks: clientLinksEnabled(),
           creativeFatigue: fatigueOn,
           pacing: pacingOn,
@@ -62,9 +71,14 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
           searchWaste: searchWasteEnabled() && canReviewSearchWaste(access),
           competitorWatch: competitorWatchEnabled() && canWatchCompetitors(access),
           holdouts: holdoutsEnabled() && canViewHoldouts(access),
+          adFatigue: adFatigueEnabled(),
+          stackAdapt: stackAdaptEnabled(),
+          gbp: googleBusinessProfileEnabled(),
+          userId: access.userId,
           ...(access.seesCost ? { isSuperAdmin: access.kind === "super_admin", budgetCap: amBudgetCapUsd() } : {}),
         }}
       />
+      </>
     );
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });

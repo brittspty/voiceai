@@ -1,3 +1,4 @@
+import { demoForcesMock } from "../demo/outbound";
 import { addDaysISO, zonedISODate } from "../time";
 import { applySnapshot } from "./apply";
 import {
@@ -73,6 +74,7 @@ export async function runGoogleAdsSync(options: {
   fetchImpl?: FetchLike;
   snapshot?: NormalizedSnapshot;
 } = {}): Promise<GoogleSyncResult> {
+  if (demoForcesMock()) return { status: "skipped", reason: "demo workspace does not sync" };
   const env = options.env ?? process.env;
   const decision = decideGoogleAdsSync(env);
   if (decision.action === "skip") return { status: "skipped", reason: decision.reason };

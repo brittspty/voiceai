@@ -7,6 +7,7 @@ import { GoogleAdsConnection } from "../../components/google-ads-connection";
 import { accessFromUser } from "./access";
 import { GOOGLE_ADS_API_VERSION, decideGoogleAdsSync, googleAdsApiVersion, googleAdsEnv } from "./config";
 import { mockGoogleAdsBundle } from "./connectors/google-fixtures";
+import { AdBudgetWriteBlockedError } from "./connectors/budget-lock";
 import {
   GOOGLE_ADS_MUTATE_PATHS,
   GOOGLE_ADS_TOKEN_URL,
@@ -536,6 +537,6 @@ test("pullGoogleAdsSnapshot refuses a mutate URL if a caller builds one", async 
   assert.equal(pulled.failures.length, 0);
   await assert.rejects(
     () => googleAdsRequest({ method: "POST", url: `https://googleads.googleapis.com/v21/customers/${CUSTOMER}/campaignBudgets:mutate`, fetchImpl }),
-    GoogleAdsWriteBlockedError,
+    AdBudgetWriteBlockedError,
   );
 });

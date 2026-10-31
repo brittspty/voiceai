@@ -4,6 +4,7 @@ import { SpeedToLeadScreen, type SpeedCard } from "@/components/speed-to-lead-sc
 import { requireUser } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { appHomePath } from "@/lib/public-routing";
 import { speedToLeadEnabled } from "@/lib/marketing/config";
 import { loadSpeedPage } from "@/lib/marketing/speed-to-lead-store";
 import type { SpeedLeadView } from "@/lib/marketing/speed-to-lead";
@@ -22,7 +23,7 @@ export default async function SpeedToLeadPage({ searchParams }: { searchParams: 
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
   if (access.kind === "client_viewer") redirect("/marketing/client");
-  if (access.kind === "none") redirect("/");
+  if (access.kind === "none") redirect(appHomePath());
   const saved = (await searchParams).saved === "1";
   if (!speedToLeadEnabled()) {
     return (

@@ -28,6 +28,20 @@ export function canViewHoldouts(access: MarketingAccess) {
   return canWatchCompetitors(access);
 }
 
+/** Staff only. Client roles do not open the audience library or the pixel page. */
+export function canUseAudienceLibrary(access: MarketingAccess) {
+  if (!access.workspaceId) return false;
+  if (access.kind === "client_owner" || access.kind === "client_viewer" || access.kind === "none") return false;
+  return access.kind === "super_admin" || access.kind === "account_manager" || access.kind === "staff";
+}
+
+/** Account managers and staff request and approve a push. Clients do not. */
+export function canManageAudiences(access: MarketingAccess) {
+  if (!access.workspaceId) return false;
+  if (access.role === "viewer" || access.role === "client_viewer" || access.kind === "client_owner") return false;
+  return access.kind === "super_admin" || access.kind === "account_manager" || access.kind === "staff";
+}
+
 export function accountFilter(access: MarketingAccess): "all" | string[] {
   if (access.accounts === "all") return "all";
   return access.accounts;

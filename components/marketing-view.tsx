@@ -9,6 +9,7 @@ import { ShareLinkButton } from "@/components/share-link-button";
 import { Pill } from "@/components/pills";
 import { PageTitle } from "@/components/shell";
 import { BudgetEditor } from "@/components/budget-editor";
+import { DataChip } from "@/components/data-chip";
 import { formatDateTime } from "@/lib/format";
 
 type AccountRow = {
@@ -64,6 +65,9 @@ type RecommendationRow = {
   proposedBudgetPeriod?: string | null;
   campaignId: string | null;
   adAccountId: string | null;
+  confidence?: number | null;
+  assigneeUserId?: string | null;
+  action?: string | null;
 };
 type DigestRow = { id: string; createdAt: string; delivery: string; payload: unknown };
 
@@ -117,6 +121,7 @@ const PLATFORM_LABEL: Record<string, string> = {
   google_ads: "Google Ads",
   tiktok: "TikTok",
   linkedin: "LinkedIn",
+  stackadapt: "StackAdapt",
 };
 
 function label(value: string) {
@@ -214,11 +219,12 @@ export function MarketingView(props: {
   alerts?: AlertRow[];
   recommendations?: RecommendationRow[];
   digests?: DigestRow[];
-  flags?: { monitor: boolean; digest: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean; searchWaste?: boolean; competitorWatch?: boolean; holdouts?: boolean; creativeFatigue?: boolean; pacing?: boolean };
+  flags?: { monitor: boolean; digest: boolean; digestSend?: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean; searchWaste?: boolean; competitorWatch?: boolean; holdouts?: boolean; creativeFatigue?: boolean; pacing?: boolean; adFatigue?: boolean; stackAdapt?: boolean; gbp?: boolean; userId?: string | null };
   speedToLead?: SpeedDashboardView | { error: true } | null;
   leadQuality?: { qualified: number; total: number; rateLabel: string; trend: string; costPerQualifiedLead?: string } | null;
   pacing?: { enabled: boolean; bars: { campaignId: string; name: string; status: string; chip: string; text: string; verification: string }[]; stale?: boolean };
   fatigue?: { enabled: boolean; ads: { campaignId: string; adName: string; headline: string; platform: string; chip: string }[] };
+  demoData?: boolean;
 }) {
   const seesCost = Boolean(props.flags?.seesCost);
   const searchTerms = props.searchTerms ?? [];
@@ -229,8 +235,13 @@ export function MarketingView(props: {
     monitor: Boolean(props.flags?.monitor),
     fatigue: Boolean(props.flags?.creativeFatigue),
     pacing: Boolean(props.flags?.pacing) && seesCost,
+    adFatigue: Boolean(props.flags?.adFatigue),
+    stackAdapt: Boolean(props.flags?.stackAdapt),
+    gbp: Boolean(props.flags?.gbp),
+    userId: props.flags?.userId,
+    isSuperAdmin: Boolean(props.flags?.isSuperAdmin),
   }).filter((card) => card.type !== "speed_to_lead");
-  const showDecisions = Boolean(props.flags?.monitor || props.flags?.creativeFatigue || (props.flags?.pacing && seesCost));
+  const showDecisions = Boolean(props.flags?.monitor || props.flags?.creativeFatigue || (props.flags?.pacing && seesCost) || props.flags?.adFatigue || props.flags?.stackAdapt || props.flags?.gbp);
   const impressions = props.totals.reduce((sum, row) => sum + row.impressions, 0);
   const clicks = props.totals.reduce((sum, row) => sum + row.clicks, 0);
   const leads = props.totals.reduce((sum, row) => sum + row.leads, 0);
@@ -265,7 +276,7 @@ export function MarketingView(props: {
       {props.mock && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card px-4 py-3 text-sm">
           <Pill tone="amber">MOCK</Pill>
-          <span className="font-semibold text-ink">EXAMPLE DATA</span>
+          <DataChip demo={props.demoData} />
         </div>
       )}
       {props.lastRun?.error && (
@@ -543,7 +554,7 @@ export function MarketingView(props: {
               <p className="text-sm text-muted">Decision cards are turned off.</p>
             )}
           </div>
-          <HourlySummary enabled={Boolean(props.flags?.digest)} digests={props.digests ?? []} />
+          <HourlySummary enabled={Boolean(props.flags?.digest)} emailOn={Boolean(props.flags?.digestSend)} digests={props.digests ?? []} />
 
           <section>
             <h2 className="mb-2 font-medium">Client link</h2>

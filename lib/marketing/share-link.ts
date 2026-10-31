@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { clientLinksEnabled, type Env } from "./config";
+import { clientLinksEnabled, reportsV2Enabled, type Env } from "./config";
 import type { MarketingAccess } from "./access";
 
 export const SHARE_LINK_DEFAULT_MS = 30 * 24 * 60 * 60 * 1000;
@@ -81,8 +81,35 @@ export type ShareLinkRecord = {
   revokedAt: Date | null;
 };
 
+/** Report links reuse this token system, so either switch can open them. */
+export function shareLinksOpen(env: Env = process.env) {
+  return clientLinksEnabled(env) || reportsV2Enabled(env);
+}
+
+export const SHARE_EXPIRY_DAYS = [7, 30, 90] as const;
+
+export function shareExpiryForDays(days: number, now = new Date()) {
+  const allowed = (SHARE_EXPIRY_DAYS as readonly number[]).includes(days) ? days : 30;
+  return new Date(now.getTime() + allowed * 24 * 60 * 60 * 1000);
+}
+
+export function randomPasscode() {
+  const n = randomBytes(4).readUInt32BE(0) % 1000000;
+  return String(n).padStart(6, "0");
+}
+
+export function isSixDigitPasscode(code: string) {
+  return /^\d{6}$/.test(code.trim());
+}
+
+export function shareHttpStatus(state: "disabled" | "missing" | "revoked" | "expired" | "ok", reportsV2 = false) {
+  if (state === "revoked" && reportsV2) return 410;
+  if (state === "ok") return 200;
+  return 404;
+}
+
 export function shareLinkState(link: ShareLinkRecord | null, now: Date, env: Env = process.env) {
-  if (!clientLinksEnabled(env)) return "disabled" as const;
+  if (!shareLinksOpen(env)) return "disabled" as const;
   if (!link) return "missing" as const;
   if (link.revokedAt) return "revoked" as const;
   if (link.expiresAt && link.expiresAt.getTime() <= now.getTime()) return "expired" as const;
@@ -90,7 +117,7 @@ export function shareLinkState(link: ShareLinkRecord | null, now: Date, env: Env
 }
 
 export function assertCanCreateShareLink(access: MarketingAccess, workspaceId: string, env: Env = process.env) {
-  if (!clientLinksEnabled(env)) throw new Error("Client links are turned off.");
+  if (!shareLinksOpen(env)) throw new Error("Client links are turned off.");
   if (!access.canCreateShareLink) throw new Error("You can't create a client link.");
   if (access.workspaceId !== workspaceId && access.kind !== "super_admin") {
     throw new Error("That client is outside your scope.");

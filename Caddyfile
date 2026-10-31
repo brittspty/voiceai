@@ -1,3 +1,6 @@
+# SITE_ADDRESS is one hostname because production APP_URL is https://$SITE_ADDRESS.
+# voiceai.specificityinc.com and jarvis.specificityinc.com are both public hosts.
+# To serve both, list them in this site address and keep APP_URL on one of them.
 {$SITE_ADDRESS} {
 	reverse_proxy app:43123
 }

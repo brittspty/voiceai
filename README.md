@@ -63,19 +63,39 @@ See `.env.example`. Secrets are only read from the environment. Do not commit `.
 | --- | --- |
 | `DATABASE_URL`, `REDIS_URL` | Postgres and Redis |
 | `SESSION_SECRET` | Signs the session cookie |
-| `INTEGRATIONS_MODE` | `mock` (default) or `live` |
+| `INTEGRATIONS_MODE` | `mock` (default) or `live`. AIS2L compliance does not change this. |
+| `AIS2L_COMPLIANCE_V2` | `off` (default) or `on`. Opt-out, one voicemail, 9 AM–8 PM local hours, opener, and human handoff. Voice stays in mock until `INTEGRATIONS_MODE=live`. |
+| `AIS2L_SILENCE_HANGUP_SEC` | Silence hangup while compliance v2 is on. Clamped to 10–15 seconds. Default 12. |
+| `AIS2L_CALL_REASON` | Reason said first on a compliance v2 call. Default: you asked for a short introduction. |
 | `APP_URL` | Public origin, used in webhook instructions |
 | `GHL_API_KEY`, `GHL_LOCATION_ID`, `GHL_WEBHOOK_SECRET` | GoHighLevel |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_AGENT_PHONE_NUMBER_ID`, `ELEVENLABS_WEBHOOK_SECRET` | ElevenLabs outbound calls |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `TWILIO_WEBHOOK_SECRET` | Twilio account check and status callbacks |
 | `WORKER_STEP_MS` | Pause between dial states so the live board can show them. `0` skips the pause |
-| `SEED_ORG_NAME`, `SEED_ORG_SUBTITLE`, `SEED_AGENT_NAME`, `SEED_TIMEZONE` | Workspace identity applied on the first seed. Defaults: Specificity Inc, Voice Ops, Avery, America/New_York |
+| `SEED_ORG_NAME`, `SEED_ORG_SUBTITLE`, `SEED_AGENT_NAME`, `SEED_TIMEZONE` | Workspace identity applied on the first seed. Defaults: Specificity Inc, AIS2L, Avery, America/New_York |
 | `SEED_OFFICES` | `Name\|office\|Timezone;Name\|virtual`. Default: Main office and Virtual, both in `SEED_TIMEZONE` |
 | `SEED_BRAND_COLOR`, `SEED_LOGO_URL`, `SEED_MARK` | Mark color (`#2563eb`), optional http(s) logo, and the letter used when no logo is set (`V`) |
 | `SEED_KNOWLEDGE_TITLE`, `SEED_KNOWLEDGE_PATH` | Knowledge document. A path replaces the default script. A missing file stops the seed |
 | `SEED_OWNER_NAME`, `SEED_OWNER_EMAIL`, `SEED_OWNER_PASSWORD` | Owner created on the first seed. Admin and viewer use the same `SEED_ADMIN_*` and `SEED_VIEWER_*` shape, and are created only when `SEED_SAMPLE_DATA` is true |
 | `SEED_SAMPLE_DATA` | `true` (default) fills Calls and Overview with sample leads and creates the admin and viewer. `false` leaves an empty dialer and creates only the owner |
 | `SHOW_DEMO_LOGIN` | `true` or `false`. Unset shows the demo hint only when `APP_URL` is localhost |
+| `PUBLIC_HOMEPAGE` | `on` serves the public Jarvis page at `/`. Off (default) leaves `/` as the signed-in app |
+| `DEMO_WORKSPACE` | `on` shows Try the demo, linking to `/demo`. Off hides those buttons. The demo page itself is separate |
+| `HOMEPAGE_DIRECTION` | `B` (default) or `A`. Layout only. Ignored while `PUBLIC_HOMEPAGE` is off |
+
+## Public homepage
+
+`PUBLIC_HOMEPAGE` defaults off. Leave it off and `/` is still the signed-in app. The app home file lives at `/app`. With the switch off, a request for `/` is rewritten to that file and the address bar stays `/`. A signed-in request for `/app` redirects to `/`.
+
+Turn the switch on (`on`, `true`, `1`, or `yes`) and `/` is a public page. Signed-in visitors stay there and get a Go to app link. Nothing redirects them into the app. `/login` is still the only sign-in page. Client login and Team login both go there.
+
+Existing app paths stay where they are. `/marketing`, `/calls`, `/settings`, webhooks, `/api/*`, the Google OAuth callback, and the `voiceops_session` cookie are unchanged. Deep links are not moved under a prefix. `/app` is only the authenticated home that used to be `/`.
+
+After sign-in, with the switch on, a client viewer opens `/marketing/client`. A super admin or account manager opens `/marketing`. Owner, admin, and viewer open `/app`. With the switch off, a client viewer still opens `/marketing/client` and everyone else still opens `/`.
+
+`voiceai.specificityinc.com` and `jarvis.specificityinc.com` are both recognized. A request on either host uses that host as the public canonical URL. Any other host falls back to `APP_URL`. The session cookie stays host-only.
+
+The homepage contact form writes a `HomepageContact` row and does not send email. Privacy, pricing, and reply time are FAQ answers marked `TODO(jason)` until Jason signs off. They are not claims. Rename `Book a demo` and `Try the demo` in `lib/homepage-cta.ts`. On a phone, including a 390px screen, those logins sit behind the header Menu button (`aria-expanded`). Set `HOMEPAGE_DIRECTION=A` to preview the other layout. Direction B is the default. Section order does not change.
 
 ## How the integrations are wired
 

@@ -8,6 +8,7 @@ import {
   INTRADAY_SYNC_INTERVAL_MS,
   clientLinksEnabled,
   dashboardsV2Enabled,
+  reportsV2Enabled,
   digestDeliveryEnabled,
   googleAdsEnabled,
   digestEnabled,
@@ -60,6 +61,7 @@ test("feature flags default off and the sync interval stays at 6 hours", () => {
   assert.equal(digestDeliveryEnabled({}), false);
   assert.equal(clientLinksEnabled({}), false);
   assert.equal(dashboardsV2Enabled({}), false);
+  assert.equal(reportsV2Enabled({}), false);
   assert.equal(googleAdsEnabled({}), false);
   assert.equal(marketingSyncIntervalMs({}), FULL_SYNC_INTERVAL_MS);
   assert.equal(marketingSyncIntervalMs({ MARKETING_INTRADAY_SYNC: "on" }), INTRADAY_SYNC_INTERVAL_MS);

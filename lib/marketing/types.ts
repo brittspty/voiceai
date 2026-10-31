@@ -1,7 +1,7 @@
 /** One database per client. This matches Org.id and is not an access-control key. */
 export const WORKSPACE_ID = "org";
 
-export const AD_PLATFORMS = ["meta", "google_ads", "tiktok", "linkedin"] as const;
+export const AD_PLATFORMS = ["meta", "google_ads", "tiktok", "linkedin", "stackadapt"] as const;
 export type AdPlatform = (typeof AD_PLATFORMS)[number];
 
 export type EntityStatus = "active" | "paused" | "archived" | "deleted" | "unknown";

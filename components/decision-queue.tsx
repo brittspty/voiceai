@@ -47,6 +47,7 @@ export function DecisionQueue({
           const budget = card.type === "budget_change" ? budgetCardCopy(card) : null;
           const pacing = card.type === "pacing" ? pacingCardCopy(card) : null;
           const fatigue = card.type === "creative_fatigue" ? fatigueCardCopy(card) : null;
+          const recommendOnly = card.type === "ad_fatigue" || card.type === "stackadapt" || card.type === "business_profile";
           const handoff = budget || pacing;
           const approved = card.status === "accepted";
           const waitingPerson = approved && handoff && card.decisionNote !== "done";
@@ -56,12 +57,12 @@ export function DecisionQueue({
           return (
             <article key={card.id} className="rounded-xl border border-line bg-card p-4" aria-labelledby={`decision-${card.id}`}>
               <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
-                <span className="rounded-md border border-line bg-chip px-2 py-0.5 text-xs font-bold text-ink">{handoff ? handoff.tag : fatigue ? fatigue.tag : card.type === "traffic" ? "Urgent · Check traffic" : "Suggestion"}</span>
+                <span className="rounded-md border border-line bg-chip px-2 py-0.5 text-xs font-bold text-ink">{handoff ? handoff.tag : fatigue ? fatigue.tag : recommendOnly ? "Yes or no" : card.type === "traffic" ? "Urgent · Check traffic" : "Suggestion"}</span>
                 <span>{needsAdmin ? "Needs a super admin's OK" : expiry.expired ? "Expired" : card.status === "declined" ? "Declined" : approved ? "Approved" : "Pending"}</span>
                 <span>{expiryLabel(expiry.ends, now.getTime())}</span>
               </div>
-              <h3 id={`decision-${card.id}`} className="mt-2 text-lg font-semibold">{handoff ? handoff.headline : fatigue ? fatigue.headline : plainCardLine(card)}</h3>
-              <p className="mt-1">{handoff ? handoff.why : fatigue ? fatigue.fix : plainCardLine(card)}</p>
+              <h3 id={`decision-${card.id}`} className="mt-2 text-lg font-semibold">{handoff ? handoff.headline : fatigue ? fatigue.headline : recommendOnly ? card.title : plainCardLine(card)}</h3>
+              <p className="mt-1">{handoff ? handoff.why : fatigue ? fatigue.fix : recommendOnly ? card.summary : plainCardLine(card)}</p>
               {fatigue && (
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <div className="rounded-lg bg-canvas p-3">
@@ -89,7 +90,7 @@ export function DecisionQueue({
                 </div>
               )}
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <div className="rounded-lg bg-canvas p-3 text-sm">Confidence<b className="block text-xl">{confidenceLabel(card.sampleSize)}</b></div>
+                <div className="rounded-lg bg-canvas p-3 text-sm">Confidence<b className="block text-xl">{recommendOnly && card.confidence != null ? `${Math.round(card.confidence * 100)}%` : confidenceLabel(card.sampleSize)}</b></div>
                 {windowLabel(card.windowStart, card.windowEnd) && (
                   <div className="rounded-lg bg-canvas p-3 text-sm">Window<b className="block text-xl">{windowLabel(card.windowStart, card.windowEnd)}</b></div>
                 )}
@@ -102,6 +103,7 @@ export function DecisionQueue({
               </details>
               {handoff && <p className="mt-3 text-sm text-muted">{handoff.fixed}</p>}
               {fatigue && <p className="mt-3 text-sm text-muted">{fatigue.fixed}</p>}
+              {recommendOnly && <p className="mt-3 text-sm text-muted">{card.summary}</p>}
               {needsAdmin && <p className="mt-3 text-sm">Needs a super admin&apos;s OK</p>}
               {waitingPerson && pacing && (
                 <div className="mt-3 rounded-lg bg-success-soft p-3 text-sm" aria-live="polite">
@@ -145,18 +147,20 @@ export function DecisionQueue({
                   <form action={decideMarketingRecommendation}>
                     <input type="hidden" name="id" value={card.id} />
                     <input type="hidden" name="decision" value="accept" />
-                    <Button primary label={pacing || budget ? `Approve and get steps: ${card.title}` : fatigue ? `Approve new version: ${card.title}` : `Approve: ${card.title}`}>{pacing || budget ? "Approve and get steps" : fatigue ? "Approve new version" : "Approve"}</Button>
+                    <Button primary label={pacing || budget ? `Approve and get steps: ${card.title}` : fatigue ? `Approve new version: ${card.title}` : recommendOnly ? `Yes: ${card.title}` : `Approve: ${card.title}`}>{pacing || budget ? "Approve and get steps" : fatigue ? "Approve new version" : recommendOnly ? "Yes" : "Approve"}</Button>
                   </form>
                   <form action={decideMarketingRecommendation}>
                     <input type="hidden" name="id" value={card.id} />
                     <input type="hidden" name="decision" value="decline" />
-                    <Button label={`Decline: ${card.title}`}>Decline</Button>
+                    <Button label={recommendOnly ? `No: ${card.title}` : `Decline: ${card.title}`}>{recommendOnly ? "No" : "Decline"}</Button>
                   </form>
+                  {!recommendOnly && (
                   <form action={decideMarketingRecommendation}>
                     <input type="hidden" name="id" value={card.id} />
                     <input type="hidden" name="decision" value="later" />
                     <Button label={`Later: ${card.title}`}>Later</Button>
                   </form>
+                  )}
                 </div>
               )}
               {canAct && waitingPerson && (
@@ -190,7 +194,7 @@ export function DecisionQueue({
         {done.map((card) => (
           <article key={card.id} className="rounded-xl border border-line bg-card p-4">
             <p className="text-sm text-muted">{card.status === "declined" ? "Declined" : card.status === "accepted" ? "Approved" : "Finished"}</p>
-            <h3 className="mt-1 font-semibold">{card.type === "budget_change" || card.type === "pacing" || card.type === "creative_fatigue" ? card.title : plainCardLine(card)}</h3>
+            <h3 className="mt-1 font-semibold">{card.type === "budget_change" || card.type === "pacing" || card.type === "creative_fatigue" || card.type === "ad_fatigue" || card.type === "stackadapt" || card.type === "business_profile" ? card.title : plainCardLine(card)}</h3>
             {card.type === "creative_fatigue" && card.status === "accepted" && <p className="mt-1 text-sm text-muted">Queued for you to upload. Nothing is live.</p>}
             {card.type === "pacing" && card.decisionNote === "done" && <p className="mt-1 text-sm text-muted">Marked done. The platform did not change the budget.</p>}
           </article>

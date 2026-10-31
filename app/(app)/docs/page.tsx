@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { PageTitle } from "@/components/shell";
+import { AIS2L_NAME, PRODUCT_NAME } from "@/lib/brand";
 import { getOrg } from "@/lib/queries";
+import { appHomePath } from "@/lib/public-routing";
 
 export const metadata = { title: "Help" };
 
@@ -35,13 +37,17 @@ export default async function DocsPage() {
   const org = await getOrg();
   return (
     <div className="max-w-3xl">
-      <PageTitle title="Help" subtitle={`How to use VoiceOps at ${org.name}. Avery is your AI caller.`} />
+      <PageTitle title="Help" subtitle={`How to use ${PRODUCT_NAME} at ${org.name}.`} />
       <div className="space-y-3">
+        <section className="rounded-xl border border-line bg-card p-4">
+          <h2 className="font-medium">{AIS2L_NAME}</h2>
+          <p className="mt-1 text-sm leading-6 text-muted">Avery is your AI caller.</p>
+        </section>
         {GUIDES.map((guide) => (
           <section key={guide.title} className="rounded-xl border border-line bg-card p-4">
             <h2 className="font-medium">{guide.title}</h2>
             <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{guide.body}</p>
-            <Link href={guide.href} className="mt-2 inline-flex text-sm font-medium underline">{guide.action}</Link>
+            <Link href={guide.href === "/" ? appHomePath() : guide.href} className="mt-2 inline-flex text-sm font-medium underline">{guide.action}</Link>
           </section>
         ))}
         <details className="rounded-xl border border-line bg-card p-4 text-sm">
