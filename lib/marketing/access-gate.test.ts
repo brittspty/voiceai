@@ -78,7 +78,7 @@ test("a client viewer is blocked from every internal route", () => {
   assert.equal(clientViewerAllowed("/api/marketing/client/export"), true);
   assert.equal(clientViewerAllowed("/api/auth/logout"), true);
   const discovered = routes(path.join(ROOT, "app"));
-  const allowed = new Set(["/", "/login", "/api/health", "/marketing/client", "/sites/landing-pages", "/api/marketing/client", "/api/marketing/client/export", "/api/auth/logout"]);
+  const allowed = new Set(["/", "/login", "/api/health", "/marketing/client", "/sites/landing-pages", "/api/marketing/client", "/api/marketing/client/export", "/api/auth/logout", "/reports", "/reports/print", "/api/marketing/reports", "/api/marketing/reports/export"]);
   for (const route of discovered) {
     if (route.startsWith("/share") || route.startsWith("/api/share")) {
       assert.equal(clientViewerAllowed(route), true, route);

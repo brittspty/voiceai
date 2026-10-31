@@ -183,6 +183,11 @@ export function dashboardsV2Enabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_DASHBOARDS_V2");
 }
 
+/** Off unless JARVIS_REPORTS_V2 is explicitly on. */
+export function reportsV2Enabled(env: Env = process.env) {
+  return flagOn(env, "JARVIS_REPORTS_V2");
+}
+
 export function amBudgetCapUsd(env: Env = process.env) {
   const parsed = Number(env.MARKETING_AM_BUDGET_CAP_USD ?? 500);
   if (!Number.isFinite(parsed) || parsed < 0) return 500;

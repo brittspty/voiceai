@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, BookOpen, FileText, Globe, LayoutDashboard, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer } from "lucide-react";
+import { BarChart3, BookOpen, FileText, Globe, LayoutDashboard, LineChart, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
@@ -30,6 +30,7 @@ export function AppShell({
   mode,
   showSpeedToLead = false,
   leadScoring = false,
+  showReports = false,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
@@ -37,6 +38,7 @@ export function AppShell({
   mode: { testMode: boolean; agentName: string; wordmark: string; tagline: string };
   showSpeedToLead?: boolean;
   leadScoring?: boolean;
+  showReports?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -55,6 +57,7 @@ export function AppShell({
 
   const itemActive = (href: string) => {
     if (href === "/") return pathname === "/";
+    if (href === "/reports") return pathname === "/reports" || pathname.startsWith("/reports/");
     if (href === "/marketing/leads") return pathname === "/marketing/leads" || pathname.startsWith("/marketing/leads/");
     if (href === "/marketing/speed-to-lead") return pathname === "/marketing/speed-to-lead" || pathname.startsWith("/marketing/speed-to-lead/");
     if (href === "/marketing") {
@@ -63,11 +66,12 @@ export function AppShell({
     const base = href === "/settings/calling" ? "/settings" : href;
     return pathname === href || pathname.startsWith(base);
   };
+  const reportNav = showReports ? [{ href: "/reports", label: "Reports", icon: LineChart }] : [];
   const extras = [
     ...(showSpeedToLead ? [{ href: "/marketing/speed-to-lead", label: "Speed-to-lead", icon: Timer }] : []),
     ...(leadScoring ? [{ href: "/marketing/leads", label: "Leads", icon: ListChecks }] : []),
   ];
-  const staffNav = extras.length ? [...NAV.slice(0, 2), ...extras, ...NAV.slice(2)] : NAV;
+  const staffNav = [...NAV.slice(0, 2), ...extras, ...reportNav, ...NAV.slice(2)];
 
   const nav = (
     <div className="flex h-full flex-col">
@@ -76,7 +80,7 @@ export function AppShell({
         {!collapsed && <div className="text-sm font-semibold">{mode.wordmark}</div>}
       </div>
       <nav className="flex flex-col gap-0.5 px-2">
-        {(user.role === "client_viewer" ? CLIENT_NAV : staffNav).map((item) => {
+        {(user.role === "client_viewer" ? [...CLIENT_NAV.slice(0, 1), ...reportNav, ...CLIENT_NAV.slice(1)] : staffNav).map((item) => {
           const Icon = item.icon;
           const active = itemActive(item.href);
           return (
