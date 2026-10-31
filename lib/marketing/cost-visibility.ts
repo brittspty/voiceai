@@ -142,6 +142,7 @@ export function recommendationSelect(seesCost: boolean): Prisma.RecommendationSe
     decidedAt: true,
     decisionNote: true,
     verifierNote: true,
+    evidence: true,
     campaignId: true,
     adAccountId: true,
     ad: { select: { name: true } },

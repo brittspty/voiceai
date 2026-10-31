@@ -1,11 +1,14 @@
 import { prisma } from "../lib/db";
 import { runJob } from "../lib/dialer";
-import { creativeFatigueEnabled, digestEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, speedToLeadEnabled } from "../lib/marketing/config";
+import { creativeFatigueEnabled, digestEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, speedToLeadEnabled, adFatigueEnabled, googleBusinessProfileEnabled, stackAdaptEnabled } from "../lib/marketing/config";
+import { runAdFatigue } from "../lib/marketing/ad-fatigue-job";
 import { runCreativeFatigue } from "../lib/marketing/fatigue-job";
+import { runGoogleBusinessProfile } from "../lib/marketing/gbp-sync";
 import { runPacingRecs } from "../lib/marketing/pacing-job";
 import { runStoredOfflineCycle } from "../lib/marketing/offline/persist";
 import { runPageMonitor } from "../lib/marketing/pages/store";
 import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
+import { runStackAdaptSync } from "../lib/marketing/stackadapt-sync";
 import { runGoogleAdsSync } from "../lib/marketing/google-sync";
 import { runSpeedToLeadSweep } from "../lib/marketing/speed-to-lead-store";
 import { errorText } from "../lib/marketing/speed-to-lead";
@@ -102,6 +105,30 @@ function startMarketingSync() {
       if (pacingRecsEnabled()) {
         const pacing = await runPacingRecs();
         if (pacing.status === "ran") console.log(`[worker] pacing snapshots ${pacing.snapshots}`);
+      }
+      try {
+        if (adFatigueEnabled()) {
+          const fatigue = await runAdFatigue();
+          if (fatigue.status === "ran") console.log(`[worker] ad fatigue checks ${fatigue.checks}`);
+        }
+      } catch (error) {
+        console.error("[worker] ad fatigue failed", error);
+      }
+      try {
+        if (stackAdaptEnabled()) {
+          const stackadapt = await runStackAdaptSync();
+          if (stackadapt.status !== "skipped") console.log(`[worker] stackadapt ${stackadapt.status}`);
+        }
+      } catch (error) {
+        console.error("[worker] stackadapt failed", error);
+      }
+      try {
+        if (googleBusinessProfileEnabled()) {
+          const profile = await runGoogleBusinessProfile();
+          if (profile.status !== "skipped") console.log(`[worker] business profile ${profile.status}`);
+        }
+      } catch (error) {
+        console.error("[worker] business profile failed", error);
       }
     } catch (error) {
       console.error("[worker] marketing sync failed", error);
