@@ -13,6 +13,7 @@ import {
   speedToLeadEnabled,
   type Env,
 } from "./config";
+import { presentWithoutCost } from "./client-view";
 import { resultCounts } from "./dashboard-model";
 import { effectiveLabel } from "./lead-score/summary";
 import { assembleHome, homeFeatures, type HomeFeature, type HomeMetric, type HomeModel, type HomeWorkspace } from "./home-dashboard";
@@ -224,13 +225,16 @@ export async function loadHome(input: { access: MarketingAccess; requestedId?: s
     };
   }
 
-  return assembleHome({
-    scope,
-    showMoney: seesCost,
-    canPickClient,
-    workspaces,
-    metrics,
-    features,
-    voice,
-  });
+  return presentWithoutCost(
+    assembleHome({
+      scope,
+      showMoney: seesCost,
+      canPickClient,
+      workspaces,
+      metrics,
+      features,
+      voice,
+    }),
+    seesCost,
+  );
 }

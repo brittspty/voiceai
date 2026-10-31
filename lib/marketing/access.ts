@@ -1,4 +1,4 @@
-import { staffSeesCost, type Env } from "./config";
+import { allClientsViewerSeesCost, type Env } from "./config";
 import { WORKSPACE_ID } from "./types";
 
 export const DEFAULT_SUPER_ADMINS = [
@@ -105,7 +105,7 @@ export function accessFromUser(user: AccessUser, assignments: ScopeAssignment[],
       kind: "all_clients_viewer",
       accounts: "all",
       campaigns: "all",
-      seesCost: staffSeesCost(env),
+      seesCost: allClientsViewerSeesCost(env),
       seesAlerts: true,
       canEditBudget: false,
       canCreateShareLink: false,

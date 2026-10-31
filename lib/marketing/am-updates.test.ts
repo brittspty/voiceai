@@ -4,7 +4,8 @@ import path from "node:path";
 import test from "node:test";
 import { canOpenOperatorSettings, permissionStatus } from "../auth";
 import { accessFromUser, canApproveMarketing, roleLabel } from "./access";
-import { staffSeesCost } from "./config";
+import { allClientsViewerSeesCost } from "./config";
+import { forbiddenClientKeys, presentWithoutCost, stripClientViewCost } from "./client-view";
 import { buildManagerDigest, digestDeliveryPlan, digestItemAllowed, fatigueChoice } from "./digest";
 import { digestDispatchPlan, digestEmail, selectDigestTransport } from "./digest-send";
 import { alertFeedCopy, assignmentWhere, feedRecipients, feedSseChunk, feedVisible, metricNoteCopy, realtimeDeliveryPlan, unreadBadge } from "./feed";
@@ -105,20 +106,52 @@ test("super admins see every client and the read-only role cannot approve or ope
   const access = accessFromUser({ id: "v", email: "view@example.com", role: "all_clients_viewer" }, [], {});
   assert.equal(access.kind, "all_clients_viewer");
   assert.equal(access.accounts, "all");
-  assert.equal(access.seesCost, true);
+  assert.equal(access.seesCost, false);
   assert.equal(access.canEditBudget, false);
   assert.equal(access.canCreateShareLink, false);
   assert.equal(canApproveMarketing(access), false);
   assert.equal(canOpenOperatorSettings("all_clients_viewer"), false);
   assert.equal(permissionStatus("all_clients_viewer"), 403);
   assert.equal(roleLabel("all_clients_viewer"), "All clients");
-  assert.equal(staffSeesCost({}), true);
-  assert.equal(staffSeesCost({ MARKETING_STAFF_SEES_COST: "off" }), false);
-  const hidden = accessFromUser({ id: "v2", email: "view@example.com", role: "all_clients_viewer" }, [], { MARKETING_STAFF_SEES_COST: "off" });
-  assert.equal(hidden.seesCost, false);
+  assert.equal(allClientsViewerSeesCost({}), false);
+  assert.equal(allClientsViewerSeesCost({ ALL_CLIENTS_VIEWER_SEES_COST: "on" }), true);
+  const opened = accessFromUser({ id: "v2", email: "view@example.com", role: "all_clients_viewer" }, [], { ALL_CLIENTS_VIEWER_SEES_COST: "on" });
+  assert.equal(opened.seesCost, true);
+  assert.equal(accessFromUser({ id: "sa", email: "sa@example.com", role: "super_admin" }, [], {}).seesCost, true);
+  assert.equal(accessFromUser({ id: "am", email: "am@example.com", role: "account_manager" }, [ORG_CLIENT], {}).seesCost, true);
   const query = readFileSync(path.join(ROOT, "lib/marketing/home-query.ts"), "utf8");
   assert.match(query, /all_clients_viewer/);
   assert.equal(query.includes("workspaceId: { in"), false);
+});
+
+test("an all-clients viewer loses spend unless the opt-in switch is on", () => {
+  const payload = {
+    name: "Gulf Coast",
+    leads: 4,
+    spend: 12.5,
+    budgetAmount: 50,
+    cpc: 1.2,
+    alerts: [
+      { title: "Spend is high", summary: "CPC is $2.40" },
+      { title: "Fewer clicks", summary: "Compared with similar ads." },
+    ],
+  };
+  const hidden = stripClientViewCost(payload);
+  assert.equal(hidden.name, "Gulf Coast");
+  assert.equal(hidden.leads, 4);
+  assert.equal("spend" in hidden, false);
+  assert.equal("budgetAmount" in hidden, false);
+  assert.equal("cpc" in hidden, false);
+  assert.deepEqual(hidden.alerts.map((row) => row.title), ["Fewer clicks"]);
+  assert.equal(forbiddenClientKeys(hidden).some((key) => /spend|budget|cpc|cost/i.test(key)), false);
+  assert.equal(JSON.stringify(hidden).includes("$"), false);
+  const kept = presentWithoutCost(payload, true);
+  assert.equal(kept.spend, 12.5);
+  assert.equal(presentWithoutCost(payload, false).spend, undefined);
+  const home = readFileSync(path.join(ROOT, "lib/marketing/home-query.ts"), "utf8");
+  const queries = readFileSync(path.join(ROOT, "lib/marketing/queries.ts"), "utf8");
+  assert.match(home, /presentWithoutCost\(/);
+  assert.match(queries, /presentWithoutCost\(/);
 });
 
 test("role assignment is off by default and does not create people", () => {

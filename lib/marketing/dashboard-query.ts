@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { addDaysISO, zonedISODate } from "../time";
 import { roleLabel, type MarketingAccess } from "./access";
+import { presentWithoutCost } from "./client-view";
 import { isCostContent } from "./cost-visibility";
 import {
   assembleCampaigns,
@@ -283,7 +284,7 @@ export async function loadDashboard(input: {
     workspaceName: input.workspaceName,
     mock: latest?.mode === "mock",
   };
-  return projectDashboard(model, { mode, showMoney, canEditLeadValue: editable });
+  return presentWithoutCost(projectDashboard(model, { mode, showMoney, canEditLeadValue: editable }), showMoney);
 }
 
 export async function loadDashboardForAccess(access: MarketingAccess, mode: "staff" | "client", workspaceName: string, now?: Date) {

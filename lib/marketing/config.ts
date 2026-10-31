@@ -133,15 +133,9 @@ export function inboxEnabled(env: Env = process.env) {
   return digestSendEnabled(env) || amRealtimeEnabled(env) || skillApprovalFanoutEnabled(env);
 }
 
-/**
- * Cost visibility for all_clients_viewer.
- * Unset follows an account manager (costs are visible).
- * MARKETING_STAFF_SEES_COST=off hides them.
- */
-export function staffSeesCost(env: Env = process.env) {
-  const raw = (env.MARKETING_STAFF_SEES_COST ?? "").trim().toLowerCase();
-  if (raw === "off" || raw === "false" || raw === "0" || raw === "no" || raw === "hidden") return false;
-  return true;
+/** Off unless ALL_CLIENTS_VIEWER_SEES_COST is explicitly on. Spend stays with super admins and account managers. */
+export function allClientsViewerSeesCost(env: Env = process.env) {
+  return flagOn(env, "ALL_CLIENTS_VIEWER_SEES_COST");
 }
 
 /** Off unless MARKETING_CLIENT_LINKS is explicitly on. */
