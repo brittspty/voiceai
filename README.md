@@ -92,7 +92,7 @@ After sign-in, with the switch on, a client viewer opens `/marketing/client`. A 
 
 `voiceai.specificityinc.com` and `jarvis.specificityinc.com` are both recognized. A request on either host uses that host as the public canonical URL. Any other host falls back to `APP_URL`. The session cookie stays host-only.
 
-The homepage contact form writes a `HomepageContact` row and does not send email. Privacy wording, pricing, and reply-time promises stay out until Jason signs off. Set `HOMEPAGE_DIRECTION=A` to preview the other layout. Direction B is the default. Section order does not change.
+The homepage contact form writes a `HomepageContact` row and does not send email. Privacy, pricing, and reply time are FAQ answers marked `TODO(jason)` until Jason signs off. They are not claims. Rename `Book a demo` and `Try the demo` in `lib/homepage-cta.ts`. On a phone, including a 390px screen, those logins sit behind the header Menu button (`aria-expanded`). Set `HOMEPAGE_DIRECTION=A` to preview the other layout. Direction B is the default. Section order does not change.
 
 ## How the integrations are wired
 

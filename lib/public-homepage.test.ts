@@ -7,6 +7,7 @@ import { createElement } from "react";
 import { PublicHomepage } from "../components/public-homepage";
 import { acceptHomepageContact, saveHomepageContact } from "./homepage-contact";
 import { feedShouldAdvance } from "./homepage-feed";
+import { BOOK_DEMO_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { HOMEPAGE_SECTION_ORDER, HOMEPAGE_SIGNOFF_TODO, homepageMetadata, homepageModel, homepageProse } from "./homepage-content";
 import { homepageStyle } from "./homepage-style";
 import { canonicalOrigin, isSpecificityPublicHost } from "./hosts";
@@ -207,7 +208,7 @@ test("homepage contact is stored and nothing is sent", async () => {
 
 test("try the demo is hidden unless DEMO_WORKSPACE is on", () => {
   const off = page(homepageModel({ PUBLIC_HOMEPAGE: "on" }));
-  assert.equal(off.includes("Try the demo"), false);
+  assert.equal(off.includes(TRY_DEMO_LABEL), false);
   assert.equal(off.includes('href="/demo"'), false);
   assert.equal((off.match(/href="#contact"/g) || []).length, 2);
   assert.equal((off.match(/>Client login</g) || []).length, 2);
@@ -215,10 +216,39 @@ test("try the demo is hidden unless DEMO_WORKSPACE is on", () => {
   assert.equal((off.match(/href="\/login"/g) || []).length, 4);
 
   const on = page(homepageModel({ PUBLIC_HOMEPAGE: "on", DEMO_WORKSPACE: "on" }));
-  assert.equal(on.split("Try the demo").length - 1, 2);
+  assert.equal((on.match(new RegExp(`>${TRY_DEMO_LABEL}<`, "g")) || []).length, 2);
   assert.equal(on.split('href="/demo"').length - 1, 2);
   assert.equal(homepageModel({}).showTryDemo, false);
   assert.equal(homepageModel({ DEMO_WORKSPACE: "on" }).showTryDemo, true);
+});
+
+test("cta labels live in one constants file", () => {
+  assert.equal(BOOK_DEMO_LABEL, "Book a demo");
+  assert.equal(TRY_DEMO_LABEL, "Try the demo");
+  const model = homepageModel({});
+  assert.equal(model.bookLabel, BOOK_DEMO_LABEL);
+  assert.equal(model.tryLabel, TRY_DEMO_LABEL);
+  const labels = sourceOf("lib/homepage-cta.ts");
+  assert.match(labels, /BOOK_DEMO_LABEL = "Book a demo"/);
+  assert.match(labels, /TRY_DEMO_LABEL = "Try the demo"/);
+  for (const file of ["components/public-homepage.tsx", "components/homepage-header.tsx", "lib/homepage-content.ts"]) {
+    const source = sourceOf(file);
+    assert.equal(source.includes('"Book a demo"'), false, file);
+    assert.equal(source.includes('"Try the demo"'), false, file);
+  }
+});
+
+test("the phone header menu keeps both logins available at 390px", () => {
+  const html = page(homepageModel({ PUBLIC_HOMEPAGE: "on" }));
+  assert.match(html, /aria-expanded="false"/);
+  assert.match(html, /aria-controls="header-menu"/);
+  const menu = html.slice(html.indexOf('id="header-menu"'), html.indexOf('id="hero"'));
+  assert.match(menu, />Client login</);
+  assert.match(menu, />Team login</);
+  const source = sourceOf("components/homepage-header.tsx");
+  assert.match(source, /aria-expanded=\{open\}/);
+  assert.match(source, /md:hidden/);
+  assert.match(source, /id="header-menu"/);
 });
 
 test("direction B is the default and A is a layout switch", () => {
@@ -244,8 +274,21 @@ test("homepage sections stay in order with placeholder copy and no invented stat
   assert.equal(model.bands.length, 2);
   const prose = homepageProse(model);
   assert.equal(/\d/.test(prose), false, prose);
+  const privacy = model.faq.find((item) => item.question === "How is personal information handled?");
+  const pricing = model.faq.find((item) => item.question === "What does it cost?");
+  const reply = model.faq.find((item) => item.question === "When will someone reply?");
+  assert.ok(privacy && pricing && reply);
+  for (const item of [privacy, pricing, reply]) {
+    assert.match(item?.answer || "", /^TODO\(jason\):/);
+  }
+  assert.match(privacy?.answer || "", /Privacy wording needs Jason's sign-off/);
+  assert.equal(/gdpr|we never share|we do not sell|compliant/i.test(privacy?.answer || ""), false);
+  const claimed = model.faq
+    .filter((item) => !item.answer.startsWith("TODO(jason):"))
+    .map((item) => `${item.question}\n${item.answer}`)
+    .join("\n");
   for (const word of ["privacy", "pricing", "price", "business day", "$", "%"]) {
-    assert.equal(prose.toLowerCase().includes(word), false, word);
+    assert.equal(claimed.toLowerCase().includes(word), false, word);
   }
   assert.match(HOMEPAGE_SIGNOFF_TODO, /Privacy wording, pricing, and reply-time promises/);
   assert.match(prose, /PLACEHOLDER/);

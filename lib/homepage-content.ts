@@ -1,4 +1,5 @@
 import { brandTokens } from "./brand/tokens";
+import { BOOK_DEMO_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { canonicalOrigin } from "./hosts";
 import { homepageDirection } from "./homepage-style";
 import { demoWorkspaceEnabled, postLoginPath, type Env } from "./public-routing";
@@ -33,6 +34,8 @@ export type HomepageModel = {
   showTryDemo: boolean;
   demoHref: "/demo";
   bookHref: "#contact";
+  bookLabel: string;
+  tryLabel: string;
   logins: typeof LOGIN_LINKS;
   hero: { kicker: string; title: string; body: string };
   feed: string[];
@@ -66,6 +69,8 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     showTryDemo,
     demoHref: "/demo",
     bookHref: "#contact",
+    bookLabel: BOOK_DEMO_LABEL,
+    tryLabel: TRY_DEMO_LABEL,
     logins: LOGIN_LINKS,
     hero: {
       kicker: "PLACEHOLDER",
@@ -89,13 +94,13 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         id: "cta-1",
         tone: "primary",
         title: "PLACEHOLDER. See Jarvis on a lead you already have.",
-        body: "PLACEHOLDER. Book a demo and we will keep the note on this server.",
+        body: `PLACEHOLDER. ${BOOK_DEMO_LABEL} and we will keep the note on this server.`,
       },
       {
         id: "cta-2",
         tone: "alt",
         title: "PLACEHOLDER. Walk the workflow before you commit.",
-        body: "PLACEHOLDER. Book a demo, or open the demo workspace when it is switched on.",
+        body: `PLACEHOLDER. ${BOOK_DEMO_LABEL} when you want a walkthrough.`,
       },
     ],
     proof: {
@@ -117,16 +122,28 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         answer: "PLACEHOLDER. Super admins and account managers use the same sign-in page. The account decides which view opens.",
       },
       {
-        question: "What does Book a demo do?",
+        question: `What does ${BOOK_DEMO_LABEL} do?`,
         answer: "PLACEHOLDER. The form on this page stores your note. It does not send email.",
       },
       {
         question: "Is the feed live?",
         answer: "PLACEHOLDER. It is sample text. It is not a live activity stream.",
       },
+      {
+        question: "How is personal information handled?",
+        answer: "TODO(jason): Privacy wording needs Jason's sign-off. This is not a policy.",
+      },
+      {
+        question: "What does it cost?",
+        answer: "TODO(jason): Pricing needs Jason's sign-off. No price is stated here.",
+      },
+      {
+        question: "When will someone reply?",
+        answer: "TODO(jason): Reply-time promises need Jason's sign-off. No reply time is stated here.",
+      },
     ],
     contact: {
-      title: "PLACEHOLDER. Book a demo",
+      title: `PLACEHOLDER. ${BOOK_DEMO_LABEL}`,
       body: "PLACEHOLDER. Your note is stored here. It is not emailed.",
       saved: "PLACEHOLDER. Saved on this server. Nothing was sent.",
       invalid: "Enter your name, email, and a message.",

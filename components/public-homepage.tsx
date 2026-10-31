@@ -1,24 +1,25 @@
 import Image from "next/image";
 import Link from "next/link";
 import { HomepageFeed } from "@/components/homepage-feed";
+import { HomepageMenu } from "@/components/homepage-header";
 import { HOMEPAGE_SECTION_ORDER, type HomepageModel } from "@/lib/homepage-content";
 import { homepageStyle } from "@/lib/homepage-style";
 
 function LoginLinks({ model, className }: { model: HomepageModel; className?: string }) {
   return (
-    <nav aria-label="Sign in" className={className}>
+    <div className={className}>
       {model.signedIn ? (
         <Link className="inline-flex min-h-11 items-center rounded-full px-3 text-sm font-semibold underline" href={model.appHref}>
           Go to app
         </Link>
       ) : null}
-      <Link className="btn-brand inline-flex min-h-11 items-center rounded-full px-4 text-sm" href={model.logins[0].href}>
+      <Link className="btn-brand inline-flex min-h-11 items-center justify-center rounded-full px-4 text-sm" href={model.logins[0].href}>
         {model.logins[0].label}
       </Link>
-      <Link className="inline-flex min-h-11 items-center rounded-full border border-current px-4 text-sm font-semibold" href={model.logins[1].href}>
+      <Link className="inline-flex min-h-11 items-center justify-center rounded-full border border-current px-4 text-sm font-semibold" href={model.logins[1].href}>
         {model.logins[1].label}
       </Link>
-    </nav>
+    </div>
   );
 }
 
@@ -26,11 +27,11 @@ function DemoActions({ model, buttonClass, ghostClass }: { model: HomepageModel;
   return (
     <div className="mt-5 flex flex-wrap gap-3">
       <Link className={buttonClass} href={model.bookHref}>
-        Book a demo
+        {model.bookLabel}
       </Link>
       {model.showTryDemo ? (
         <Link className={ghostClass} href={model.demoHref}>
-          Try the demo
+          {model.tryLabel}
         </Link>
       ) : null}
     </div>
@@ -47,17 +48,19 @@ export function PublicHomepage({ model, notice = null }: { model: HomepageModel;
       className="min-h-screen"
       style={{ background: model.canvas, color: model.ink, ["--brand" as string]: model.brandColor }}
     >
-      <header id="header" className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-5">
-        <Link href="/" className="flex items-center gap-3">
+      <header id="header" className="mx-auto flex max-w-6xl items-start justify-between gap-3 px-4 py-5">
+        <Link href="/" className="flex min-w-0 items-center gap-3">
           <Image src={model.logos.full} alt={model.logos.alt} width={1389} height={645} className="h-10 w-auto" />
-          <span>
+          <span className="min-w-0">
             <span className="block text-lg font-semibold" style={heading}>
               {model.product}
             </span>
             <span className="block text-sm">{model.byline}</span>
           </span>
         </Link>
-        <LoginLinks model={model} className="flex flex-wrap items-center gap-2" />
+        <HomepageMenu>
+          <LoginLinks model={model} className="flex flex-col gap-2 md:flex-row md:items-center" />
+        </HomepageMenu>
       </header>
 
       <main>
@@ -189,7 +192,9 @@ export function PublicHomepage({ model, notice = null }: { model: HomepageModel;
         </div>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-8">
           <Image src={model.logos.mark} alt="" width={1349} height={432} className="h-8 w-auto" />
-          <LoginLinks model={model} className="flex flex-wrap items-center gap-2" />
+          <nav aria-label="Sign in" className="flex flex-wrap items-center gap-2">
+            <LoginLinks model={model} className="flex flex-wrap items-center gap-2" />
+          </nav>
         </div>
       </footer>
     </div>
