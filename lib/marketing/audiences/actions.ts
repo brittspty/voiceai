@@ -34,6 +34,9 @@ export async function importAudienceCsv(formData: FormData) {
     acquisitionDate: String(formData.get("acquisitionDate") || ""),
     cost: access.seesCost ? String(formData.get("cost") || "") : "",
     currency: "USD",
+    dataLabel: String(formData.get("dataLabel") || ""),
+    gppString: String(formData.get("gppString") || ""),
+    consentOrigin: String(formData.get("consentOrigin") || ""),
     source: "data_market_maid",
     tags: ["intent", "geo", "demographics", "behavior"].flatMap((dimension) => {
       const label = String(formData.get(dimension) || "").trim();
@@ -84,6 +87,7 @@ export async function requestAudienceUpload(formData: FormData) {
     audienceId: String(formData.get("audienceId") || ""),
     platform,
     actorId: user.id,
+    accountId: String(formData.get("googleAccountId") || ""),
   });
   if (!saved.ok) fail(saved.message);
   revalidatePath("/marketing/audiences");
@@ -109,8 +113,10 @@ export async function syncPixelPool(formData: FormData) {
     workspaceId: access.workspaceId,
     audienceId: String(formData.get("audienceId") || ""),
     actorId: user.id,
+    accountId: String(formData.get("googleAccountId") || ""),
   });
   if (!saved.ok) redirect(`/marketing/audiences/pixel?error=${encodeURIComponent(saved.message)}`);
+  if (saved.googleNotice) redirect(`/marketing/audiences/pixel?error=${encodeURIComponent(saved.googleNotice)}`);
   revalidatePath("/marketing/audiences/pixel");
   revalidatePath("/marketing/audiences");
 }

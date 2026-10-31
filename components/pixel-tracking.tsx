@@ -8,6 +8,7 @@ export function PixelTrackingScreen({
   guide,
   eventsCaptured,
   canManage,
+  googleNotice,
   error,
 }: {
   pages: PixelPageHealth[];
@@ -15,13 +16,15 @@ export function PixelTrackingScreen({
   guide: readonly string[];
   eventsCaptured: number;
   canManage: boolean;
+  googleNotice?: string | null;
   error?: string;
 }) {
   return (
     <div className="grid gap-6">
       {error ? <p className="rounded-xl border border-line bg-card px-4 py-3 text-sm" role="alert">{error}</p> : null}
       <p className="text-sm text-muted">
-        {eventsCaptured} events captured. Sync to Meta, Google, and StackAdapt writes a log only. <Link className="underline" href="/marketing/audiences">Audience library</Link>
+        {eventsCaptured} events captured. Sync to Meta and StackAdapt stays a dry run. <Link className="underline" href="/marketing/audiences">Audience library</Link>
+        {googleNotice ? <span className="mt-2 block">{googleNotice}</span> : null}
       </p>
       <section className="rounded-xl border border-line bg-card p-4">
         <h2 className="text-base font-semibold">Fix guide</h2>
@@ -81,8 +84,9 @@ export function PixelTrackingScreen({
                     <td className="py-2 pr-3">{pool.growthLabel}</td>
                     <td className="py-2">
                       {canManage ? (
-                        <form action={syncPixelPool}>
+                        <form action={syncPixelPool} className="grid gap-2">
                           <input type="hidden" name="audienceId" value={pool.audienceId} />
+                          <input name="googleAccountId" className="min-h-11 rounded-lg border border-line bg-card px-2" placeholder="Google account id" aria-label="Google account id" />
                           <button className="min-h-11 rounded-lg border border-line px-3" type="submit">Dry-run sync</button>
                         </form>
                       ) : "Staff sync"}

@@ -6,6 +6,7 @@ import type { MaidImport, RefreshCadence } from "./import";
 import type { LibraryAudience } from "./library";
 import { assertHumanPushActor, applyPushDecision, deliverAudienceUpload, finalizePush, normalizeAudienceDecision, prepareAudiencePush } from "./push";
 import { attributeConversion, retargetingPool } from "./pixel";
+import { GoogleCustomerMatchBlockedError, googleCustomerMatchEligible, isBrokeredAudienceSource } from "./google-policy";
 import { dryRunPoolSync, PIXEL_FIX_GUIDE, pixelPageHealth, poolGrowth, POOL_SYNC_PLATFORMS, type PoolSyncPlatform } from "./pixel-health";
 import type { AudiencePlatform } from "./payloads";
 import type { AudienceSource, SegmentDimension } from "../segment-taxonomy";
@@ -42,6 +43,9 @@ export async function importMaidAudience(workspaceId: string, imported: MaidImpo
       costAmount: imported.lineage.cost,
       costCurrency: imported.lineage.currency,
       consentBasis: imported.lineage.consentBasis,
+      dataLabel: imported.consentProof.dataLabel,
+      gppString: imported.consentProof.gppString,
+      consentOrigin: imported.consentOrigin,
       refreshCadence: imported.lineage.refreshCadence,
     };
     const audienceId = existing
@@ -118,6 +122,9 @@ export async function listLibraryAudiences(workspaceId: string, env: Env = proce
       vendor: row.vendor,
       listId: row.listId,
       consentBasis: row.consentBasis,
+      dataLabel: row.dataLabel,
+      gppString: row.gppString,
+      consentOrigin: row.consentOrigin,
       refreshCadence: row.refreshCadence as RefreshCadence,
       acquisitionDate: day(row.acquisitionDate),
       cost: decimal(row.costAmount),
@@ -186,6 +193,7 @@ export async function requestAudiencePush(input: {
   audienceId: string;
   platform: AudiencePlatform;
   actorId: string;
+  accountId?: string | null;
   env?: Env;
 }) {
   if (!audienceLibraryEnabled(input.env)) return { ok: false as const, message: "The audience library is off." };
@@ -202,6 +210,7 @@ export async function requestAudiencePush(input: {
       platform: input.platform,
       members,
       consentBasis: audience.consentBasis,
+      accountId: input.accountId,
       env: input.env,
     });
     const push = await prisma.audiencePush.create({
@@ -281,16 +290,24 @@ export async function finalizeDuePushes(workspaceId: string, env: Env = process.
         consentBasis: audience.consentBasis,
         env,
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof GoogleCustomerMatchBlockedError) continue;
       payload = push.payload;
     }
-    const delivery = await deliverAudienceUpload({
-      env,
-      platform: push.platform as AudiencePlatform,
-      payload,
-      listId: audience.listId,
-      vendor: audience.vendor,
-    });
+    let delivery;
+    try {
+      delivery = await deliverAudienceUpload({
+        env,
+        platform: push.platform as AudiencePlatform,
+        payload,
+        listId: audience.listId,
+        vendor: audience.vendor,
+        source: audience.source,
+      });
+    } catch (error) {
+      if (error instanceof GoogleCustomerMatchBlockedError) continue;
+      throw error;
+    }
     const finalized = finalizePush({
       status: "approved",
       undoUntil: push.undoUntil ? push.undoUntil.toISOString() : null,
@@ -371,7 +388,7 @@ export async function listPixelBoard(workspaceId: string, env: Env = process.env
       where: isolatedWhere(workspaceId),
       select: { pageUrl: true, eventName: true, visitorId: true, audienceId: true, occurredAt: true },
     }),
-    prisma.maidAudience.findMany({ where: isolatedWhere(workspaceId), select: { id: true, name: true, listId: true } }),
+    prisma.maidAudience.findMany({ where: isolatedWhere(workspaceId), select: { id: true, name: true, listId: true, source: true } }),
   ]);
   const rows = events.map((event) => ({
     pageUrl: event.pageUrl,
@@ -385,10 +402,11 @@ export async function listPixelBoard(workspaceId: string, env: Env = process.env
     pools: poolGrowth({ audiences, events: rows, now }),
     guide: PIXEL_FIX_GUIDE,
     eventsCaptured: rows.length,
+    googleNotice: audiences.some((row) => isBrokeredAudienceSource(row.source)) ? "Google requires first-party data. Not eligible unless Google allowlists this account." : null,
   };
 }
 
-export async function logPoolSync(input: { workspaceId: string; audienceId: string; actorId: string; env?: Env }) {
+export async function logPoolSync(input: { workspaceId: string; audienceId: string; actorId: string; accountId?: string | null; env?: Env }) {
   if (!audienceLibraryEnabled(input.env)) return { ok: false as const, message: "The audience library is off." };
   assertHumanPushActor({ kind: "human" });
   const audience = await prisma.maidAudience.findFirst({ where: isolatedWhere(input.workspaceId, { id: input.audienceId }) });
@@ -399,8 +417,26 @@ export async function logPoolSync(input: { workspaceId: string; audienceId: stri
   });
   const visitorIds = [...new Set(events.map((event) => event.visitorId).filter(Boolean))];
   const logs = [];
+  let googleNotice: string | null = null;
   for (const platform of POOL_SYNC_PLATFORMS) {
-    const sync = dryRunPoolSync({ platform: platform as PoolSyncPlatform, visitorIds, listId: audience.listId, vendor: audience.vendor });
+    const gate = googleCustomerMatchEligible({ platform, source: audience.source, accountId: input.accountId, env: input.env });
+    if (!gate.eligible) {
+      googleNotice = gate.reason;
+      continue;
+    }
+    const sync = dryRunPoolSync({
+      platform: platform as PoolSyncPlatform,
+      visitorIds,
+      listId: audience.listId,
+      vendor: audience.vendor,
+      source: audience.source,
+      accountId: input.accountId,
+      env: input.env,
+    });
+    if (!sync.eligible) {
+      googleNotice = sync.log;
+      continue;
+    }
     await prisma.audiencePush.create({
       data: {
         ...isolatedWhere(input.workspaceId),
@@ -417,7 +453,7 @@ export async function logPoolSync(input: { workspaceId: string; audienceId: stri
     });
     logs.push({ platform, log: sync.log, called: sync.called });
   }
-  return { ok: true as const, logs };
+  return { ok: true as const, logs, googleNotice };
 }
 
 export async function listRetargetingPool(workspaceId: string, audienceId: string, env: Env = process.env) {

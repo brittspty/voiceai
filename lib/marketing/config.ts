@@ -205,6 +205,45 @@ export function audienceMaidKey(env: Env = process.env) {
   return (env.AUDIENCE_MAID_KEY || "").trim();
 }
 
+/** Off unless LIST_VALIDATION_GATE is explicitly on. Checks are recommendations only. */
+export function listValidationGateEnabled(env: Env = process.env) {
+  return flagOn(env, "LIST_VALIDATION_GATE");
+}
+
+function configPercent(env: Env, name: string, fallback: number) {
+  const raw = (env[name] || "").trim();
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return parsed > 1 ? parsed / 100 : parsed;
+}
+
+export type ListValidationConfig = {
+  seedMinPercent: number;
+  seedMaxPercent: number;
+  seedRate: number;
+  seedMatchMaxPercent: number;
+  holdoutPercent: number;
+  googleMatchMin: number;
+  googleMatchMax: number;
+};
+
+/** Defaults: seeds 2–5% (use 3%), flag seed matches above 5%, 10% holdout, Google match 29–62%. */
+export function listValidationConfig(env: Env = process.env): ListValidationConfig {
+  const seedMinPercent = configPercent(env, "LIST_VALIDATION_SEED_MIN", 0.02);
+  const seedMaxPercent = configPercent(env, "LIST_VALIDATION_SEED_MAX", 0.05);
+  const seedRate = Math.min(seedMaxPercent, Math.max(seedMinPercent, configPercent(env, "LIST_VALIDATION_SEED_RATE", 0.03)));
+  return {
+    seedMinPercent,
+    seedMaxPercent,
+    seedRate,
+    seedMatchMaxPercent: configPercent(env, "LIST_VALIDATION_SEED_MATCH_MAX", 0.05),
+    holdoutPercent: configPercent(env, "LIST_VALIDATION_HOLDOUT", 0.1),
+    googleMatchMin: configPercent(env, "LIST_VALIDATION_GOOGLE_MATCH_MIN", 0.29),
+    googleMatchMax: configPercent(env, "LIST_VALIDATION_GOOGLE_MATCH_MAX", 0.62),
+  };
+}
+
 export function amBudgetCapUsd(env: Env = process.env) {
   const parsed = Number(env.MARKETING_AM_BUDGET_CAP_USD ?? 500);
   if (!Number.isFinite(parsed) || parsed < 0) return 500;

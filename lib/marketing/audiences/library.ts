@@ -15,6 +15,10 @@ export type LibraryAudience = {
   vendor: string;
   listId: string;
   consentBasis: string;
+  dataLabel: string;
+  gppString: string;
+  consentOrigin: string;
+  seedMatched?: number | null;
   refreshCadence: RefreshCadence;
   acquisitionDate: string | null;
   cost: string | null;
@@ -107,6 +111,8 @@ export function presentLibrary(rows: LibraryAudience[], options: { reader?: Audi
       vendor: row.vendor,
       listId: row.listId,
       consentBasis: row.consentBasis,
+      dataLabel: row.dataLabel,
+      gppString: row.gppString,
       refreshCadence: row.refreshCadence,
       acquisitionDate: row.acquisitionDate,
       size: row.size,

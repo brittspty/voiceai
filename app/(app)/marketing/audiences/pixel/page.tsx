@@ -31,6 +31,7 @@ export default async function PixelTrackingPage({ searchParams }: { searchParams
         guide={board?.guide ?? []}
         eventsCaptured={board?.eventsCaptured ?? 0}
         canManage={canManageAudiences(access)}
+        googleNotice={board?.googleNotice}
         error={query.error}
       />
     </div>

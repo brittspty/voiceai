@@ -1989,6 +1989,12 @@ model MaidAudience {
   costAmount      Decimal?               @db.Decimal(18, 4)
   costCurrency    String                 @default("USD")
   consentBasis    String
+  /// IAB Tech Lab Data Label. Optional. Kept for a later consent proof.
+  dataLabel       String                 @default("")
+  /// GPP string. Optional. Kept for a later consent proof.
+  gppString       String                 @default("")
+  /// Where consent was collected: first_party or upstream_supplier. Empty until recorded.
+  consentOrigin   String                 @default("")
   refreshCadence  AudienceRefreshCadence
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt

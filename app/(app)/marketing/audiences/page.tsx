@@ -3,6 +3,7 @@ import { NoAccess } from "@/components/no-access";
 import { PageTitle } from "@/components/shell";
 import { requireUser } from "@/lib/auth";
 import { audienceLibraryEnabled } from "@/lib/marketing/config";
+import { listValidationFlags } from "@/lib/marketing/audiences/list-validation";
 import { canManageAudiences, canUseAudienceLibrary } from "@/lib/marketing/feature-access";
 import { presentLibrary } from "@/lib/marketing/audiences/library";
 import { finalizeDuePushes, listAudiencePushes, listLibraryAudiences } from "@/lib/marketing/audiences/store";
@@ -40,6 +41,7 @@ export default async function AudiencesPage({ searchParams }: { searchParams: Pr
         pushes={pushes}
         seesCost={access.seesCost}
         canManage={canManageAudiences(access)}
+        validation={Object.fromEntries(rows.map((row) => [row.id, listValidationFlags(row)]))}
         error={query.error}
       />
     </div>

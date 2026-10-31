@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
+import type { Env } from "../config";
 import { assertNoAdBudgetWrite } from "../connectors/budget-lock";
+import { googleCustomerMatchEligible } from "./google-policy";
 import { buildGooglePayload, buildMetaPayload, buildStackAdaptPayload, type AudiencePlatform } from "./payloads";
 
 export const PIXEL_FIX_GUIDE = [
@@ -99,7 +101,33 @@ export function poolGrowth(input: {
   }).sort((a, b) => b.size - a.size || a.name.localeCompare(b.name));
 }
 
-export function dryRunPoolSync(input: { platform: PoolSyncPlatform; visitorIds: string[]; listId: string; vendor: string }) {
+export function dryRunPoolSync(input: {
+  platform: PoolSyncPlatform;
+  visitorIds: string[];
+  listId: string;
+  vendor: string;
+  source?: string;
+  accountId?: string | null;
+  env?: Env;
+}) {
+  const gate = googleCustomerMatchEligible({
+    platform: input.platform,
+    source: input.source || "data_market_maid",
+    accountId: input.accountId,
+    env: input.env,
+  });
+  if (!gate.eligible) {
+    return {
+      platform: input.platform as AudiencePlatform,
+      eligible: false as const,
+      called: false as const,
+      mode: "blocked" as const,
+      endpoint: "",
+      payload: null,
+      log: gate.reason || "",
+      steps: [] as string[],
+    };
+  }
   const members = [...new Set(input.visitorIds.map((id) => id.trim()).filter(Boolean))].map((visitorId) => ({
     idType: "email_sha256" as const,
     hash: hashVisitor(visitorId),
@@ -113,6 +141,7 @@ export function dryRunPoolSync(input: { platform: PoolSyncPlatform; visitorIds: 
   assertNoAdBudgetWrite({ method: "POST", url: endpoint, body: payload });
   return {
     platform: input.platform as AudiencePlatform,
+    eligible: true as const,
     called: false as const,
     mode: "dry_run" as const,
     endpoint,

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { audienceLibraryEnabled, audiencePushEnabled } from "./config";
+import { audienceLibraryEnabled, audiencePushEnabled, listValidationConfig, listValidationGateEnabled } from "./config";
 import { AdBudgetWriteBlockedError } from "./connectors/budget-lock";
 import { compareMaidAudiences } from "./audiences/compare";
 import { importMaidApi, importMaidCsv, staffCost } from "./audiences/import";
@@ -12,8 +12,10 @@ import { decryptMaid, dedupeIdentifiers, hashMaid, normalizeMaid } from "./audie
 import { PIXEL_FIX_GUIDE, dryRunPoolSync, pixelPageHealth, poolGrowth } from "./audiences/pixel-health";
 import { attributeConversions, audienceIdFromSearch, audienceQuery, countVerified } from "./audiences/pixel";
 import { clientLeakKeys, costKeys } from "./audiences/present";
-import { AUDIENCE_UNDO_MS, applyPushDecision, audienceUndoToast, deliverAudienceUpload, finalizePush } from "./audiences/push";
-import { buildMetaPayload } from "./audiences/payloads";
+import { AUDIENCE_UNDO_MS, applyPushDecision, audienceUndoToast, deliverAudienceUpload, finalizePush, prepareAudiencePush } from "./audiences/push";
+import { buildGooglePayload, buildMetaPayload } from "./audiences/payloads";
+import { GOOGLE_FIRST_PARTY_ONLY, GoogleCustomerMatchBlockedError, googleBrokeredAllowlisted, googleCustomerMatchEligible } from "./audiences/google-policy";
+import { assignHoldout, GOOGLE_POLICY_WARNING, googleMatchSanity, holdoutArm, listValidationFlags, planSeedCheck, seedMatchFlag } from "./audiences/list-validation";
 import { AUDIENCE_SOURCES, SEGMENT_DIMENSIONS, isMaidComparisonSource } from "./segment-taxonomy";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
@@ -40,6 +42,9 @@ function libraryRow(patch: Partial<LibraryAudience> = {}): LibraryAudience {
     verifiedLeads: 8,
     qualifiedLeads: 4,
     pixelVisitors: 3,
+    dataLabel: "",
+    gppString: "",
+    consentOrigin: "",
     pushes: [{ id: "push-1", platform: "meta", status: "pending", undoUntil: null }],
     ...patch,
   };
@@ -300,6 +305,142 @@ test("pixel health, pool growth, and the four-step dry-run sync", () => {
   assert.equal(sync.mode, "dry_run");
   assert.match(sync.log, /Nothing was sent/);
   assert.equal(audienceIdFromSearch(audienceQuery("aud-1", "list-100")), "aud-1");
+});
+
+test("Google Customer Match blocks brokered lists, including a dry run, unless that account is allowlisted", async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { status: 200 };
+  };
+  const live = { AUDIENCE_LIBRARY: "on", AUDIENCE_PUSH_ENABLED: "on", AUDIENCE_PUSH_URL_GOOGLE: "https://upload.test/google" };
+  const members = [{ idType: "idfa" as const, hash: "ab".repeat(32) }];
+  await assert.rejects(
+    () => deliverAudienceUpload({
+      env: live,
+      platform: "google_customer_match",
+      payload: buildGooglePayload(members, "contract"),
+      listId: "list-100",
+      vendor: "SecretVendor",
+      source: "data_market_maid",
+      fetchImpl,
+    }),
+    (error: unknown) => error instanceof GoogleCustomerMatchBlockedError && error.message === GOOGLE_FIRST_PARTY_ONLY,
+  );
+  assert.throws(
+    () => prepareAudiencePush({ source: "data_market_maid", platform: "google_customer_match", members, consentBasis: "contract", env: live }),
+    GoogleCustomerMatchBlockedError,
+  );
+  assert.equal(calls, 0);
+  assert.equal(googleBrokeredAllowlisted("123", {}), false);
+  assert.equal(googleBrokeredAllowlisted("123", { GOOGLE_BROKERED_ALLOWLISTED: "on" }), false);
+  assert.equal(googleBrokeredAllowlisted("123", { GOOGLE_BROKERED_ALLOWLISTED: "999" }), false);
+  const allowed = await deliverAudienceUpload({
+    env: { ...live, GOOGLE_BROKERED_ALLOWLISTED: "123,456" },
+    platform: "google_customer_match",
+    payload: buildGooglePayload(members, "contract"),
+    listId: "list-100",
+    vendor: "SecretVendor",
+    source: "maid_market",
+    accountId: "123",
+    fetchImpl,
+  });
+  assert.equal(allowed.called, true);
+  const meta = await deliverAudienceUpload({
+    env: { AUDIENCE_LIBRARY: "on" },
+    platform: "meta",
+    payload: buildMetaPayload(members),
+    listId: "list-100",
+    vendor: "SecretVendor",
+    source: "maid_market",
+    fetchImpl,
+  });
+  assert.equal(meta.mode, "dry_run");
+  assert.equal(meta.called, false);
+  const stack = dryRunPoolSync({ platform: "stackadapt", visitorIds: ["v1"], listId: "list-100", vendor: "SecretVendor", source: "maid_market" });
+  assert.equal(stack.eligible, true);
+  assert.equal(stack.mode, "dry_run");
+  const blocked = dryRunPoolSync({ platform: "google_customer_match", visitorIds: ["v1"], listId: "list-100", vendor: "SecretVendor", source: "data_market_maid" });
+  assert.equal(blocked.eligible, false);
+  assert.equal(blocked.payload, null);
+  assert.equal(blocked.log, GOOGLE_FIRST_PARTY_ONLY);
+  const firstParty = dryRunPoolSync({ platform: "google_customer_match", visitorIds: ["v1"], listId: "crm-1", vendor: "House", source: "crm_first_party" });
+  assert.equal(firstParty.eligible, true);
+  assert.equal(firstParty.mode, "dry_run");
+  const tagged = importMaidApi({
+    name: "Homeowners",
+    vendor: "SecretVendor",
+    listId: "list-200",
+    consentBasis: "contract",
+    refreshCadence: "monthly",
+    acquisitionDate: "2026-10-01",
+    source: "maid_market",
+    dataLabel: "IAB-DL-1",
+    gppString: "DBABMA~",
+    identifiers: [{ maid: IDFA, idType: "idfa" }],
+  }, { retainRaw: false, maidKey: undefined });
+  assert.equal(tagged.ok, true);
+  if (!tagged.ok) return;
+  assert.equal(tagged.value.source, "data_market_maid");
+  assert.equal(tagged.value.consentProof.dataLabel, "IAB-DL-1");
+  assert.equal(tagged.value.consentProof.gppString, "DBABMA~");
+  const optional = importMaidApi({
+    name: "Homeowners",
+    vendor: "SecretVendor",
+    listId: "list-201",
+    consentBasis: "contract",
+    refreshCadence: "monthly",
+    acquisitionDate: "2026-10-01",
+    identifiers: [{ maid: IDFA, idType: "idfa" }],
+  }, { retainRaw: false, maidKey: undefined });
+  assert.equal(optional.ok, true);
+  if (!optional.ok) return;
+  assert.equal(optional.value.consentProof.dataLabel, "");
+  assert.equal(optional.value.consentProof.gppString, "");
+  assert.equal(calls, 1);
+});
+
+test("list validation stays off and only recommends flags", () => {
+  assert.equal(listValidationGateEnabled({}), false);
+  const on = { LIST_VALIDATION_GATE: "on" };
+  const row = {
+    id: "aud-1",
+    listId: "list-100",
+    source: "data_market_maid",
+    vendor: "SecretVendor",
+    size: 200,
+    consentOrigin: "upstream_supplier" as const,
+    platforms: [{ platform: "google_customer_match", uploaded: 100, matched: 20 }],
+  };
+  assert.deepEqual(listValidationFlags(row, {}), []);
+  const flags = listValidationFlags(row, on);
+  assert.equal(flags.some((flag) => flag.code === "seed"), true);
+  assert.match(flags.find((flag) => flag.code === "seed")?.message || "", /Nothing is sent/);
+  assert.equal(flags.some((flag) => flag.code === "holdout"), true);
+  assert.equal(flags.some((flag) => flag.code === "google_match"), true);
+  assert.equal(flags.some((flag) => flag.code === "consent"), true);
+  assert.equal(flags.some((flag) => flag.message === GOOGLE_POLICY_WARNING), true);
+  assert.equal(googleCustomerMatchEligible({ platform: "google_customer_match", source: "data_market_maid" }).reason, GOOGLE_FIRST_PARTY_ONLY);
+  const seeds = planSeedCheck(200, "list-100");
+  assert.equal(seeds.seedCount, 6);
+  assert.ok(seeds.seedPercent >= 0.02 && seeds.seedPercent <= 0.05);
+  assert.equal(seedMatchFlag(100, 5).unreliable, false);
+  assert.equal(seedMatchFlag(100, 6).unreliable, true);
+  const arms = assignHoldout(Array.from({ length: 2000 }, (_, index) => ({ id: `id-${index}` })), "list-100");
+  assert.equal(arms.holdout.length > 150 && arms.holdout.length < 250, true);
+  assert.equal(arms.holdout.includes(arms.exposed[0]), false);
+  assert.equal(holdoutArm("same", "salt", 0.1), holdoutArm("same", "salt", 0.1));
+  assert.equal(googleMatchSanity(0.29).flagged, false);
+  assert.equal(googleMatchSanity(0.62).flagged, false);
+  assert.equal(googleMatchSanity(0.28).flagged, true);
+  assert.equal(googleMatchSanity(0.63).flagged, true);
+  assert.equal(googleMatchSanity(0.39, listValidationConfig({ LIST_VALIDATION_GOOGLE_MATCH_MIN: "40", LIST_VALIDATION_GOOGLE_MATCH_MAX: "50" })).flagged, true);
+  assert.equal(googleMatchSanity(0.45, listValidationConfig({ LIST_VALIDATION_GOOGLE_MATCH_MIN: "40", LIST_VALIDATION_GOOGLE_MATCH_MAX: "50" })).flagged, false);
+  assert.equal(listValidationFlags({ ...row, consentOrigin: "first_party", platforms: [], source: "crm_first_party" }, on).some((flag) => flag.code === "consent" || flag.code === "google_policy"), false);
+  const source = readFileSync(path.join(ROOT, "lib/marketing/audiences/list-validation.ts"), "utf8");
+  assert.equal(source.includes("fetch("), false);
+  assert.equal(source.includes("daily_budget"), false);
+  assert.equal(source.includes("campaignBudgets"), false);
 });
 
 test("the shared taxonomy keeps platform-native as a legacy value", () => {

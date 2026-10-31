@@ -1,6 +1,7 @@
 import type { Env } from "../config";
 import { audiencePushEnabled } from "../config";
 import { assertNoAdBudgetWrite } from "../connectors/budget-lock";
+import { assertGoogleCustomerMatch } from "./google-policy";
 import { LEGACY_AUDIENCE_SOURCE, type AudienceSource } from "../segment-taxonomy";
 import { redactMaids } from "./maid";
 import {
@@ -39,8 +40,16 @@ export async function deliverAudienceUpload(input: {
   payload: unknown;
   listId: string;
   vendor: string;
+  source?: AudienceSource | string;
+  accountId?: string | null;
   fetchImpl?: AudienceFetch;
 }): Promise<PushDelivery> {
+  assertGoogleCustomerMatch({
+    platform: input.platform,
+    source: input.source || "data_market_maid",
+    accountId: input.accountId,
+    env: input.env,
+  });
   const endpoint = platformUploadUrl(input.platform, input.env);
   assertNoAdBudgetWrite({ method: "POST", url: endpoint, body: input.payload });
   const steps = manualUploadSteps(input.platform, input.listId, input.vendor);
@@ -69,11 +78,18 @@ export function prepareAudiencePush(input: {
   platform: AudiencePlatform;
   members: UploadMember[];
   consentBasis: string;
+  accountId?: string | null;
   env?: Env;
 }) {
   if (input.source === LEGACY_AUDIENCE_SOURCE) {
     throw new Error("Platform-native targeting is a legacy import. It is not uploaded.");
   }
+  assertGoogleCustomerMatch({
+    platform: input.platform,
+    source: input.source,
+    accountId: input.accountId,
+    env: input.env,
+  });
   if (!input.members.length) throw new Error("This audience has no hashed identifiers to upload.");
   const payload = buildPlatformPayload(input.platform, input.members, input.consentBasis);
   assertNoAdBudgetWrite({ method: "POST", url: platformUploadUrl(input.platform, input.env), body: payload });

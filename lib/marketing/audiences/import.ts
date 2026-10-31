@@ -1,6 +1,7 @@
 import type { Env } from "../config";
 import { retainRawMaids, audienceMaidKey } from "../config";
 import { parseCsv } from "../search-waste";
+import { parseConsentOrigin, type ConsentOrigin } from "./list-validation";
 import {
   DEFAULT_AUDIENCE_SOURCE,
   isAudienceSource,
@@ -37,10 +38,17 @@ export type MaidLineage = {
 
 export type ImportIssue = { row: number; message: string };
 
+export type ConsentProof = {
+  dataLabel: string;
+  gppString: string;
+};
+
 export type MaidImport = {
   name: string;
   source: AudienceSource;
   lineage: MaidLineage;
+  consentProof: ConsentProof;
+  consentOrigin: ConsentOrigin;
   tags: SegmentTag[];
   identifiers: HashedIdentifier[];
   duplicates: number;
@@ -196,10 +204,17 @@ function hashRows(drafts: IdentifierDraft[], options: ImportOptions) {
   return { identifiers: deduped.unique, duplicates: deduped.duplicates, rejected: issues, rawStored };
 }
 
+function canonicalSource(value: string) {
+  if (value === "maid_market") return DEFAULT_AUDIENCE_SOURCE;
+  return value;
+}
+
 function finish(input: {
   name: string;
   source: string;
   lineageInput: Parameters<typeof lineageFrom>[0];
+  consentProof: ConsentProof;
+  consentOrigin: ConsentOrigin;
   tags: SegmentTag[];
   drafts: IdentifierDraft[];
   options: ImportOptions;
@@ -207,7 +222,7 @@ function finish(input: {
   const issues: ImportIssue[] = [];
   const name = clean(input.name, 120);
   if (!name) issues.push({ row: 0, message: "Audience name is required." });
-  const source = input.source ? clean(input.source, 40) : DEFAULT_AUDIENCE_SOURCE;
+  const source = canonicalSource(input.source ? clean(input.source, 40) : DEFAULT_AUDIENCE_SOURCE);
   if (!isAudienceSource(source)) issues.push({ row: 0, message: "Audience source is not in the taxonomy." });
   const lineage = lineageFrom(input.lineageInput);
   issues.push(...lineage.issues);
@@ -222,6 +237,11 @@ function finish(input: {
       source,
       lineage: lineage.lineage,
       tags: input.tags,
+      consentProof: {
+        dataLabel: clean(input.consentProof.dataLabel, 200),
+        gppString: clean(input.consentProof.gppString, 500),
+      },
+      consentOrigin: input.consentOrigin,
       identifiers: hashed.identifiers,
       duplicates: hashed.duplicates,
       rejected: hashed.rejected.filter((issue) => issue.row !== 0 || !issue.message.startsWith("No valid")),
@@ -245,6 +265,9 @@ export function importMaidCsv(text: string, meta: {
   cost?: string;
   currency?: string;
   source?: string;
+  dataLabel?: string;
+  gppString?: string;
+  consentOrigin?: string;
   tags?: SegmentTag[];
 }, options: ImportOptions) {
   const table = parseCsv(text);
@@ -291,6 +314,11 @@ export function importMaidCsv(text: string, meta: {
       consentBasis: meta.consentBasis,
       refreshCadence: meta.refreshCadence,
     },
+    consentProof: {
+      dataLabel: meta.dataLabel || pick(table[1] || [], "data_label", "iab_data_label"),
+      gppString: meta.gppString || pick(table[1] || [], "gpp", "gpp_string"),
+    },
+    consentOrigin: parseConsentOrigin(meta.consentOrigin || pick(table[1] || [], "consent_origin", "consent_collected")),
     tags,
     drafts,
     options,
@@ -341,6 +369,11 @@ export function importMaidApi(body: unknown, options: ImportOptions) {
       consentBasis: clean(record.consentBasis || record.consent_basis, 200),
       refreshCadence: clean(record.refreshCadence || record.refresh_cadence, 20),
     },
+    consentProof: {
+      dataLabel: clean(record.dataLabel || record.data_label || record.iabDataLabel, 200),
+      gppString: clean(record.gppString || record.gpp || record.gpp_string, 500),
+    },
+    consentOrigin: parseConsentOrigin(clean(record.consentOrigin || record.consent_origin, 40)),
     tags,
     drafts,
     options,

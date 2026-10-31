@@ -38,6 +38,8 @@ export type PresentedAudience = {
   name: string;
   source: AudienceSource;
   sourceLabel: string;
+  dataLabel: string;
+  gppString: string;
   vendor: string;
   listId: string;
   consentBasis: string;
@@ -184,6 +186,8 @@ export function presentAudienceCard(input: {
   name: string;
   source: AudienceSource;
   vendor: string;
+  dataLabel: string;
+  gppString: string;
   listId: string;
   consentBasis: string;
   refreshCadence: string;
@@ -208,6 +212,8 @@ export function presentAudienceCard(input: {
     name: input.name,
     source: input.source,
     sourceLabel: AUDIENCE_SOURCE_LABELS[input.source],
+    dataLabel: input.dataLabel,
+    gppString: input.gppString,
     vendor: input.vendor,
     listId: input.listId,
     consentBasis: input.consentBasis,

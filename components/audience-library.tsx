@@ -5,6 +5,7 @@ import { AUDIENCE_PLATFORMS, PLATFORM_LABELS } from "@/lib/marketing/audiences/p
 import type { PresentedAudience, PresentedRow } from "@/lib/marketing/audiences/present";
 import { money } from "@/lib/marketing/audiences/present";
 import { AudienceUndo } from "@/components/audience-undo";
+import { GOOGLE_FIRST_PARTY_ONLY, isBrokeredAudienceSource } from "@/lib/marketing/audiences/google-policy";
 
 function Board({ title, rows, seesCost }: { title: string; rows: PresentedRow[]; seesCost: boolean }) {
   return (
@@ -54,6 +55,7 @@ export function AudienceLibraryScreen({
   pushes,
   seesCost,
   canManage,
+  validation,
   error,
 }: {
   cards: PresentedAudience[];
@@ -61,6 +63,7 @@ export function AudienceLibraryScreen({
   pushes: { id: string; name: string; platform: string; status: string; listId: string; vendor: string; undoUntil: string | null; manualSteps: string[]; logLine: string }[];
   seesCost: boolean;
   canManage: boolean;
+  validation?: Record<string, { code: string; message: string }[]>;
   error?: string;
 }) {
   return (
@@ -82,6 +85,7 @@ export function AudienceLibraryScreen({
                   <th className="py-2 pr-3 font-medium">Size</th>
                   <th className="py-2 pr-3 font-medium">Freshness</th>
                   <th className="py-2 pr-3 font-medium">Match rate</th>
+                  <th className="py-2 pr-3 font-medium">Checks</th>
                   <th className="py-2 font-medium">Push</th>
                 </tr>
               </thead>
@@ -93,7 +97,11 @@ export function AudienceLibraryScreen({
                       <div className="text-muted">List {card.listId}</div>
                       <div className="mt-1 font-mono text-xs text-muted">{audienceQuery(card.id, card.listId)}</div>
                     </td>
-                    <td className="py-2 pr-3">{card.sourceLabel}</td>
+                    <td className="py-2 pr-3">
+                      <div>{card.sourceLabel}</div>
+                      {card.dataLabel ? <div className="text-xs text-muted">Data label {card.dataLabel}</div> : null}
+                      {card.gppString ? <div className="text-xs text-muted">GPP on file</div> : null}
+                    </td>
                     <td className="py-2 pr-3">{card.vendor}</td>
                     <td className="py-2 pr-3">{card.size}</td>
                     <td className="py-2 pr-3">{card.freshnessLabel}</td>
@@ -105,12 +113,22 @@ export function AudienceLibraryScreen({
                         </div>
                       )) : "No match report"}
                     </td>
+                    <td className="py-2 pr-3">
+                      {(validation?.[card.id] || []).length ? (
+                        <ul className="grid gap-1 text-xs">
+                          {(validation?.[card.id] || []).map((flag) => <li key={flag.code}>{flag.message}</li>)}
+                        </ul>
+                      ) : "Off"}
+                    </td>
                     <td className="py-2">
                       {card.pushStatus.length ? card.pushStatus.map((push) => (
                         <div key={push.id}>
                           <div>{push.label}: {push.statusLabel}</div>
                           {push.undoUntil ? <AudienceUndo undoUntil={push.undoUntil} pushId={push.id} /> : null}
-                          {push.statusLabel === "Waiting for Yes" && canManage ? (
+                          {push.platform === "google_customer_match" && isBrokeredAudienceSource(card.source) ? (
+                            <p className="mt-1 max-w-xs text-muted">{GOOGLE_FIRST_PARTY_ONLY}</p>
+                          ) : null}
+                          {push.statusLabel === "Waiting for Yes" && canManage && !(push.platform === "google_customer_match" && isBrokeredAudienceSource(card.source)) ? (
                             <form action={decideAudienceUpload} className="mt-2 flex gap-2">
                               <input type="hidden" name="pushId" value={push.id} />
                               <button name="decision" value="yes" className="min-h-11 rounded-lg bg-brand px-4 font-semibold text-on-brand" type="submit">Yes</button>
@@ -145,6 +163,15 @@ export function AudienceLibraryScreen({
               </select>
             </label>
             {seesCost ? <label className="text-sm font-medium">Cost<input name="cost" inputMode="decimal" className="mt-1 min-h-11 w-full rounded-lg border border-line bg-card px-2" /></label> : null}
+            <label className="text-sm font-medium">IAB data label<input name="dataLabel" className="mt-1 min-h-11 w-full rounded-lg border border-line bg-card px-2" placeholder="Optional" /></label>
+            <label className="text-sm font-medium">GPP string<input name="gppString" className="mt-1 min-h-11 w-full rounded-lg border border-line bg-card px-2" placeholder="Optional" /></label>
+            <label className="text-sm font-medium">Consent collected
+              <select name="consentOrigin" className="mt-1 min-h-11 w-full rounded-lg border border-line bg-card px-2" defaultValue="">
+                <option value="">Not recorded</option>
+                <option value="first_party">First-party</option>
+                <option value="upstream_supplier">Upstream supplier</option>
+              </select>
+            </label>
           </div>
           <div className="grid gap-3 md:grid-cols-4">
             <label className="text-sm font-medium">Intent<input name="intent" className="mt-1 min-h-11 w-full rounded-lg border border-line bg-card px-2" /></label>
@@ -180,7 +207,8 @@ export function AudienceLibraryScreen({
           </form>
           <form action={requestAudienceUpload} className="grid gap-3 rounded-xl border border-line bg-card p-4">
             <h2 className="text-base font-semibold">Request a push</h2>
-            <p className="text-sm text-muted">This opens a Yes or No. Yes can be undone for 30 seconds. The push stays a dry run.</p>
+            <p className="text-sm text-muted">This opens a Yes or No. Yes can be undone for 30 seconds. The push stays a dry run while live upload is off.</p>
+            {cards.some((card) => isBrokeredAudienceSource(card.source)) ? <p className="text-sm">{GOOGLE_FIRST_PARTY_ONLY}</p> : null}
             <label className="text-sm font-medium">Audience
               <select name="audienceId" className="mt-1 min-h-11 w-full rounded-lg border border-line bg-card px-2">
                 {cards.map((card) => <option key={card.id} value={card.id}>{card.name}</option>)}
@@ -190,6 +218,9 @@ export function AudienceLibraryScreen({
               <select name="platform" className="mt-1 min-h-11 w-full rounded-lg border border-line bg-card px-2">
                 {AUDIENCE_PLATFORMS.map((platform) => <option key={platform} value={platform}>{PLATFORM_LABELS[platform]}</option>)}
               </select>
+            </label>
+            <label className="text-sm font-medium">Google account id
+              <input name="googleAccountId" className="mt-1 min-h-11 w-full rounded-lg border border-line bg-card px-2" placeholder="Only if Google allowlisted this account" />
             </label>
             <button className="min-h-11 rounded-lg bg-brand px-4 font-semibold text-on-brand" type="submit">Create decision</button>
           </form>
