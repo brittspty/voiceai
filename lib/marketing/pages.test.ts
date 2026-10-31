@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { googleAdsApiVersion, pageAutoPauseEnabled, pageMonitorEnabled } from "./config";
 import { googleAdsGuard } from "./connectors/google-ads-client";
-import { evaluatePage, gateAlert, downConfirmed, pauseReady, recovered, clientDownCopy, clientStatusSentence, pausedHeadline, RESUMED_HEADLINE, CLIENT_PAUSED, uptimeReport, checkedLabel, nextProbeAt, HEALTHY_INTERVAL_MS, CONFIRM_INTERVAL_MS, monitorStale, dedupeKey, pushAllowed, inQuietHours, isRealClientKey, planResumeFromTracked } from "./pages/policy";
+import { evaluatePage, gateAlert, downConfirmed, pauseReady, recovered, clientDownCopy, clientStatusSentence, pausedHeadline, RESUMED_HEADLINE, CLIENT_PAUSED, uptimeReport, checkedLabel, nextProbeAt, HEALTHY_INTERVAL_MS, CONFIRM_INTERVAL_MS, ALERT_AFTER_FAILURES, monitorStale, dedupeKey, pushAllowed, inQuietHours, isRealClientKey, planResumeFromTracked } from "./pages/policy";
 import type { AdRow, AlertDraft, PageSample, PriorAlert, TrackedPause } from "./pages/policy";
 import { analyzeHtml, canonicalPageUrl, classifySample, destinationMatches, formTargetIssue, isMonitorTestLead, probePage, publicUrlIssue, withoutMonitorTestLeads } from "./pages/probe";
 import { presentLandingScreen } from "./pages/view";
@@ -125,19 +125,33 @@ test("a single failed check does not alert or pause", () => {
   assert.equal(downConfirmed(result.displayStatus ? [sample(ago(0), { status: "down" })] : []), false);
 });
 
-test("two checks about a minute apart alert without a fake second region", () => {
-  const result = evaluate({
+test("two checks about a minute apart do not alert, and three do, without a fake second region", () => {
+  const two = evaluate({
     samples: [sample(ago(60_000), { status: "down", region: "worker" }), sample(ago(0), { status: "down", region: "worker" })],
   });
-  assert.equal(result.alerts.some((alert) => alert.code === "page_down"), true);
-  assert.equal(result.plans.length, 0);
+  assert.equal(two.alerts.some((alert) => alert.code === "page_down"), false);
+  assert.equal(two.plans.length, 0);
+  const three = evaluate({
+    autoPauseOn: false,
+    samples: [
+      sample(ago(120_000), { status: "down", region: "worker" }),
+      sample(ago(60_000), { status: "down", region: "worker" }),
+      sample(ago(0), { status: "down", region: "worker" }),
+    ],
+  });
+  assert.equal(three.alerts.some((alert) => alert.code === "page_down"), true);
+  assert.equal(three.plans.length, 0);
   assert.equal(downConfirmed([sample(ago(0), { status: "down" }), sample(ago(0), { status: "down" })]), false);
+  assert.equal(HEALTHY_INTERVAL_MS, 60_000);
+  assert.equal(ALERT_AFTER_FAILURES, 3);
 });
 
-test("two checks confirm a down alert and three spaced checks pause only this client's matching ads", () => {
-  const confirmed = evaluate({
+test("three spaced checks alert and pause only this client's matching ads, and the pause stays a dry run", () => {
+  const early = evaluate({
     samples: [sample(ago(60_000), { status: "down", region: "us-east" }), sample(ago(0), { status: "down", region: "eu-west" })],
   });
+  assert.equal(early.alerts.some((alert) => alert.code === "page_down"), false);
+  const confirmed = evaluate({ samples: downs(), autoPauseOn: false });
   assert.equal(confirmed.alerts.some((alert) => alert.code === "page_down" && alert.severity === "critical"), true);
   assert.equal(confirmed.plans.length, 0);
   assert.equal(confirmed.alerts[0]?.clientSummary, clientDownCopy("Free Inspection"));
@@ -155,6 +169,9 @@ test("two checks confirm a down alert and three spaced checks pause only this cl
     assert.equal(reviewWrite(cleanChange(plan)).ok, true);
   }
   assert.equal(paused.plans.some((plan) => plan.adId === "other" || plan.adId === "human" || plan.adId === "tiktok" || plan.adId === "foreign"), false);
+  const store = readFileSync(path.join(ROOT, "lib/marketing/pages/store.ts"), "utf8");
+  assert.match(store, /Pause stays a dry run until write access is approved/);
+  assert.match(store, /plan\.to === "PAUSED"/);
   assert.equal(evaluate({ samples: downs(), canaryOk: false }).plans.length, 0);
   assert.equal(evaluate({ samples: downs(), page: { ...page, clientKey: "org" } }).plans.length, 0);
   assert.equal(isRealClientKey("org"), false);
@@ -255,7 +272,11 @@ test("slow, broken form, and missing pixel alert without pausing ads", () => {
   assert.equal(evaluate({ samples: [sample(ago(10 * 60_000), { status: "slow" }), sample(ago(0), { status: "slow" })] }).alerts.length, 0);
 
   const form = evaluate({
-    samples: [sample(ago(60_000), { status: "form_broken", formPresent: false }), sample(ago(0), { status: "form_broken", formPresent: false })],
+    samples: [
+      sample(ago(120_000), { status: "form_broken", formPresent: false }),
+      sample(ago(60_000), { status: "form_broken", formPresent: false }),
+      sample(ago(0), { status: "form_broken", formPresent: false }),
+    ],
   });
   assert.equal(form.alerts.some((alert) => alert.code === "form_broken" && alert.severity === "critical" && alert.clientSummary === ""), true);
   assert.equal(form.plans.length, 0);

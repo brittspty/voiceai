@@ -16,6 +16,9 @@ import type { Prisma } from "@prisma/client";
 import { assertCanCreateShareLink, defaultShareExpiry, hashPasscode, newShareToken } from "./share-link";
 import { skillDecisionRecord } from "./skill-approval";
 import { OFFERED_SKILL, skillIsSafe } from "./skills";
+import { deliverUrgentEmail, setUrgentEmailOptIn } from "./channels/feed";
+import { recordLeadMark, undoLoggedLead } from "./lead-undo";
+import { canMarkLead } from "./channels/speed";
 import { WORKSPACE_ID } from "./types";
 
 export async function saveCampaignBudget(formData: FormData) {
@@ -214,6 +217,47 @@ export async function createClientViewer(input: { name: string; email: string; p
   await prisma.clientViewerAccess.create({ data: { userId: created.id, workspaceId: WORKSPACE_ID } });
   revalidatePath("/marketing");
   return { id: created.id, email: created.email };
+}
+
+/** Jarvis leads screen. Viewers stay read-only. The undo window is 30 seconds. */
+export async function logJarvisLeadMark(input: { leadId: string; qualified: boolean; previous: boolean | null }) {
+  const user = await requireUserForLead();
+  const access = await loadMarketingAccess(user);
+  const result = recordLeadMark({
+    role: access.kind,
+    actorId: user.id,
+    leadId: input.leadId,
+    qualified: input.qualified,
+    previous: input.previous,
+  });
+  if (!result.ok) denyAccess();
+  return result;
+}
+
+export async function undoJarvisLeadMark(input: { leadId: string }) {
+  const user = await requireUserForLead();
+  const access = await loadMarketingAccess(user);
+  const result = undoLoggedLead({ role: access.kind, actorId: user.id, leadId: input.leadId });
+  if (!result.ok) denyAccess();
+  return result;
+}
+
+/** Per account manager. Default off. A checked box only logs "would send". */
+export async function saveUrgentEmailOptIn(formData: FormData) {
+  const user = await requireStaffUser();
+  const access = await loadMarketingAccess(user);
+  if (access.kind !== "account_manager" && access.kind !== "super_admin") denyAccess();
+  const on = String(formData.get("urgentEmail") || "") === "on";
+  setUrgentEmailOptIn(user.id, on);
+  if (on) deliverUrgentEmail({ optIn: true, title: "urgent" });
+  revalidatePath("/live");
+}
+
+async function requireUserForLead() {
+  const user = await requireStaffUser();
+  const access = await loadMarketingAccess(user);
+  if (!canMarkLead(access.kind) && !canMarkLead(user.role)) denyAccess();
+  return user;
 }
 
 export async function revokeShareLink(id: string) {

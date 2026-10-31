@@ -31,12 +31,12 @@ export function jarvisNav(input: {
     ];
     if (input.channelLinks?.length) items.push(...input.channelLinks);
     items.push(
-      { href: "/leads", label: "Leads", group: "Results" },
-      { href: "/sites/landing-pages", label: "Landing pages", group: "Results" },
+      { href: "/leads", label: "Leads", group: "Conversion" },
+      { href: "/sites/landing-pages", label: "Landing pages", group: "Conversion" },
     );
-    if (input.showAis2l) items.push({ href: "/ais2l", label: "AIS2L", group: "Results" });
-    if (input.showSegments) items.push({ href: "/marketing/segments", label: "Segments", group: "Results" });
-    items.push({ href: "/reports", label: "Reports", group: "Results" });
+    if (input.showAis2l) items.push({ href: "/ais2l", label: "AIS2L", group: "Conversion" });
+    if (input.showSegments) items.push({ href: "/marketing/segments", label: "Audience Data", group: "Results" });
+    items.push({ href: "/reports", label: "Reports", group: "Share" });
     items.push({ href: "/settings", label: "Settings & connections", group: "Account" });
     return items;
   }
@@ -59,7 +59,7 @@ export function jarvisNav(input: {
     { href: "/leads", label: "Leads & pipeline", group: "Conversion" },
   );
   if (input.showAis2l) items.push({ href: "/ais2l", label: "AIS2L", group: "Conversion" });
-  if (input.showSegments) items.push({ href: "/marketing/segments", label: "Segments", group: "Conversion" });
+  if (input.showSegments) items.push({ href: "/marketing/segments", label: "Audience Data", group: "Conversion" });
   if (input.showAudiences) {
     items.push({ href: "/marketing/audiences", label: "Audiences", group: "Audiences" });
     items.push({ href: "/marketing/audiences/pixel", label: "Pixel tracking", group: "Audiences" });

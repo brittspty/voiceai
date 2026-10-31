@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_NAME } from "@/lib/brand";
 import { EXAMPLE_FEED } from "@/lib/marketing/channels/catalog";
-import { scopeLiveFeed, urgentEmail, type FeedViewer } from "@/lib/marketing/channels/feed";
+import { scopeLiveFeed, snoozeUntil, urgentEmail, type FeedViewer, type SnoozeChoice } from "@/lib/marketing/channels/feed";
 import { measureSpeed } from "@/lib/marketing/channels/speed";
-import { Crumbs, End, Tile } from "./bits";
+import { logJarvisLeadMark, saveUrgentEmailOptIn, undoJarvisLeadMark } from "@/lib/marketing/human-actions";
+import { Crumbs, End, Tile, Tip } from "./bits";
 
 const end = { productName: PRODUCT_NAME, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
 
@@ -100,7 +101,15 @@ export function ClientChannel() {
       <h2 style={{ margin: "28px 0 8px" }}>Your ads</h2>
       <p className="sub">Results only</p>
       <table className="stack">
-        <thead><tr><th>Ad</th><th>Leads</th><th>Qualified</th><th>Booked</th><th>Status</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Ad</th>
+            <th>Leads <Tip glossaryId="leads" /></th>
+            <th>Qualified <Tip glossaryId="qualified_leads" /></th>
+            <th>Booked <Tip glossaryId="booked" /></th>
+            <th>Status</th>
+          </tr>
+        </thead>
         <tbody>
           <tr><td>Free Consult carousel</td><td>31</td><td>11</td><td>5</td><td><span className="st ok">● Working well</span></td></tr>
           <tr><td>Smile Again 55+ video</td><td>24</td><td>6</td><td>2</td><td><span className="st w">▲ Getting tired, new version coming</span></td></tr>
@@ -150,8 +159,8 @@ export function LeadsPage({ canMark }: { canMark: boolean }) {
                 <td>
                   {canMark ? (
                     <span className="acts">
-                      <button type="button" className="btn" onClick={() => { setUndo({ id: row.id, previous: row.qualified }); setRows((list) => list.map((item) => item.id === row.id ? { ...item, qualified: true } : item)); }}>Qualified</button>
-                      <button type="button" className="btn" onClick={() => { setUndo({ id: row.id, previous: row.qualified }); setRows((list) => list.map((item) => item.id === row.id ? { ...item, qualified: false } : item)); }}>Not qualified</button>
+                      <button type="button" className="btn" onClick={() => { const previous = row.qualified; void logJarvisLeadMark({ leadId: row.id, qualified: true, previous }); setUndo({ id: row.id, previous }); setRows((list) => list.map((item) => item.id === row.id ? { ...item, qualified: true } : item)); }}>Qualified</button>
+                      <button type="button" className="btn" onClick={() => { const previous = row.qualified; void logJarvisLeadMark({ leadId: row.id, qualified: false, previous }); setUndo({ id: row.id, previous }); setRows((list) => list.map((item) => item.id === row.id ? { ...item, qualified: false } : item)); }}>Not qualified</button>
                     </span>
                   ) : (
                     <span>{row.qualified == null ? "Not marked" : row.qualified ? "Qualified" : "Not qualified"}</span>
@@ -162,7 +171,7 @@ export function LeadsPage({ canMark }: { canMark: boolean }) {
           })}
         </tbody>
       </table>
-      {undo && <div className="toast" role="status">Mark saved. <button type="button" onClick={() => { setRows((list) => list.map((item) => item.id === undo.id ? { ...item, qualified: undo.previous } : item)); setUndo(null); }}>Undo</button></div>}
+      {undo && <div className="toast" role="status">Mark saved. <button type="button" onClick={() => { void undoJarvisLeadMark({ leadId: undo.id }); setRows((list) => list.map((item) => item.id === undo.id ? { ...item, qualified: undo.previous } : item)); setUndo(null); }}>Undo</button></div>}
       <End {...end} />
     </main>
   );
@@ -215,13 +224,22 @@ export function LandingPage() {
   );
 }
 
-export function LiveFeed({ viewer }: { viewer: FeedViewer }) {
+export function LiveFeed({ viewer, realtime = false }: { viewer: FeedViewer; realtime?: boolean }) {
   const items = useMemo(() => scopeLiveFeed(EXAMPLE_FEED, viewer), [viewer]);
   const [rows, setRows] = useState(items);
   const [undo, setUndo] = useState<string | null>(null);
   const [channel, setChannel] = useState("All");
   const [severity, setSeverity] = useState("All");
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [snoozed, setSnoozed] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!realtime || typeof EventSource === "undefined") return;
+    const source = new EventSource("/api/marketing/jarvis/feed?stream=1");
+    source.addEventListener("feed", () => {
+      setRows(scopeLiveFeed(EXAMPLE_FEED, viewer));
+    });
+    return () => source.close();
+  }, [realtime, viewer]);
   const shown = rows.filter((item) => (channel === "All" || item.channel === channel) && (severity === "All" || item.severity === severity) && (!unreadOnly || item.unread));
   return (
     <main>
@@ -254,7 +272,21 @@ export function LiveFeed({ viewer }: { viewer: FeedViewer }) {
                 {item.severity === "decision" && <button type="button" className="btn p" onClick={() => setUndo(item.id)}>Approve</button>}
                 {item.severity === "decision" && <button type="button" className="btn" onClick={() => setUndo(item.id)}>Decline</button>}
                 <button type="button" className="btn" onClick={() => setRows((list) => list.map((row) => row.id === item.id ? { ...row, unread: false } : row))}>Mark read</button>
-                <button type="button" className="btn" onClick={() => setRows((list) => list.map((row) => row.id === item.id ? { ...row, unread: false } : row))}>Snooze</button>
+                {(["1h", "tonight", "tomorrow_8am"] as SnoozeChoice[]).map((choice) => (
+                  <button
+                    key={choice}
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      const until = snoozeUntil(choice, new Date(), "America/New_York");
+                      setSnoozed((state) => ({ ...state, [item.id]: until.toISOString() }));
+                      setRows((list) => list.map((row) => row.id === item.id ? { ...row, unread: false } : row));
+                    }}
+                  >
+                    {choice === "1h" ? "Snooze 1h" : choice === "tonight" ? "Snooze tonight" : "Snooze tomorrow 8 AM"}
+                  </button>
+                ))}
+                {snoozed[item.id] ? <span className="sub">Snoozed until {snoozed[item.id]}</span> : null}
               </div>
             </div>
             <span className="sub">{item.createdAt.slice(11, 16)}</span>
@@ -269,7 +301,15 @@ export function LiveFeed({ viewer }: { viewer: FeedViewer }) {
             <li key={item.id}><Link href={item.decisionId ? `/decisions/${item.decisionId}` : "/live"}>{item.title}</Link></li>
           ))}
         </ol>
-        <p className="sub">Notes batch every 15 minutes. At most one toast per client every 10 minutes. Quiet hours hold decisions and notes until 7 AM. Urgent email still sends.</p>
+        <p className="sub">Notes batch every 15 minutes. At most one toast per client every 10 minutes. Quiet hours hold decisions and notes until 7 AM. Urgent email is opt-in and only logs “would send”.</p>
+        <form action={saveUrgentEmailOptIn} className="mt-3 flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="urgentEmail" value="on" />
+            Email me urgent alerts
+          </label>
+          <button type="submit" className="btn">Save opt-in</button>
+          <span className="sub">Off until you save it. Mock only ({urgentEmail(false)} until opted in).</span>
+        </form>
       </aside>
       {undo && <div className="toast" role="status">Saved. Nothing was paused and no budget changed. <button type="button" onClick={() => setUndo(null)}>Undo (30s)</button></div>}
       <End {...end} />

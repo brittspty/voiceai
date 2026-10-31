@@ -356,7 +356,8 @@ async function runOnePage(input: {
     const newest = page.audits.find((audit) => audit.adId === plan.adId);
     const failed = newest && (newest.mode === "blocked" || (newest.mode === "live" && newest.note));
     if (failed && !shouldRetryLive(newest.createdAt.toISOString(), now.getTime())) continue;
-    const access = credentialFor(page.clientKey, plan.platform, input.credentials, env);
+    const resolved = credentialFor(page.clientKey, plan.platform, input.credentials, env);
+    const access = plan.to === "PAUSED" ? { mode: "dry_run" as const, reason: "Pause stays a dry run until write access is approved." } : resolved;
     const outcome = await performWrite({ plan, access, pageName: page.name, env, fetchImpl: input.fetchImpl });
     const note = outcome.ok ? (outcome.mode === "dry_run" ? outcome.log : "") : outcome.reason;
     await writeAudit({
