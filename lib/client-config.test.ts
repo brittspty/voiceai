@@ -5,6 +5,7 @@ import { clientConfig, defaultKnowledge, parseBrandColor, parseLogoUrl, parseOff
 test("defaults to the Specificity workspace", () => {
   const cfg = clientConfig({});
   assert.equal(cfg.companyName, "Specificity Inc");
+  assert.equal(cfg.subtitle, "AIS2L");
   assert.equal(cfg.agentName, "Avery");
   assert.equal(cfg.timezone, "America/New_York");
   assert.equal(cfg.brandColor, "#FF5800");

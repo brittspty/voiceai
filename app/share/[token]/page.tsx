@@ -2,9 +2,11 @@ import { cookies, headers } from "next/headers";
 import { ClientPerformance } from "@/components/client-performance";
 import { MarketingDashboard } from "@/components/marketing-dashboard";
 import { BrandFooter, BrandLockup } from "@/components/brand-lockup";
+import { ReportFrame } from "@/components/reports/report-frame";
+import { ReportScreen } from "@/components/reports/report-screen";
 import { prisma } from "@/lib/db";
-import { clientShareCsv } from "@/lib/marketing/client-view";
-import { dashboardsV2Enabled } from "@/lib/marketing/config";
+import { clientShareCsv, reopenClientReport } from "@/lib/marketing/client-view";
+import { dashboardsV2Enabled, reportsV2Enabled } from "@/lib/marketing/config";
 import { parseDashQuery } from "@/lib/marketing/dashboard-model";
 import { loadClientDashboard } from "@/lib/marketing/dashboard-query";
 import { loadFeatureCards } from "@/lib/marketing/home-query";
@@ -49,8 +51,16 @@ export default async function SharePage({ params, searchParams }: { params: Prom
     </Frame>
   );
   const jar = await cookies();
+  const state = shareLinkState(link, new Date());
+  if (reportsV2Enabled() && state === "revoked") {
+    return (
+      <Frame>
+        <p className="px-4 py-10 text-lg">This link was turned off.</p>
+      </Frame>
+    );
+  }
   const decision = shareAccessDecision({
-    state: shareLinkState(link, new Date()),
+    state,
     linkId: link?.id ?? "",
     passcodeHash: link?.passcodeHash ?? null,
     cookie: jar.get(SHARE_PASS_COOKIE)?.value,
@@ -73,6 +83,20 @@ export default async function SharePage({ params, searchParams }: { params: Prom
   const exporting = query.export === "csv";
   const meta = requestClientMeta(await headers());
   await recordClientView({ workspaceId: link.workspaceId, shareLinkId: link.id, page: exporting ? "/share/export" : "/share", ...meta });
+  let sharedReport: ReturnType<typeof reopenClientReport> | null = null;
+  if (reportsV2Enabled() && link.snapshot && !exporting) {
+    try {
+      sharedReport = reopenClientReport(link.snapshot);
+    } catch {
+      sharedReport = null;
+    }
+    if (!sharedReport) return invalid;
+    return (
+      <ReportFrame>
+        <ReportScreen initial={sharedReport} mode="share" canShare={false} canStaffPdf={false} pdfDefault="client" pollUrl={null} />
+      </ReportFrame>
+    );
+  }
   if (exporting) {
     const payload = await loadClientPerformance(org?.name || "Performance", {
       sharedBy: manager,

@@ -1,0 +1,137 @@
+.jarvis { --brand: #ff5800; --brand-ink: #b33e00; --j-ink: #231f20; --n2: #3f3f3f; --n3: #6b6b6b; --j-line: #e6e6e6; --soft: #f7f7f7; --ok: #15803d; --warn: #b45309; --err: #b91c1c; --mono: var(--font-label), "IBM Plex Mono", ui-monospace, Menlo, monospace; color: var(--j-ink); background: #fff; font-feature-settings: "tnum"; }
+.jarvis a { color: var(--brand-ink); }
+.jarvis :focus-visible { outline: 3px solid #2b7bb9; outline-offset: 2px; }
+.jarvis .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+.jarvis .side { background: var(--j-ink); color: #fff; padding: 20px 12px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh; }
+.jarvis .side .logo { padding: 6px 10px 4px; }
+.jarvis .side .logo img { height: 34px; display: block; }
+.jarvis .prod { font-weight: 600; font-size: 15px; padding: 6px 10px 14px; letter-spacing: -0.01em; }
+.jarvis .prod span { color: #c9c3c0; font-weight: 400; font-size: 12px; display: block; }
+.jarvis .side h6 { font: 500 11px var(--mono); color: #a8a2a0; text-transform: uppercase; letter-spacing: 0.08em; padding: 14px 10px 4px; margin: 0; }
+.jarvis .side a { color: #edeae8; text-decoration: none; padding: 9px 10px; border-radius: 6px; display: flex; justify-content: space-between; min-height: 36px; align-items: center; font-size: 13.5px; }
+.jarvis .side a.on { background: #3a3435; box-shadow: inset 3px 0 0 var(--brand); }
+.jarvis .side a .ct { font: 500 11px var(--mono); background: var(--brand); color: var(--j-ink); border-radius: 999px; padding: 1px 7px; }
+.jarvis .side .foot { margin-top: auto; font-size: 11px; color: #a8a2a0; padding: 10px; }
+.jarvis .maincol { min-width: 0; display: flex; flex-direction: column; }
+.jarvis main { padding: 28px 40px 48px; max-width: 1208px; scroll-padding-top: 64px; scroll-padding-bottom: 88px; }
+.jarvis .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; border-bottom: 1px solid var(--j-line); padding-bottom: 18px; margin-bottom: 24px; }
+.jarvis h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; margin: 0; }
+.jarvis h2 { font-size: 16px; font-weight: 600; margin: 0; }
+.jarvis h3 { font-size: 14.5px; font-weight: 600; margin: 6px 0 4px; }
+.jarvis .sub { color: var(--n3); font-size: 13px; }
+.jarvis .ex { font: 600 11px var(--mono); background: var(--j-ink); color: #fff; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.06em; }
+.jarvis .ctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.jarvis .sel, .jarvis .btn { border: 1px solid var(--j-line); border-radius: 8px; background: #fff; color: var(--j-ink); min-height: 40px; }
+.jarvis .sel { padding: 8px 12px; font-size: 13px; }
+.jarvis .btn { font: 600 13px var(--font-brand), Poppins, sans-serif; padding: 10px 16px; cursor: pointer; }
+.jarvis .btn.p { background: var(--brand); border-color: var(--brand); color: var(--j-ink); }
+.jarvis .btn.d { background: var(--j-ink); color: #fff; border-color: var(--j-ink); }
+.jarvis .btn:disabled { color: var(--n3); background: var(--soft); cursor: not-allowed; }
+.jarvis .kpis, .jarvis .mt { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; border: 1px solid var(--j-line); border-radius: 12px; overflow: visible; }
+.jarvis .mt { grid-template-columns: repeat(4, 1fr); }
+.jarvis .kpi, .jarvis .m { padding: 18px 20px; border-left: 1px solid var(--j-line); position: relative; }
+.jarvis .kpi:first-child, .jarvis .m:first-child { border-left: 0; background: var(--soft); }
+.jarvis .m.hero { background: var(--soft); }
+.jarvis .l, .jarvis .lab { font-size: 12px; color: var(--n3); display: flex; align-items: center; gap: 6px; }
+.jarvis .v { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+.jarvis .kpi:first-child .v, .jarvis .m.hero .v { font-size: 40px; }
+.jarvis .d-up { color: var(--ok); font-size: 12px; font-weight: 500; }
+.jarvis .d-dn { color: var(--err); font-size: 12px; font-weight: 500; }
+.jarvis .lock { font: 500 10px var(--mono); color: var(--n3); border: 1px solid var(--j-line); border-radius: 4px; padding: 0 4px; }
+.jarvis .grid2 { display: grid; grid-template-columns: 1.55fr 1fr; gap: 32px; margin-top: 32px; }
+.jarvis table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.jarvis th { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--n3); text-align: right; padding: 8px; border-bottom: 1px solid var(--j-ink); }
+.jarvis th:first-child, .jarvis td:first-child { text-align: left; }
+.jarvis td { padding: 12px 8px; border-bottom: 1px solid var(--j-line); text-align: right; vertical-align: top; }
+.jarvis .ch { display: flex; gap: 10px; align-items: center; font-weight: 500; }
+.jarvis .sw { width: 8px; height: 8px; border-radius: 2px; background: var(--j-ink); display: inline-block; }
+.jarvis .st { font-size: 12px; font-weight: 500; display: inline-flex; gap: 4px; align-items: center; }
+.jarvis .st.ok { color: var(--ok); }
+.jarvis .st.w { color: var(--warn); }
+.jarvis .st.e { color: var(--err); }
+.jarvis .sec-h { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 12px; }
+.jarvis .dec { border: 1px solid var(--j-line); border-radius: 12px; padding: 16px 18px; margin-bottom: 12px; }
+.jarvis .dec.hot, .jarvis .dec.on { border-left: 3px solid var(--brand); }
+.jarvis .tag { font: 500 11px var(--mono); color: var(--n2); text-transform: uppercase; letter-spacing: 0.05em; }
+.jarvis .dec p { font-size: 13px; color: var(--n2); margin: 0; }
+.jarvis .acts { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.jarvis .pend { background: #fff4ec; border: 1px dashed var(--brand-ink); border-radius: 8px; padding: 10px 12px; font-size: 12.5px; margin-top: 10px; }
+.jarvis .foottag { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--j-line); display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--n3); }
+.jarvis .crumb { position: sticky; top: 0; z-index: 5; background: #fff; border-bottom: 1px solid var(--j-line); padding: 10px 0; margin: -28px 0 18px; font-size: 13px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.jarvis .crumb .sep { color: var(--n3); }
+.jarvis .tip { position: relative; display: inline-flex; }
+.jarvis .tip button { all: unset; cursor: help; width: 16px; height: 16px; border: 1px solid var(--n3); border-radius: 50%; font: 600 10px var(--font-brand), Poppins, sans-serif; color: var(--n3); text-align: center; line-height: 16px; }
+.jarvis .tip [role="tooltip"] { position: absolute; top: 22px; left: -8px; width: 240px; background: var(--j-ink); color: #fff; padding: 9px 11px; border-radius: 8px; font: 400 12px/1.45 var(--font-brand), Poppins, sans-serif; text-transform: none; letter-spacing: 0; z-index: 9; }
+.jarvis .tip [role="tooltip"] b { color: #ffb98a; font-weight: 500; }
+.jarvis .why { font-size: 12.5px; color: var(--n2); margin-top: 8px; border-top: 1px dashed var(--j-line); padding-top: 8px; line-height: 1.45; }
+.jarvis .chip { font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 1px 8px; }
+.jarvis .chip.g { background: #e8f5ec; color: var(--ok); }
+.jarvis .chip.r { background: #fcebeb; color: var(--err); }
+.jarvis .flag { display: grid; gap: 6px; border: 1px solid var(--j-line); border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 8px; }
+.jarvis .flag .fk { font: 600 10.5px var(--mono); letter-spacing: 0.06em; padding: 2px 7px; border-radius: 4px; justify-self: start; }
+.jarvis .flag.an { border-left: 3px solid var(--err); }
+.jarvis .flag.an .fk { background: var(--err); color: #fff; }
+.jarvis .flag.op { border-left: 3px solid var(--ok); }
+.jarvis .flag.op .fk { background: var(--ok); color: #fff; }
+.jarvis .flag.oo { border-left: 3px solid var(--brand); }
+.jarvis .flag.oo .fk { background: var(--brand); color: var(--j-ink); }
+.jarvis .rec { display: inline-flex; flex-direction: column; gap: 3px; border: 1px solid var(--j-line); border-radius: 10px; padding: 8px 10px; text-align: left; max-width: 330px; font-size: 12px; line-height: 1.4; }
+.jarvis .rc { font: 600 10.5px var(--mono); letter-spacing: 0.06em; padding: 2px 7px; border-radius: 4px; align-self: flex-start; }
+.jarvis .rc.sv { background: #e8f5ec; color: var(--ok); }
+.jarvis .rc.rt { background: #fff4ec; color: var(--brand-ink); }
+.jarvis .rc.pa { background: #fcebeb; color: var(--err); }
+.jarvis .cw { font: 500 10.5px var(--mono); color: var(--n3); }
+.jarvis .pill { font: 600 11px var(--mono); border-radius: 4px; padding: 2px 8px; letter-spacing: 0.05em; }
+.jarvis .pill.t { background: #fff4ec; color: var(--brand-ink); border: 1px solid var(--brand-ink); }
+.jarvis .inb { display: grid; grid-template-columns: 420px 1fr; border: 1px solid var(--j-line); border-radius: 12px; overflow: hidden; }
+.jarvis .inb ul { list-style: none; padding: 0; margin: 0; border-right: 1px solid var(--j-line); }
+.jarvis .row { all: unset; display: flex; flex-direction: column; gap: 3px; padding: 14px 18px; border-bottom: 1px solid var(--j-line); width: 100%; box-sizing: border-box; cursor: pointer; text-align: left; }
+.jarvis .row.on { background: var(--soft); box-shadow: inset 3px 0 0 var(--brand); }
+.jarvis .det { padding: 28px 32px; }
+.jarvis .ev { display: grid; grid-template-columns: repeat(3, 1fr); margin: 20px 0; border-top: 1px solid var(--j-line); border-bottom: 1px solid var(--j-line); }
+.jarvis .tabs { display: flex; gap: 20px; margin-bottom: 16px; font-size: 13px; flex-wrap: wrap; }
+.jarvis .tabs button { all: unset; cursor: pointer; min-height: 32px; }
+.jarvis .tabs button[aria-selected="true"] { border-bottom: 2px solid var(--brand); font-weight: 600; padding-bottom: 6px; }
+.jarvis .exp { all: unset; cursor: pointer; width: 28px; min-height: 28px; color: var(--n3); }
+.jarvis .lv1 td:first-child { padding-left: 28px; }
+.jarvis .lv2 td:first-child { padding-left: 52px; }
+.jarvis .feed { list-style: none; padding: 0; margin: 0; border: 1px solid var(--j-line); border-radius: 12px; overflow: hidden; }
+.jarvis .fi { display: grid; grid-template-columns: 10px 1fr auto; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--j-line); }
+.jarvis .fi.unread { background: #fffbf7; }
+.jarvis .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 7px; background: transparent; }
+.jarvis .fi.unread .dot { background: var(--brand-ink); }
+.jarvis .sev { font: 600 10.5px var(--mono); padding: 2px 7px; border-radius: 4px; letter-spacing: 0.05em; }
+.jarvis .sev.u { background: var(--err); color: #fff; }
+.jarvis .sev.h { background: #fff4ec; color: var(--brand-ink); }
+.jarvis .sev.i { background: var(--soft); color: var(--n2); }
+.jarvis .toast { position: fixed; right: 32px; bottom: 28px; background: var(--j-ink); color: #fff; border-radius: 10px; padding: 12px 16px; display: flex; gap: 14px; align-items: center; font-size: 13px; z-index: 30; }
+.jarvis .toast button { all: unset; color: #ffb98a; font-weight: 600; cursor: pointer; min-height: 24px; }
+.jarvis .bell { position: relative; border: 1px solid var(--j-line); border-radius: 8px; min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; background: #fff; color: var(--j-ink); text-decoration: none; }
+.jarvis .bell b { position: absolute; top: -6px; right: -6px; background: var(--brand); color: var(--j-ink); font: 600 11px var(--mono); border-radius: 999px; padding: 1px 6px; }
+.jarvis .tabbar, .jarvis .more, .jarvis .mobile-logo { display: none; }
+.jarvis .box { border: 1px solid var(--j-line); border-radius: 12px; padding: 16px 18px; }
+.jarvis tr.child { background: var(--soft); }
+@media (max-width: 639px) {
+  .jarvis .app { grid-template-columns: 1fr; }
+  .jarvis .side { display: none; }
+  .jarvis main { padding: 16px 16px 96px; }
+  .jarvis .top, .jarvis .grid2, .jarvis .inb, .jarvis .kpis, .jarvis .mt, .jarvis .ev { display: grid; grid-template-columns: 1fr 1fr; }
+  .jarvis .grid2, .jarvis .inb, .jarvis .top { grid-template-columns: 1fr; }
+  .jarvis .kpis .kpi:nth-child(n + 3), .jarvis .mt .m:nth-child(n + 3) { display: none; }
+  .jarvis .kpis .kpi, .jarvis .mt .m { border-left: 0; border-top: 1px solid var(--j-line); }
+  .jarvis h1 { font-size: 21px; }
+  .jarvis .acts .btn, .jarvis .tabbar a, .jarvis .tabbar button { min-height: 44px; }
+  .jarvis .mobile-logo { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--j-line); }
+  .jarvis .mobile-logo img { height: 26px; }
+  .jarvis .tabbar { display: flex; position: sticky; bottom: 0; z-index: 20; background: #fff; border-top: 1px solid var(--j-line); justify-content: space-around; padding: 6px 0 10px; }
+  .jarvis .tabbar a, .jarvis .tabbar button { all: unset; min-width: 56px; text-align: center; font-size: 11px; padding-top: 6px; cursor: pointer; }
+  .jarvis .tabbar .on { color: var(--brand-ink); font-weight: 600; }
+  .jarvis .more { display: block; position: fixed; inset: auto 0 64px 0; background: #fff; border-top: 1px solid var(--j-line); padding: 12px; z-index: 25; }
+  .jarvis .more a { display: block; padding: 12px 8px; min-height: 44px; }
+  .jarvis .toast { right: 12px; left: 12px; bottom: 76px; }
+  .jarvis .rec { max-width: none; width: 100%; }
+  .jarvis .mob-hide { display: none; }
+  .jarvis table.stack thead { display: none; }
+  .jarvis table.stack tr { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--j-line); }
+  .jarvis table.stack td { border: 0; text-align: left; padding: 0; }
+}

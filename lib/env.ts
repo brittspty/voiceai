@@ -15,8 +15,15 @@ export function publicHttpsBase(env: Record<string, string | undefined> = proces
   return `https://${raw}`;
 }
 
-export function integrationsMode(): "mock" | "live" {
-  return process.env.INTEGRATIONS_MODE === "live" ? "live" : "mock";
+export type Env = Record<string, string | undefined>;
+
+export function integrationsMode(env: Env = process.env): "mock" | "live" {
+  return env.INTEGRATIONS_MODE === "live" ? "live" : "mock";
+}
+
+/** Voice stays on the mock ports unless integrations are live and the workspace test switch is off. */
+export function portsAreMocked(testMode: boolean, env: Env = process.env) {
+  return integrationsMode(env) !== "live" || testMode;
 }
 
 export function workerStepMs() {

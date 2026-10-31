@@ -14,6 +14,7 @@ enum Role {
   super_admin
   account_manager
   client_viewer
+  all_clients_viewer
   demo_viewer
 }
 
@@ -141,6 +142,10 @@ model User {
   liftTestsStarted   LiftTest[]         @relation("LiftTestStartedBy")
   leadValuesSet          ClientSettings[]     @relation("LeadValueSetBy")
   leadValueAudits        LeadValueAudit[]
+  notifications          StaffNotification[]
+  skillDecisions         SkillDecision[]
+  inboxAssigned          InboxDecision[]      @relation("InboxAssigned")
+  inboxDecided           InboxDecision[]      @relation("InboxDecided")
   clientPlansCreated     ClientPlan[]         @relation("ClientPlanCreator")
   clientPlansApproved    ClientPlan[]         @relation("ClientPlanApprover")
 }
@@ -586,6 +591,7 @@ model AdAccount {
   liftTests    LiftTest[]
   fatigueSignals  FatigueSignal[]
   pacingSnapshots PacingSnapshot[]
+  adFatigueChecks AdFatigueCheck[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([connectionId])
@@ -628,6 +634,7 @@ model Campaign {
   liftTests       LiftTest[]
   fatigueSignals  FatigueSignal[]
   pacingSnapshots PacingSnapshot[]
+  adFatigueChecks AdFatigueCheck[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([adAccountId])
@@ -724,6 +731,7 @@ model Ad {
   recommendations   Recommendation[]
   systemPauses      SystemPausedAd[]
   fatigueSignals    FatigueSignal[]
+  adFatigueChecks   AdFatigueCheck[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([adGroupId])
@@ -927,6 +935,9 @@ enum RecommendationType {
   speed_to_lead
   creative_fatigue
   pacing
+  ad_fatigue
+  stackadapt
+  business_profile
 }
 
 enum CreativeVersionStatus {
@@ -991,6 +1002,8 @@ model ClientShareLink {
   createdBy   User      @relation(fields: [createdById], references: [id])
   expiresAt   DateTime?
   revokedAt   DateTime?
+  /** Client-safe report frozen when a Reports v2 link is created. */
+  snapshot    Json?
   createdAt   DateTime  @default(now())
   views       ClientViewAudit[]
 
@@ -1911,6 +1924,67 @@ model LiftObservation {
   @@index([testId])
 }
 
+/// In-app inbox row. Digests, live feed items, and skill offers land here.
+model StaffNotification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  title     String
+  body      String
+  href      String    @default("")
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+/// Mail that stayed in-process. Test mode writes here and does not call Resend.
+model MailLog {
+  id        String   @id @default(cuid())
+  toAddress String
+  subject   String
+  body      String
+  transport String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Live account-manager feed. One row per source so a sweep cannot double-post.
+model AmFeedEvent {
+  id          String   @id @default(cuid())
+  workspaceId String
+  campaignId  String   @default("")
+  adAccountId String   @default("")
+  kind        String
+  title       String
+  body        String
+  reason      String   @default("")
+  decision    String   @default("")
+  sourceId    String
+  createdAt   DateTime @default(now())
+
+  @@unique([sourceId])
+  @@index([workspaceId, createdAt])
+  @@index([campaignId, createdAt])
+}
+
+/// Who answered a skill offer. Every super admin can answer. The owner is not special.
+model SkillDecision {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillName String
+  choice    String
+  createdAt DateTime @default(now())
+
+  @@index([skillName, createdAt])
+  @@index([userId, createdAt])
+}
+
 model LiftResult {
   id               String      @id @default(cuid())
   workspaceId      String
@@ -1931,6 +2005,635 @@ model LiftResult {
 
   @@index([workspaceId, testId, computedAt])
   @@index([testId])
+}
+
+enum AdFatigueAction {
+  keep
+  rotate
+  pause
+}
+
+/// Learned attribution window and resume rule for one client. The 7-day click, 1-day view, and 2-check values are priors.
+model AdFatiguePrior {
+  id                     String   @id @default(cuid())
+  workspaceId            String   @default("org")
+  clientKey              String   @default("")
+  confidenceThreshold    Decimal  @default(0.8000) @db.Decimal(6, 4)
+  clickDays              Decimal  @default(7) @db.Decimal(8, 4)
+  viewDays               Decimal  @default(1) @db.Decimal(8, 4)
+  goodChecksBeforeResume Decimal  @default(2) @db.Decimal(8, 4)
+  observations           Int      @default(0)
+  resumeEpisodes         Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([workspaceId, clientKey])
+  @@index([workspaceId])
+}
+
+/// One daily read per ad. recommendationOnly is forced on. This row does not change the ad.
+model AdFatigueCheck {
+  id                  String          @id @default(cuid())
+  workspaceId         String          @default("org")
+  clientKey           String          @default("")
+  platform            AdPlatform
+  adId                String
+  ad                  Ad              @relation(fields: [adId], references: [id], onDelete: Cascade)
+  campaignId          String
+  campaign            Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adAccountId         String
+  adAccount           AdAccount       @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  action              AdFatigueAction
+  confidence          Decimal         @db.Decimal(6, 4)
+  emitted             Boolean         @default(false)
+  reason              String
+  metric              String          @default("")
+  clickDays           Decimal         @db.Decimal(8, 4)
+  viewDays            Decimal         @db.Decimal(8, 4)
+  goodChecks          Decimal         @db.Decimal(8, 4)
+  threshold           Decimal         @db.Decimal(6, 4)
+  sampleSize          Int
+  signals             Json
+  windowStart         DateTime        @db.Date
+  windowEnd           DateTime        @db.Date
+  recommendationOnly  Boolean         @default(true)
+  changesSpend        Boolean         @default(false)
+  detectedAt          DateTime
+  createdAt           DateTime        @default(now())
+
+  @@unique([workspaceId, adId, windowEnd])
+  @@index([adId, detectedAt])
+  @@index([adAccountId])
+  @@index([campaignId])
+}
+
+/// Read-only Google Business Profile daily totals, reviews, and missing-profile notes.
+model BusinessProfileSnapshot {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @default("org")
+  locationId         String
+  accountId          String   @default("")
+  title              String   @default("")
+  date               DateTime @db.Date
+  views              Int      @default(0)
+  searches           Int      @default(0)
+  calls              Int      @default(0)
+  directionRequests  Int      @default(0)
+  websiteClicks      Int      @default(0)
+  rating             Decimal? @db.Decimal(4, 2)
+  reviewCount        Int      @default(0)
+  unansweredReviews  Int      @default(0)
+  missingInfo        String[] @default([])
+  recommendationOnly Boolean  @default(true)
+  fetchedAt          DateTime
+  createdAt          DateTime @default(now())
+
+  @@unique([workspaceId, locationId, date])
+  @@index([workspaceId, fetchedAt])
+}
+
+/// Dictionary overrides. The catalog module is the default. Fact tables stay on DailyMetric
+/// and the cross-channel model. This table does not duplicate them.
+model MetricDefinition {
+  id          String   @id @default(cuid())
+  workspaceId String
+  metricKey   String
+  definition  String   @default("")
+  formula     String   @default("")
+  benchmarks  Json     @default("{}")
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, metricKey])
+  @@index([workspaceId])
+}
+
+model IntakeSource {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  clientKey      String   @default("")
+  name           String
+  kind           String
+  audienceSource String
+  vendor         String   @default("")
+  listId         String   @default("")
+  trustTier      String
+  truthRole      String
+  mapping        Json     @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([workspaceId])
+}
+
+model IntakeKey {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  keyId        String
+  secretSealed String
+  secretHash   String
+  label        String    @default("")
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@unique([workspaceId, keyId])
+  @@index([workspaceId])
+}
+
+model IntakeBatch {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  sourceId        String
+  idempotencyKey  String
+  status          String
+  accepted        Int      @default(0)
+  rejected        Int      @default(0)
+  receivedAt      DateTime @default(now())
+
+  @@unique([workspaceId, sourceId, idempotencyKey])
+  @@index([workspaceId])
+}
+
+model IntakeRow {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  batchId        String
+  sourceId       String
+  externalId     String
+  audienceSource String
+  vendor         String   @default("")
+  listId         String   @default("")
+  trustTier      String
+  truthRole      String
+  status         String
+  reasons        String[] @default([])
+  verified       Boolean  @default(false)
+  fields         Json     @default("{}")
+  segmentKey     String   @default("")
+  subSegmentKey  String   @default("")
+  audienceKey    String   @default("")
+  createdAt      DateTime @default(now())
+
+  @@unique([workspaceId, sourceId, externalId])
+  @@index([workspaceId, batchId])
+}
+
+model RecommendationDriver {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  recommendationId String
+  sourceKind       String
+  sourceId         String   @default("")
+  metricKey        String
+  weight           Float
+  trustTier        String
+  truthRole        String
+  vendor           String   @default("")
+  listId           String   @default("")
+  createdAt        DateTime @default(now())
+
+  @@index([workspaceId, recommendationId])
+}
+
+model CoverageSnapshot {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  clientKey        String   @default("")
+  campaignId       String   @default("")
+  score            Int
+  explanation      String
+  freshness        Json
+  metricsCovered   Int
+  metricsTotal     Int
+  qualityPassRate  Float
+  computedAt       DateTime @default(now())
+
+  @@index([workspaceId, campaignId, computedAt])
+}
+
+model LearningConsent {
+  workspaceId          String
+  clientKey            String   @default("")
+  crossClientConsent   Boolean  @default(false)
+  updatedAt            DateTime @updatedAt
+
+  @@id([workspaceId, clientKey])
+}
+
+model SegmentEngineConfig {
+  id          String   @id @default(cuid())
+  workspaceId String
+  clientKey   String   @default("")
+  settings    Json
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, clientKey])
+}
+
+model Segment {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  clientKey      String   @default("")
+  key            String
+  name           String
+  audienceSource String
+  vendor         String   @default("")
+  listId         String   @default("")
+  action         String   @default("test")
+  createdAt      DateTime @default(now())
+
+  @@unique([workspaceId, clientKey, key])
+  @@index([workspaceId])
+}
+
+model SubSegment {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  clientKey      String   @default("")
+  segmentKey     String
+  key            String
+  name           String
+  attribute      String
+  attributeValue String
+  action         String   @default("test")
+  createdAt      DateTime @default(now())
+
+  @@unique([workspaceId, clientKey, segmentKey, key])
+  @@index([workspaceId, segmentKey])
+}
+
+model SegmentLineage {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  intakeRowId       String   @default("")
+  contactId         String   @default("")
+  conversionEventId String   @default("")
+  audienceSource    String
+  vendor            String   @default("")
+  listId            String   @default("")
+  intent            String   @default("")
+  geo               String   @default("")
+  demographics      String   @default("")
+  behavior          String   @default("")
+  segmentKey        String   @default("")
+  subSegmentKey     String   @default("")
+  audienceKey       String   @default("")
+  verified          Boolean  @default(false)
+  taggedAt          DateTime @default(now())
+
+  @@index([workspaceId, audienceKey])
+  @@index([workspaceId, listId])
+}
+
+model SegmentTest {
+  id             String          @id @default(cuid())
+  workspaceId    String
+  clientKey      String          @default("")
+  name           String
+  controlKind    String
+  controlListId  String
+  controlVendor  String
+  status         String          @default("still_learning")
+  startedAt      DateTime        @default(now())
+  createdAt      DateTime        @default(now())
+  arms           SegmentTestArm[]
+
+  @@index([workspaceId])
+}
+
+model SegmentTestArm {
+  id            String      @id @default(cuid())
+  workspaceId   String
+  testId        String
+  test          SegmentTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+  armKey        String
+  vendor        String
+  listId        String
+  subSegmentKey String      @default("")
+  role          String
+  successes     Int         @default(0)
+  trials        Int         @default(0)
+
+  @@unique([workspaceId, testId, armKey])
+  @@index([testId])
+}
+
+model SegmentDecision {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  clientKey    String    @default("")
+  type         String
+  status       String    @default("verified")
+  title        String
+  summary      String
+  vendor       String    @default("")
+  listId       String    @default("")
+  basedOn      String    @default("")
+  decisionNote String    @default("")
+  decidedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([workspaceId, createdAt])
+}
+
+enum ChannelDailyKind {
+  stackadapt
+  google_business_profile
+  landing_page
+  lead
+  ais2l
+}
+
+model ChannelDailyMetric {
+  id                String           @id @default(cuid())
+  workspaceId       String           @default("org")
+  clientKey         String           @default("")
+  date              DateTime         @db.Date
+  channel           ChannelDailyKind
+  entityKey         String           @default("")
+  entityName        String           @default("")
+  currency          String           @default("USD")
+  impressions       BigInt?
+  clicks            BigInt?
+  reach             BigInt?
+  spend             Decimal?         @db.Decimal(18, 4)
+  leads             Decimal?         @db.Decimal(18, 4)
+  qualifiedLeads    Decimal?         @db.Decimal(18, 4)
+  booked            Decimal?         @db.Decimal(18, 4)
+  conversions       Decimal?         @db.Decimal(18, 4)
+  conversionValue   Decimal?         @db.Decimal(18, 4)
+  profileViews      Int?
+  searches          Int?
+  calls             Int?
+  directionRequests Int?
+  websiteClicks     Int?
+  reviewCount       Int?
+  rating            Decimal?         @db.Decimal(4, 2)
+  failedChecks      Int?
+  uptimeRate        Decimal?         @db.Decimal(8, 4)
+  medianSpeedSec    Int?
+  voiceCalls        Int?
+  ingestedAt        DateTime         @default(now())
+
+  @@unique([workspaceId, date, channel, entityKey], map: "ChannelDailyMetric_identity_key")
+  @@index([workspaceId, clientKey, date])
+}
+
+/// Per-client credit window, creative-approval switch, and flag thresholds.
+/// Creative approvals default off. Credit defaults to 7-day click and 1-day view.
+
+model ClientMetricPolicy {
+  id                       String   @id @default(cuid())
+  workspaceId              String   @default("org")
+  clientKey                String
+  clickCreditDays          Int      @default(7)
+  viewCreditDays           Int      @default(1)
+  learnedClickDays         Int?
+  learnedViewDays          Int?
+  creativeApprovalsEnabled Boolean  @default(false)
+  thresholds               Json     @default("{}")
+  updatedAt                DateTime @updatedAt
+
+  @@unique([workspaceId, clientKey])
+  @@index([workspaceId])
+}
+
+enum InboxDecisionKind {
+  budget_recommendation
+  pacing_recommendation
+  fatigue_pause
+  fatigue_rotation
+  creative_approval
+  lead_check
+  page_alert
+  negative_keyword
+  holdout
+  learning
+}
+
+enum InboxDecisionStatus {
+  waiting
+  accepted
+  declined
+  later
+  done
+}
+
+enum ServeRecommendation {
+  serve
+  pause
+  rotate
+}
+
+/// Yes/no cards. Fatigue pauses and rotations are never automatic.
+/// automatic is constrained false. Budget cards store steps, not a write.
+
+model InboxDecision {
+  id                String               @id @default(cuid())
+  workspaceId       String               @default("org")
+  clientKey         String               @default("")
+  clientName        String               @default("")
+  campaignId        String?
+  adAccountId       String?
+  assigneeId        String?
+  assignee          User?                @relation("InboxAssigned", fields: [assigneeId], references: [id], onDelete: SetNull)
+  kind              InboxDecisionKind
+  status            InboxDecisionStatus  @default(waiting)
+  tier              String               @default("staff")
+  title             String
+  reasoning         String
+  confidence        Int                  @default(0)
+  expiresAt         DateTime?
+  evidence          Json                 @default("[]")
+  steps             Json                 @default("[]")
+  serve             ServeRecommendation?
+  creditWindowLabel String               @default("")
+  automatic         Boolean              @default(false)
+  decidedById       String?
+  decidedBy         User?                @relation("InboxDecided", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt         DateTime?
+  decisionNote      String               @default("")
+  createdAt         DateTime             @default(now())
+
+  @@index([workspaceId, status, createdAt])
+  @@index([assigneeId, status])
+  @@index([campaignId])
+  @@index([decidedById])
+}
+
+// Audience library. Source is the top of the segment taxonomy.
+// platform_native is a legacy import value and is not a targeting arm.
+
+enum AudienceSourceKind {
+  data_market_maid
+  pixel_retargeting
+  crm_first_party
+  platform_native
+}
+
+enum AudiencePlatformKind {
+  meta
+  google_customer_match
+  tiktok
+  stackadapt
+  generic_dsp
+}
+
+enum MaidIdentifierType {
+  idfa
+  gaid
+  email_sha256
+  phone_sha256
+}
+
+enum AudienceRefreshCadence {
+  daily
+  weekly
+  monthly
+  quarterly
+}
+
+enum SegmentDimensionKind {
+  intent
+  geo
+  demographics
+  behavior
+}
+
+enum AudiencePushStatus {
+  pending
+  approved
+  declined
+}
+
+enum AudienceConversionStatus {
+  verified
+  unverified
+}
+
+model MaidAudience {
+  id              String                 @id @default(cuid())
+  workspaceId     String
+  name            String
+  source          AudienceSourceKind     @default(data_market_maid)
+  vendor          String
+  listId          String
+  acquisitionDate DateTime?              @db.Date
+  costAmount      Decimal?               @db.Decimal(18, 4)
+  costCurrency    String                 @default("USD")
+  consentBasis    String
+  /// IAB Tech Lab Data Label. Optional. Kept for a later consent proof.
+  dataLabel       String                 @default("")
+  /// GPP string. Optional. Kept for a later consent proof.
+  gppString       String                 @default("")
+  /// Where consent was collected: first_party or upstream_supplier. Empty until recorded.
+  consentOrigin   String                 @default("")
+  refreshCadence  AudienceRefreshCadence
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  members         MaidIdentifier[]
+  tags            MaidAudienceTag[]
+  platformStats   AudiencePlatformStat[]
+  pushes          AudiencePush[]
+  pixelEvents     AudiencePixelEvent[]
+  conversions     AudienceConversion[]
+
+  @@unique([workspaceId, vendor, listId])
+  @@index([workspaceId])
+}
+
+model MaidIdentifier {
+  id           String             @id @default(cuid())
+  workspaceId  String
+  audienceId   String
+  audience     MaidAudience       @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  idType       MaidIdentifierType
+  hash         String
+  rawEncrypted String?
+  createdAt    DateTime           @default(now())
+
+  @@unique([audienceId, idType, hash])
+  @@index([workspaceId])
+}
+
+model MaidAudienceTag {
+  id          String               @id @default(cuid())
+  workspaceId String
+  audienceId  String
+  audience    MaidAudience         @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  dimension   SegmentDimensionKind
+  key         String
+  label       String
+
+  @@unique([audienceId, dimension, key])
+  @@index([workspaceId])
+}
+
+model AudiencePlatformStat {
+  id          String               @id @default(cuid())
+  workspaceId String
+  audienceId  String
+  audience    MaidAudience         @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  platform    AudiencePlatformKind
+  uploaded    Int                  @default(0)
+  matched     Int                  @default(0)
+  reach       Int                  @default(0)
+  spend       Decimal              @default(0) @db.Decimal(18, 4)
+  updatedAt   DateTime             @updatedAt
+
+  @@unique([audienceId, platform])
+  @@index([workspaceId])
+}
+
+model AudiencePush {
+  id            String               @id @default(cuid())
+  workspaceId   String
+  audienceId    String
+  audience      MaidAudience         @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  platform      AudiencePlatformKind
+  status        AudiencePushStatus   @default(pending)
+  payload       Json
+  manualSteps   String               @default("")
+  logLine       String               @default("")
+  requestedById String
+  decidedById   String?
+  decidedAt     DateTime?
+  undoUntil     DateTime?
+  createdAt     DateTime             @default(now())
+
+  @@index([workspaceId, status])
+  @@index([audienceId])
+}
+
+model AudiencePixelEvent {
+  id          String       @id @default(cuid())
+  workspaceId String
+  audienceId  String
+  audience    MaidAudience @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  visitorId   String
+  eventName   String
+  pageUrl     String       @default("")
+  occurredAt  DateTime     @default(now())
+
+  @@index([workspaceId, audienceId])
+  @@index([visitorId])
+}
+
+model AudienceConversion {
+  id          String                   @id @default(cuid())
+  workspaceId String
+  audienceId  String
+  audience    MaidAudience             @relation(fields: [audienceId], references: [id], onDelete: Cascade)
+  dedupeKey   String
+  kind        String                   @default("lead")
+  status      AudienceConversionStatus
+  reason      String                   @default("")
+  qualified   Boolean                  @default(false)
+  contactHash String                   @default("")
+  occurredAt  DateTime                 @default(now())
+
+  @@unique([workspaceId, audienceId, dedupeKey])
+  @@index([workspaceId, status])
+  @@index([audienceId])
 }
 
 /// Prospect demo tenant. Rows here are fictional and never share a workspace id with a real client.
