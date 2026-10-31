@@ -32,19 +32,13 @@ function MatchRates({ match, more }: { match: PresentedMatch[]; more?: MoreMatch
           {row.hold ? <span className="ad-hold"> On hold: low match rate</span> : null}
         </div>
       ))}
-      {more?.length ? (
-        <div>
-          More channels <span className="ad-mono">+{more.length} more</span>
-          {more.map((row) => (
-            <div key={row.id}>
-              {row.label}
-              {row.percent == null ? "" : ` ${row.percent}%`}
-              {` · ${row.status}`}
-              {row.hold ? <span className="ad-hold"> On hold: low match rate</span> : null}
-            </div>
-          ))}
+      {more?.map((row) => (
+        <div key={row.id}>
+          <abbr title={row.status}>{row.label}</abbr>{" "}
+          {row.percent == null ? null : <span className="ad-mono">{row.percent}%</span>}
+          {row.hold ? <span className="ad-hold"> On hold: low match rate</span> : null}
         </div>
-      ) : null}
+      ))}
     </div>
   );
 }
@@ -285,7 +279,7 @@ export function AudienceDataSource({ detail, mode = "staff", accountName = "", s
       </div>
       <p className="ad-prov" id="audience">
         Match rate: {detail.match.map((row) => `${row.full} ${row.percent}%`).join(" · ")} · Refreshed {detail.refreshed}
-        {detail.moreChannels?.length ? <> · More channels +{detail.moreChannels.length} more: {detail.moreChannels.map((row) => `${row.label}${row.percent == null ? "" : ` ${row.percent}%`} · ${row.status}`).join("; ")}</> : null}
+        {detail.moreChannels?.length ? <> · {detail.moreChannels.map((row) => `${row.label}${row.percent == null ? "" : ` ${row.percent}%`}`).join(" · ")}</> : null}
         {cost != null ? <> · <span className="ad-prov">Staff only:</span> data cost ${cost.toFixed(2)} CPM</> : null}
       </p>
       <div className="ad-why" id="campaigns">

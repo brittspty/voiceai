@@ -3,7 +3,7 @@ import { stripForAudience } from "./cost-strip";
 
 /**
  * Example YouTube and CTV channels. YouTube is bought through Google Ads.
- * CTV is a placeholder until a platform is chosen. Nothing here calls the network.
+ * CTV is bought through StackAdapt. Nothing here calls the network.
  */
 export type VideoChannelId = "youtube" | "ctv";
 
@@ -75,21 +75,21 @@ const VIDEO_CHANNELS: VideoChannel[] = [
   },
   {
     id: "ctv",
-    label: "Other CTV",
+    label: "CTV (StackAdapt)",
     clientLabel: "Connected TV ads",
     href: "/c/all/ctv",
     clientHref: "/c/harbor/ctv",
-    status: "Needs setup",
-    connection: "Other CTV placeholder",
-    matchLabel: "Other CTV",
+    status: "Connected (read only) through the StackAdapt account",
+    connection: "Connected (read only) through the StackAdapt account",
+    matchLabel: "CTV (StackAdapt)",
     metrics: CTV_METRICS,
-    leads: 0,
-    qualified: 0,
+    leads: 4,
+    qualified: 1,
     booked: 0,
     hierarchy: "Campaign › Line item › Ad",
-    placeholder: true,
+    placeholder: false,
     example: true,
-    connected: false,
+    connected: true,
   },
 ];
 
@@ -119,9 +119,9 @@ export function presentedVideoChannels(audience: "staff" | "client", env?: Env):
       id: row.id,
       label: audience === "client" ? row.clientLabel : row.label,
       href: audience === "client" ? row.clientHref : row.href,
-      status: row.status,
-      connection: row.connection,
-      matchLabel: row.matchLabel,
+      status: audience === "client" && row.id === "ctv" ? "Connected (read only)" : row.status,
+      connection: audience === "client" && row.id === "ctv" ? "Connected (read only)" : row.connection,
+      matchLabel: audience === "client" && row.id === "ctv" ? "CTV" : row.matchLabel,
       metrics: row.metrics,
       leads: row.leads,
       qualified: row.qualified,
@@ -148,13 +148,14 @@ export type MoreMatch = {
   status: string;
 };
 
-/** YouTube copies the Google Customer Match rate. CTV stays a placeholder. */
-export function audienceMoreChannels(googleRate: number | undefined, enabled: boolean): MoreMatch[] | undefined {
+/** YouTube copies the Google match rate. CTV copies the StackAdapt match rate. Clients never see StackAdapt on the CTV row. */
+export function audienceMoreChannels(googleRate: number | undefined, stackadaptRate: number | undefined, enabled: boolean, audience: "staff" | "client" = "staff"): MoreMatch[] | undefined {
   if (!enabled) return undefined;
-  const percent = googleRate == null || Number.isNaN(googleRate) ? null : Math.round(googleRate * 100);
+  const googlePercent = googleRate == null || Number.isNaN(googleRate) ? null : Math.round(googleRate * 100);
+  const ctvPercent = stackadaptRate == null || Number.isNaN(stackadaptRate) ? null : Math.round(stackadaptRate * 100);
   return [
-    { id: "youtube", label: "YouTube (via Google)", percent, hold: percent != null && percent < 30, status: "Through the Google Ads account" },
-    { id: "ctv", label: "Other CTV", percent: null, hold: false, status: "Needs setup" },
+    { id: "youtube", label: "YouTube (via Google)", percent: googlePercent, hold: googlePercent != null && googlePercent < 30, status: "Through the Google Ads account" },
+    { id: "ctv", label: audience === "staff" ? "CTV (StackAdapt)" : "CTV", percent: ctvPercent, hold: ctvPercent != null && ctvPercent < 30, status: audience === "staff" ? "Through the StackAdapt account" : "Connected (read only)" },
   ];
 }
 
@@ -166,11 +167,11 @@ export type MoreResolution = {
   placeholder: boolean;
 };
 
-export function resolutionMoreChannels(googlePercent: number | null, enabled: boolean): MoreResolution[] | undefined {
+export function resolutionMoreChannels(googlePercent: number | null, enabled: boolean, audience: "staff" | "client" = "staff"): MoreResolution[] | undefined {
   if (!enabled) return undefined;
   return [
     { id: "youtube", label: "YouTube (via Google)", percent: googlePercent, status: "Through the Google Ads account", placeholder: false },
-    { id: "ctv", label: "Other CTV", percent: null, status: "Needs setup", placeholder: true },
+    { id: "ctv", label: audience === "staff" ? "CTV (StackAdapt)" : "CTV", percent: 27, status: audience === "staff" ? "Through the StackAdapt account" : "Connected (read only)", placeholder: false },
   ];
 }
 
@@ -178,6 +179,6 @@ export function portfolioMoreChannels(enabled: boolean) {
   if (!enabled) return undefined;
   return [
     { label: "YouTube", status: "Through the Google Ads account" },
-    { label: "Other CTV", status: "Needs setup" },
+    { label: "CTV (StackAdapt)", status: "Connected (read only) through the StackAdapt account" },
   ];
 }

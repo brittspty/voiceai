@@ -51,7 +51,7 @@ export function jarvisNav(input: {
   ];
   if (input.showLive) items.push({ href: "/live", label: "Live", group: "Overview" });
   if (input.showAudienceData) items.push({ href: "/audience-data", label: "Audience Data", group: "Data" });
-  if (input.channelLinks?.length) items.push(...input.channelLinks);
+if (input.channelLinks?.length) items.push(...input.channelLinks);
   else {
     const channels: NavItem[] = [
       { href: "/c/all/meta", label: "Meta", group: "Channels" },
@@ -59,7 +59,7 @@ export function jarvisNav(input: {
     ];
     if (input.showVideoChannels) channels.push({ href: "/c/all/youtube", label: "YouTube", group: "Channels" });
     channels.push({ href: "/c/all/stackadapt", label: "StackAdapt", group: "Channels" });
-    if (input.showVideoChannels) channels.push({ href: "/c/all/ctv", label: "CTV (Connected TV)", group: "Channels" });
+    if (input.showVideoChannels) channels.push({ href: "/c/all/ctv", label: "CTV (StackAdapt)", group: "Channels" });
     channels.push({ href: "/c/all/google-business-profile", label: "Google Business Profile", group: "Channels" });
     items.push(...channels);
   }

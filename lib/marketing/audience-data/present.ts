@@ -179,7 +179,7 @@ function presentSelection(row: RawSelection): PresentedSelection {
 
 function presentRow(source: RawSource, now: string, staleAfterMs: number, env?: Env): PresentedRow {
   const refresh = refreshLabel(source.refreshedAt, now, staleAfterMs);
-  const moreChannels = audienceMoreChannels(source.match.find((row) => row.platform === "google_ads")?.rate, jarvisUiV2Enabled(env));
+  const moreChannels = audienceMoreChannels(source.match.find((row) => row.platform === "google_ads")?.rate, source.match.find((row) => row.platform === "stackadapt")?.rate, jarvisUiV2Enabled(env), "staff");
   const row: PresentedRow = {
     id: source.id,
     vendor: source.vendor,
@@ -332,7 +332,7 @@ function formatClientMaids(value: number) {
 
 function presentClientRow(source: ClientSource, now: string, staleAfterMs: number, env?: Env) {
   const refresh = refreshLabel(source.refreshedAt, now, staleAfterMs);
-  const moreChannels = audienceMoreChannels(source.match.find((row) => row.platform === "google_ads")?.rate, jarvisUiV2Enabled(env));
+  const moreChannels = audienceMoreChannels(source.match.find((row) => row.platform === "google_ads")?.rate, source.match.find((row) => row.platform === "stackadapt")?.rate, jarvisUiV2Enabled(env), "client");
   return {
     id: source.publicId,
     label: source.label,

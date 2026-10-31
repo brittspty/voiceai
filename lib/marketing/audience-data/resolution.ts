@@ -1,5 +1,5 @@
 import { collectsCostKeys, stripForAudience } from "../channels/cost-strip";
-import { resolutionMoreChannels, type MoreResolution } from "../channels/video-channels";
+import type { MoreResolution } from "../channels/video-channels";
 import { jarvisUiV2Enabled, type Env } from "../config";
 
 /** Good ≥ 50%, Fair 30–49%, Low — on hold under 30%. */
@@ -92,7 +92,6 @@ const PLATFORMS: RateRow[] = classifyPlatforms([
   { id: "meta", label: "Meta", sent: 5_030_000, matched: 3_220_000, unmatched: 1_810_000, percent: 64 },
   { id: "google_ads", label: "Google", sent: 5_030_000, matched: 2_460_000, unmatched: 2_570_000, percent: 49 },
   { id: "stackadapt", label: "StackAdapt", sent: 5_030_000, matched: 2_870_000, unmatched: 2_160_000, percent: 57 },
-  { id: "trade_desk", label: "The Trade Desk (other)", sent: 5_030_000, matched: 1_360_000, unmatched: 3_670_000, percent: 27 },
 ]);
 
 const SOURCES: (RateRow & { vendor: string; vendorId: string; vendorSegmentIds: string[]; clientLabel: string })[] = [
@@ -127,11 +126,38 @@ const STAFF_SOURCE_IDS: Record<string, string> = {
   "vendor-d": "4",
 };
 
-function withMoreChannels(report: ResolutionReport, env?: Env): ResolutionReport {
-  const google = report.platforms.find((row) => row.id === "google_ads");
-  const moreChannels = resolutionMoreChannels(google?.percent ?? null, jarvisUiV2Enabled(env));
-  if (!moreChannels) return report;
-  return { ...report, moreChannels };
+function withVideoPlatforms(report: ResolutionReport, staff: boolean, env?: Env): ResolutionReport {
+  const enabled = jarvisUiV2Enabled(env);
+  const base = report.platforms.filter((row) => row.id !== "trade_desk" && row.id !== "youtube" && row.id !== "ctv");
+  if (!enabled) return { ...report, platforms: base };
+  const google = base.find((row) => row.id === "google_ads");
+  const platforms: RateRow[] = [];
+  for (const row of base) {
+    platforms.push({ ...row, placeholder: false });
+    if (row.id === "google_ads" && google) {
+      platforms.push({
+        id: "youtube",
+        label: "YouTube (via Google)",
+        sent: google.sent,
+        matched: google.matched,
+        unmatched: google.unmatched,
+        percent: google.percent,
+        placeholder: false,
+      });
+    }
+  }
+  const sent = google?.sent ?? report.uploaded;
+  const matched = Math.round(sent * 0.27);
+  platforms.push({
+    id: "ctv",
+    label: staff ? "CTV (StackAdapt)" : "CTV",
+    sent,
+    matched,
+    unmatched: sent - matched,
+    percent: 27,
+    placeholder: false,
+  });
+  return { ...report, platforms };
 }
 
 function harborReport(reader: "staff" | "client" | "share", sourcePublicId?: string, env?: Env): ResolutionReport {
@@ -140,9 +166,14 @@ function harborReport(reader: "staff" | "client" | "share", sourcePublicId?: str
   const title = source
     ? staff ? `${source.vendor} · ${source.category}` : `${source.clientLabel} · ${source.category}`
     : staff ? "Resolution Data across all audiences" : "Resolution Data across your audiences";
-  const why = staff
-    ? "This audience is under 30% on The Trade Desk (27%), so it is on hold there. IPv4 / household matches at 24% and IPv6 / household matches at 23%; Vendor D matches at 29%."
-    : "Your audience is under 30% on The Trade Desk (27%), so it is on hold there. IPv4 / household matches at 24% and IPv6 / household matches at 23%; Device and app data source matches at 29%.";
+  const video = jarvisUiV2Enabled(env);
+  const why = video
+    ? staff
+      ? "This audience is under 30% on CTV (StackAdapt) (27%), so it is on hold there. YouTube uses the Google match rate. IPv4 / household matches at 24% and IPv6 / household matches at 23%; Vendor D matches at 29%."
+      : "Your audience is under 30% on CTV (27%), so it is on hold there. YouTube uses the Google match rate. IPv4 / household matches at 24% and IPv6 / household matches at 23%; Device and app data source matches at 29%."
+    : staff
+      ? "IPv4 / household matches at 24% and IPv6 / household matches at 23%; Vendor D matches at 29%."
+      : "IPv4 / household matches at 24% and IPv6 / household matches at 23%; Device and app data source matches at 29%.";
   const recommendation = staff
     ? "consider adding hashed emails for these records or rebuilding the audience with fewer IP-only records. Nothing changes until your team builds it in the data market."
     : "your Specificity team may suggest adding hashed emails for these records or rebuilding the audience with fewer IP-only records. Nothing changes until your Specificity team makes the change.";
@@ -175,15 +206,19 @@ function harborReport(reader: "staff" | "client" | "share", sourcePublicId?: str
     recommendation,
     workedOut: [
       "Inputs: records sent, matched counts, and the 30% hold line.",
-      "The Trade Desk is a placeholder. Only Meta, Google, and StackAdapt are confirmed. It matched 27%.",
+      ...(video
+        ? [staff
+          ? "CTV runs through StackAdapt and matched 27%. YouTube uses the Google match rate."
+          : "CTV matched 27%. YouTube uses the Google match rate."]
+        : []),
       "IPv4 / household matches at 24%. IPv6 / household matches at 23%.",
       "Recommendation only. Nothing is paused, edited, or rebuilt.",
     ],
   };
   if (staff && source) report.vendor = source.vendor;
   if (staff && source) report.vendorId = source.vendorId;
-  const withMore = withMoreChannels(report, env);
-  return reader === "staff" ? withMore : stripResolution(withMore);
+  const withVideo = withVideoPlatforms(report, staff, env);
+  return reader === "staff" ? withVideo : stripResolution(withVideo);
 }
 
 function gulfReport(env?: Env): ResolutionReport {
@@ -220,11 +255,13 @@ function gulfReport(env?: Env): ResolutionReport {
       60: { from: 52, to: 59, points: [{ label: "Wk 1", percent: 52 }, { label: "Now", percent: 59 }] },
       90: { from: 50, to: 59, points: [{ label: "Wk 1", percent: 50 }, { label: "Now", percent: 59 }] },
     },
-    why: "Your audience is above the hold line on every connected platform.",
+    why: jarvisUiV2Enabled(env)
+      ? "Your audience is under 30% on CTV (27%), so it is on hold there."
+      : "Your audience is above the hold line on every connected platform.",
     recommendation: "your Specificity team may suggest leaving this audience as it is. Nothing changes until your Specificity team makes the change.",
     workedOut: ["Inputs: records sent and the 30% hold line.", "Recommendation only. Nothing is written."],
   };
-  return stripResolution(withMoreChannels(report, env));
+  return stripResolution(withVideoPlatforms(report, false, env));
 }
 
 function stripResolution<T>(value: T): T {

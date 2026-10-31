@@ -192,7 +192,7 @@ export const SEED_REGISTRY: PlatformRegistryRow[] = [
   }),
   row({
     key: "ctv",
-    staffLabel: "CTV",
+    staffLabel: "CTV (StackAdapt)",
     clientLabel: "Connected TV ads",
     channelType: "ctv",
     vendor: "stackadapt",

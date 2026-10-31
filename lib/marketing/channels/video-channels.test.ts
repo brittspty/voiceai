@@ -21,39 +21,42 @@ const ON = { JARVIS_UI_V2: "on" };
 test("YouTube and CTV stay off until JARVIS_UI_V2 is on", () => {
   assert.deepEqual(presentedVideoChannels("staff", {}), []);
   assert.deepEqual(presentedVideoChannels("client", {}), []);
-  assert.equal(audienceMoreChannels(0.49, false), undefined);
+  assert.equal(audienceMoreChannels(0.49, 0.57, false), undefined);
   assert.equal(resolutionMoreChannels(49, false), undefined);
   const nav = jarvisNav({ audience: "staff", showAis2l: false, decisionCount: 0, showLive: false });
   assert.equal(nav.some((item) => item.href === "/c/all/youtube" || item.href === "/c/all/ctv"), false);
   const channels = jarvisNav({ audience: "staff", showAis2l: false, decisionCount: 0, showLive: false, showVideoChannels: true })
     .filter((item) => item.group === "Channels")
     .map((item) => item.label);
-  assert.deepEqual(channels, ["Meta", "Google Ads", "YouTube", "StackAdapt", "CTV (Connected TV)", "Google Business Profile"]);
+  assert.deepEqual(channels, ["Meta", "Google Ads", "YouTube", "StackAdapt", "CTV (StackAdapt)", "Google Business Profile"]);
 });
 
-test("YouTube uses the Google match rate and CTV stays a placeholder that needs setup", () => {
+test("YouTube uses the Google match rate and CTV runs through StackAdapt", () => {
   const staff = presentedVideoChannels("staff", ON);
   assert.deepEqual(staff.map((row) => row.id), ["youtube", "ctv"]);
   assert.deepEqual(staff[0]?.metrics.map((metric) => metric.label), ["Views", "View-through rate", "Completed views"]);
   assert.equal(staff[0]?.matchLabel, "YouTube (via Google)");
   assert.equal(staff[0]?.connection, "Through the Google Ads account");
   assert.equal(staff[0]?.spend, 760);
-  assert.equal(staff[1]?.label, "Other CTV");
-  assert.equal(staff[1]?.status, "Needs setup");
-  assert.equal(staff[1]?.placeholder, true);
+  assert.equal(staff[1]?.label, "CTV (StackAdapt)");
+  assert.match(staff[1]?.status || "", /Connected \(read only\) through the StackAdapt account/);
+  assert.equal(staff[1]?.placeholder, false);
   assert.equal("spend" in (staff[1] || {}), false);
   assert.deepEqual(staff[1]?.metrics.map((metric) => metric.label), ["Completion rate", "Households reached", "Frequency"]);
-  const placed = placeInDenseRow(["Meta", "Google Ads", "StackAdapt", "Google Business Profile"], ["YouTube", "Other CTV"]);
+  const placed = placeInDenseRow(["Meta", "Google Ads", "StackAdapt", "Google Business Profile"], ["YouTube", "CTV (StackAdapt)"]);
   assert.deepEqual(placed.columns, ["Meta", "Google Ads", "StackAdapt", "Google Business Profile"]);
-  assert.deepEqual(placed.more, ["YouTube", "Other CTV"]);
+  assert.deepEqual(placed.more, ["YouTube", "CTV (StackAdapt)"]);
   assert.equal(placed.moreLabel, "More channels");
   assert.equal(placed.moreLink, "+2 more");
 });
 
 test("client YouTube and CTV payloads have no spend, cost, ROAS, CPL, or CPA", () => {
   const client = presentedVideoChannels("client", ON);
-  assert.deepEqual(client.map((row) => row.id), ["youtube"]);
+  assert.deepEqual(client.map((row) => row.id), ["youtube", "ctv"]);
   assert.equal(client[0]?.label, "YouTube video ads");
+  assert.equal(client[1]?.label, "Connected TV ads");
+  assert.equal(client[1]?.matchLabel, "CTV");
+  assert.equal(JSON.stringify(client).includes("StackAdapt"), false);
   assert.deepEqual(collectsCostKeys(client), []);
   assert.equal(JSON.stringify(client).includes("spend"), false);
   const poisoned = stripForAudience({ ...clientChannelPayload(), moreChannels: presentedVideoChannels("staff", ON), spend: 9, cpl: 4, cpa: 8, roas: 2, cost: 1 }, "client");
@@ -67,17 +70,26 @@ test("client YouTube and CTV payloads have no spend, cost, ROAS, CPL, or CPA", (
     const google = row.match.find((item) => item.platform === "google_ads");
     assert.equal(row.moreChannels?.[0]?.label, "YouTube (via Google)");
     assert.equal(row.moreChannels?.[0]?.percent, google?.percent);
-    assert.equal(row.moreChannels?.[1]?.label, "Other CTV");
-    assert.equal(row.moreChannels?.[1]?.status, "Needs setup");
-    assert.equal(row.match.some((item) => item.full === "YouTube" || item.full === "Other CTV"), false);
+    assert.equal(row.moreChannels?.[1]?.label, "CTV");
+    assert.equal(row.moreChannels?.[1]?.percent, row.match.find((item) => item.platform === "stackadapt")?.percent);
+    assert.equal(row.moreChannels?.some((item) => item.label.includes("StackAdapt")), false);
+    assert.equal(row.match.some((item) => item.full === "YouTube" || item.full === "CTV"), false);
   }
   const resolution = readResolution({ reader: "client", ownAccountId: "org", env: ON });
   assert.equal(resolution.ok, true);
   if (!resolution.ok) return;
   const google = resolution.body.platforms.find((row) => row.id === "google_ads");
-  assert.equal(resolution.body.moreChannels?.[0]?.percent, google?.percent);
-  assert.equal(resolution.body.moreChannels?.[1]?.label, "Other CTV");
-  assert.equal(resolution.body.platforms.some((row) => row.id === "youtube" || row.id === "ctv"), false);
+  const youtube = resolution.body.platforms.find((row) => row.id === "youtube");
+  const ctv = resolution.body.platforms.find((row) => row.id === "ctv");
+  assert.deepEqual(resolution.body.platforms.map((row) => row.id), ["meta", "google_ads", "youtube", "stackadapt", "ctv"]);
+  assert.equal(youtube?.label, "YouTube (via Google)");
+  assert.equal(youtube?.percent, google?.percent);
+  assert.equal(ctv?.label, "CTV");
+  assert.equal(ctv?.percent, 27);
+  assert.equal(resolution.body.platforms.filter((row) => row.percent < 30).length, 1);
+  assert.equal(JSON.stringify(resolution.body).includes("Trade Desk"), false);
+  assert.equal(JSON.stringify(resolution.body).includes("Other CTV"), false);
+  assert.equal(JSON.stringify(resolution.body).includes("CTV (StackAdapt)"), false);
   assert.deepEqual(collectsCostKeys(resolution.body), []);
   assert.equal(/vendor|vnd_|seg_/i.test(JSON.stringify(resolution.body)), false);
 });
@@ -90,14 +102,20 @@ test("staff resolution and the team dashboard keep YouTube and CTV off the main 
   assert.equal(on.ok, true);
   if (!on.ok) return;
   const google = on.body.platforms.find((row) => row.id === "google_ads");
-  assert.equal(on.body.moreChannels?.[0]?.label, "YouTube (via Google)");
-  assert.equal(on.body.moreChannels?.[0]?.percent, google?.percent);
-  assert.equal(on.body.moreChannels?.[1]?.status, "Needs setup");
-  assert.equal(on.body.platforms.map((row) => row.id).includes("youtube"), false);
+  assert.equal(on.body.platforms.find((row) => row.id === "youtube")?.label, "YouTube (via Google)");
+  assert.equal(on.body.platforms.find((row) => row.id === "youtube")?.percent, google?.percent);
+  assert.equal(on.body.platforms.find((row) => row.id === "ctv")?.label, "CTV (StackAdapt)");
+  assert.equal(on.body.platforms.find((row) => row.id === "ctv")?.percent, 27);
+  assert.equal(on.body.platforms.filter((row) => row.percent < 30).length, 1);
+  assert.equal(on.body.platforms.length, 5);
+  assert.equal(on.body.moreChannels, undefined);
   const sources = listAudienceSources({ reader: "staff", env: ON });
   const held = sources.rows.find((row) => row.vendor === "Vendor D");
+  assert.equal(held?.moreChannels?.[0]?.label, "YouTube (via Google)");
   assert.equal(held?.moreChannels?.[0]?.hold, true);
   assert.equal(held?.moreChannels?.[0]?.percent, held?.match.find((row) => row.platform === "google_ads")?.percent);
+  assert.equal(held?.moreChannels?.[1]?.label, "CTV (StackAdapt)");
+  assert.equal(held?.moreChannels?.[1]?.percent, held?.match.find((row) => row.platform === "stackadapt")?.percent);
   const hidden = listAudienceSources({ reader: "staff", env: {} });
   assert.equal(hidden.rows[0]?.moreChannels, undefined);
   const model = assemblePortfolio({
@@ -108,8 +126,8 @@ test("staff resolution and the team dashboard keep YouTube and CTV off the main 
     env: ON,
   });
   assert.equal(model.clients[0]?.channels, 2);
-  assert.equal(model.clients[0]?.moreChannels?.[1]?.label, "Other CTV");
-  assert.equal(model.clients[0]?.moreChannels?.[1]?.status, "Needs setup");
+  assert.equal(model.clients[0]?.moreChannels?.[1]?.label, "CTV (StackAdapt)");
+  assert.match(model.clients[0]?.moreChannels?.[1]?.status || "", /StackAdapt/);
   assert.equal(portfolioHasSpend(model.clients[0]?.moreChannels), false);
   assert.deepEqual(collectsCostKeys(model.clients[0]?.moreChannels), []);
   const quiet = assemblePortfolio({

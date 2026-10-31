@@ -170,24 +170,24 @@ export function StaffHome({ surfaces = null }: { surfaces?: RegistrySurfaces | n
 function VideoChannelDetail({ id }: { id: "youtube" | "ctv" }) {
   const row = presentedVideoChannels("staff").find((item) => item.id === id);
   const youtube = id === "youtube";
-  const name = row?.label || (youtube ? "YouTube" : "Other CTV");
+  const name = row?.label || (youtube ? "YouTube" : "CTV (StackAdapt)");
   return (
     <main>
       <Crumbs items={[{ label: "All clients", href: "/" }, { label: "Overview", href: "/" }, { label: name }]} />
       <div className="top">
         <div>
-          <div className="sub">Channel · {name} · {row?.status || "Needs setup"} · Last 7 days · Updated 9:12 PM ET</div>
-          <h1>{youtube ? "YouTube is bought through Google Ads. Match rate follows Google." : "Other CTV needs setup. No CTV platform is connected."}</h1>
+          <div className="sub">Channel · {name} · {row?.status || "Connected (read only)"} · Last 7 days · Updated 9:12 PM ET</div>
+          <h1>{youtube ? "YouTube is bought through Google Ads. Match rate follows Google." : "CTV (StackAdapt) is bought through StackAdapt. Its match rate is 27% and on hold."}</h1>
         </div>
         <div className="ctl"><span className="ex">EXAMPLE DATA</span><span className="sel">Last 7 days</span></div>
       </div>
       <section className="mt" aria-label="Channel results">
         {(row?.metrics || []).map((metric) => (
-          <VideoTile key={metric.id} label={metric.label} value={metric.value} why={youtube ? "Counted on the Google Ads account. This is not a separate connector." : "Example only. Nothing is sent until a CTV platform is chosen."} />
+          <VideoTile key={metric.id} label={metric.label} value={metric.value} why={youtube ? "Counted on the Google Ads account. This is not a separate connector." : "Counted on the StackAdapt account. This is not a separate CTV connector."} />
         ))}
-        <Tile hero glossaryId="leads" label="Leads" value={String(row?.leads ?? 0)} prior={youtube ? "▲ 2 vs prior 7 days" : "No delivery yet"} priorGood={youtube} goal={youtube ? "over goal" : "Needs setup"} why={youtube ? "Normalized leads still count once per person." : "Households and completion stay blank until setup."} />
+        <Tile hero glossaryId="leads" label="Leads" value={String(row?.leads ?? 0)} prior={youtube ? "▲ 2 vs prior 7 days" : "▲ 1 vs prior 7 days"} priorGood goal={youtube ? "over goal" : "under goal"} why={youtube ? "Normalized leads still count once per person." : "CTV match rate comes from StackAdapt. 27% is on hold."} />
       </section>
-      {youtube && row?.spend != null ? <p className="sub">Spend ${row.spend.toLocaleString("en-US")} · CPL ${row.cpl} · staff only. {row.hierarchy}.</p> : <p className="sub">{row?.status}. {row?.hierarchy}. No connector and no outbound call.</p>}
+      {youtube && row?.spend != null ? <p className="sub">Spend ${row.spend.toLocaleString("en-US")} · CPL ${row.cpl} · staff only. {row.hierarchy}.</p> : <p className="sub">Connected (read only) through the StackAdapt account. {row?.hierarchy}. No separate connector and no outbound call.</p>}
       <h2 style={{ margin: "28px 0 8px" }}>{row?.hierarchy || "Campaign"}</h2>
       <table className="stack">
         <thead>
@@ -206,7 +206,7 @@ function VideoChannelDetail({ id }: { id: "youtube" | "ctv" }) {
               <tr><td>Harbor Consult Video › Consult :15</td><td>$240</td><td>56K</td><td>6</td><td><span className="st ok">● Through Google Ads</span></td></tr>
             </>
           ) : (
-            <tr><td>Other CTV</td><td>—</td><td>0</td><td><span className="st w">▲ Needs setup</span></td></tr>
+            <tr><td>Harbor CTV › Prime evenings</td><td>72%</td><td>4</td><td><span className="st w">▲ On hold: low match rate</span></td></tr>
           )}
         </tbody>
       </table>

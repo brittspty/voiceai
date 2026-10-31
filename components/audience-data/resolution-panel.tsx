@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { ResolutionReport, ResolutionWindow } from "@/lib/marketing/audience-data/resolution";
+import "./audience-data.css";
 
 function formatCount(value: number) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;

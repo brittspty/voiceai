@@ -157,17 +157,30 @@ function ClientYouTube() {
 }
 
 function ClientCtv() {
+  const row = presentedVideoChannels("client").find((item) => item.id === "ctv");
   return (
     <main>
       <Crumbs items={[{ label: "Home", href: "/" }, { label: "Connected TV ads" }]} />
       <div className="top">
         <div>
-          <div className="sub">Harbor Dental · Connected TV ads · Updated 9:12 PM ET</div>
-          <h1>Other CTV needs setup.</h1>
+          <div className="sub">Harbor Dental · Connected TV ads · Connected (read only) · Last 30 days · Updated 9:12 PM ET</div>
+          <h1>Your connected TV ads brought {row?.leads ?? 0} leads. Match rate is 27% and on hold.</h1>
         </div>
         <span className="ex">EXAMPLE DATA</span>
       </div>
-      <p>Connected TV ads are not connected yet. Completion rate, households reached, and frequency appear after setup. Nothing is sent from here.</p>
+      <section className="mt">
+        {(row?.metrics || []).map((metric) => (
+          <div className="m" key={metric.id}><div className="lab">{metric.label}</div><div className="v">{metric.value}</div><div className="sub">EXAMPLE DATA</div></div>
+        ))}
+        <Tile hero glossaryId="leads" label="Leads" value={String(row?.leads ?? 0)} prior="▲ 1 vs prior" priorGood goal="under goal" why="CTV is connected read only. Nothing here changes a budget." />
+      </section>
+      <h2 style={{ margin: "28px 0 8px" }}>Campaign › Line item › Ad</h2>
+      <table className="stack">
+        <thead><tr><th>Line item</th><th>Completion rate</th><th>Households reached</th><th>Leads</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Prime evenings</td><td>72%</td><td>41K</td><td>{row?.leads ?? 0}</td><td><span className="st w">▲ On hold: low match rate</span></td></tr>
+        </tbody>
+      </table>
       <End {...end} />
     </main>
   );
@@ -370,14 +383,14 @@ export function LiveFeed({ viewer, realtime = false }: { viewer: FeedViewer; rea
   );
 }
 
-export function SettingsConnections() {
+export function SettingsConnections({ staff = true }: { staff?: boolean }) {
   return (
     <main>
       <Crumbs items={[{ label: "Harbor Dental", href: "/" }, { label: "Settings & connections" }]} />
       <div className="top">
         <div>
           <div className="sub">Account · Settings & connections</div>
-          <h1>5 of 6 connections are healthy. Conversion feedback needs setup.</h1>
+          <h1>7 of 8 connections are healthy. Conversion feedback needs setup.</h1>
         </div>
         <span className="ex">EXAMPLE DATA</span>
       </div>
@@ -388,7 +401,7 @@ export function SettingsConnections() {
           <tr><td>Google Ads</td><td><span className="st ok">● Connected</span></td><td>Read only</td><td><span className="pill t">PENDING JASON APPROVAL</span> <button type="button" className="btn" disabled>Request write access</button></td></tr>
           <tr><td>YouTube</td><td><span className="st ok">● Through the Google Ads account</span></td><td>Read only</td><td>Same as Google Ads</td></tr>
           <tr><td>StackAdapt</td><td><span className="st ok">● Connected</span></td><td>Read only</td><td>Not needed</td></tr>
-          <tr><td>Other CTV</td><td><span className="st w">▲ Needs setup</span></td><td>Not connected</td><td>—</td></tr>
+          <tr><td>{staff ? "CTV (StackAdapt)" : "Connected TV ads"}</td><td><span className="st ok">● Connected (read only){staff ? " through the StackAdapt account" : ""}</span></td><td>Read only</td><td>{staff ? "Same as StackAdapt" : "—"}</td></tr>
           <tr><td>Google Business Profile</td><td><span className="st ok">● Connected</span></td><td>Read</td><td>—</td></tr>
           <tr><td>AIS2L / GoHighLevel</td><td><span className="st ok">● Synced</span></td><td>Leads</td><td>—</td></tr>
         </tbody>
