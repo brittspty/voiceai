@@ -1,7 +1,8 @@
 import { sealClientReport } from "../client-view";
-import { channelRegistryEnabled } from "../config";
+import { channelRegistryEnabled, reportsP1Enabled } from "../config";
 import { overlayStaffReport } from "../channels/registry";
 import { REPORT_MOTION } from "./motion";
+import { listChartAnnotations, withUserAnnotations } from "./p1/annotations";
 import { selectReportSource } from "./source";
 import type { ClientReport, ReportQuery, StaffReport } from "./types";
 
@@ -15,12 +16,12 @@ export async function loadStaffReport(query: ReportQuery, now = Date.now()): Pro
   const source = await selectReportSource();
   const key = `${source.id}:${channelRegistryEnabled() ? "registry" : "base"}:${JSON.stringify(query)}`;
   const hit = cache.get(key);
-  if (hit && now - hit.at < REPORT_MOTION.cacheMs) return hit.report;
+  if (hit && now - hit.at < REPORT_MOTION.cacheMs) return withUserAnnotations(hit.report, listChartAnnotations(), reportsP1Enabled());
   let report = await source.load(query);
   report.sourceId = source.id;
   if (channelRegistryEnabled()) report = overlayStaffReport(report);
   cache.set(key, { at: now, report });
-  return report;
+  return withUserAnnotations(report, listChartAnnotations(), reportsP1Enabled());
 }
 
 export function reportForRequester(staff: StaffReport, input: { seesCost: boolean; view: "staff" | "client" }): StaffReport | ClientReport {

@@ -2,8 +2,9 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { stripForAudience } from "@/lib/marketing/channels/cost-strip";
-import { clientShareCsv, reopenClientReport } from "@/lib/marketing/client-view";
-import { reportsV2Enabled } from "@/lib/marketing/config";
+import { clientShareCsv } from "@/lib/marketing/client-view";
+import { reportsP1Enabled, reportsV2Enabled } from "@/lib/marketing/config";
+import { materializeShare } from "@/lib/marketing/reports/p1/share";
 import { buildReportPdf } from "@/lib/marketing/reports/pdf";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
@@ -48,7 +49,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   });
   if (reportsV2Enabled() && link.snapshot) {
     try {
-      const report = reopenClientReport(link.snapshot);
+      const report = await materializeShare(link.snapshot, reportsP1Enabled());
       if (isExport) {
         const pdf = buildReportPdf(report);
         return shareResponse(new NextResponse(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": "attachment; filename=\"report.pdf\"" } }));

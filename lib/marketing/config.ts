@@ -396,6 +396,16 @@ export function reportsV2Enabled(env: Env = process.env) {
   return flagOn(env, "JARVIS_REPORTS_V2");
 }
 
+/** Off unless REPORTS_P1 is explicitly on. Reports v2 stays as it is. */
+export function reportsP1Enabled(env: Env = process.env) {
+  return flagOn(env, "REPORTS_P1");
+}
+
+/** Off unless AUDIENCE_DATA_P1 is explicitly on. Segment engine and Audience Data v1 stay as they are. */
+export function audienceDataP1Enabled(env: Env = process.env) {
+  return flagOn(env, "AUDIENCE_DATA_P1");
+}
+
 export function amBudgetCapUsd(env: Env = process.env) {
   const parsed = Number(env.MARKETING_AM_BUDGET_CAP_USD ?? 500);
   if (!Number.isFinite(parsed) || parsed < 0) return 500;
