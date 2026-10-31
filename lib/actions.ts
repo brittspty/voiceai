@@ -17,6 +17,7 @@ import { appUrl } from "./env";
 import { sendInviteEmail } from "./mail";
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "./db";
+import { unknownTimezoneGate } from "./ais2l/hours";
 import { gateContextForContact } from "./dialer";
 import { evaluateGates } from "./gates";
 import { enqueue } from "./queue";
@@ -39,7 +40,8 @@ export async function preflightCall(input: { contactId?: string; phone?: string;
   assertWrite(user.role);
   if (input.contactId) {
     const ctx = await gateContextForContact(input.contactId);
-    return evaluateGates(ctx.gate);
+    const gate = evaluateGates(ctx.gate);
+    return ctx.queueInstead ? unknownTimezoneGate(gate) : gate;
   }
   const phone = normalizePhone(input.phone || "");
   const { policy } = await (await import("./policy")).getPublishedPolicy();

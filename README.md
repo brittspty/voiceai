@@ -63,7 +63,10 @@ See `.env.example`. Secrets are only read from the environment. Do not commit `.
 | --- | --- |
 | `DATABASE_URL`, `REDIS_URL` | Postgres and Redis |
 | `SESSION_SECRET` | Signs the session cookie |
-| `INTEGRATIONS_MODE` | `mock` (default) or `live` |
+| `INTEGRATIONS_MODE` | `mock` (default) or `live`. AIS2L compliance does not change this. |
+| `AIS2L_COMPLIANCE_V2` | `off` (default) or `on`. Opt-out, one voicemail, 9 AM–8 PM local hours, opener, and human handoff. Voice stays in mock until `INTEGRATIONS_MODE=live`. |
+| `AIS2L_SILENCE_HANGUP_SEC` | Silence hangup while compliance v2 is on. Clamped to 10–15 seconds. Default 12. |
+| `AIS2L_CALL_REASON` | Reason said first on a compliance v2 call. Default: you asked for a short introduction. |
 | `APP_URL` | Public origin, used in webhook instructions |
 | `GHL_API_KEY`, `GHL_LOCATION_ID`, `GHL_WEBHOOK_SECRET` | GoHighLevel |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_AGENT_PHONE_NUMBER_ID`, `ELEVENLABS_WEBHOOK_SECRET` | ElevenLabs outbound calls |
