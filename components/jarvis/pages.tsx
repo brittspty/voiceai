@@ -10,7 +10,7 @@ import { Crumbs, End, Tile } from "./bits";
 
 const end = { productName: PRODUCT_NAME, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
 
-export function ClientHome() {
+export function ClientHome({ channels = null }: { channels?: { href?: string; label: string; leads: string; qualified: string; booked: string }[] | null } = {}) {
   return (
     <main>
       <div className="top">
@@ -32,10 +32,21 @@ export function ClientHome() {
           <table>
             <thead><tr><th>Source</th><th>Leads</th><th>Qualified</th><th>Booked</th></tr></thead>
             <tbody>
-              <tr><td><Link href="/c/harbor/facebook">Facebook & Instagram ads</Link></td><td>72</td><td>22</td><td>9</td></tr>
-              <tr><td><Link href="/c/harbor/google">Google search ads</Link></td><td>51</td><td>17</td><td>8</td></tr>
-              <tr><td>Google Maps listing</td><td>19</td><td>7</td><td>3</td></tr>
-              <tr><td>Display ads</td><td>8</td><td>2</td><td>1</td></tr>
+              {channels ? channels.map((row) => (
+                <tr key={row.label}>
+                  <td>{row.href ? <Link href={row.href}>{row.label}</Link> : row.label}</td>
+                  <td>{row.leads}</td>
+                  <td>{row.qualified}</td>
+                  <td>{row.booked}</td>
+                </tr>
+              )) : (
+                <>
+                  <tr><td><Link href="/c/harbor/facebook">Facebook & Instagram ads</Link></td><td>72</td><td>22</td><td>9</td></tr>
+                  <tr><td><Link href="/c/harbor/google">Google search ads</Link></td><td>51</td><td>17</td><td>8</td></tr>
+                  <tr><td>Google Maps listing</td><td>19</td><td>7</td><td>3</td></tr>
+                  <tr><td>Display ads</td><td>8</td><td>2</td><td>1</td></tr>
+                </>
+              )}
             </tbody>
           </table>
           <p className="sub">Counted once per person. Last non-direct touch, 7-day click / 1-day view.</p>

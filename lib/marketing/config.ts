@@ -313,6 +313,11 @@ export function jarvisUiV2Enabled(env: Env = process.env) {
   return flagOn(env, "JARVIS_UI_V2");
 }
 
+/** Off unless CHANNEL_REGISTRY is explicitly on. Existing channel screens stay as they are. */
+export function channelRegistryEnabled(env: Env = process.env) {
+  return flagOn(env, "CHANNEL_REGISTRY");
+}
+
 /** Off unless AUDIENCE_LIBRARY is explicitly on. MAID import, dry-run sync, and pixel tracking. */
 export function audienceLibraryEnabled(env: Env = process.env) {
   return flagOn(env, "AUDIENCE_LIBRARY");

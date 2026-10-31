@@ -21,15 +21,19 @@ export function jarvisNav(input: {
   showLive: boolean;
   showSegments?: boolean;
   showAudiences?: boolean;
+  channelLinks?: NavItem[] | null;
 }): NavItem[] {
   const decisions: NavItem = { href: "/decisions", label: "Decisions", group: "Overview", count: input.decisionCount };
   if (input.audience === "client") {
     const items: NavItem[] = [
       { href: "/", label: "Home", group: "Overview" },
       decisions,
+    ];
+    if (input.channelLinks?.length) items.push(...input.channelLinks);
+    items.push(
       { href: "/leads", label: "Leads", group: "Results" },
       { href: "/sites/landing-pages", label: "Landing pages", group: "Results" },
-    ];
+    );
     if (input.showAis2l) items.push({ href: "/ais2l", label: "AIS2L", group: "Results" });
     if (input.showSegments) items.push({ href: "/marketing/segments", label: "Segments", group: "Results" });
     items.push({ href: "/reports", label: "Reports", group: "Results" });
@@ -41,11 +45,16 @@ export function jarvisNav(input: {
     decisions,
   ];
   if (input.showLive) items.push({ href: "/live", label: "Live", group: "Overview" });
+  if (input.channelLinks?.length) items.push(...input.channelLinks);
+  else {
+    items.push(
+      { href: "/c/all/meta", label: "Meta", group: "Channels" },
+      { href: "/c/all/google-ads", label: "Google Ads", group: "Channels" },
+      { href: "/c/all/stackadapt", label: "StackAdapt", group: "Channels" },
+      { href: "/c/all/google-business-profile", label: "Google Business Profile", group: "Channels" },
+    );
+  }
   items.push(
-    { href: "/c/all/meta", label: "Meta", group: "Channels" },
-    { href: "/c/all/google-ads", label: "Google Ads", group: "Channels" },
-    { href: "/c/all/stackadapt", label: "StackAdapt", group: "Channels" },
-    { href: "/c/all/google-business-profile", label: "Google Business Profile", group: "Channels" },
     { href: "/sites/landing-pages", label: "Landing pages", group: "Conversion" },
     { href: "/leads", label: "Leads & pipeline", group: "Conversion" },
   );
