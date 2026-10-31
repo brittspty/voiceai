@@ -22,7 +22,7 @@ import { assignmentCounts, assignArm } from "./segments/assign";
 import { applySegmentAnswer, canUndoDecision, logBudgetFollowUp, SEGMENT_UNDO_MS } from "./segments/decisions";
 import { nextDrill } from "./segments/drill";
 import { exampleBoard, exampleControl, exampleDrill, exampleLineage, exampleProvenance } from "./segments/example";
-import { presentBoard } from "./segments/present";
+import { lineageNote, presentBoard, testResultHeadline } from "./segments/present";
 import { leadQualityScore } from "./segments/quality";
 import { newSubSegmentAction, recommendLists } from "./segments/recommend";
 import { SEGMENT_ENGINE_V1, resolveSegmentSettings } from "./segments/settings";
@@ -422,6 +422,12 @@ test("client segment views hide costs, vendors, and match rates", () => {
   assert.equal(/Benchmark/.test(screen), false);
   assert.equal(/[Ee]xclusion badge/.test(screen), false);
   assert.match(screen, /Audience source/);
+  const clientHeadline = testResultHeadline({ staff: false, ready: true, vendor: "Allsource", listId: "implant-55-tampa" });
+  const clientLineage = lineageNote({ staff: false, listId: "implant-55-tampa", vendor: "Allsource" });
+  assert.equal(clientHeadline.includes("Allsource"), false);
+  assert.equal(clientLineage.includes("Allsource"), false);
+  assert.equal(clientLineage.includes("match rate"), false);
+  assert.match(testResultHeadline({ staff: true, ready: true, vendor: "Allsource", listId: "implant-55-tampa" }), /Allsource/);
 });
 
 test("client board text has no cost terms and stores scope by workspace", () => {

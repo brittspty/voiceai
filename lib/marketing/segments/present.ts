@@ -220,6 +220,17 @@ function hideFromClient(row: BoardRow, vendors: string[]): BoardRow {
   return next;
 }
 
+export function testResultHeadline(input: { staff: boolean; ready: boolean; vendor: string; listId: string }) {
+  if (!input.ready) return "Still learning. No winner yet.";
+  if (!input.staff) return "This list is ahead.";
+  return `${input.vendor} list ${input.listId} is ahead.`;
+}
+
+export function lineageNote(input: { staff: boolean; listId: string; vendor: string }) {
+  if (!input.staff) return "Based on: verified-human conversions on this list.";
+  return `Based on: MAID list ${input.listId} from ${input.vendor}. Verified-human conversions only.`;
+}
+
 export function segmentAudience(access: { kind: string; seesCost: boolean }): AudienceMode {
   if (access.kind === "client_viewer" || access.kind === "client_owner" || !access.seesCost) return "client";
   return "staff";

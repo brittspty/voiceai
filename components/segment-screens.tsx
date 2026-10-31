@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { DRILL_LEVELS } from "@/lib/marketing/audience-source";
 import type { exampleControl, exampleDrill, exampleLineage } from "@/lib/marketing/segments/example";
-import { TOOLTIPS, type BoardRow } from "@/lib/marketing/segments/present";
+import { TOOLTIPS, lineageNote, testResultHeadline, type BoardRow } from "@/lib/marketing/segments/present";
 import { answerSegmentDecision } from "@/lib/marketing/segments/actions";
 
 type Board = ReturnType<typeof import("@/lib/marketing/segments/example").exampleBoard>;
@@ -135,7 +135,7 @@ export function SegmentLineageView({ nodes, staff }: { nodes: ReturnType<typeof 
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm text-muted">Lineage · vendor and list id travel with every MAID row</p>
+          <p className="text-sm text-muted">{staff ? "Lineage · vendor and list id travel with every MAID row" : "Lineage"}</p>
           <h1 className="text-2xl font-semibold tracking-tight">Where the verified conversions came from</h1>
         </div>
         <ExampleBadge />
@@ -154,7 +154,7 @@ export function SegmentLineageView({ nodes, staff }: { nodes: ReturnType<typeof 
           </article>
         ))}
       </div>
-      <p className="mt-4 text-sm">Based on: MAID list {nodes[0]?.listId} from {nodes[0]?.vendor}. Verified conversions only.</p>
+      <p className="mt-4 text-sm">{lineageNote({ staff, listId: nodes[0]?.listId ?? "", vendor: nodes[0]?.vendor ?? "" })}</p>
     </div>
   );
 }
@@ -204,7 +204,7 @@ export function SegmentTestView({ test, staff }: { test: ReturnType<typeof examp
         <div>
           <p className="text-sm text-muted">Head-to-head · control is the {test.kind === "current_best" ? "current best list" : "chosen baseline list"}</p>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {ready && winner ? `${winner.arm.vendor} list ${winner.arm.listId} is ahead.` : "Still learning. No winner yet."}
+            {testResultHeadline({ staff, ready, vendor: winner?.arm.vendor ?? "", listId: winner?.arm.listId ?? "" })}
           </h1>
         </div>
         <div className="flex items-center gap-2"><ExampleBadge /><span className="rounded border border-line px-2 py-1 text-xs font-semibold">{test.judgment.label.toUpperCase()}</span></div>
@@ -222,7 +222,7 @@ export function SegmentTestView({ test, staff }: { test: ReturnType<typeof examp
           <thead>
             <tr className="border-b border-ink text-left text-[11px] uppercase text-muted">
               <th className="py-2">List</th>
-              <th>Verified conversions <Tip label="Sample" text={TOOLTIPS.sample} /></th>
+              <th>Verified-human conversions <Tip label="Sample" text={TOOLTIPS.sample} /></th>
               <th>Conv. rate <Tip label="Conv. rate" text={TOOLTIPS.conversionRate} /></th>
               <th>Chance to be best <Tip label="Confidence" text={TOOLTIPS.confidence} /></th>
             </tr>
@@ -231,7 +231,7 @@ export function SegmentTestView({ test, staff }: { test: ReturnType<typeof examp
             {test.arms.map((arm) => (
               <tr key={arm.key} className="border-b border-line">
                 <td className="py-3">{staff ? <b>{arm.arm.vendor}</b> : null} list {arm.arm.listId}{arm.arm.subSegmentKey ? ` · ${arm.arm.subSegmentKey}` : ""} <span className="text-muted">({arm.arm.role})</span></td>
-                <td>{arm.successes} of {test.judgment.requiredConversions}</td>
+                <td>{arm.successes} of {test.judgment.requiredConversions} verified-human conversions</td>
                 <td>{((arm.successes / arm.trials) * 100).toFixed(1)}%</td>
                 <td>{ready ? `${Math.round((test.judgment.probabilities[arm.key] ?? 0) * 100)}%` : "Hidden until the minimum is met"}</td>
               </tr>
@@ -239,7 +239,7 @@ export function SegmentTestView({ test, staff }: { test: ReturnType<typeof examp
           </tbody>
         </table>
       </div>
-      <p className="mt-3 text-sm">{ready ? "Both the 95% bar and the two-proportion check were met, after 100 verified conversions and 7 days." : "No winner until each list has the minimum verified conversions, the test has run 7 days, the chance to be best is at least 95%, and the two-proportion p-value is under 0.05."}</p>
+      <p className="mt-3 text-sm">{ready ? "Both the 95% bar and the two-proportion check were met, after 100 verified-human conversions and 7 days." : "No winner until each list has 100 verified-human conversions, the test has run 7 days, the chance to be best is at least 95%, and the two-proportion p-value is under 0.05."}</p>
       <p className="mt-2 text-xs text-muted">Based on: MAID lists compared with each other. The control is the current best list, or a baseline list a person chose.</p>
     </div>
   );
