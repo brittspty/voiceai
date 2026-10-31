@@ -1,3 +1,4 @@
+import { demoViewerGate } from "./demo/isolation";
 import { clientViewerBlock } from "./marketing/client-gate";
 
 /**
@@ -64,6 +65,16 @@ export function isDemoPath(pathname: string) {
   return path === "/demo" || path.startsWith("/demo/");
 }
 
+export function isDemoApiPath(pathname: string) {
+  const path = normalizePath(pathname);
+  return path === "/api/demo" || path.startsWith("/api/demo/");
+}
+
+export function isPlanPath(pathname: string) {
+  const path = normalizePath(pathname);
+  return path === "/plan" || path.startsWith("/plan/");
+}
+
 export function isHomepageContactPath(pathname: string) {
   return normalizePath(pathname) === "/api/homepage/contact";
 }
@@ -76,7 +87,8 @@ export function isPublicPath(pathname: string, env: Env) {
   if (isLegacyPublic(pathname)) return true;
   if (publicHomepageEnabled(env) && normalizePath(pathname) === "/") return true;
   if (publicHomepageEnabled(env) && isHomepageContactPath(pathname)) return true;
-  if (demoWorkspaceEnabled(env) && isDemoPath(pathname)) return true;
+  if (demoWorkspaceEnabled(env) && (isDemoPath(pathname) || isDemoApiPath(pathname))) return true;
+  if (isPlanPath(pathname)) return true;
   return false;
 }
 
@@ -85,6 +97,7 @@ export function appHomePath(env: Env = process.env) {
 }
 
 export function postLoginPath(role: string | null | undefined, env: Env = process.env) {
+  if (role === "demo_viewer") return "/demo";
   if (role === "client_viewer") return CLIENT_VIEW_PATH;
   if (!publicHomepageEnabled(env)) return "/";
   if (role === "super_admin" || role === "account_manager") return STAFF_VIEW_PATH;
@@ -128,6 +141,11 @@ export function gateDecision(input: {
   if (!signedIn && !isPublicPath(input.pathname, env)) {
     if (input.pathname.startsWith("/api/")) return { action: "json", status: 401, error: "Sign in required" };
     return { action: "redirect", pathname: "/login", next: input.pathname };
+  }
+
+  if (signedIn && role === "demo_viewer" && demoViewerGate(input.pathname) === "demo") {
+    if (input.pathname.startsWith("/api/")) return { action: "json", status: 403, error: "Not allowed" };
+    return { action: "redirect", pathname: "/demo", clearSearch: true };
   }
 
   if (signedIn && role === "client_viewer") {

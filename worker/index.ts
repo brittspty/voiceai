@@ -1,11 +1,19 @@
 import { prisma } from "../lib/db";
+import { demoWorkspaceEnabled } from "../lib/demo/flags";
+import { reseedDue } from "../lib/demo/reseed";
+import { applyDemoDataset } from "../lib/demo/seed-apply";
 import { runJob } from "../lib/dialer";
-import { creativeFatigueEnabled, digestEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, speedToLeadEnabled } from "../lib/marketing/config";
+import { adFatigueEnabled, amRealtimeEnabled, creativeFatigueEnabled, digestEnabled, googleBusinessProfileEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, skillApprovalFanoutEnabled, speedToLeadEnabled, stackAdaptEnabled } from "../lib/marketing/config";
+import { runAdFatigue } from "../lib/marketing/ad-fatigue-job";
+import { runAmRealtimeFeed } from "../lib/marketing/feed-job";
+import { ensureSkillOfferInbox } from "../lib/marketing/skill-approval-job";
 import { runCreativeFatigue } from "../lib/marketing/fatigue-job";
+import { runGoogleBusinessProfile } from "../lib/marketing/gbp-sync";
 import { runPacingRecs } from "../lib/marketing/pacing-job";
 import { runStoredOfflineCycle } from "../lib/marketing/offline/persist";
 import { runPageMonitor } from "../lib/marketing/pages/store";
 import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
+import { runStackAdaptSync } from "../lib/marketing/stackadapt-sync";
 import { runGoogleAdsSync } from "../lib/marketing/google-sync";
 import { runSpeedToLeadSweep } from "../lib/marketing/speed-to-lead-store";
 import { errorText } from "../lib/marketing/speed-to-lead";
@@ -73,6 +81,28 @@ function startOfflineConversions() {
   return () => clearInterval(timer);
 }
 
+function startDemoReseed() {
+  if (!demoWorkspaceEnabled()) return () => {};
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const last = await prisma.demoReseed.findUnique({ where: { id: "demo" } });
+      if (!reseedDue(last?.finishedAt ?? null, new Date())) return;
+      const result = await applyDemoDataset(prisma);
+      console.log(`[worker] demo reseed rows ${result.rows}`);
+    } catch (error) {
+      console.error("[worker] demo reseed failed", error);
+    } finally {
+      running = false;
+    }
+  };
+  void tick();
+  const timer = setInterval(() => void tick(), 60 * 60 * 1000);
+  return () => clearInterval(timer);
+}
+
 function startMarketingSync() {
   let running = false;
   const tick = async () => {
@@ -103,6 +133,30 @@ function startMarketingSync() {
         const pacing = await runPacingRecs();
         if (pacing.status === "ran") console.log(`[worker] pacing snapshots ${pacing.snapshots}`);
       }
+      try {
+        if (adFatigueEnabled()) {
+          const fatigue = await runAdFatigue();
+          if (fatigue.status === "ran") console.log(`[worker] ad fatigue checks ${fatigue.checks}`);
+        }
+      } catch (error) {
+        console.error("[worker] ad fatigue failed", error);
+      }
+      try {
+        if (stackAdaptEnabled()) {
+          const stackadapt = await runStackAdaptSync();
+          if (stackadapt.status !== "skipped") console.log(`[worker] stackadapt ${stackadapt.status}`);
+        }
+      } catch (error) {
+        console.error("[worker] stackadapt failed", error);
+      }
+      try {
+        if (googleBusinessProfileEnabled()) {
+          const profile = await runGoogleBusinessProfile();
+          if (profile.status !== "skipped") console.log(`[worker] business profile ${profile.status}`);
+        }
+      } catch (error) {
+        console.error("[worker] business profile failed", error);
+      }
     } catch (error) {
       console.error("[worker] marketing sync failed", error);
     } finally {
@@ -123,16 +177,35 @@ function startMarketingSync() {
         void runStoredDigests().catch((error) => console.error("[worker] marketing digest failed", error));
       }, 60 * 60 * 1000)
     : null;
+  const feedTimer = amRealtimeEnabled()
+    ? setInterval(() => {
+        void runAmRealtimeFeed().catch((error) => console.error("[worker] account manager feed failed", error));
+      }, 30_000)
+    : null;
+  if (amRealtimeEnabled()) {
+    void runAmRealtimeFeed().catch((error) => console.error("[worker] account manager feed failed", error));
+  }
+  const skillTimer = skillApprovalFanoutEnabled()
+    ? setInterval(() => {
+        void ensureSkillOfferInbox().catch((error) => console.error("[worker] skill offer failed", error));
+      }, 60 * 60 * 1000)
+    : null;
+  if (skillApprovalFanoutEnabled()) {
+    void ensureSkillOfferInbox().catch((error) => console.error("[worker] skill offer failed", error));
+  }
   return () => {
     clearInterval(timer);
     clearInterval(pageTimer);
     if (digestTimer) clearInterval(digestTimer);
+    if (feedTimer) clearInterval(feedTimer);
+    if (skillTimer) clearInterval(skillTimer);
   };
 }
 
 async function main() {
   console.log("[worker] voice operations dialer started");
   const stopMarketing = startMarketingSync();
+  const stopDemo = startDemoReseed();
   const stopSpeed = startSpeedToLead();
   const stopConversions = startOfflineConversions();
   const redis = createRedis();
@@ -164,6 +237,7 @@ async function main() {
     }
   }
   stopMarketing();
+  stopDemo();
   stopSpeed();
   stopConversions();
   redis.disconnect();

@@ -13,10 +13,9 @@ export const brandTokens = {
     alt: "Specificity Inc",
   },
   font: {
-    /** Placeholder until official fonts are confirmed. */
     family: "Poppins",
     stack: "var(--font-brand), \"Segoe UI\", Arial, Helvetica, sans-serif",
-    /** Data and the homepage feed. Headings stay on Poppins. */
+    /** Small labels, tags, table heads, and the homepage feed. Headings stay on Poppins. */
     mono: "IBM Plex Mono",
     monoStack: "var(--font-plex-mono), \"IBM Plex Mono\", ui-monospace, monospace",
   },
@@ -29,7 +28,7 @@ export const brandTokens = {
     sidebar: "#FFFFFF",
     hover: "#F7F7F7",
     chip: "#F7F7F7",
-    /** Placeholder orange until the official hex is confirmed. */
+    /** Official Specificity orange. Text on this fill is ink, never white. */
     brand: "#FF5800",
     onBrand: "#231F20",
     onInk: "#ffffff",

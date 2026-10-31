@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AIS2L_NAME } from "@/lib/brand/names";
 import { formatCount, formatMoney, homeKpiTotals, type HomeModel } from "@/lib/marketing/home-dashboard";
 
 function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -72,7 +73,7 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
                 <th scope="col" className="border-b border-line px-2 py-2 font-medium">Leads</th>
                 <th scope="col" className="border-b border-line px-2 py-2 font-medium">Calls</th>
                 {model.showMoney && <th scope="col" className="border-b border-line px-2 py-2 font-medium">Spend</th>}
-                <th scope="col" className="border-b border-line px-2 py-2 font-medium">Voice</th>
+                <th scope="col" className="border-b border-line px-2 py-2 font-medium">{AIS2L_NAME}</th>
               </tr>
             </thead>
             <tbody>
@@ -106,7 +107,7 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
                 {formatCount(client.leads)} leads · {formatCount(client.calls)} calls
                 {model.showMoney ? ` · ${formatMoney(client.spend ?? 0)}` : ""}
               </span>
-              <span className="mt-1 block text-xs text-muted">{client.voiceEnabled ? "Voice add-on on" : "Voice not included"}</span>
+              <span className="mt-1 block text-xs text-muted">{client.voiceEnabled ? `${AIS2L_NAME} on` : `${AIS2L_NAME} not included`}</span>
             </Link>
           ))}
         </div>
@@ -127,7 +128,7 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
 
       {model.voice && (
         <section className="rounded-[14px] border border-line bg-card p-4">
-          <h2 className="text-base font-semibold">Voice</h2>
+          <h2 className="text-base font-semibold">{AIS2L_NAME}</h2>
           <p className="mt-1 text-sm text-muted">
             A separate add-on for {model.voice.clients.join(", ")}. It is not part of the ad totals above.
           </p>

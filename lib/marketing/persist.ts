@@ -11,7 +11,10 @@ import {
   recommendationMinImpressions,
   verticalBenchmarks,
 } from "./config";
-import { buildManagerDigest } from "./digest";
+import { listWaitingFatigueDecisions } from "./channels/query";
+import { buildManagerDigest, fatigueChoice, type DigestDecision } from "./digest";
+import { dispatchDigestDelivery } from "./digest-send";
+import { WORKSPACE_ID } from "./types";
 import { leadQualityDigestNote } from "./lead-score/summary";
 import { waitingForMarkCount } from "./lead-score/store";
 import { evaluateAds, type HourPoint, type HumanBudget, type MetricPoint } from "./monitor";
@@ -151,11 +154,39 @@ export async function runStoredMonitor(now = new Date()) {
   return { status: "ran" as const, alerts: evaluated.alerts.length, drafts: evaluated.drafts.length };
 }
 
+function evidenceReasons(evidence: unknown) {
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return [] as string[];
+  const reasons = (evidence as { reasons?: unknown }).reasons;
+  return Array.isArray(reasons) ? reasons.filter((reason): reason is string => typeof reason === "string") : [];
+}
+
+function evidenceSeverity(evidence: unknown) {
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return "";
+  const severity = (evidence as { severity?: unknown }).severity;
+  return typeof severity === "string" ? severity : "";
+}
+
 export async function runStoredDigests(now = new Date()) {
   if (!digestEnabled()) return { status: "skipped" as const };
   const periodStart = new Date(now.getTime() - 60 * 60 * 1000);
   const speed = speedToLeadEnabled() ? await speedDigestItems(periodStart) : { alerts: [], recommendations: [] };
-  const [managers, alerts, recommendations] = await Promise.all([
+  const inboxFatigue = await listWaitingFatigueDecisions(WORKSPACE_ID, periodStart)
+    .then((rows) =>
+      rows.flatMap((row): DigestDecision[] => {
+        if ((row.kind !== "fatigue_pause" && row.kind !== "fatigue_rotation") || !row.assigneeId) return [];
+        return [{
+          id: row.id,
+          title: row.title,
+          summary: row.reasoning,
+          accountId: row.adAccountId || "",
+          prompt: row.kind === "fatigue_pause" ? "pause" : "rotate",
+          reason: row.reasoning,
+          assigneeId: row.assigneeId,
+        }];
+      }),
+    )
+    .catch(() => [] as DigestDecision[]);
+  const [managers, alerts, recommendations, pendingFatigue, org] = await Promise.all([
     prisma.user.findMany({ where: { role: "account_manager" }, include: { marketingScopes: true } }),
     prisma.adAlert.findMany({ where: { createdAt: { gte: periodStart } } }),
     prisma.recommendation.findMany({
@@ -165,26 +196,50 @@ export async function runStoredDigests(now = new Date()) {
         ...(speedToLeadEnabled() ? { type: { not: "speed_to_lead" as const } } : {}),
       },
     }),
+    prisma.recommendation.findMany({
+      where: { type: "creative_fatigue", status: "verified", decidedAt: null },
+    }),
+    prisma.org.findUnique({ where: { id: "org" }, select: { testMode: true } }),
   ]);
+  const testMode = org?.testMode !== false;
+  const decisions: DigestDecision[] = [
+    ...pendingFatigue.map((rec) => {
+      const choice = fatigueChoice({ reasons: evidenceReasons(rec.evidence), severity: evidenceSeverity(rec.evidence), metric: rec.metric });
+      return {
+        id: rec.id,
+        title: rec.title,
+        summary: rec.summary,
+        accountId: rec.adAccountId || "",
+        campaignId: rec.campaignId || "",
+        workspaceId: rec.workspaceId,
+        prompt: choice.prompt,
+        reason: choice.reason,
+      };
+    }),
+    ...inboxFatigue,
+  ];
   let written = 0;
   for (const manager of managers) {
-    const access = accessFromUser(manager, manager.marketingScopes.map((row) => ({
+    const assignments = manager.marketingScopes.map((row) => ({
       workspaceId: row.workspaceId,
       scopeKind: row.scopeKind,
       adAccountId: row.adAccountId,
       campaignId: row.campaignId,
-    })));
+    }));
+    const access = accessFromUser(manager, assignments);
     const draft = buildManagerDigest({
       userId: manager.id,
       accountIds: access.accounts,
+      assignments,
       periodStart,
       periodEnd: now,
-      alerts: [...alerts.map((alert) => ({ id: alert.id, title: alert.title, summary: alert.summary, accountId: alert.adAccountId })), ...speed.alerts],
-      recommendations: [...recommendations.map((rec) => ({ id: rec.id, title: rec.title, summary: rec.summary, accountId: rec.adAccountId || "" })), ...speed.recommendations],
+      alerts: [...alerts.map((alert) => ({ id: alert.id, title: alert.title, summary: alert.summary, accountId: alert.adAccountId, campaignId: alert.campaignId, workspaceId: alert.workspaceId })), ...speed.alerts],
+      recommendations: [...recommendations.filter((rec) => rec.type !== "creative_fatigue").map((rec) => ({ id: rec.id, title: rec.title, summary: rec.summary, accountId: rec.adAccountId || "", campaignId: rec.campaignId || "", workspaceId: rec.workspaceId })), ...speed.recommendations],
+      decisions,
       notes: leadScoringEnabled() && access.workspaceId ? [leadQualityDigestNote(await waitingForMarkCount(access.workspaceId))].filter((note): note is string => Boolean(note)) : [],
     });
     if (!draft) continue;
-    await prisma.managerDigest.create({
+    const saved = await prisma.managerDigest.create({
       data: {
         userId: draft.userId,
         periodStart: draft.periodStart,
@@ -193,9 +248,19 @@ export async function runStoredDigests(now = new Date()) {
         delivery: draft.delivery,
       },
     });
+    if (draft.delivery === "queued") {
+      await dispatchDigestDelivery({
+        digestId: saved.id,
+        userId: manager.id,
+        email: manager.email,
+        name: manager.name,
+        payload: draft.payload,
+        testMode,
+      });
+    }
     written += 1;
   }
-  if (speed.alerts.length || speed.recommendations.length) {
+  if (speed.alerts.length || speed.recommendations.length || inboxFatigue.length) {
     const admins = await prisma.user.findMany({ where: { role: "super_admin" } });
     for (const admin of admins) {
       if (managers.some((manager) => manager.id === admin.id)) continue;
@@ -204,11 +269,13 @@ export async function runStoredDigests(now = new Date()) {
         accountIds: [],
         alerts: speed.alerts,
         recommendations: speed.recommendations,
+        decisions: inboxFatigue,
+        seesAllDecisions: true,
         periodStart,
         periodEnd: now,
       });
       if (!draft) continue;
-      await prisma.managerDigest.create({
+      const saved = await prisma.managerDigest.create({
         data: {
           userId: draft.userId,
           periodStart: draft.periodStart,
@@ -217,6 +284,16 @@ export async function runStoredDigests(now = new Date()) {
           delivery: draft.delivery,
         },
       });
+      if (draft.delivery === "queued") {
+        await dispatchDigestDelivery({
+          digestId: saved.id,
+          userId: admin.id,
+          email: admin.email,
+          name: admin.name,
+          payload: draft.payload,
+          testMode,
+        });
+      }
       written += 1;
     }
   }

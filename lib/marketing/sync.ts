@@ -1,3 +1,4 @@
+import { demoForcesMock } from "../demo/outbound";
 import { addDaysISO, zonedISODate } from "../time";
 import { applySnapshot } from "./apply";
 import {
@@ -74,6 +75,7 @@ export async function runMarketingSync(options: {
   fetchImpl?: FetchLike;
   snapshot?: NormalizedSnapshot;
 } = {}): Promise<SyncResult> {
+  if (demoForcesMock()) return { status: "skipped", reason: "demo workspace does not sync" };
   const env = options.env ?? process.env;
   const decision = decideSync(env);
   if (decision.action === "skip") return { status: "skipped", reason: decision.reason };
