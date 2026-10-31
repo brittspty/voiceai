@@ -109,6 +109,41 @@ export function digestDeliveryEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_DIGEST_DELIVERY");
 }
 
+/** Off unless MARKETING_DIGEST and MARKETING_DIGEST_SEND are both on. This is the send switch. */
+export function digestSendEnabled(env: Env = process.env) {
+  return digestEnabled(env) && flagOn(env, "MARKETING_DIGEST_SEND");
+}
+
+/** Off unless AM_REALTIME_FEED is explicitly on. */
+export function amRealtimeEnabled(env: Env = process.env) {
+  return flagOn(env, "AM_REALTIME_FEED");
+}
+
+/** Off unless MARKETING_SKILL_APPROVAL is explicitly on. Fans a skill offer out to every super admin. */
+export function skillApprovalFanoutEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_SKILL_APPROVAL");
+}
+
+/** Off unless MARKETING_ROLE_ADMIN is explicitly on. */
+export function roleAdminEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_ROLE_ADMIN");
+}
+
+export function inboxEnabled(env: Env = process.env) {
+  return digestSendEnabled(env) || amRealtimeEnabled(env) || skillApprovalFanoutEnabled(env);
+}
+
+/**
+ * Cost visibility for all_clients_viewer.
+ * Unset follows an account manager (costs are visible).
+ * MARKETING_STAFF_SEES_COST=off hides them.
+ */
+export function staffSeesCost(env: Env = process.env) {
+  const raw = (env.MARKETING_STAFF_SEES_COST ?? "").trim().toLowerCase();
+  if (raw === "off" || raw === "false" || raw === "0" || raw === "no" || raw === "hidden") return false;
+  return true;
+}
+
 /** Off unless MARKETING_CLIENT_LINKS is explicitly on. */
 export function clientLinksEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_CLIENT_LINKS");

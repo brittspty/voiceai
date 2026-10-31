@@ -184,11 +184,11 @@ export function recommendationWhere(seesCost: boolean): Prisma.RecommendationWhe
   };
 }
 
-export function isCostContent(input: { type?: string | null; code?: string | null; metric?: string | null; title?: string | null; summary?: string | null; rationale?: string | null }) {
+export function isCostContent(input: { type?: string | null; code?: string | null; metric?: string | null; title?: string | null; summary?: string | null; rationale?: string | null; reason?: string | null }) {
   if (input.type && (COST_REC_TYPES as readonly string[]).includes(input.type)) return true;
   if (input.code && (COST_ALERT_CODES as readonly string[]).includes(input.code)) return true;
   if (input.metric && (COST_METRICS as readonly string[]).includes(input.metric)) return true;
-  return COST_TEXT.test([input.title, input.summary, input.rationale].filter(Boolean).join(" "));
+  return COST_TEXT.test([input.title, input.summary, input.rationale, input.reason].filter(Boolean).join(" "));
 }
 
 function stripCostKeys(value: Record<string, unknown>) {
@@ -208,10 +208,10 @@ function digestWithoutCost(digest: { id: string; createdAt: string; delivery: st
   }
   const record = payload as Record<string, unknown>;
   const next: Record<string, unknown> = { ...record };
-  for (const key of ["alerts", "recommendations"] as const) {
+  for (const key of ["alerts", "recommendations", "decisions"] as const) {
     const items = record[key];
     if (!Array.isArray(items)) continue;
-    next[key] = items.filter((item) => item && typeof item === "object" && !isCostContent(item as { title?: string; summary?: string; type?: string; metric?: string }));
+    next[key] = items.filter((item) => item && typeof item === "object" && !isCostContent(item as { title?: string; summary?: string; type?: string; metric?: string; reason?: string }));
   }
   const alerts = Array.isArray(next.alerts) ? next.alerts : [];
   const recommendations = Array.isArray(next.recommendations) ? next.recommendations : [];
