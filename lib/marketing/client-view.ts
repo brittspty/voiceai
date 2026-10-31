@@ -1,4 +1,7 @@
 import { clientQualifiedKpis } from "./lead-score/summary";
+import { formatKpi } from "./reports/format";
+import { reportFooterLine } from "./reports/brand";
+import type { ClientChannel, ClientKpi, ClientReport, ReportChannel, ReportFlag, StaffReport } from "./reports/types";
 
 const FORBIDDEN_KEY = /spend|budget|cpc|cpm|cpa|roas|cost|cpl|currency|amount|revenue|leadvalue|callvalue|externalid/i;
 const FORBIDDEN_TEXT = /spend|cost|cpc|cpm|cpa|budget|roas|revenue|\$/i;
@@ -176,4 +179,188 @@ export function forbiddenClientKeys(value: unknown) {
 
 export function clientShareHasMoney(view: ClientShareView) {
   return FORBIDDEN_TEXT.test(clientShareText(view)) || FORBIDDEN_TEXT.test(clientShareCsv(view));
+}
+
+/** Contract scan for reports, PDFs, and share snapshots. */
+export const REPORT_COST_TEXT = /spend|cost|cpl|cpql|cpa|roas|budget|\$/i;
+export const REPORT_COST_KEY = /spend|budget|cpc|cpm|cpa|roas|cost|cpl|cpql|currency|amount|revenue/i;
+const STAFF_SERIES = /cpql|cpa|cpl|roas|spend|cost|budget/i;
+const MONEY_FORMAT = new Set(["currency", "multiple"]);
+
+export function forbiddenReportKeys(value: unknown) {
+  return collectKeys(value).filter((key) => REPORT_COST_KEY.test(key));
+}
+
+export function reportPayloadHasCost(value: unknown) {
+  return forbiddenReportKeys(value).length > 0 || REPORT_COST_TEXT.test(JSON.stringify(value) ?? "");
+}
+
+function cleanSentence(value: string | undefined) {
+  const text = (value || "").trim();
+  if (!text || REPORT_COST_TEXT.test(text)) return undefined;
+  return text;
+}
+
+function mustClean(value: string, fallback: string) {
+  return cleanSentence(value) || fallback;
+}
+
+function cleanFlag(flag: ReportFlag): ReportFlag | null {
+  const title = cleanSentence(flag.title);
+  const detail = cleanSentence(flag.detail);
+  if (!title || !detail) return null;
+  return { id: flag.id, kind: flag.kind, title, detail };
+}
+
+export function toClientReport(staff: StaffReport): ClientReport {
+  const series = staff.series
+    .filter((item) => !item.staffOnly && !STAFF_SERIES.test(item.id) && item.unit !== "dollars")
+    .map((item) => ({
+      id: item.id,
+      title: mustClean(item.title, "Results"),
+      unit: item.unit,
+      goal: item.goal,
+      goalLabel: cleanSentence(item.goalLabel) || "",
+      points: item.points.map((point) => {
+        const splits = point.splits.map((split) => ({ name: mustClean(split.clientName, "Channel"), value: split.value }));
+        return {
+          date: point.date,
+          label: point.label,
+          value: point.value,
+          prior: point.prior,
+          splits,
+          splitText: cleanSentence(point.clientSplitText) || "",
+        };
+      }),
+    }));
+  const kpis: ClientKpi[] = [];
+  for (const kpi of staff.clientKpis) {
+    if (kpi.staffOnly || MONEY_FORMAT.has(kpi.format) || REPORT_COST_KEY.test(kpi.id) || REPORT_COST_TEXT.test(kpi.label)) continue;
+    const format = kpi.format as ClientKpi["format"];
+    const why = cleanSentence(kpi.why);
+    kpis.push({
+      id: kpi.id,
+      label: kpi.label,
+      definition: cleanSentence(kpi.definition) || kpi.label,
+      value: kpi.value,
+      format,
+      delta: cleanSentence(kpi.delta) || "",
+      tone: kpi.tone,
+      spark: kpi.spark,
+      ...(why ? { why } : {}),
+    });
+  }
+  const flags = staff.clientFlags.map(cleanFlag).filter((flag): flag is ReportFlag => Boolean(flag));
+  const defaultSeriesId = series.some((item) => item.id === staff.clientDefaultSeriesId) ? staff.clientDefaultSeriesId : series[0]?.id || "";
+  return {
+    audience: "client",
+    sourceId: staff.sourceId,
+    exampleData: staff.exampleData,
+    updatedAt: staff.updatedAt,
+    clientId: staff.clientId,
+    clientName: mustClean(staff.clientName, "Your business"),
+    scopeLabel: mustClean(staff.scopeLabel, "Your business"),
+    headline: mustClean(staff.clientHeadline, "Your results"),
+    subhead: mustClean(staff.clientSubhead, "A person is counted once across channels."),
+    periodLabel: mustClean(staff.periodLabel, "This period"),
+    compareLabel: mustClean(staff.compareLabel, "prior period"),
+    compare: staff.compare,
+    range: staff.range,
+    attribution: mustClean(staff.clientAttribution, "A person is counted once."),
+    kpis,
+    series,
+    defaultSeriesId,
+    annotations: staff.annotations.flatMap((note) => {
+      if (!series.some((item) => item.id === note.seriesId)) return [];
+      const body = cleanSentence(note.clientBody) || cleanSentence(note.body);
+      if (!body) return [];
+      return [{ date: note.date, seriesId: note.seriesId, label: cleanSentence(note.label) || "Note", body }];
+    }),
+    channels: staff.channels.map((row) => ({
+      id: row.id,
+      name: mustClean(row.clientName, "Channel"),
+      qualified: row.qualified,
+      leads: row.leads,
+      booked: row.booked,
+      color: row.color,
+    })),
+    funnel: staff.clientFunnel.flatMap((step) => {
+      const label = cleanSentence(step.label);
+      if (!label) return [];
+      return [{ id: step.id, label, value: step.value, share: cleanSentence(step.share) || "" }];
+    }),
+    channelHeading: mustClean(staff.clientChannelHeading, "Where your leads came from"),
+    flags,
+    flagsHeading: mustClean(staff.clientFlagsHeading, "Heads up"),
+    pdf: {
+      kicker: mustClean(staff.clientPdf.kicker, "Performance report"),
+      coverSentence: mustClean(staff.clientPdf.coverSentence, "Results for this period."),
+      resultsKicker: mustClean(staff.clientPdf.resultsKicker, "01 · Results"),
+      resultsTitle: mustClean(staff.clientPdf.resultsTitle, "Results"),
+      preparer: mustClean(staff.clientPdf.preparer, "Your marketing team"),
+      annotation: cleanSentence(staff.clientPdf.annotation) || "",
+      periodName: mustClean(staff.clientPdf.periodName, "This period"),
+    },
+    footer: cleanSentence(staff.footer) || reportFooterLine(),
+  };
+}
+
+export function sealClientReport(staff: StaffReport): ClientReport {
+  const client = toClientReport(staff);
+  if (reportPayloadHasCost(client)) throw new Error("Client report includes cost fields.");
+  return client;
+}
+
+export function scrubCost(value: unknown): unknown {
+  if (typeof value === "string") return REPORT_COST_TEXT.test(value) ? "" : value;
+  if (Array.isArray(value)) return value.map(scrubCost);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (REPORT_COST_KEY.test(key)) continue;
+      out[key] = scrubCost(child);
+    }
+    return out;
+  }
+  return value;
+}
+
+export function reopenClientReport(value: unknown): ClientReport {
+  const scrubbed = scrubCost(value);
+  if (reportPayloadHasCost(scrubbed)) throw new Error("Client report includes cost fields.");
+  return scrubbed as ClientReport;
+}
+
+export function reportPdfLines(report: StaffReport | ClientReport) {
+  const kpiLines = report.kpis.flatMap((kpi) => [kpi.label, formatKpi(kpi.value, kpi.format), kpi.delta, kpi.why || ""]);
+  const channelLines = report.channels.flatMap((row) => {
+    if ("cpl" in row && report.audience === "staff") {
+      const staff = row as ReportChannel;
+      const money = staff.cpl == null ? "n/a" : `$${staff.cpl.toFixed(2)}`;
+      return [staff.staffName, String(staff.qualified), String(staff.leads), String(staff.booked), money];
+    }
+    const client = row as ClientChannel;
+    return [client.name, String(client.leads), String(client.qualified), String(client.booked)];
+  });
+  const funnelLines = report.funnel.flatMap((step) => [step.label, String(step.value), step.share]);
+  const flagLines = report.flags.flatMap((flag) => [flag.title, flag.detail]);
+  return [
+    report.footer,
+    report.exampleData ? "EXAMPLE DATA" : "",
+    report.pdf.kicker,
+    report.clientName,
+    report.headline,
+    report.subhead,
+    report.pdf.coverSentence,
+    `Prepared by ${report.pdf.preparer}`,
+    report.pdf.resultsKicker,
+    report.pdf.resultsTitle,
+    report.pdf.annotation,
+    report.attribution,
+    ...kpiLines,
+    ...channelLines,
+    ...funnelLines,
+    ...flagLines,
+    report.pdf.periodName,
+  ].filter((line) => line.trim().length > 0);
 }
