@@ -1,6 +1,7 @@
 import { LoginScreen } from "@/components/login-form";
 import { BRAND_TAGLINE, BRAND_WORDMARK, loadBrand, PRODUCT_TAGLINE } from "@/lib/brand";
 import { clientConfig } from "@/lib/client-config";
+import { appHomePath } from "@/lib/public-routing";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export default async function LoginPage() {
     <LoginScreen
       brand={{ companyName: brand.companyName, brandColor: brand.brandColor, logoUrl: brand.logoUrl, mark: brand.mark, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE, productLine: PRODUCT_TAGLINE }}
       hint={hint}
+      homeHref={appHomePath()}
     />
   );
 }

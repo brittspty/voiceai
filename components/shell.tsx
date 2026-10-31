@@ -36,6 +36,7 @@ export function AppShell({
   showSegments = false,
   audienceLibrary = false,
   showReports = false,
+  homeHref = "/",
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
@@ -48,6 +49,7 @@ export function AppShell({
   showSegments?: boolean;
   audienceLibrary?: boolean;
   showReports?: boolean;
+  homeHref?: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -65,7 +67,7 @@ export function AppShell({
   }, []);
 
   const itemActive = (href: string) => {
-    if (href === "/") return pathname === "/";
+    if (href === homeHref || href === "/") return pathname === href;
     if (href === "/reports") return pathname === "/reports" || pathname.startsWith("/reports/");
     if (href === "/marketing/leads") return pathname === "/marketing/leads" || pathname.startsWith("/marketing/leads/");
     if (href === "/marketing/speed-to-lead") return pathname === "/marketing/speed-to-lead" || pathname.startsWith("/marketing/speed-to-lead/");
@@ -100,7 +102,7 @@ export function AppShell({
         {!collapsed && <div className="text-sm font-semibold">{mode.wordmark}</div>}
       </div>
       <nav className="flex flex-col gap-0.5 px-2">
-        {(user.role === "client_viewer" ? clientNav : staffNav).map((item) => {
+        {(user.role === "client_viewer" ? clientNav : staffNav).map((item) => ({ ...item, href: item.href === "/" ? homeHref : item.href })).map((item) => {
           const Icon = item.icon;
           const active = itemActive(item.href);
           return (

@@ -69,7 +69,7 @@ SEED_AGENT_NAME=Avery
 SEED_TIMEZONE=America/New_York
 ```
 
-Set `SEED_ORG_NAME` and the other `SEED_*` values from `.env.example` before the first start. For a production first boot set `SEED_SAMPLE_DATA=false` and real `SEED_OWNER_*` values. That seed creates only the owner. Admin and viewer are demo accounts and are created only when `SEED_SAMPLE_DATA` is true. The container seeds on boot and will not replace a workspace that is already there. For Specificity, `SITE_ADDRESS` is `voiceai.specificityinc.com`.
+Set `SEED_ORG_NAME` and the other `SEED_*` values from `.env.example` before the first start. For a production first boot set `SEED_SAMPLE_DATA=false` and real `SEED_OWNER_*` values. That seed creates only the owner. Admin and viewer are demo accounts and are created only when `SEED_SAMPLE_DATA` is true. The container seeds on boot and will not replace a workspace that is already there. For Specificity, `SITE_ADDRESS` is `voiceai.specificityinc.com`. `jarvis.specificityinc.com` is also a public host. Keep `APP_URL` on one origin. The app uses the request host for the public canonical URL when it is either of those names.
 
 Leave the vendor keys empty until you are ready to leave mock mode. Alternatively store the same keys in SSM Parameter Store under `/voiceops/prod/` (the instance role can read that path) and render the file:
 

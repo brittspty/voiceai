@@ -11,6 +11,7 @@ import { audienceLibraryEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEna
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { getOrg } from "@/lib/queries";
+import { appHomePath, publicHomepageEnabled } from "@/lib/public-routing";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const path = (await headers()).get("x-voiceops-path") || "";
   if (user.role === "demo_viewer") redirect("/demo");
   const jarvis = jarvisUiV2Enabled();
-  if (user.role === "client_viewer" && path && !clientViewerAllowed(path)) redirect(jarvis ? "/" : "/marketing/client");
+  if (user.role === "client_viewer" && path && !clientViewerAllowed(path)) redirect(jarvis && !publicHomepageEnabled() ? "/" : "/marketing/client");
   const showInbox = inboxEnabled() && user.role !== "client_viewer" && user.role !== "all_clients_viewer";
   const unread = showInbox ? await prisma.staffNotification.count({ where: { userId: user.id, readAt: null } }) : 0;
   if (reportsV2Enabled() && (path === "/reports" || path.startsWith("/reports/"))) return <>{children}</>;
@@ -54,6 +55,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showSegments={segmentEngineEnabled()}
       audienceLibrary={audienceLibraryEnabled()}
       showReports={reportsV2Enabled()}
+      homeHref={appHomePath()}
     >
       {children}
     </AppShell>

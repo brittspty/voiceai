@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
+import { loginNextField } from "@/lib/public-routing";
 import { readToken, signToken, SESSION_COOKIE } from "@/lib/session-token";
 import { verifyTotp } from "@/lib/totp";
 
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   });
   const token = await signToken({ kind: "session", sid: session.id, role: user.role, exp: Math.floor(session.expiresAt.getTime() / 1000) });
   await audit({ id: user.id, name: user.name }, "Signed in with two-step verification", { type: "session", id: session.id, label: user.email });
-  const res = NextResponse.json({ ok: true });
+  const res = NextResponse.json({ ok: true, ...loginNextField(user.role) });
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",

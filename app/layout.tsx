@@ -5,7 +5,7 @@ import { BRAND_FONT, loadBrand, PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_TITLE } f
 import { brandTokenCss } from "@/lib/brand/tokens";
 import "./globals.css";
 
-const brandFont = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-brand", display: "swap" });
+const brandFont = Poppins({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"], variable: "--font-brand", display: "swap" });
 const labelFont = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-label", display: "swap" });
 
 export async function generateMetadata(): Promise<Metadata> {
