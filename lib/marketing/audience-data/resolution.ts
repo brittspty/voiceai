@@ -1,193 +1,192 @@
 import { collectsCostKeys, stripForAudience } from "../channels/cost-strip";
-import { formatMaids } from "./present";
-import { CLIENT_SOURCES, EXAMPLE_SOURCES, type PlatformId } from "./example";
 
-export type IdentifierKind = "maid" | "email" | "phone";
+/** Good ≥ 50%, Fair 30–49%, Low — on hold under 30%. */
+export function rateBand(percent: number) {
+  if (percent < 30) return { word: "Low — on hold", band: "low" as const, hold: true };
+  if (percent < 50) return { word: "Fair", band: "fair" as const, hold: false };
+  return { word: "Good", band: "good" as const, hold: false };
+}
 
-export type ResolutionPlatform = {
-  id: string;
-  label: string;
-  /** 0–1. Any platform id is allowed, so the list is not limited to three. */
-  rate: number;
-};
-
-export const DEFAULT_RESOLUTION_PLATFORMS: ResolutionPlatform[] = [
-  { id: "meta", label: "Meta", rate: 0 },
-  { id: "google_ads", label: "Google", rate: 0 },
-  { id: "stackadapt", label: "StackAdapt", rate: 0 },
-];
-
-const IDENTIFIERS: { kind: IdentifierKind; label: string; share: number }[] = [
-  { kind: "maid", label: "MAIDs", share: 1 },
-  { kind: "email", label: "Emails", share: 0.35 },
-  { kind: "phone", label: "Phones", share: 0.12 },
-];
+export function formatCount(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}K`;
+  return String(value);
+}
 
 const VENDOR_KEY = /vendor|segmentid/i;
 
-export type RawResolution = {
-  accountId: string;
-  sourceId: string;
-  publicId: string;
-  vendor: string;
-  vendorId: string;
-  vendorSegmentIds: string[];
-  label: string;
-  type: string;
-  uploaded: Record<IdentifierKind, number>;
-  platforms: { id: string; label: string; matched: number; unmatched: number }[];
-  byIdentifier: { kind: IdentifierKind; label: string; uploaded: number; matched: number; unmatched: number }[];
-  bySource: { vendor: string; vendorId: string; label: string; uploaded: number; matched: number; unmatched: number }[];
-  trend: { label: string; matched: number; unmatched: number }[];
-  cpm: number;
-  spend: number;
-  cpl: number;
-  cpa: number;
-  roas: number;
-};
+export type ResolutionWindow = 30 | 60 | 90;
 
-export type PresentedResolution = {
+export type RateRow = {
   id: string;
   label: string;
-  type: string;
-  example: true;
-  uploaded: number;
-  uploadedLabel: string;
-  parts: { kind: IdentifierKind; label: string; count: number; countLabel: string }[];
-  platforms: { id: string; label: string; rateLabel: string; matchedLabel: string; unmatchedLabel: string; matched: number; unmatched: number }[];
-  byIdentifier: { label: string; rateLabel: string; uploadedLabel: string; matchedLabel: string; unmatchedLabel: string }[];
-  bySource: { label: string; rateLabel: string; matchedLabel: string; unmatchedLabel: string }[];
-  trend: { label: string; matched: number; unmatched: number }[];
-  vendor?: string;
+  category?: string;
+  sent: number;
+  matched: number;
+  unmatched: number;
+  percent: number;
+  placeholder?: boolean;
 };
 
-function round(value: number) {
-  return Math.max(0, Math.round(value));
-}
-
-function rateLabel(matched: number, unmatched: number) {
-  const total = matched + unmatched;
-  if (!total) return "0%";
-  return `${Math.round((matched / total) * 100)}%`;
-}
-
-export function buildResolution(input: {
-  accountId: string;
-  sourceId: string;
-  publicId: string;
-  vendor: string;
-  vendorId: string;
-  vendorSegmentIds: string[];
-  label: string;
+export type ResolutionReport = {
+  id: string;
+  title: string;
+  audienceName: string;
   type: string;
-  seed: number;
-  platforms: ResolutionPlatform[];
-  cpm?: number;
-  spend?: number;
-  cpl?: number;
-  cpa?: number;
-  roas?: number;
-}): RawResolution {
-  const uploaded = {
-    maid: round(input.seed),
-    email: round(input.seed * 0.35),
-    phone: round(input.seed * 0.12),
-  };
-  const total = uploaded.maid + uploaded.email + uploaded.phone;
-  const platforms = input.platforms.map((platform) => {
-    const matched = round(total * platform.rate);
-    return { id: platform.id, label: platform.label, matched, unmatched: total - matched };
-  });
-  const mean = input.platforms.length ? input.platforms.reduce((sum, platform) => sum + platform.rate, 0) / input.platforms.length : 0;
-  const byIdentifier = IDENTIFIERS.map((row) => {
-    const count = uploaded[row.kind];
-    const matched = round(count * mean);
-    return { kind: row.kind, label: row.label, uploaded: count, matched, unmatched: count - matched };
-  });
-  const primaryMatched = round(total * mean * 0.72);
-  const extraUploaded = round(total * 0.28);
-  const extraMatched = round(extraUploaded * mean);
-  const bySource = [
-    { vendor: input.vendor, vendorId: input.vendorId, label: input.label, uploaded: total - extraUploaded, matched: primaryMatched, unmatched: total - extraUploaded - primaryMatched },
-    { vendor: "", vendorId: "", label: "First-party file", uploaded: extraUploaded, matched: extraMatched, unmatched: extraUploaded - extraMatched },
-  ];
-  const trend = ["Sep 21", "Sep 28", "Oct 5", "Oct 12", "Oct 19", "Oct 26"].map((label, index) => {
-    const matched = round(total * mean * (0.55 + index * 0.07));
-    return { label, matched, unmatched: Math.max(0, round(total * 0.2) - index * round(total * 0.01)) };
-  });
-  return {
-    accountId: input.accountId,
-    sourceId: input.sourceId,
-    publicId: input.publicId,
-    vendor: input.vendor,
-    vendorId: input.vendorId,
-    vendorSegmentIds: input.vendorSegmentIds,
-    label: input.label,
-    type: input.type,
-    uploaded,
-    platforms,
-    byIdentifier,
-    bySource,
-    trend,
-    cpm: input.cpm ?? 3.1,
-    spend: input.spend ?? 100,
-    cpl: input.cpl ?? 4,
-    cpa: input.cpa ?? 12,
-    roas: input.roas ?? 1.2,
-  };
-}
+  accountId: string;
+  accountName: string;
+  example: true;
+  updated: string;
+  definition: string;
+  uploaded: number;
+  parts: { id: string; label: string; uploaded: number; matched: number; unmatched: number; percent: number }[];
+  matchedAny: number;
+  unmatched: number;
+  platforms: RateRow[];
+  bySource: RateRow[];
+  windows: Record<ResolutionWindow, { from: number; to: number; points: { label: string; percent: number }[] }>;
+  why: string;
+  recommendation: string;
+  workedOut: string[];
+  vendor?: string;
+  vendorId?: string;
+};
 
-function platformRates(match: { platform: PlatformId; rate: number }[], extra: ResolutionPlatform[] = []): ResolutionPlatform[] {
-  const known = new Map(match.map((row) => [row.platform, row.rate]));
-  const base = DEFAULT_RESOLUTION_PLATFORMS.map((platform) => ({
-    ...platform,
-    rate: known.get(platform.id as PlatformId) ?? platform.rate,
-  }));
-  return [...base, ...extra];
-}
+const PARTS = [
+  { id: "maid", label: "MAID (mobile ad ID)", uploaded: 2_410_000, matched: 1_620_000, unmatched: 790_000, percent: 67 },
+  { id: "email", label: "Hashed email", uploaded: 1_100_000, matched: 720_000, unmatched: 380_000, percent: 65 },
+  { id: "phone", label: "Phone", uploaded: 640_000, matched: 330_000, unmatched: 310_000, percent: 52 },
+  { id: "ip", label: "IP / household", uploaded: 880_000, matched: 210_000, unmatched: 670_000, percent: 24 },
+];
 
-function present(raw: RawResolution, reader: "staff" | "client" | "share"): PresentedResolution {
-  const uploaded = raw.uploaded.maid + raw.uploaded.email + raw.uploaded.phone;
-  const body: PresentedResolution = {
-    id: reader === "staff" ? raw.sourceId : raw.publicId,
-    label: reader === "staff" ? raw.vendor : raw.label,
-    type: raw.type,
+const PLATFORMS: RateRow[] = [
+  { id: "meta", label: "Meta", sent: 5_030_000, matched: 3_220_000, unmatched: 1_810_000, percent: 64 },
+  { id: "google_ads", label: "Google", sent: 5_030_000, matched: 2_460_000, unmatched: 2_570_000, percent: 49 },
+  { id: "stackadapt", label: "StackAdapt", sent: 5_030_000, matched: 2_870_000, unmatched: 2_160_000, percent: 57 },
+  { id: "trade_desk", label: "The Trade Desk (other)", sent: 5_030_000, matched: 1_360_000, unmatched: 3_670_000, percent: 27, placeholder: true },
+];
+
+const SOURCES: (RateRow & { vendor: string; vendorId: string; vendorSegmentIds: string[]; clientLabel: string })[] = [
+  { id: "1", vendor: "Vendor A", vendorId: "vnd_a", vendorSegmentIds: ["seg_a_1"], clientLabel: "Intent data source", label: "Vendor A", category: "Intent (B2C)", sent: 2_100_000, matched: 1_360_000, unmatched: 740_000, percent: 65 },
+  { id: "2", vendor: "Vendor B", vendorId: "vnd_b", vendorSegmentIds: ["seg_b_1"], clientLabel: "Demographic data source", label: "Vendor B", category: "Demographic + household", sent: 1_550_000, matched: 930_000, unmatched: 620_000, percent: 60 },
+  { id: "3", vendor: "Vendor C", vendorId: "vnd_c", vendorSegmentIds: ["seg_c_1"], clientLabel: "Purchase data source", label: "Vendor C", category: "Purchase / behavioral", sent: 820_000, matched: 390_000, unmatched: 430_000, percent: 48 },
+  { id: "4", vendor: "Vendor D", vendorId: "vnd_d", vendorSegmentIds: ["seg_d_1"], clientLabel: "Device data source", label: "Vendor D", category: "Device / app", sent: 560_000, matched: 160_000, unmatched: 400_000, percent: 29 },
+];
+
+const WINDOWS: ResolutionReport["windows"] = {
+  30: { from: 58, to: 63, points: [
+    { label: "Wk 1", percent: 58 }, { label: "Wk 2", percent: 59 }, { label: "Wk 3", percent: 61 },
+    { label: "Wk 4", percent: 60 }, { label: "Wk 5", percent: 62 }, { label: "Now", percent: 63 },
+  ] },
+  60: { from: 54, to: 63, points: [
+    { label: "Wk 1", percent: 54 }, { label: "Wk 2", percent: 55 }, { label: "Wk 3", percent: 57 },
+    { label: "Wk 4", percent: 58 }, { label: "Wk 5", percent: 60 }, { label: "Now", percent: 63 },
+  ] },
+  90: { from: 49, to: 63, points: [
+    { label: "Wk 1", percent: 49 }, { label: "Wk 2", percent: 52 }, { label: "Wk 3", percent: 55 },
+    { label: "Wk 4", percent: 58 }, { label: "Wk 5", percent: 60 }, { label: "Now", percent: 63 },
+  ] },
+};
+
+const HARBOR_CAMPAIGNS = new Set(["all", "implants", "crowns"]);
+const GULF_CAMPAIGNS = new Set(["all", "spring"]);
+
+const STAFF_SOURCE_IDS: Record<string, string> = {
+  "vendor-a": "1",
+  "vendor-b": "2",
+  "vendor-c": "3",
+  "vendor-d": "4",
+};
+
+function harborReport(reader: "staff" | "client" | "share", sourcePublicId?: string): ResolutionReport {
+  const source = sourcePublicId ? SOURCES.find((row) => row.id === sourcePublicId) : undefined;
+  const staff = reader === "staff";
+  const title = source
+    ? staff ? `${source.vendor} · ${source.category}` : `${source.clientLabel} · ${source.category}`
+    : staff ? "Resolution Data across all audiences" : "Resolution Data across your audiences";
+  const why = staff
+    ? "This audience is under 30% on The Trade Desk (27%), so it is on hold there. IP / household IDs match at only 24% and make up 17% of the upload; Vendor D matches at 29%."
+    : "Your audience is under 30% on The Trade Desk (27%), so it is on hold there. IP / household IDs match at only 24% and make up 17% of the upload; Device and app data source matches at 29%.";
+  const recommendation = staff
+    ? "consider adding hashed emails for these records or rebuilding the audience with fewer IP-only records. Nothing changes until your team builds it in the data market."
+    : "your Specificity team may suggest adding hashed emails for these records or rebuilding the audience with fewer IP-only records. Nothing changes until your Specificity team makes the change.";
+  const report: ResolutionReport = {
+    id: source?.id || "all",
+    title,
+    audienceName: "Implant intent 55+",
+    type: source?.category || "All audiences",
+    accountId: "org",
+    accountName: "Harbor Dental",
     example: true,
-    uploaded,
-    uploadedLabel: formatMaids(uploaded),
-    parts: IDENTIFIERS.map((row) => ({
-      kind: row.kind,
-      label: row.label,
-      count: raw.uploaded[row.kind],
-      countLabel: formatMaids(raw.uploaded[row.kind]),
+    updated: "Updated 2h ago",
+    definition: "Match rate = matched records ÷ records sent to that platform. Counts are de-duplicated per identifier type.",
+    uploaded: 5_030_000,
+    parts: PARTS,
+    matchedAny: 2_880_000,
+    unmatched: 2_150_000,
+    platforms: PLATFORMS,
+    bySource: SOURCES.map((row) => ({
+      id: row.id,
+      label: staff ? row.vendor : row.clientLabel,
+      category: row.category,
+      sent: row.sent,
+      matched: row.matched,
+      unmatched: row.unmatched,
+      percent: row.percent,
     })),
-    platforms: raw.platforms.map((platform) => ({
-      id: platform.id,
-      label: platform.label,
-      rateLabel: rateLabel(platform.matched, platform.unmatched),
-      matched: platform.matched,
-      unmatched: platform.unmatched,
-      matchedLabel: formatMaids(platform.matched),
-      unmatchedLabel: formatMaids(platform.unmatched),
-    })),
-    byIdentifier: raw.byIdentifier.map((row) => ({
-      label: row.label,
-      rateLabel: rateLabel(row.matched, row.unmatched),
-      uploadedLabel: formatMaids(row.uploaded),
-      matchedLabel: formatMaids(row.matched),
-      unmatchedLabel: formatMaids(row.unmatched),
-    })),
-    bySource: raw.bySource.map((row) => ({
-      label: reader === "staff" && row.vendor ? row.vendor : row.label,
-      rateLabel: rateLabel(row.matched, row.unmatched),
-      matchedLabel: formatMaids(row.matched),
-      unmatchedLabel: formatMaids(row.unmatched),
-    })),
-    trend: raw.trend.map((row) => ({ label: row.label, matched: row.matched, unmatched: row.unmatched })),
+    windows: WINDOWS,
+    why,
+    recommendation,
+    workedOut: [
+      "Inputs: records sent, matched counts, and the 30% hold line.",
+      "The Trade Desk is a placeholder platform. It matched 27%.",
+      "IP / household is 24% and about 17% of the upload.",
+      "Recommendation only. Nothing is paused, edited, or rebuilt.",
+    ],
   };
-  if (reader === "staff") body.vendor = raw.vendor;
-  if (reader === "staff") return body;
-  return stripResolution(body);
+  if (staff && source) report.vendor = source.vendor;
+  if (staff && source) report.vendorId = source.vendorId;
+  return reader === "staff" ? report : stripResolution(report);
+}
+
+function gulfReport(): ResolutionReport {
+  const report: ResolutionReport = {
+    id: "1",
+    title: "Resolution Data across your audiences",
+    audienceName: "Regional firms",
+    type: "Firmographic (B2B)",
+    accountId: "gulf",
+    accountName: "Gulf Pest",
+    example: true,
+    updated: "Updated 2h ago",
+    definition: "Match rate = matched records ÷ records sent to that platform. Counts are de-duplicated per identifier type.",
+    uploaded: 80_000,
+    parts: [
+      { id: "maid", label: "MAID (mobile ad ID)", uploaded: 50_000, matched: 30_000, unmatched: 20_000, percent: 60 },
+      { id: "email", label: "Hashed email", uploaded: 20_000, matched: 12_000, unmatched: 8_000, percent: 60 },
+      { id: "phone", label: "Phone", uploaded: 8_000, matched: 4_000, unmatched: 4_000, percent: 50 },
+      { id: "ip", label: "IP / household", uploaded: 2_000, matched: 1_000, unmatched: 1_000, percent: 50 },
+    ],
+    matchedAny: 47_000,
+    unmatched: 33_000,
+    platforms: [
+      { id: "meta", label: "Meta", sent: 80_000, matched: 48_000, unmatched: 32_000, percent: 60 },
+      { id: "google_ads", label: "Google", sent: 80_000, matched: 40_000, unmatched: 40_000, percent: 50 },
+      { id: "stackadapt", label: "StackAdapt", sent: 80_000, matched: 36_000, unmatched: 44_000, percent: 45 },
+    ],
+    bySource: [
+      { id: "1", label: "Firmographic data source", category: "Firmographic (B2B)", sent: 80_000, matched: 47_000, unmatched: 33_000, percent: 59 },
+    ],
+    windows: {
+      30: { from: 55, to: 59, points: [{ label: "Wk 1", percent: 55 }, { label: "Now", percent: 59 }] },
+      60: { from: 52, to: 59, points: [{ label: "Wk 1", percent: 52 }, { label: "Now", percent: 59 }] },
+      90: { from: 50, to: 59, points: [{ label: "Wk 1", percent: 50 }, { label: "Now", percent: 59 }] },
+    },
+    why: "Your audience is above the hold line on every connected platform.",
+    recommendation: "your Specificity team may suggest leaving this audience as it is. Nothing changes until your Specificity team makes the change.",
+    workedOut: ["Inputs: records sent and the 30% hold line.", "Recommendation only. Nothing is written."],
+  };
+  return stripResolution(report);
 }
 
 function stripResolution<T>(value: T): T {
@@ -206,86 +205,43 @@ function walk(value: unknown): unknown {
   return next;
 }
 
-function staffRaw(sourceId: string, extra: ResolutionPlatform[] = []) {
-  const source = EXAMPLE_SOURCES.find((row) => row.id === sourceId);
-  if (!source) return null;
-  return buildResolution({
-    accountId: "all",
-    sourceId: source.id,
-    publicId: source.id,
-    vendor: source.vendor,
-    vendorId: source.id,
-    vendorSegmentIds: source.selections.map((row) => row.id),
-    label: source.type,
-    type: source.type,
-    seed: source.maids,
-    platforms: platformRates(source.match, extra),
-    cpm: source.dataCostCpm,
-    spend: source.spend,
-    cpl: source.cpl,
-    cpa: source.cpa,
-    roas: source.roas,
-  });
-}
-
-function clientRaw(accountId: string, publicId: string, extra: ResolutionPlatform[] = []) {
-  const source = CLIENT_SOURCES.find((row) => row.accountId === accountId && row.publicId === publicId);
-  if (!source) return null;
-  return buildResolution({
-    accountId,
-    sourceId: source.id,
-    publicId: source.publicId,
-    vendor: source.vendor,
-    vendorId: source.vendorId,
-    vendorSegmentIds: source.vendorSegmentIds,
-    label: source.label,
-    type: source.type,
-    seed: source.maids,
-    platforms: platformRates(source.match, extra),
-    cpm: source.dataCostCpm,
-    spend: source.spend,
-    cpl: source.cpl,
-    cpa: source.cpa,
-    roas: source.roas,
-  });
+function campaignsFor(accountId: string) {
+  if (accountId === "org") return HARBOR_CAMPAIGNS;
+  if (accountId === "gulf") return GULF_CAMPAIGNS;
+  return new Set(["all"]);
 }
 
 export function readResolution(input: {
   reader: "staff" | "client" | "share";
-  sourceId: string;
+  sourceId?: string | null;
   ownAccountId?: string;
   requestedAccountId?: string | null;
-  extraPlatforms?: ResolutionPlatform[];
+  campaignId?: string | null;
 }) {
-  const sourceId = input.sourceId.trim();
-  if (input.reader === "staff") {
-    const raw = staffRaw(sourceId, input.extraPlatforms);
-    if (!raw) return { ok: false as const, status: 404 as const, error: "Not found" as const };
-    return { ok: true as const, body: present(raw, "staff") };
+  const campaignId = (input.campaignId || "all").trim() || "all";
+  if (input.reader !== "staff") {
+    const own = (input.ownAccountId || "").trim();
+    const requested = (input.requestedAccountId || own).trim();
+    if (!own || requested !== own) return { ok: false as const, status: 403 as const, error: "Not allowed" as const };
+    if (campaignId !== "all" && !campaignsFor(own).has(campaignId)) {
+      return { ok: false as const, status: 403 as const, error: "Not allowed" as const };
+    }
+    const sourceId = (input.sourceId || "").trim();
+    if (/vendor/i.test(sourceId)) return { ok: false as const, status: 404 as const, error: "Not found" as const };
+    if (own === "gulf") {
+      if (sourceId && sourceId !== "1") return { ok: false as const, status: 404 as const, error: "Not found" as const };
+      const body = gulfReport();
+      if (collectsCostKeys(body).length) return { ok: false as const, status: 500 as const, error: "Not allowed" as const };
+      return { ok: true as const, body };
+    }
+    if (own !== "org") return { ok: false as const, status: 404 as const, error: "Not found" as const };
+    if (sourceId && !SOURCES.some((row) => row.id === sourceId)) return { ok: false as const, status: 404 as const, error: "Not found" as const };
+    const body = harborReport(input.reader, sourceId || undefined);
+    if (collectsCostKeys(body).length) return { ok: false as const, status: 500 as const, error: "Not allowed" as const };
+    return { ok: true as const, body };
   }
-  const own = (input.ownAccountId || "").trim();
-  const requested = (input.requestedAccountId || own).trim();
-  if (!own || requested !== own) return { ok: false as const, status: 403 as const, error: "Not allowed" as const };
-  if (/vendor/i.test(sourceId)) return { ok: false as const, status: 404 as const, error: "Not found" as const };
-  const raw = clientRaw(own, sourceId, input.extraPlatforms);
-  if (!raw) return { ok: false as const, status: 404 as const, error: "Not found" as const };
-  const body = present(raw, input.reader);
-  if (collectsCostKeys(body).length) return { ok: false as const, status: 500 as const, error: "Not allowed" as const };
-  return { ok: true as const, body };
-}
-
-export function resolutionSummaries(input: { reader: "staff" | "client" | "share"; accountId?: string }) {
-  if (input.reader === "staff") {
-    return Object.fromEntries(EXAMPLE_SOURCES.map((source) => {
-      const result = readResolution({ reader: "staff", sourceId: source.id });
-      const rate = result.ok ? result.body.platforms[0]?.rateLabel || "" : "";
-      return [source.id, rate];
-    }));
-  }
-  const accountId = input.accountId || "";
-  return Object.fromEntries(CLIENT_SOURCES.filter((source) => source.accountId === accountId).map((source) => {
-    const result = readResolution({ reader: input.reader, sourceId: source.publicId, ownAccountId: accountId });
-    const rate = result.ok ? result.body.platforms[0]?.rateLabel || "" : "";
-    return [source.publicId, rate];
-  }));
+  const sourceId = (input.sourceId || "").trim();
+  const publicId = STAFF_SOURCE_IDS[sourceId] || (SOURCES.some((row) => row.id === sourceId) ? sourceId : "");
+  if (sourceId && !publicId) return { ok: false as const, status: 404 as const, error: "Not found" as const };
+  return { ok: true as const, body: harborReport("staff", publicId || undefined) };
 }
