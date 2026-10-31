@@ -10,6 +10,8 @@
  * `googleAdsRequest` always uses `read`. It cannot send a mutate or an upload.
  */
 
+import { assertOutboundOpen } from "../../demo/outbound";
+
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 export type Sleep = (ms: number) => Promise<void>;
 
@@ -210,6 +212,7 @@ function errorMessage(body: unknown, status: number, secrets: string[]) {
 
 /** Performs one read call. Page-status and upload URLs throw and do not call fetch. */
 export async function googleAdsRequest(input: GoogleAdsCall) {
+  assertOutboundOpen("google");
   assertGoogleAdsAllowed("read", input.method, input.url);
   const fetchImpl = input.fetchImpl ?? fetch;
   const sleep = input.sleep ?? defaultSleep;

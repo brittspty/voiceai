@@ -1,4 +1,7 @@
+import { assertOutboundOpen } from "./demo/outbound";
+
 export async function sendInviteEmail(input: { to: string; name: string; link: string }) {
+  assertOutboundOpen("resend");
   const key = process.env.RESEND_API_KEY?.trim();
   const from = process.env.MAIL_FROM?.trim();
   if (!key || !from) return { sent: false as const };

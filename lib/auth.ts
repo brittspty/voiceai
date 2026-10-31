@@ -57,7 +57,7 @@ export function canOpenOperatorSettings(role: string) {
 
 /** Viewers cannot perform writes. Callers turn this into a 403 instead of an uncaught error. */
 export function permissionStatus(role: string): 403 | null {
-  if (role === "viewer" || role === "client_viewer") return 403;
+  if (role === "viewer" || role === "client_viewer" || role === "demo_viewer") return 403;
   return null;
 }
 

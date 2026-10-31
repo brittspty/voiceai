@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [user, org] = await Promise.all([requireUser(), getOrg()]);
   const path = (await headers()).get("x-voiceops-path") || "";
+  if (user.role === "demo_viewer") redirect("/demo");
   if (user.role === "client_viewer" && path && !clientViewerAllowed(path)) redirect("/marketing/client");
   return (
     <AppShell

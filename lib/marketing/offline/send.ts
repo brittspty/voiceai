@@ -1,3 +1,4 @@
+import { assertOutboundOpen } from "../../demo/outbound";
 import type { Env } from "../config";
 import { offlineConversionsLiveEnabled } from "../config";
 import { assertGoogleAdsAllowed, googleAdsGuard } from "../connectors/google-ads-client";
@@ -131,6 +132,7 @@ export async function resolveGoogleAccessToken(
     refresh_token: creds.refreshToken,
     grant_type: "refresh_token",
   });
+  assertOutboundOpen("google");
   const response = await fetchImpl(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -210,6 +212,7 @@ export async function executeUploads(input: {
       continue;
     }
     assertConversionUploadUrl(wire.url);
+    assertOutboundOpen(upload.platform === "meta" ? "meta" : "google");
     const response = await input.fetchImpl(wire.url, {
       method: "POST",
       headers: wire.headers,

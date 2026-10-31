@@ -14,6 +14,7 @@ enum Role {
   super_admin
   account_manager
   client_viewer
+  demo_viewer
 }
 
 enum Consent {
@@ -140,6 +141,8 @@ model User {
   liftTestsStarted   LiftTest[]         @relation("LiftTestStartedBy")
   leadValuesSet          ClientSettings[]     @relation("LeadValueSetBy")
   leadValueAudits        LeadValueAudit[]
+  clientPlansCreated     ClientPlan[]         @relation("ClientPlanCreator")
+  clientPlansApproved    ClientPlan[]         @relation("ClientPlanApprover")
 }
 
 model Session {
@@ -448,6 +451,8 @@ enum AdPlatform {
   google_ads
   tiktok
   linkedin
+  stackadapt
+  ais2l
 }
 
 enum MarketingAuthType {
@@ -1926,4 +1931,87 @@ model LiftResult {
 
   @@index([workspaceId, testId, computedAt])
   @@index([testId])
+}
+
+/// Prospect demo tenant. Rows here are fictional and never share a workspace id with a real client.
+model DemoExhibit {
+  id          String   @id
+  workspaceId String
+  kind        String
+  payload     Json
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, kind])
+}
+
+model DemoGrant {
+  id        String    @id
+  tokenHash String    @unique
+  label     String    @default("")
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model DemoReseed {
+  id         String   @id
+  finishedAt DateTime
+  status     String
+}
+
+enum ClientPlanStatus {
+  draft
+  preview
+  approved
+}
+
+enum ClientPlanDashboard {
+  demo
+  baseline
+}
+
+model ClientPlan {
+  id                  String              @id @default(cuid())
+  slug                String
+  clientName          String
+  logoMime            String              @default("")
+  logoData            Bytes?
+  goals               String              @default("")
+  channels            String[]            @default([])
+  audiences           Json                @default("[]")
+  segments            Json                @default("[]")
+  dashboardSource     ClientPlanDashboard @default(demo)
+  baselineWorkspaceId String              @default("")
+  timeline            String              @default("")
+  weekly              String              @default("")
+  ctaLabel            String              @default("Let's start")
+  ctaHref             String              @default("/contact")
+  showCost            Boolean             @default(false)
+  linkDays            Int                 @default(30)
+  status              ClientPlanStatus    @default(draft)
+  approvedById        String?
+  approvedBy          User?               @relation("ClientPlanApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt          DateTime?
+  tokenHash           String?             @unique
+  expiresAt           DateTime?
+  revokedAt           DateTime?
+  createdById         String
+  createdBy           User                @relation("ClientPlanCreator", fields: [createdById], references: [id])
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  views               ClientPlanView[]
+
+  @@index([slug])
+  @@index([status])
+}
+
+/// Anonymous view log. Timestamp and a coarse browser class only.
+model ClientPlanView {
+  id              String     @id @default(cuid())
+  planId          String
+  plan            ClientPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  viewedAt        DateTime   @default(now())
+  userAgentCoarse String
+
+  @@index([planId, viewedAt])
 }

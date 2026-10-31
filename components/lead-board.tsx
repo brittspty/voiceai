@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { DataChip } from "@/components/data-chip";
 import { formatDateTime } from "@/lib/format";
 import type { LeadRowView } from "@/lib/marketing/lead-score/present";
 import { automaticScoreText, choiceLabel, manualMarkText } from "@/lib/marketing/lead-score/summary";
@@ -46,12 +47,14 @@ export function LeadBoard({
   filter,
   exampleData,
   mode = "list",
+  demoData = false,
 }: {
   rows: LeadRowView[];
   audience: Audience;
   filter: string;
   exampleData: boolean;
   mode?: "list" | "detail";
+  demoData?: boolean;
 }) {
   const [items, setItems] = useState(rows);
   const toastSerial = useRef(0);
@@ -159,7 +162,7 @@ export function LeadBoard({
   return (
     <div>
       {exampleData && (
-        <div className="mb-4 rounded-xl border border-line bg-card px-4 py-3 text-sm font-semibold">EXAMPLE DATA</div>
+        <div className="mb-4 rounded-xl border border-line bg-card px-4 py-3 text-sm font-semibold"><DataChip demo={demoData} /></div>
       )}
       {mode === "list" && (
         <div className="mb-4 flex flex-wrap gap-2" role="navigation" aria-label="Filter leads">
