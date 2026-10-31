@@ -1,10 +1,11 @@
+import { PRODUCT_NAME } from "@/lib/brand/names";
 import { brandTokens } from "@/lib/brand/tokens";
 
 export function BrandMark({
   logoUrl,
   mark = brandTokens.logo.mark,
   letter = false,
-  alt = "VoiceOps",
+  alt = PRODUCT_NAME,
 }: {
   brandColor?: string;
   logoUrl?: string;

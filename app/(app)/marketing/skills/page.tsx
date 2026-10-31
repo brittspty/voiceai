@@ -1,7 +1,10 @@
 import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
+import { formatDateTime } from "@/lib/format";
+import { skillApprovalFanoutEnabled } from "@/lib/marketing/config";
 import { decideSkillOffer } from "@/lib/marketing/human-actions";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { listSkillDecisions } from "@/lib/marketing/skill-approval-job";
 import { OFFERED_SKILL, skillIsSafe } from "@/lib/marketing/skills";
 
 export const dynamic = "force-dynamic";
@@ -12,10 +15,12 @@ export default async function SkillsPage() {
   if (access.kind !== "super_admin") return <NoAccess title="New skill offered" />;
   const skill = OFFERED_SKILL;
   const safe = skillIsSafe(skill);
+  const fanout = skillApprovalFanoutEnabled();
+  const log = fanout ? await listSkillDecisions() : [];
   return (
     <div>
       <h1 className="text-2xl font-semibold">New skill offered</h1>
-      <p className="mt-1 text-sm text-muted">Super admins only. Nothing is turned on until you say yes.</p>
+      <p className="mt-1 text-sm text-muted">Every super admin can answer yes or no. The owner is not the only person. Nothing is turned on until someone says yes.</p>
       {!safe && <p className="mt-4">We couldn&apos;t check this skill&apos;s source, so it can&apos;t be added yet.</p>}
       {safe && (
         <article className="mt-4 rounded-xl border border-line bg-card p-4" aria-labelledby="skill-title">
@@ -40,6 +45,19 @@ export default async function SkillsPage() {
             </form>
           </div>
         </article>
+      )}
+      {fanout && (
+        <section className="mt-6">
+          <h2 className="font-semibold">Audit log</h2>
+          {!log.length && <p className="mt-2 text-sm text-muted">No answers yet.</p>}
+          <ul className="mt-2 space-y-2 text-sm">
+            {log.map((row) => (
+              <li key={row.id} className="rounded-lg border border-line bg-card px-3 py-2">
+                {row.user.name} said {row.choice === "yes" ? "yes" : "no"} to {row.skillName}. {formatDateTime(row.createdAt)}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );

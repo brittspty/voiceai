@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { AmFeed } from "@/components/am-feed";
 import { MarketingDashboard } from "@/components/marketing-dashboard";
 import { MarketingView } from "@/components/marketing-view";
 import { requireUser } from "@/lib/auth";
@@ -10,6 +11,7 @@ import {
   creativeFatigueEnabled,
   dashboardsV2Enabled,
   digestEnabled,
+  digestSendEnabled,
   googleBusinessProfileEnabled,
   holdoutsEnabled,
   monitorEnabled,
@@ -47,6 +49,8 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
     const fatigue = fatigueOn ? await loadFatigueBoard(access) : { enabled: false as const, ads: [] };
     const pacing = pacingOn ? await loadPacingBoard(access) : { enabled: false as const, recommendationOnly: true as const, writesBudget: false as const, bars: [] };
     return (
+      <>
+      <AmFeed access={access} />
       <MarketingView
         {...data}
         speedToLead={speedToLead}
@@ -55,6 +59,7 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
         flags={{
           monitor: monitorEnabled(),
           digest: digestEnabled(),
+          digestSend: digestSendEnabled(),
           clientLinks: clientLinksEnabled(),
           creativeFatigue: fatigueOn,
           pacing: pacingOn,
@@ -72,6 +77,7 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
           ...(access.seesCost ? { isSuperAdmin: access.kind === "super_admin", budgetCap: amBudgetCapUsd() } : {}),
         }}
       />
+      </>
     );
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });

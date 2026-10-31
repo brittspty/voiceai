@@ -1,7 +1,9 @@
 import { prisma } from "../lib/db";
 import { runJob } from "../lib/dialer";
-import { creativeFatigueEnabled, digestEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, speedToLeadEnabled, adFatigueEnabled, googleBusinessProfileEnabled, stackAdaptEnabled } from "../lib/marketing/config";
+import { adFatigueEnabled, amRealtimeEnabled, creativeFatigueEnabled, digestEnabled, googleBusinessProfileEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, skillApprovalFanoutEnabled, speedToLeadEnabled, stackAdaptEnabled } from "../lib/marketing/config";
 import { runAdFatigue } from "../lib/marketing/ad-fatigue-job";
+import { runAmRealtimeFeed } from "../lib/marketing/feed-job";
+import { ensureSkillOfferInbox } from "../lib/marketing/skill-approval-job";
 import { runCreativeFatigue } from "../lib/marketing/fatigue-job";
 import { runGoogleBusinessProfile } from "../lib/marketing/gbp-sync";
 import { runPacingRecs } from "../lib/marketing/pacing-job";
@@ -150,10 +152,28 @@ function startMarketingSync() {
         void runStoredDigests().catch((error) => console.error("[worker] marketing digest failed", error));
       }, 60 * 60 * 1000)
     : null;
+  const feedTimer = amRealtimeEnabled()
+    ? setInterval(() => {
+        void runAmRealtimeFeed().catch((error) => console.error("[worker] account manager feed failed", error));
+      }, 30_000)
+    : null;
+  if (amRealtimeEnabled()) {
+    void runAmRealtimeFeed().catch((error) => console.error("[worker] account manager feed failed", error));
+  }
+  const skillTimer = skillApprovalFanoutEnabled()
+    ? setInterval(() => {
+        void ensureSkillOfferInbox().catch((error) => console.error("[worker] skill offer failed", error));
+      }, 60 * 60 * 1000)
+    : null;
+  if (skillApprovalFanoutEnabled()) {
+    void ensureSkillOfferInbox().catch((error) => console.error("[worker] skill offer failed", error));
+  }
   return () => {
     clearInterval(timer);
     clearInterval(pageTimer);
     if (digestTimer) clearInterval(digestTimer);
+    if (feedTimer) clearInterval(feedTimer);
+    if (skillTimer) clearInterval(skillTimer);
   };
 }
 

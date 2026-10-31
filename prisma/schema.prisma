@@ -14,6 +14,7 @@ enum Role {
   super_admin
   account_manager
   client_viewer
+  all_clients_viewer
 }
 
 enum Consent {
@@ -140,6 +141,8 @@ model User {
   liftTestsStarted   LiftTest[]         @relation("LiftTestStartedBy")
   leadValuesSet          ClientSettings[]     @relation("LeadValueSetBy")
   leadValueAudits        LeadValueAudit[]
+  notifications          StaffNotification[]
+  skillDecisions         SkillDecision[]
 }
 
 model Session {
@@ -1911,6 +1914,67 @@ model LiftObservation {
 
   @@unique([workspaceId, testId, unitKey, period], name: "liftObservationUnit", map: "lift_observation_unit")
   @@index([testId])
+}
+
+/// In-app inbox row. Digests, live feed items, and skill offers land here.
+model StaffNotification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  title     String
+  body      String
+  href      String    @default("")
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+/// Mail that stayed in-process. Test mode writes here and does not call Resend.
+model MailLog {
+  id        String   @id @default(cuid())
+  toAddress String
+  subject   String
+  body      String
+  transport String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Live account-manager feed. One row per source so a sweep cannot double-post.
+model AmFeedEvent {
+  id          String   @id @default(cuid())
+  workspaceId String
+  campaignId  String   @default("")
+  adAccountId String   @default("")
+  kind        String
+  title       String
+  body        String
+  reason      String   @default("")
+  decision    String   @default("")
+  sourceId    String
+  createdAt   DateTime @default(now())
+
+  @@unique([sourceId])
+  @@index([workspaceId, createdAt])
+  @@index([campaignId, createdAt])
+}
+
+/// Who answered a skill offer. Every super admin can answer. The owner is not special.
+model SkillDecision {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillName String
+  choice    String
+  createdAt DateTime @default(now())
+
+  @@index([skillName, createdAt])
+  @@index([userId, createdAt])
 }
 
 model LiftResult {
