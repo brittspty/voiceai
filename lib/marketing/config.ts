@@ -199,6 +199,77 @@ export function holdoutsEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_HOLDOUTS");
 }
 
+/** Off unless MARKETING_AD_FATIGUE is explicitly on. Recommendations only. No ad or budget writes. */
+export function adFatigueEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_AD_FATIGUE");
+}
+
+/** Off unless MARKETING_STACKADAPT is explicitly on. Read-only GraphQL. */
+export function stackAdaptEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_STACKADAPT");
+}
+
+/** Off unless MARKETING_GBP is explicitly on. Read-only Business Profile reads. */
+export function googleBusinessProfileEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_GBP");
+}
+
+export type StackAdaptDecision = { action: "skip"; reason: string } | { action: "mock" } | { action: "live"; apiKey: string };
+
+/** Missing STACKADAPT_API_KEY skips. It does not throw. */
+export function decideStackAdapt(env: Env): StackAdaptDecision {
+  if (!stackAdaptEnabled(env)) return { action: "skip", reason: "MARKETING_STACKADAPT is off" };
+  const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
+  if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };
+  if (mode === "mock") return { action: "mock" };
+  if (mode !== "auto" && mode !== "live") return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
+  const apiKey = (env.STACKADAPT_API_KEY || "").trim();
+  if (!apiKey) return { action: "skip", reason: "missing STACKADAPT_API_KEY" };
+  return { action: "live", apiKey };
+}
+
+export type GoogleBusinessDecision =
+  | { action: "skip"; reason: string }
+  | { action: "mock"; accountId: string; locationIds: string[] }
+  | { action: "live"; clientId: string; clientSecret: string; refreshToken: string; accountId: string; locationIds: string[] };
+
+function businessIds(raw: string | undefined) {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const part of (raw || "").split(",")) {
+    const digits = part.trim().replace(/^locations\//, "");
+    if (!/^\d+$/.test(digits) || seen.has(digits)) continue;
+    seen.add(digits);
+    ids.push(digits);
+  }
+  return ids;
+}
+
+/**
+ * Business Profile uses the same Google OAuth client id, secret, and refresh token as Google Ads.
+ * This connector only GETs. A missing location list skips.
+ */
+export function decideGoogleBusinessProfile(env: Env): GoogleBusinessDecision {
+  if (!googleBusinessProfileEnabled(env)) return { action: "skip", reason: "MARKETING_GBP is off" };
+  const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
+  const locationIds = businessIds(env.GOOGLE_BUSINESS_LOCATION_IDS);
+  const accountId = (env.GOOGLE_BUSINESS_ACCOUNT_ID || "").trim().replace(/^accounts\//, "");
+  if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };
+  if (mode === "mock") return { action: "mock", accountId, locationIds };
+  if (mode !== "auto" && mode !== "live") return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
+  const clientId = (env.GOOGLE_ADS_CLIENT_ID || "").trim();
+  const clientSecret = (env.GOOGLE_ADS_CLIENT_SECRET || "").trim();
+  const refreshToken = (env.GOOGLE_ADS_REFRESH_TOKEN || "").trim();
+  const missing = [
+    !clientId ? "GOOGLE_ADS_CLIENT_ID" : "",
+    !clientSecret ? "GOOGLE_ADS_CLIENT_SECRET" : "",
+    !refreshToken ? "GOOGLE_ADS_REFRESH_TOKEN" : "",
+    !locationIds.length ? "GOOGLE_BUSINESS_LOCATION_IDS" : "",
+  ].filter(Boolean);
+  if (missing.length) return { action: "skip", reason: `missing ${missing.join(", ")}` };
+  return { action: "live", clientId, clientSecret, refreshToken, accountId, locationIds };
+}
+
 export function adLibraryCountries(env: Env = process.env) {
   const parts = (env.META_AD_LIBRARY_COUNTRIES || "US")
     .split(",")

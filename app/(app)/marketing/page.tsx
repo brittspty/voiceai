@@ -12,11 +12,14 @@ import {
   dashboardsV2Enabled,
   digestEnabled,
   digestSendEnabled,
+  googleBusinessProfileEnabled,
   holdoutsEnabled,
   monitorEnabled,
   pacingRecsEnabled,
   searchWasteEnabled,
   speedToLeadEnabled,
+  stackAdaptEnabled,
+  adFatigueEnabled,
 } from "@/lib/marketing/config";
 import { parseDashQuery } from "@/lib/marketing/dashboard-model";
 import { loadDashboardForAccess } from "@/lib/marketing/dashboard-query";
@@ -67,6 +70,10 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
           searchWaste: searchWasteEnabled() && canReviewSearchWaste(access),
           competitorWatch: competitorWatchEnabled() && canWatchCompetitors(access),
           holdouts: holdoutsEnabled() && canViewHoldouts(access),
+          adFatigue: adFatigueEnabled(),
+          stackAdapt: stackAdaptEnabled(),
+          gbp: googleBusinessProfileEnabled(),
+          userId: access.userId,
           ...(access.seesCost ? { isSuperAdmin: access.kind === "super_admin", budgetCap: amBudgetCapUsd() } : {}),
         }}
       />
