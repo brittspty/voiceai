@@ -15,7 +15,26 @@ export const DRILL_ADS: AdSignal[] = [
   { name: "New test", leads: 1, clicksChangePct: null, frequency: null, confidence: 42, decisionId: "D-1099", productName: PRODUCT_NAME, credit: { clickDays: 7, viewDays: 1, source: "default" } },
 ];
 
-export function StaffHome() {
+type RegistryMetric = {
+  key: string;
+  href: string;
+  name: string;
+  spend: string;
+  leads: string;
+  cpl: string;
+  qualified: string;
+  status: string;
+  tone: "ok" | "w" | "e";
+  colourToken: string;
+};
+
+type RegistrySurfaces = {
+  commandCenter: { main: RegistryMetric[]; more: RegistryMetric[]; moreLabel: string };
+  audience: { lines: { key: string; label: string; text: string }[]; onHoldLabel: string };
+  resolution: { rows: { key: string; label: string; text: string }[] };
+};
+
+export function StaffHome({ surfaces = null }: { surfaces?: RegistrySurfaces | null } = {}) {
   return (
     <main>
       <Crumbs items={[{ label: "All clients", href: "/" }, { label: "Overview" }]} />
@@ -42,7 +61,7 @@ export function StaffHome() {
             <h2>Channels</h2>
             <span className="sub">Click a channel to drill in</span>
           </div>
-          <table>
+          <table className={surfaces ? "stack" : undefined}>
             <thead>
               <tr>
                 <th>Channel</th>
@@ -53,13 +72,68 @@ export function StaffHome() {
                 <th>Status</th>
               </tr>
             </thead>
-            <tbody>
-              <ChannelRow href="/c/all/meta" name="Meta" spend="$3.9k" leads="96" cpl="$41" qualified="31" status="▼ Anomaly" tone="e" />
-              <ChannelRow href="/c/all/google-ads" name="Google Ads" spend="$3.1k" leads="74" cpl="$42" qualified="29" status="▲ Opportunity" tone="ok" />
-              <ChannelRow href="/c/all/stackadapt" name="StackAdapt" spend="$1.3k" leads="15" cpl="$87" qualified="4" status="◆ Opportunity" tone="w" />
-              <ChannelRow href="/c/all/google-business-profile" name="Google Business Profile" spend="n/a" leads="22" cpl="n/a" qualified="7" status="● Normal" tone="ok" />
-            </tbody>
+            {surfaces ? (
+              <tbody>
+                {surfaces.commandCenter.main.map((row) => (
+                  <ChannelRow key={row.key} href={row.href} name={row.name} spend={row.spend} leads={row.leads} cpl={row.cpl} qualified={row.qualified} status={row.status} tone={row.tone} colour={row.colourToken} icon />
+                ))}
+              </tbody>
+            ) : (
+              <tbody>
+                <ChannelRow href="/c/all/meta" name="Meta" spend="$3.9k" leads="96" cpl="$41" qualified="31" status="▼ Anomaly" tone="e" />
+                <ChannelRow href="/c/all/google-ads" name="Google Ads" spend="$3.1k" leads="74" cpl="$42" qualified="29" status="▲ Opportunity" tone="ok" />
+                <ChannelRow href="/c/all/stackadapt" name="StackAdapt" spend="$1.3k" leads="15" cpl="$87" qualified="4" status="◆ Opportunity" tone="w" />
+                <ChannelRow href="/c/all/google-business-profile" name="Google Business Profile" spend="n/a" leads="22" cpl="n/a" qualified="7" status="● Normal" tone="ok" />
+              </tbody>
+            )}
           </table>
+          {surfaces && (
+            <>
+              <section aria-label={surfaces.commandCenter.moreLabel}>
+                <h2>{surfaces.commandCenter.moreLabel}</h2>
+                <table className="stack">
+                  <thead>
+                    <tr>
+                      <th>Channel</th>
+                      <th>Spend</th>
+                      <th>Leads</th>
+                      <th>CPL</th>
+                      <th>Qualified</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {surfaces.commandCenter.more.map((row) => (
+                      <ChannelRow key={row.key} href={row.href} name={row.name} spend={row.spend} leads={row.leads} cpl={row.cpl} qualified={row.qualified} status={row.status} tone={row.tone} colour={row.colourToken} icon />
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+              <section aria-label="Audience Data">
+                <h2>Audience Data</h2>
+                <p>Platforms on hold <strong>{surfaces.audience.onHoldLabel}</strong></p>
+                <ul>
+                  {surfaces.audience.lines.map((line) => (
+                    <li key={line.key}>{line.label}: {line.text}</li>
+                  ))}
+                </ul>
+              </section>
+              <section aria-label="Resolution Data">
+                <h2>Match rate by platform</h2>
+                <table className="stack">
+                  <thead><tr><th>Platform</th><th>Match rate</th></tr></thead>
+                  <tbody>
+                    {surfaces.resolution.rows.map((row) => (
+                      <tr key={row.key}>
+                        <td data-label="Platform">{row.label}</td>
+                        <td data-label="Match rate">{row.text}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            </>
+          )}
           <p className="sub">Attribution: last non-direct touch, 7-day click / 1-day view. A lead is counted once even if Meta and Google both claim it.</p>
         </section>
         <aside>
@@ -89,15 +163,16 @@ export function StaffHome() {
   );
 }
 
-function ChannelRow({ href, name, spend, leads, cpl, qualified, status, tone }: { href: string; name: string; spend: string; leads: string; cpl: string; qualified: string; status: string; tone: "ok" | "w" | "e" }) {
+function ChannelRow({ href, name, spend, leads, cpl, qualified, status, tone, colour, icon }: { href: string; name: string; spend: string; leads: string; cpl: string; qualified: string; status: string; tone: "ok" | "w" | "e"; colour?: string; icon?: boolean }) {
+  const mark = tone === "e" ? "▼" : tone === "w" ? "▲" : "●";
   return (
     <tr>
-      <td><Link className="ch" href={href}><span className="sw" />{name}</Link></td>
-      <td>{spend}</td>
-      <td>{leads}</td>
-      <td>{cpl}</td>
-      <td>{qualified}</td>
-      <td><span className={`st ${tone}`}>{status}</span></td>
+      <td data-label="Channel"><Link className="ch" href={href}><span className="sw" style={colour ? { background: colour } : undefined} />{name}</Link></td>
+      <td data-label="Spend">{spend}</td>
+      <td data-label="Leads">{leads}</td>
+      <td data-label="CPL">{cpl}</td>
+      <td data-label="Qualified">{qualified}</td>
+      <td data-label="Status"><span className={`st ${tone}`}>{icon ? <span aria-hidden="true">{mark} </span> : null}{status}</span></td>
     </tr>
   );
 }

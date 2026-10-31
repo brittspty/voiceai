@@ -14,6 +14,7 @@ export function JarvisShell({
   logoOnLight,
   items,
   unread,
+  moreChannels,
   children,
 }: {
   productName: string;
@@ -22,6 +23,7 @@ export function JarvisShell({
   logoOnLight: string;
   items: NavItem[];
   unread: number;
+  moreChannels?: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -88,6 +90,7 @@ export function JarvisShell({
           {more && (
             <div className="more">
               <img src={logoOnLight} alt="Specificity Inc" style={{ height: 28 }} />
+              {moreChannels ? <p className="tag">{moreChannels}</p> : null}
               {items
                 .filter((item) => !mobile.some((row) => row.href === item.href))
                 .map((item) => (

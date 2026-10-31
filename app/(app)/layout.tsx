@@ -5,10 +5,11 @@ import { AppShell } from "@/components/shell";
 import { requireUser } from "@/lib/auth";
 import { BRAND_TAGLINE, BRAND_WORDMARK, LOGO_ON_DARK, LOGO_ON_LIGHT, PRODUCT_NAME, resolveBrandColor, resolveLogoUrl } from "@/lib/brand";
 import { prisma } from "@/lib/db";
+import { exampleRegistryState, projectSurfaces } from "@/lib/marketing/channels/registry";
 import { jarvisNav } from "@/lib/marketing/channels/nav";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
 import { loginAnalyticsEnabled } from "@/lib/login-analytics";
-import { audienceLibraryEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
+import { audienceLibraryEnabled, channelRegistryEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { getOrg } from "@/lib/queries";
@@ -30,6 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     const spaces = access.kind === "none" ? [] : await listHomeWorkspaces(access).catch(() => []);
     const showAis2l = spaces.some((row) => row.voiceEnabled);
     const staff = access.seesCost;
+    const registry = channelRegistryEnabled() ? projectSurfaces(exampleRegistryState(), { audience: staff ? "staff" : "client", clientId: "harbor" }) : null;
     const items = jarvisNav({
       audience: staff ? "staff" : "client",
       showAis2l,
@@ -37,9 +39,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showLive: access.kind === "super_admin" || access.kind === "account_manager",
       showSegments: segmentEngineEnabled(),
       showAudiences: staff && audienceLibraryEnabled(),
+      channelLinks: registry ? (staff ? registry.nav : registry.clientNav) : undefined,
     });
     return (
-      <JarvisShell productName={PRODUCT_NAME} wordmark={BRAND_WORDMARK} logoOnDark={LOGO_ON_DARK} logoOnLight={LOGO_ON_LIGHT} items={items} unread={unread}>
+      <JarvisShell productName={PRODUCT_NAME} wordmark={BRAND_WORDMARK} logoOnDark={LOGO_ON_DARK} logoOnLight={LOGO_ON_LIGHT} items={items} unread={unread} moreChannels={registry?.commandCenter.moreLabel}>
         {children}
       </JarvisShell>
     );

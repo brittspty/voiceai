@@ -2730,6 +2730,78 @@ model ClientPlan {
   @@index([status])
 }
 
+model PlatformRegistry {
+  key             String             @id
+  staffLabel      String
+  clientLabel     String
+  channelType     String
+  vendor          String
+  parentKey       String?
+  auth            String
+  scopesRead      Json
+  writeCapable    Boolean            @default(false)
+  writesEnabled   Boolean            @default(false)
+  idUpload        Json
+  matchRateSource String?
+  metrics         Json
+  hierarchy       String             @default("")
+  colourToken     String             @default("#231F20")
+  status          String             @default("available")
+  aliases         Json               @default("[]")
+  contracted      Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  connections     ClientConnection[]
+}
+
+model ClientConnection {
+  id             String           @id @default(cuid())
+  workspaceId    String           @default("org")
+  clientId       String
+  platformKey    String
+  platform       PlatformRegistry @relation(fields: [platformKey], references: [key], onDelete: Cascade)
+  accountId      String           @default("")
+  state          String
+  lastTestAt     DateTime?
+  lastSyncAt     DateTime?
+  tokenRef       String?
+  writesEnabled  Boolean          @default(false)
+  disconnectedAt DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([workspaceId, clientId, platformKey])
+  @@index([workspaceId, clientId])
+}
+
+/// Internal queue for platforms that are not listed. Nothing here is sent outside the app.
+model PlatformRequest {
+  id          String    @id @default(cuid())
+  workspaceId String    @default("org")
+  name        String
+  category    String
+  docsLink    String    @default("")
+  clientId    String
+  why         String
+  status      String    @default("queued")
+  decidedBy   String    @default("")
+  decidedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, status])
+}
+
+model PlatformWriteApproval {
+  id          String   @id @default(cuid())
+  workspaceId String   @default("org")
+  platformKey String
+  approver    String
+  note        String   @default("")
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, platformKey])
+}
+
 /// Anonymous view log. Timestamp and a coarse browser class only.
 model ClientPlanView {
   id              String     @id @default(cuid())
