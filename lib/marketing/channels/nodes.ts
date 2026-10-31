@@ -20,6 +20,7 @@ const CHANNEL_SLUG: Record<string, string> = {
   google_ads: "google-ads",
   stackadapt: "stackadapt",
   google_business_profile: "google-business-profile",
+  chatgpt_ads: "chatgpt-ads",
 };
 
 export function channelSlug(channel: string) {
@@ -29,6 +30,7 @@ export function channelSlug(channel: string) {
 export function channelFromSlug(slug: string) {
   if (slug === "google-ads") return "google_ads";
   if (slug === "google-business-profile") return "google_business_profile";
+  if (slug === "chatgpt-ads") return "chatgpt_ads";
   if (slug === "meta" || slug === "stackadapt") return slug;
   return null;
 }

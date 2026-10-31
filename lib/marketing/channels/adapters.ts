@@ -1,6 +1,6 @@
 import { deriveMetrics, type DerivedMetrics } from "./metrics";
 
-export const CHANNEL_DAILY_KINDS = ["stackadapt", "google_business_profile", "landing_page", "lead", "ais2l"] as const;
+export const CHANNEL_DAILY_KINDS = ["stackadapt", "google_business_profile", "landing_page", "lead", "ais2l", "chatgpt_ads"] as const;
 export type ChannelDailyKind = (typeof CHANNEL_DAILY_KINDS)[number];
 
 export type MetricChannel = "meta" | "google_ads" | ChannelDailyKind;
