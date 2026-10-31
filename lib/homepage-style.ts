@@ -38,7 +38,7 @@ export function homepageStyle(direction: "A" | "B"): HomepageStyle {
   }
   return {
     id: "B",
-    hero: "grid items-center gap-10 lg:grid-cols-2",
+    hero: "lg:grid-cols-2",
     feed: "rounded-2xl bg-ink p-5 text-on-ink",
     steps: "grid gap-4 sm:grid-cols-2 lg:grid-cols-4",
     band: "bg-brand px-6 py-10 text-on-brand",

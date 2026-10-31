@@ -8,7 +8,10 @@ import { PublicHomepage } from "../components/public-homepage";
 import { acceptHomepageContact, saveHomepageContact } from "./homepage-contact";
 import { feedShouldAdvance } from "./homepage-feed";
 import { BOOK_DEMO_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
-import { HOMEPAGE_SECTION_ORDER, HOMEPAGE_SIGNOFF_TODO, homepageMetadata, homepageModel, homepageProse } from "./homepage-content";
+import { BRAND_WORDMARK } from "./brand";
+import { HOMEPAGE_SECTION_ORDER, HOMEPAGE_SIGNOFF_TODO, homepageJsonLd, homepageMetadata, homepageModel, homepageProse } from "./homepage-content";
+import { quizRead } from "./homepage-quiz";
+import { loginHeading } from "./login-copy";
 import { homepageStyle } from "./homepage-style";
 import { canonicalOrigin, isSpecificityPublicHost } from "./hosts";
 import { proxy } from "../proxy";
@@ -210,14 +213,16 @@ test("try the demo is hidden unless DEMO_WORKSPACE is on", () => {
   const off = page(homepageModel({ PUBLIC_HOMEPAGE: "on" }));
   assert.equal(off.includes(TRY_DEMO_LABEL), false);
   assert.equal(off.includes('href="/demo"'), false);
-  assert.equal((off.match(/href="#contact"/g) || []).length, 2);
-  assert.equal((off.match(/>Client login</g) || []).length, 2);
-  assert.equal((off.match(/>Team login</g) || []).length, 2);
-  assert.equal((off.match(/href="\/login"/g) || []).length, 4);
+  assert.equal((off.match(/href="#contact"/g) || []).length, 6);
+  assert.equal((off.match(/>Client login</g) || []).length, 3);
+  assert.equal((off.match(/>Team login</g) || []).length, 3);
+  assert.equal((off.match(/href="\/login"/g) || []).length, 3);
+  assert.equal((off.match(/href="\/login\?audience=team"/g) || []).length, 3);
 
   const on = page(homepageModel({ PUBLIC_HOMEPAGE: "on", DEMO_WORKSPACE: "on" }));
-  assert.equal((on.match(new RegExp(`>${TRY_DEMO_LABEL}<`, "g")) || []).length, 2);
-  assert.equal(on.split('href="/demo"').length - 1, 2);
+  assert.equal((on.match(new RegExp(`>${TRY_DEMO_LABEL}<`, "g")) || []).length, 3);
+  assert.equal((on.match(/>Or try the demo first</g) || []).length, 1);
+  assert.equal(on.split('href="/demo"').length - 1, 4);
   assert.equal(homepageModel({}).showTryDemo, false);
   assert.equal(homepageModel({ DEMO_WORKSPACE: "on" }).showTryDemo, true);
 });
@@ -268,13 +273,24 @@ test("direction B is the default and A is a layout switch", () => {
   assert.match(htmlB, /data-direction="B"/);
 });
 
-test("homepage sections stay in order with placeholder copy and no invented stats", () => {
+test("homepage sections stay in order with signed-off gaps and no invented stats", () => {
   const model = homepageModel({ PUBLIC_HOMEPAGE: "on" });
   assert.equal(model.steps.length, 4);
   assert.equal(model.bands.length, 2);
+  assert.equal(model.pillars.map((item) => item.title).join("."), "Identify.Engage.Convert");
   const prose = homepageProse(model);
-  assert.equal(/\d/.test(prose), false, prose);
-  const privacy = model.faq.find((item) => item.question === "How is personal information handled?");
+  assert.equal(prose.includes("$"), false);
+  assert.equal(prose.includes("%"), false);
+  assert.equal(/\b\d+(\.\d+)?x\b/i.test(prose), false);
+  assert.match(prose, /\[JASON FACTS\]/);
+  assert.match(prose, /ILLUSTRATIVE/);
+  assert.match(prose, /EXAMPLE/);
+  assert.match(prose, /Before/);
+  assert.match(prose, /The turn/);
+  assert.match(prose, /After/);
+  assert.match(prose, /Where is your ad budget leaking/);
+  assert.match(prose, /Jarvis vs a typical agency vs DIY ad platforms/);
+  const privacy = model.faq.find((item) => item.question === "Is this private and compliant?");
   const pricing = model.faq.find((item) => item.question === "What does it cost?");
   const reply = model.faq.find((item) => item.question === "When will someone reply?");
   assert.ok(privacy && pricing && reply);
@@ -285,13 +301,12 @@ test("homepage sections stay in order with placeholder copy and no invented stat
   assert.equal(/gdpr|we never share|we do not sell|compliant/i.test(privacy?.answer || ""), false);
   const claimed = model.faq
     .filter((item) => !item.answer.startsWith("TODO(jason):"))
-    .map((item) => `${item.question}\n${item.answer}`)
+    .map((item) => item.answer)
     .join("\n");
   for (const word of ["privacy", "pricing", "price", "business day", "$", "%"]) {
     assert.equal(claimed.toLowerCase().includes(word), false, word);
   }
   assert.match(HOMEPAGE_SIGNOFF_TODO, /Privacy wording, pricing, and reply-time promises/);
-  assert.match(prose, /PLACEHOLDER/);
   assert.equal(model.brandColor, "#FF5800");
   assert.match(model.fonts.sans, /Poppins|font-brand/);
   assert.match(model.fonts.mono, /IBM Plex Mono/);
@@ -299,20 +314,64 @@ test("homepage sections stay in order with placeholder copy and no invented stat
   let cursor = -1;
   for (const id of HOMEPAGE_SECTION_ORDER) {
     const at = html.indexOf(`id="${id}"`);
-    assert.ok(at > cursor, id);
+    assert.ok(at > cursor, `${id} at ${at}`);
     cursor = at;
   }
   assert.match(html, /action="\/api\/homepage\/contact"/);
   assert.match(html, /Nothing was sent/);
+  assert.match(html, /ILLUSTRATIVE/);
+  assert.match(html, /EXAMPLE/);
+  assert.match(html, /Where is your ad budget leaking/);
+  assert.match(html, /data-cta="book-demo-header"/);
+  assert.match(html, /data-cta="book-demo-sticky"/);
+  assert.match(html, /"@type":"Organization"/);
+  assert.match(html, /"@type":"SoftwareApplication"/);
   assert.equal(html.includes("mailto:"), false);
+  assert.equal(/googletagmanager|segment\.com|facebook\.net|plausible/i.test(html), false);
   const signedIn = page(homepageModel({ PUBLIC_HOMEPAGE: "on" }, { signedIn: true, role: "super_admin" }));
   assert.match(signedIn, /Go to app/);
   assert.match(signedIn, /href="\/marketing"/);
   const meta = homepageMetadata("https://jarvis.specificityinc.com");
-  assert.equal(meta.title.absolute, "Jarvis by Specificity");
-  assert.match(meta.description, /PLACEHOLDER/);
-  assert.equal(meta.openGraph.title, "Jarvis by Specificity");
-  assert.match(meta.openGraph.images[0].url, /specificity-logo-full\.png$/);
+  assert.equal(meta.title.absolute, "Jarvis by Specificity | Identify. Engage. Convert.");
+  assert.match(meta.description, /verified real people in the data market/);
+  assert.equal(meta.openGraph.title, meta.title.absolute);
+  assert.match(meta.openGraph.images[0].url, /\/brand\/jarvis-og\.png$/);
+  const linked = homepageJsonLd("https://jarvis.specificityinc.com");
+  assert.equal(linked["@graph"][0]["@type"], "Organization");
+  assert.equal(linked["@graph"][1]["@type"], "SoftwareApplication");
+  assert.equal(JSON.stringify(linked).includes("aggregateRating"), false);
+  assert.equal(JSON.stringify(linked).includes("price"), false);
+});
+
+test("team login copy is specific and does not change role routing", () => {
+  assert.equal(loginHeading("team", BRAND_WORDMARK), "Specificity team sign-in");
+  assert.equal(loginHeading("client", BRAND_WORDMARK), "Sign in to Specificity");
+  assert.equal(loginHeading(null, BRAND_WORDMARK), "Sign in to Specificity");
+  assert.equal(loginHeading("team"), "Specificity team sign-in");
+  const on = { PUBLIC_HOMEPAGE: "on" };
+  assert.equal(postLoginPath("super_admin", on), "/marketing");
+  assert.equal(postLoginPath("account_manager", on), "/marketing");
+  assert.equal(postLoginPath("client_viewer", on), "/marketing/client");
+  assert.equal(postLoginPath("owner", on), "/app");
+  assert.equal(postLoginPath("admin", on), "/app");
+  assert.equal(postLoginPath("viewer", on), "/app");
+  assert.equal(sourceOf("lib/public-routing.ts").includes("audience"), false);
+  const login = sourceOf("components/login-form.tsx");
+  assert.match(login, /loginHeading/);
+  assert.equal(login.includes("voiceops_session"), false);
+  assert.equal(SESSION_COOKIE, "voiceops_session");
+});
+
+test("the budget quiz is qualitative and has no score", () => {
+  assert.equal(quizRead({}), null);
+  assert.equal(quizRead({ q1: "p", q2: "n", q3: "n" }), null);
+  const leaked = quizRead({ q1: "p", q2: "n", q3: "n", q4: "n" });
+  assert.ok(leaked && leaked.length >= 3);
+  assert.equal(leaked.join(" ").includes("%"), false);
+  assert.equal(/\d/.test(leaked.join(" ")), false);
+  const ahead = quizRead({ q1: "u", q2: "y", q3: "y", q4: "y" });
+  assert.equal(ahead?.length, 1);
+  assert.match(ahead?.[0] || "", /ahead of most/);
 });
 
 test("the rotating feed pauses for hover, focus, and reduced motion", () => {

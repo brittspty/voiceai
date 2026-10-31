@@ -5,7 +5,7 @@ import { BRAND_FONT, loadBrand, PRODUCT_TAGLINE, PRODUCT_TITLE } from "@/lib/bra
 import { brandTokenCss } from "@/lib/brand/tokens";
 import "./globals.css";
 
-const brandFont = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-brand", display: "swap" });
+const brandFont = Poppins({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700"], variable: "--font-brand", display: "swap" });
 
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await loadBrand();

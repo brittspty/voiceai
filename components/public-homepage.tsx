@@ -1,202 +1,490 @@
 import Image from "next/image";
-import Link from "next/link";
+import { AfterArt, BeforeArt, CameraArt, PersonArt, TurnArt } from "@/components/homepage-art";
+import { TrackedLink } from "@/components/homepage-cta-link";
+import { ContactForm } from "@/components/homepage-contact-form";
+import { HomepageDemo } from "@/components/homepage-demo";
 import { HomepageFeed } from "@/components/homepage-feed";
+import { HomepageField } from "@/components/homepage-field";
 import { HomepageMenu } from "@/components/homepage-header";
-import { HOMEPAGE_SECTION_ORDER, type HomepageModel } from "@/lib/homepage-content";
+import { HomepageQuiz } from "@/components/homepage-quiz";
+import { HOMEPAGE_REVEAL_SCRIPT, HomepageReveal } from "@/components/homepage-reveal";
+import { RecommendationSlip } from "@/components/homepage-slip";
+import { HOMEPAGE_SECTION_ORDER, homepageJsonLd, type HomepageModel } from "@/lib/homepage-content";
 import { homepageStyle } from "@/lib/homepage-style";
 
-function LoginLinks({ model, className }: { model: HomepageModel; className?: string }) {
+const BEAT_ART = [BeforeArt, TurnArt, AfterArt];
+
+function Wordmark({ model, large = false }: { model: HomepageModel; large?: boolean }) {
   return (
-    <div className={className}>
+    <Image src={model.logos.reversed} alt={large ? "" : model.logos.alt} width={1427} height={498} priority={!large} className={large ? "wordmark-lg" : "wordmark"} style={{ width: "auto", height: large ? 44 : 30 }} />
+  );
+}
+
+function LoginLinks({ model, variant }: { model: HomepageModel; variant: "desk" | "menu" | "footer" }) {
+  return (
+    <>
       {model.signedIn ? (
-        <Link className="inline-flex min-h-11 items-center rounded-full px-3 text-sm font-semibold underline" href={model.appHref}>
+        <TrackedLink href={model.appHref} cta="go-app" className="go-app">
           Go to app
-        </Link>
+        </TrackedLink>
       ) : null}
-      <Link className="btn-brand inline-flex min-h-11 items-center justify-center rounded-full px-4 text-sm" href={model.logins[0].href}>
-        {model.logins[0].label}
-      </Link>
-      <Link className="inline-flex min-h-11 items-center justify-center rounded-full border border-current px-4 text-sm font-semibold" href={model.logins[1].href}>
-        {model.logins[1].label}
-      </Link>
-    </div>
+      <TrackedLink href={model.logins[0].href} cta={model.logins[0].cta} className={variant === "desk" ? "client-login" : undefined}>{model.logins[0].label}</TrackedLink>
+      <TrackedLink href={model.logins[1].href} cta={model.logins[1].cta} className="team-login">{model.logins[1].label}</TrackedLink>
+    </>
   );
 }
 
-function DemoActions({ model, buttonClass, ghostClass }: { model: HomepageModel; buttonClass: string; ghostClass: string }) {
+function TryLink({ model, className, cta, first = false }: { model: HomepageModel; className: string; cta: string; first?: boolean }) {
+  if (!model.showTryDemo) return null;
   return (
-    <div className="mt-5 flex flex-wrap gap-3">
-      <Link className={buttonClass} href={model.bookHref}>
-        {model.bookLabel}
-      </Link>
-      {model.showTryDemo ? (
-        <Link className={ghostClass} href={model.demoHref}>
-          {model.tryLabel}
-        </Link>
-      ) : null}
-    </div>
+    <TrackedLink href={model.demoHref} cta={cta} className={className}>{first ? model.tryFirstLabel : model.tryLabel}</TrackedLink>
   );
 }
 
-export function PublicHomepage({ model, notice = null }: { model: HomepageModel; notice?: "saved" | "invalid" | null }) {
+function Photo({ caption, wide = false, person = false, team = false }: { caption: string; wide?: boolean; person?: boolean; team?: boolean }) {
+  const shape = wide ? "photo photo-wide" : team ? "photo photo-team" : "photo";
+  return (
+    <figure className={shape}>
+      {person ? <PersonArt /> : <CameraArt />}
+      <figcaption>{caption}</figcaption>
+    </figure>
+  );
+}
+
+function ArtLine({ text, strike, accent }: { text: string; strike?: boolean; accent?: boolean }) {
+  if (strike) return <s>{text}</s>;
+  if (!accent) return <>{text}</>;
+  const marker = text.includes("leading") ? "leading" : "ask";
+  const at = text.indexOf(marker);
+  if (at < 0) return <span className="o">{text}</span>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <span className="o">{text.slice(at)}</span>
+    </>
+  );
+}
+
+export function PublicHomepage({
+  model,
+  notice = null,
+  origin = null,
+}: {
+  model: HomepageModel;
+  notice?: "saved" | "invalid" | null;
+  origin?: string | null;
+}) {
   const style = homepageStyle(model.direction);
-  const heading = { fontFamily: model.fonts.sans };
+  const jsonLd = JSON.stringify(homepageJsonLd(origin)).replace(/</g, "\\u003c");
+  const band = model.bands[0];
+  const finale = model.bands[1];
+
   return (
-    <div
-      data-direction={style.id}
-      data-sections={HOMEPAGE_SECTION_ORDER.join(" ")}
-      className="min-h-screen"
-      style={{ background: model.canvas, color: model.ink, ["--brand" as string]: model.brandColor }}
-    >
-      <header id="header" className="mx-auto flex max-w-6xl items-start justify-between gap-3 px-4 py-5">
-        <Link href="/" className="flex min-w-0 items-center gap-3">
-          <Image src={model.logos.full} alt={model.logos.alt} width={1389} height={645} className="h-10 w-auto" />
-          <span className="min-w-0">
-            <span className="block text-lg font-semibold" style={heading}>
-              {model.product}
-            </span>
-            <span className="block text-sm">{model.byline}</span>
-          </span>
-        </Link>
-        <HomepageMenu>
-          <LoginLinks model={model} className="flex flex-col gap-2 md:flex-row md:items-center" />
-        </HomepageMenu>
+    <div className={`home ${style.hero}`} data-direction={style.id} data-sections={HOMEPAGE_SECTION_ORDER.join(" ")} style={{ ["--brand" as string]: model.brandColor, fontFamily: model.fonts.sans }}>
+      <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />
+      <a className="skip" href="#hero">
+        Skip to content
+      </a>
+      <header id="header" className="site-header">
+        <div className="w topbar">
+          <a href="#hero" aria-label={model.logos.alt}>
+            <Wordmark model={model} />
+          </a>
+          <nav className="desk-nav" aria-label="Main">
+            {model.nav.map((item) => (
+              <a key={item.href} href={item.href}>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+          <div className="desk-logins">
+            <LoginLinks model={model} variant="desk" />
+            <TrackedLink href={model.bookHref} cta="book-demo-header" className="btn">
+              {model.bookLabel}
+            </TrackedLink>
+          </div>
+          <HomepageMenu>
+            {model.menuNav.map((item) => (
+              <a key={item.href} href={item.href}>
+                {item.label}
+              </a>
+            ))}
+            <LoginLinks model={model} variant="menu" />
+            <TrackedLink href={model.bookHref} cta="book-demo-menu" className="btn">
+              {model.bookLabel}
+            </TrackedLink>
+          </HomepageMenu>
+        </div>
       </header>
 
-      <main>
-        <section id="hero" className={`mx-auto max-w-6xl px-4 py-12 ${style.hero}`}>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ fontFamily: model.fonts.mono, color: model.brandColor }}>
-              {model.hero.kicker}
+      <HomepageReveal>
+        <main>
+          <section className="hero" id="hero" aria-labelledby="h1">
+            <HomepageField />
+            <p className="legend mono">
+              <span>
+                <i className="swatch-dim" />
+                {model.hero.legend[0]}
+              </span>
+              <span>
+                <i className="swatch-paper" />
+                {model.hero.legend[1]}
+              </span>
+              <span>
+                <i className="swatch-brand" />
+                {model.hero.legend[2]}
+              </span>
+              <span className="tag">{model.illustrative}</span>
             </p>
-            <h1 className="mt-3 max-w-xl text-4xl font-semibold leading-tight" style={heading}>
-              {model.hero.title}
-            </h1>
-            <p className="mt-4 max-w-xl text-lg leading-8">{model.hero.body}</p>
-          </div>
-          <HomepageFeed items={model.feed} className={style.feed} mono={model.fonts.mono} />
-        </section>
-
-        <section id="how-it-works" className="mx-auto max-w-6xl px-4 py-12">
-          <h2 className="text-2xl font-semibold" style={heading}>
-            PLACEHOLDER. How it works
-          </h2>
-          <ol className={`mt-6 ${style.steps}`}>
-            {model.steps.map((step) => (
-              <li key={step.title} className="rounded-2xl border border-line bg-card p-4">
-                <h3 className="font-semibold" style={heading}>
-                  {step.title}
-                </h3>
-                <p className="mt-2 text-sm leading-6">{step.body}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {model.bands.map((band) => {
-          const primary = band.tone === "primary";
-          return (
-            <section key={band.id} id={band.id} className={primary ? style.band : style.bandAlt}>
-              <div className="mx-auto max-w-6xl">
-                <h2 className="text-2xl font-semibold" style={heading}>
-                  {band.title}
-                </h2>
-                <p className="mt-2 max-w-2xl leading-7">{band.body}</p>
-                <DemoActions model={model} buttonClass={primary ? style.bandButton : style.bandAltButton} ghostClass={primary ? style.bandGhost : style.bandAltGhost} />
-              </div>
-            </section>
-          );
-        })}
-
-        <section id="proof" className="mx-auto max-w-6xl px-4 py-12">
-          <h2 className="text-2xl font-semibold" style={heading}>
-            {model.proof.title}
-          </h2>
-          <p className="mt-2 max-w-2xl leading-7">{model.proof.body}</p>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {model.proof.cards.map((card) => (
-              <article key={card.title} className="rounded-2xl border border-dashed border-line bg-card p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide" style={{ fontFamily: model.fonts.mono, color: model.brandColor }}>
-                  {model.placeholder}
+            <div className="w">
+              <h1 id="h1">
+                {model.hero.title}<em>.</em>
+              </h1>
+              <div className="row">
+                <p className="sub">
+                  {model.hero.before}
+                  <b>{model.hero.emphasis}</b>
+                  {model.hero.after}
                 </p>
-                <h3 className="mt-2 font-semibold" style={heading}>
-                  {card.title}
-                </h3>
-                <p className="mt-2 text-sm leading-6">{card.body}</p>
-              </article>
-            ))}
-          </div>
-        </section>
+                <div className="ctas">
+                  <TrackedLink href={model.bookHref} cta="book-demo-hero" className="btn">
+                    {model.bookLabel}
+                  </TrackedLink>
+                  <TryLink model={model} className="btn sec" cta="try-demo-hero" />
+                </div>
+              </div>
+              <div className="tagline mono">
+                <span>{model.tagline}</span>
+                <span>
+                  {model.product} {model.byline}
+                </span>
+              </div>
+            </div>
+          </section>
 
-        <section id="faq" className="mx-auto max-w-6xl px-4 py-12">
-          <h2 className="text-2xl font-semibold" style={heading}>
-            PLACEHOLDER. Questions
-          </h2>
-          <div className="mt-6 space-y-3">
-            {model.faq.map((item) => (
-              <details key={item.question} className="rounded-2xl border border-line bg-card p-4">
-                <summary className="cursor-pointer font-semibold" style={heading}>
-                  {item.question}
-                </summary>
-                <p className="mt-2 text-sm leading-6">{item.answer}</p>
-              </details>
-            ))}
-          </div>
-        </section>
+          <section className="pillars" id="pillars" aria-labelledby="pillars-title">
+            <div className="w">
+              <h2 id="pillars-title" className="sr-only">
+                {model.tagline}
+              </h2>
+              <div className="pillars-grid">
+                {model.pillars.map((pillar) => (
+                  <article key={pillar.title}>
+                    <h3>{pillar.title}</h3>
+                    <p>{pillar.body}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
 
-        <section id="contact" className="mx-auto max-w-6xl px-4 py-12">
-          <h2 className="text-2xl font-semibold" style={heading}>
-            {model.contact.title}
-          </h2>
-          <p className="mt-2 max-w-2xl leading-7">{model.contact.body}</p>
-          {notice === "saved" ? (
-            <p className="mt-4 text-sm" role="status">
-              {model.contact.saved}
-            </p>
-          ) : null}
-          {notice === "invalid" ? (
-            <p className="mt-4 text-sm text-danger" role="alert">
-              {model.contact.invalid}
-            </p>
-          ) : null}
-          <form action="/api/homepage/contact" method="post" className="mt-6 grid max-w-xl gap-3">
-            <label className="text-sm font-semibold" style={heading}>
-              Name
-              <input name="name" required autoComplete="name" className="mt-1 h-11 w-full rounded-lg border border-line bg-card px-3 font-normal" />
-            </label>
-            <label className="text-sm font-semibold" style={heading}>
-              Email
-              <input name="email" type="email" required autoComplete="email" className="mt-1 h-11 w-full rounded-lg border border-line bg-card px-3 font-normal" />
-            </label>
-            <label className="text-sm font-semibold" style={heading}>
-              Company
-              <input name="company" autoComplete="organization" className="mt-1 h-11 w-full rounded-lg border border-line bg-card px-3 font-normal" />
-            </label>
-            <label className="text-sm font-semibold" style={heading}>
-              Message
-              <textarea name="message" required rows={4} className="mt-1 w-full rounded-lg border border-line bg-card px-3 py-2 font-normal" />
-            </label>
-            <button className="btn-brand h-11 rounded-full px-4 text-sm" type="submit">
-              Save message
-            </button>
-          </form>
-        </section>
-      </main>
+          <section className="story" id="story">
+            <div className="w">
+              <h2 className="rv">{model.story.title}</h2>
+              <p className="lead rv">{model.story.lead}</p>
+              <div className="beats">
+                {model.story.beats.map((beat, index) => {
+                  const Art = BEAT_ART[index] ?? BeforeArt;
+                  return (
+                    <article className="beat rv" key={beat.label}>
+                      <Art />
+                      <span className="lab mono">{beat.label}</span>
+                      <h3>{beat.title}</h3>
+                      <p>{beat.body}</p>
+                    </article>
+                  );
+                })}
+              </div>
+              <Photo caption={model.story.photo} wide />
+            </div>
+          </section>
 
-      <footer id="footer" className="border-t border-line">
-        {/* TODO(jason): Privacy wording, pricing, and reply-time promises need Jason's sign-off before they can be added. */}
-        <div className="bg-ink">
-          <div className="mx-auto max-w-6xl px-4 py-4">
-            <Image src={model.logos.reversed} alt="" width={1427} height={498} className="h-8 w-auto" />
+          <section className="proof" id="proof">
+            <div className="w">
+              <div className="top rv">
+                <h2>{model.proof.title}</h2>
+                <p className="lead">{model.proof.lead}</p>
+              </div>
+              <div className="logo-row" aria-label="Client logos">
+                {model.proof.logos.map((logo, index) => (
+                  <div className="slot logo-slot" key={`${logo}-${index}`}>
+                    <span className="mono lab">LOGO</span>
+                    <b>{logo}</b>
+                  </div>
+                ))}
+              </div>
+              <div className="pg rv">
+                <div className="method">
+                  <span className="lab mono">The method</span>
+                  <h3>{model.proof.methodTitle}</h3>
+                  <p className="lead">{model.proof.methodBody}</p>
+                  <ol>
+                    {model.proof.method.map((step) => (
+                      <li key={step.label}>
+                        <span className="mono">{step.label}</span>
+                        {step.body}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+                <div className="tour" id="tour">
+                  <div>
+                    <span className="lab mono">Demo tour</span>
+                    <h3>{model.proof.tourTitle}</h3>
+                    <p>{model.proof.tourBody}</p>
+                  </div>
+                  <TryLink model={model} className="btn sec" cta="try-demo-tour" />
+                </div>
+                {model.proof.slots.map((slot) => (
+                  <div className="slot" key={slot.kicker}>
+                    <span className="mono lab">{slot.kicker}</span>
+                    <b>{slot.title}</b>
+                    <span className="lab">{slot.note}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="voices">
+                <div className="quote">
+                  <span className="mono lab">{model.proof.quotes[0]?.kicker}</span>
+                  <p>{model.proof.quotes[0]?.body}</p>
+                  <span className="lab">{model.proof.quotes[0]?.note}</span>
+                </div>
+                <Photo caption={model.proof.quotePhoto} person />
+                <div className="quote">
+                  <span className="mono lab">{model.proof.quotes[1]?.kicker}</span>
+                  <p>{model.proof.quotes[1]?.body}</p>
+                  <span className="lab">{model.proof.quotes[1]?.note}</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="how" id="how-it-works">
+            <div className="w">
+              <h2>Here is what happens to your money.</h2>
+              <div className="flow rv">
+                {model.steps.map((step) => (
+                  <article className="fs" key={step.title}>
+                    <span className="lab mono">{step.kicker}</span>
+                    <h3>{step.title}</h3>
+                    <p>{step.body}</p>
+                    <div className="art mono">
+                      {step.lines.map((line) => (
+                        <div key={line.text}>
+                          <ArtLine text={line.text} strike={line.strike} accent={line.accent} />
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <p className="lab mono">{model.stepsNote}</p>
+            </div>
+          </section>
+
+          <section className="band" id={band.id} aria-label={band.title}>
+            <div className="w">
+              <h2>{band.title}</h2>
+              <div className="ctas">
+                <TrackedLink href={model.bookHref} cta="book-demo-band" className="btn">
+                  {model.bookLabel}
+                </TrackedLink>
+                <TryLink model={model} className="btn sec" cta="try-demo-band" />
+              </div>
+            </div>
+          </section>
+
+          <section className="demo" id="demo">
+            <div className="w">
+              <p className="lab mono rv">{model.demo.kicker}</p>
+              <h2 className="rv">{model.demo.title}</h2>
+              <p className="lead rv">{model.demo.lead}</p>
+              <div className="dg rv">
+                <HomepageDemo segments={model.segments} illustrative={model.illustrative} group={model.demo.group} barNote={model.demo.barNote} />
+                <div className="panel">
+                  <div className="ph mono">
+                    <span>JARVIS DECISION FEED</span>
+                    <span>{model.example}</span>
+                  </div>
+                  <HomepageFeed items={model.feed} example={model.example} />
+                  <p className="mono lab">{model.demo.feedNote}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="hum" id="platform">
+            <div className="w hum-grid">
+              <div>
+                <blockquote>
+                  {model.platform.quote} <span>{model.platform.accent}</span>
+                </blockquote>
+                <ul>
+                  {model.platform.points.map((point) => (
+                    <li key={point}>{point}</li>
+                  ))}
+                </ul>
+                <div className="team">
+                  {[0, 1, 2].map((index) => (
+                    <Photo key={index} caption={model.platform.photos} person team />
+                  ))}
+                </div>
+                <p className="lab">{model.platform.note}</p>
+              </div>
+              <RecommendationSlip illustrative={model.illustrative} title={model.slip.title} body={model.slip.body} why={model.slip.why} />
+            </div>
+          </section>
+
+          <section className="mods" id="modules">
+            <div className="w mods-grid">
+              <h2>{model.modulesTitle}</h2>
+              <div>
+                {model.modules.map((row) => (
+                  <article className="mr" key={row.title}>
+                    <h3>{row.title}</h3>
+                    <p>{row.body}</p>
+                    <span className="mono">{row.meta}</span>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="compare" id="compare">
+            <div className="w">
+              <h2>{model.compare.title}</h2>
+              <p className="lead">{model.compare.lead}</p>
+              <div className="cmp">
+                {model.compare.rows.map((row) => (
+                  <article key={row.label}>
+                    <h3>{row.label}</h3>
+                    <div className="cmp-cols">
+                      {row.cells.map((cell, index) => (
+                        <p key={model.compare.columns[index]}>
+                          <span className="lab mono">{model.compare.columns[index]}</span>
+                          {cell}
+                        </p>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="quiz" id="quiz">
+            <div className="w quiz-grid">
+              <div>
+                <h2 className="rv">{model.quiz.title}</h2>
+                <p className="lead rv">{model.quiz.lead}</p>
+              </div>
+              <HomepageQuiz questions={model.questions} quiz={model.quiz} bookHref={model.bookHref} bookLabel={model.bookLabel} />
+            </div>
+          </section>
+
+          <section className="faq" id="faq">
+            <div className="w faq-grid">
+              <h2>{model.faqTitle}</h2>
+              <div>
+                {model.faq.map((item, index) => (
+                  <details key={item.question} open={index === 0}>
+                    <summary>{item.question}</summary>
+                    <p>{item.answer}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="con" id={finale.id}>
+            <div className="w con-grid">
+              <div>
+                <h2>{finale.title}</h2>
+                <p className="lead">{finale.body}</p>
+                <div className="ctas">
+                  <TryLink model={model} className="btn sec" cta="try-demo-contact" first />
+                </div>
+              </div>
+              <div>
+                {notice === "saved" ? (
+                  <p className="notice" role="status">
+                    {model.contact.saved}
+                  </p>
+                ) : null}
+                {notice === "invalid" ? (
+                  <p className="notice bad" role="alert">
+                    {model.contact.invalid}
+                  </p>
+                ) : null}
+                <ContactForm>
+                  <label>
+                    Name
+                    <input name="name" autoComplete="name" required />
+                  </label>
+                  <label>
+                    Work email
+                    <input name="email" type="email" autoComplete="email" required />
+                  </label>
+                  <label className="full">
+                    Company
+                    <input name="company" autoComplete="organization" />
+                  </label>
+                  <label className="full">
+                    {model.contact.running}
+                    <textarea name="message" rows={3} required />
+                  </label>
+                  <div className="full">
+                    <button className="btn" type="submit">
+                      {model.bookLabel}
+                    </button>
+                  </div>
+                </ContactForm>
+              </div>
+            </div>
+          </section>
+        </main>
+      </HomepageReveal>
+
+      <footer id="footer">
+        <div className="w">
+          <div>
+            <Wordmark model={model} large />
+            <p style={{ marginTop: 16, maxWidth: "30ch" }}>{model.footer.blurb}</p>
           </div>
-        </div>
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-8">
-          <Image src={model.logos.mark} alt="" width={1349} height={432} className="h-8 w-auto" />
-          <nav aria-label="Sign in" className="flex flex-wrap items-center gap-2">
-            <LoginLinks model={model} className="flex flex-wrap items-center gap-2" />
+          <div>
+            <h2>{model.footer.product}</h2>
+            <a href="#how-it-works">How it works</a>
+            <a href="#proof">Proof</a>
+            <a href="#faq">FAQ</a>
+          </div>
+          <nav aria-label="Account">
+            <h2>{model.footer.account}</h2>
+            <LoginLinks model={model} variant="footer" />
+            <TrackedLink href={model.bookHref} cta="book-demo-footer">
+              {model.bookLabel}
+            </TrackedLink>
           </nav>
+          <div>
+            <h2>{model.footer.legal}</h2>
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+          </div>
+          <div className="legal">
+            <span>
+              © {model.year} {model.wordmark}, Inc.
+            </span>
+            <span>{model.tagline}</span>
+          </div>
         </div>
       </footer>
+
+      <div className="sticky-cta">
+        <TrackedLink href={model.bookHref} cta="book-demo-sticky" className="btn">
+          {model.bookLabel}
+        </TrackedLink>
+      </div>
+      <script dangerouslySetInnerHTML={{ __html: HOMEPAGE_REVEAL_SCRIPT }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
     </div>
   );
 }

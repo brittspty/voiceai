@@ -1,22 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { feedShouldAdvance } from "@/lib/homepage-feed";
+import type { FeedItem } from "@/lib/homepage-content";
 
-export function HomepageFeed({
-  items,
-  className,
-  mono,
-}: {
-  items: string[];
-  className: string;
-  mono: string;
-}) {
-  const [index, setIndex] = useState(0);
+type Shown = FeedItem & { fresh: boolean; key: string };
+
+export function HomepageFeed({ items, example }: { items: FeedItem[]; example: string }) {
+  const [shown, setShown] = useState<Shown[]>(() => items.slice(0, 4).map((item, index) => ({ ...item, fresh: false, key: `s${index}` })));
   const [hovering, setHovering] = useState(false);
   const [focused, setFocused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
-  const safeIndex = items.length ? index % items.length : 0;
+  const [onScreen, setOnScreen] = useState(true);
+  const cursor = useRef(4);
+  const serial = useRef(4);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -27,18 +25,28 @@ export function HomepageFeed({
   }, []);
 
   useEffect(() => {
-    if (!feedShouldAdvance({ hovering, focused, reducedMotion }) || items.length < 2) return;
-    const id = window.setInterval(() => setIndex((current) => (current + 1) % items.length), 3200);
-    return () => window.clearInterval(id);
-  }, [focused, hovering, items.length, reducedMotion]);
+    const node = rootRef.current;
+    if (!node || !("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver((entries) => setOnScreen(Boolean(entries[0]?.isIntersecting)));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
-  if (!items.length) return null;
+  useEffect(() => {
+    if (!feedShouldAdvance({ hovering, focused, reducedMotion }) || !onScreen || items.length < 2) return;
+    const id = window.setInterval(() => {
+      const item = items[cursor.current % items.length];
+      cursor.current += 1;
+      const key = `n${serial.current++}`;
+      setShown((current) => [{ ...item, fresh: !reducedMotion, key }, ...current].slice(0, 4));
+    }, 4200);
+    return () => window.clearInterval(id);
+  }, [focused, hovering, items, onScreen, reducedMotion]);
 
   return (
     <div
-      className={className}
+      ref={rootRef}
       tabIndex={0}
-      aria-label="Placeholder activity"
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
       onFocusCapture={() => setFocused(true)}
@@ -48,25 +56,16 @@ export function HomepageFeed({
         setFocused(false);
       }}
     >
-      <p className="text-xs uppercase tracking-wide" style={{ fontFamily: mono }}>
-        PLACEHOLDER
-      </p>
-      <p className="mt-3 min-h-16 text-lg leading-7" style={{ fontFamily: mono }} aria-live="off">
-        {items[safeIndex]}
-      </p>
-      <div className="mt-4 flex gap-2">
-        {items.map((item, itemIndex) => (
-          <button
-            key={item}
-            type="button"
-            aria-label="Show this update"
-            aria-pressed={itemIndex === safeIndex}
-            className="h-2.5 w-2.5 rounded-full border border-current"
-            style={{ background: itemIndex === safeIndex ? "currentColor" : "transparent" }}
-            onClick={() => setIndex(itemIndex)}
-          />
+      <ul className="feed" aria-label="Example decision feed">
+        {shown.map((item) => (
+          <li key={item.key} className={item.fresh ? "in" : undefined}>
+            <b>{item.title}</b>
+            {item.body}
+            <br />
+            <span>{example}</span>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }
