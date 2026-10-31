@@ -49,7 +49,11 @@ export function KpiRow({ kpis }: { kpis: { dials: number; connectRate: number; m
 export function LiveNow({ initial, range }: { initial: Live; range: string }) {
   const router = useRouter();
   const [live, setLive] = useState(initial);
-  useEffect(() => setLive(initial), [initial]);
+  const [liveSource, setLiveSource] = useState(initial);
+  if (liveSource !== initial) {
+    setLiveSource(initial);
+    setLive(initial);
+  }
   useEffect(() => {
     const timer = setInterval(async () => {
       const res = await fetch(`/api/live?range=${range}`);

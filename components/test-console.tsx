@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AIS2L_NAME } from "@/lib/brand/names";
 import { preflightCall, startTestCall } from "@/lib/actions";
 import type { GateCheckView } from "@/lib/types";
 import type { CallRow } from "@/components/call-drawer";
@@ -108,7 +109,7 @@ export function TestConsole({ canWrite = true, offices, contacts }: { canWrite?:
             <div className="font-medium">Call {call.status.replaceAll("_", " ")}</div>
             {call.outcome && <div className="text-muted">Outcome: {call.outcome.replaceAll("_", " ")}</div>}
             {call.transcript?.[0] && <p className="mt-2 text-muted">{call.transcript[0].text}</p>}
-            <a className="mt-2 inline-block underline" href="/calls">Open Calls</a>
+            <a className="mt-2 inline-block underline" href="/calls">Open {AIS2L_NAME}</a>
           </div>
         )}
       </div>
