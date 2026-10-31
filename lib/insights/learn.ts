@@ -20,7 +20,7 @@ export type InsightObservation = {
   source: string;
   creative: string;
   channel: string;
-  qualified: number;
+  qualified: number | null;
   leads: number;
   /** Anonymous client id. Never a business name. */
   clientKey: string;
@@ -52,25 +52,34 @@ export const EXAMPLE_INSIGHT_OBSERVATIONS: InsightObservation[] = [
   { vertical: "Home services", source: "Website visitors", creative: "15 second video", channel: "Display", qualified: 6, leads: 25, clientKey: "c5" },
 ];
 
-type Tally = { name: string; qualified: number; leads: number };
+type Tally = { name: string; qualified: number | null; leads: number };
 
-function bestOf(rows: InsightObservation[], key: "source" | "creative" | "channel"): Tally | null {
-  const groups = new Map<string, { qualified: number; leads: number }>();
+function bestOf(rows: InsightObservation[], key: "source" | "creative" | "channel", minLeads: number): Tally | null {
+  const groups = new Map<string, { qualified: number | null; leads: number }>();
   for (const row of rows) {
-    const name = row[key];
+    const name = row[key].trim();
+    if (!name) continue;
     const current = groups.get(name) ?? { qualified: 0, leads: 0 };
-    current.qualified += row.qualified;
     current.leads += row.leads;
+    if (row.qualified == null || current.qualified == null) current.qualified = null;
+    else current.qualified += row.qualified;
     groups.set(name, current);
   }
   let winner: Tally | null = null;
   for (const [name, stat] of groups) {
-    if (stat.leads < 5) continue;
-    const rate = stat.qualified / stat.leads;
-    const bestRate = winner ? winner.qualified / winner.leads : -1;
+    if (stat.leads < minLeads) continue;
+    const rate = stat.qualified == null ? stat.leads : stat.qualified / stat.leads;
+    const bestRate = winner == null ? -1 : winner.qualified == null ? winner.leads : winner.qualified / winner.leads;
     if (!winner || rate > bestRate) winner = { name, qualified: stat.qualified, leads: stat.leads };
   }
   return winner;
+}
+
+function tallySentence(tally: Tally, kind: "channel" | "creative" | "source") {
+  if (tally.qualified == null) return `${tally.name} recorded ${tally.leads} leads.`;
+  if (kind === "creative") return `${tally.name} creatives qualified ${tally.qualified} of ${tally.leads}.`;
+  if (kind === "source") return `The ${tally.name} audience qualified ${tally.qualified} of ${tally.leads}.`;
+  return `${tally.name} qualified ${tally.qualified} of ${tally.leads} leads in this set.`;
 }
 
 function joinSources(sources: string[]) {
@@ -81,32 +90,38 @@ function joinSources(sources: string[]) {
 }
 
 export function basedOnLine(input: { sources: string[]; start: string; end: string; n: number }) {
-  return `Based on ${joinSources(input.sources)} · ${input.start}–${input.end} · n=${input.n}`;
+  const range = input.start && input.end ? `${input.start}–${input.end}` : "date range not stored";
+  return `Based on ${joinSources(input.sources)} · ${range} · n=${input.n}`;
 }
 
 /** Recommendations only. Client names are not copied onto the card. */
-export function buildInsights(rows: InsightObservation[], range = INSIGHT_RANGE): InsightCard[] {
-  const verticals = [...new Set(rows.map((row) => row.vertical))];
+export function buildInsights(rows: InsightObservation[], range = INSIGHT_RANGE, minLeads = 5): InsightCard[] {
+  const verticals = [...new Set(rows.map((row) => row.vertical || "Not labeled"))];
   const cards: InsightCard[] = [];
   for (const vertical of verticals) {
-    const mine = rows.filter((row) => row.vertical === vertical);
-    const channel = bestOf(mine, "channel");
-    const creative = bestOf(mine, "creative");
-    const source = bestOf(mine, "source");
-    if (!channel || !creative || !source) continue;
+    const mine = rows.filter((row) => (row.vertical || "Not labeled") === vertical);
+    const channel = bestOf(mine, "channel", minLeads);
+    const creative = bestOf(mine, "creative", minLeads);
+    const source = bestOf(mine, "source", minLeads);
+    if (!channel && !creative && !source) continue;
     const n = new Set(mine.map((row) => row.clientKey)).size;
     const label = vertical.toLowerCase();
+    const recommendation = channel && creative && source
+      ? `For ${label}, favor ${channel.name}, ${creative.name} creatives, and the ${source.name} audience.`
+      : `For ${label}, favor ${[channel?.name, creative ? `${creative.name} creatives` : "", source ? `the ${source.name} audience` : ""].filter(Boolean).join(", ")}.`;
+    const reason = [
+      channel ? tallySentence(channel, "channel") : "",
+      creative ? tallySentence(creative, "creative") : "",
+      source ? tallySentence(source, "source") : "",
+      "This is a recommendation only.",
+    ].filter(Boolean).join(" ");
+    const sources = [source ? "audience sources" : "", creative ? "creatives" : "", channel ? "channels" : ""].filter(Boolean);
     cards.push({
       id: vertical.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
       vertical,
-      recommendation: `For ${label}, favor ${channel.name}, ${creative.name} creatives, and the ${source.name} audience.`,
-      reason: `${channel.name} qualified ${channel.qualified} of ${channel.leads} leads in this set. ${creative.name} creatives qualified ${creative.qualified} of ${creative.leads}. The ${source.name} audience qualified ${source.qualified} of ${source.leads}. This is a recommendation only.`,
-      basedOn: basedOnLine({
-        sources: ["audience sources", "creatives", "channels"],
-        start: range.start,
-        end: range.end,
-        n,
-      }),
+      recommendation,
+      reason,
+      basedOn: basedOnLine({ sources, start: range.start, end: range.end, n }),
     });
   }
   return cards;

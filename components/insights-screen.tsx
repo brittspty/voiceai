@@ -1,7 +1,7 @@
 import "@/components/jarvis/jarvis.css";
-import type { InsightCard } from "@/lib/insights/learn";
+import type { InsightView } from "@/lib/insights/live";
 
-export function InsightsScreen({ cards }: { cards: InsightCard[] }) {
+export function InsightsScreen({ view }: { view: InsightView }) {
   return (
     <main className="jarvis">
       <div className="top">
@@ -9,10 +9,11 @@ export function InsightsScreen({ cards }: { cards: InsightCard[] }) {
           <div className="sub">Staff only · anonymized · recommendations only</div>
           <h1>Insights</h1>
         </div>
-        <span className="ex">EXAMPLE DATA</span>
+        {view.origin === "example" ? <span className="ex">EXAMPLE DATA</span> : <p role="status">{view.label}</p>}
       </div>
-      <p>Patterns across clients, with the business names removed. These are recommendations only. Nothing here changes a campaign.</p>
-      {cards.map((card) => (
+      <p>{view.note} These are recommendations only. Nothing here changes a campaign.</p>
+      {view.items.length === 0 && <p>No comparison is available.</p>}
+      {view.items.map((card) => (
         <article key={card.id} className="dec">
           <div className="tag">{card.vertical}</div>
           <h2>{card.recommendation}</h2>

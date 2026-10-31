@@ -65,6 +65,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showReports={reportsV2Enabled()}
       homeHref={appHomePath()}
       showPortfolio={loginAnalyticsEnabled() && (user.role === "super_admin" || user.role === "account_manager")}
+      showInsights={insightsEnabled()}
+      showNotifications={pushNotificationsEnabled()}
     >
       {children}
     </AppShell>

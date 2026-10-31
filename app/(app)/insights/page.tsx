@@ -2,7 +2,8 @@ import { forbidden, redirect } from "next/navigation";
 import { InsightsScreen } from "@/components/insights-screen";
 import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
-import { buildInsights, EXAMPLE_INSIGHT_OBSERVATIONS, insightsEnabled, insightsHttpStatus } from "@/lib/insights/learn";
+import { loadInsightView } from "@/lib/insights/load";
+import { insightsEnabled, insightsHttpStatus } from "@/lib/insights/learn";
 import { jarvisUiV2Enabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 
@@ -14,7 +15,7 @@ export default async function InsightsPage() {
     const access = await loadMarketingAccess(user);
     const status = insightsHttpStatus({ enabled: true, signedIn: true, kind: access.kind, share: false });
     if (status !== 200) forbidden();
-    return <InsightsScreen cards={buildInsights(EXAMPLE_INSIGHT_OBSERVATIONS)} />;
+    return <InsightsScreen view={await loadInsightView()} />;
   }
   if (!jarvisUiV2Enabled()) redirect("/");
   const user = await requireUser();

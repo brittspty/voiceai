@@ -1957,6 +1957,7 @@ model PushPreference {
   quietEndHour             Int      @default(7)
   urgentOutageBreaksQuiet  Boolean  @default(true)
   timeZone                 String   @default("America/New_York")
+  subscription             Json?
   updatedAt                DateTime @updatedAt
 }
 
