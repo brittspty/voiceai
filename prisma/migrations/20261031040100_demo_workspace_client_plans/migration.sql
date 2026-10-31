@@ -1,6 +1,6 @@
 -- AlterEnum
 ALTER TYPE "Role" ADD VALUE 'demo_viewer';
-ALTER TYPE "AdPlatform" ADD VALUE 'stackadapt';
+ALTER TYPE "AdPlatform" ADD VALUE IF NOT EXISTS 'stackadapt';
 ALTER TYPE "AdPlatform" ADD VALUE 'ais2l';
 
 -- CreateEnum
