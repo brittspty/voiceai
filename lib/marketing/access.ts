@@ -57,6 +57,7 @@ export function roleLabel(role: string) {
     account_manager: "Account manager",
     all_clients_viewer: "All clients",
     client_viewer: "Client viewer",
+    demo_viewer: "Demo viewer",
     owner: "Owner",
     admin: "Admin",
     viewer: "Viewer",

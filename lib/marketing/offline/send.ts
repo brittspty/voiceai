@@ -1,3 +1,4 @@
+import { assertOutboundOpen } from "../../demo/outbound";
 import type { Env } from "../config";
 import { offlineConversionsLiveEnabled } from "../config";
 import { AdBudgetWriteBlockedError, assertNoAdBudgetWrite } from "../connectors/budget-lock";
@@ -132,6 +133,7 @@ export async function resolveGoogleAccessToken(
     refresh_token: creds.refreshToken,
     grant_type: "refresh_token",
   });
+  assertOutboundOpen("google");
   const response = await fetchImpl(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -211,6 +213,7 @@ export async function executeUploads(input: {
       continue;
     }
     assertConversionUploadUrl(wire.url);
+    assertOutboundOpen(upload.platform === "meta" ? "meta" : "google");
     try {
       assertNoAdBudgetWrite({ method: "POST", url: wire.url, body: wire.body });
     } catch (error) {

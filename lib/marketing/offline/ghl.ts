@@ -1,7 +1,9 @@
+import { assertOutboundOpen } from "../../demo/outbound";
 import type { Env } from "../config";
 
 /** Read one page of opportunities. The response body is not logged. */
 export async function pullGhlOpportunities(env: Env, fetchImpl: typeof fetch) {
+  assertOutboundOpen("ghl");
   const key = (env.GHL_API_KEY || "").trim();
   const location = (env.GHL_LOCATION_ID || "").trim();
   if (!key || !location) return { opportunities: [] as unknown[], status: null as number | null };

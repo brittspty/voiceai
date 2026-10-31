@@ -1,5 +1,6 @@
 import { planOutcomeTags, replaceVoiceopsOutcomeTags, type TagClient } from "../ais2l/outcomes";
 import { capVoicemailScript } from "../ais2l/voicemail";
+import { assertOutboundOpen, demoForcesMock } from "../demo/outbound";
 import { integrationsMode, portsAreMocked } from "../env";
 import { buildTranscript } from "../transcript";
 import type { CallOutcomeName } from "../types";
@@ -52,6 +53,7 @@ export const mockCrm: CrmPort = {
 };
 
 async function ghlFetch(path: string, init?: RequestInit) {
+  assertOutboundOpen("ghl");
   const key = process.env.GHL_API_KEY;
   if (!key) throw new Error("GHL_API_KEY is not set");
   const res = await fetch(`https://services.leadconnectorhq.com${path}`, {
@@ -105,6 +107,7 @@ export const liveCrm: CrmPort = {
 
 export const liveVoice: VoicePort = {
   async placeCall(input) {
+    assertOutboundOpen("twilio");
     const key = process.env.ELEVENLABS_API_KEY;
     const agentId = process.env.ELEVENLABS_AGENT_ID;
     const phoneNumberId = process.env.ELEVENLABS_AGENT_PHONE_NUMBER_ID;
@@ -159,7 +162,7 @@ function ghlTagClient(): TagClient {
 }
 
 export function getPorts(testMode: boolean): { voice: VoicePort; crm: CrmPort; mocked: boolean } {
-  const mocked = portsAreMocked(testMode);
+  const mocked = demoForcesMock() || portsAreMocked(testMode);
   return mocked ? { voice: mockVoice, crm: mockCrm, mocked: true } : { voice: liveVoice, crm: liveCrm, mocked: false };
 }
 
@@ -169,6 +172,7 @@ export function shownIntegrationStatus(input: { status: string; keysSet: boolean
 }
 
 export async function checkGhl(): Promise<{ status: "healthy" | "down" | "unconfigured"; latencyMs: number | null; detail: string }> {
+  assertOutboundOpen("ghl");
   if (integrationsMode() !== "live" || !process.env.GHL_API_KEY || !process.env.GHL_LOCATION_ID) {
     return { status: "unconfigured", latencyMs: null, detail: "Not connected" };
   }
@@ -182,6 +186,7 @@ export async function checkGhl(): Promise<{ status: "healthy" | "down" | "unconf
 }
 
 export async function checkEleven(): Promise<{ status: "healthy" | "down" | "unconfigured"; latencyMs: number | null; detail: string }> {
+  assertOutboundOpen("twilio");
   if (integrationsMode() !== "live" || !process.env.ELEVENLABS_API_KEY) {
     return { status: "unconfigured", latencyMs: null, detail: "Not connected" };
   }
@@ -196,6 +201,7 @@ export async function checkEleven(): Promise<{ status: "healthy" | "down" | "unc
 }
 
 export async function checkTwilio(): Promise<{ status: "healthy" | "down" | "unconfigured"; latencyMs: number | null; detail: string }> {
+  assertOutboundOpen("twilio");
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
   if (integrationsMode() !== "live" || !sid || !token || !process.env.TWILIO_PHONE_NUMBER) {

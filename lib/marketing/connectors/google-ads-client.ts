@@ -11,6 +11,7 @@
  * Budget, bid, and spend-cap writes are refused by `assertNoAdBudgetWrite` before that allowlist.
  */
 
+import { assertOutboundOpen } from "../../demo/outbound";
 import { assertNoAdBudgetWrite } from "./budget-lock";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -208,6 +209,7 @@ function errorMessage(body: unknown, status: number, secrets: string[]) {
 
 /** Performs one read call. Page-status and upload URLs throw and do not call fetch. */
 export async function googleAdsRequest(input: GoogleAdsCall) {
+  assertOutboundOpen("google");
   assertNoAdBudgetWrite({ method: input.method, url: input.url, body: input.body });
   assertGoogleAdsAllowed("read", input.method, input.url);
   const fetchImpl = input.fetchImpl ?? fetch;

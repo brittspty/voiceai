@@ -9,6 +9,7 @@ import { ShareLinkButton } from "@/components/share-link-button";
 import { Pill } from "@/components/pills";
 import { PageTitle } from "@/components/shell";
 import { BudgetEditor } from "@/components/budget-editor";
+import { DataChip } from "@/components/data-chip";
 import { formatDateTime } from "@/lib/format";
 
 type AccountRow = {
@@ -223,6 +224,7 @@ export function MarketingView(props: {
   leadQuality?: { qualified: number; total: number; rateLabel: string; trend: string; costPerQualifiedLead?: string } | null;
   pacing?: { enabled: boolean; bars: { campaignId: string; name: string; status: string; chip: string; text: string; verification: string }[]; stale?: boolean };
   fatigue?: { enabled: boolean; ads: { campaignId: string; adName: string; headline: string; platform: string; chip: string }[] };
+  demoData?: boolean;
 }) {
   const seesCost = Boolean(props.flags?.seesCost);
   const searchTerms = props.searchTerms ?? [];
@@ -274,7 +276,7 @@ export function MarketingView(props: {
       {props.mock && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card px-4 py-3 text-sm">
           <Pill tone="amber">MOCK</Pill>
-          <span className="font-semibold text-ink">EXAMPLE DATA</span>
+          <DataChip demo={props.demoData} />
         </div>
       )}
       {props.lastRun?.error && (

@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
     return [
       { source: "/share/:path*", headers: share },
       { source: "/api/share/:path*", headers: share },
+      { source: "/demo", headers: share },
+      { source: "/demo/:path*", headers: share },
+      { source: "/plan/:path*", headers: share },
     ];
   },
 };

@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { assertOutboundOpen } from "../../demo/outbound";
 import { assertNoAdBudgetWrite } from "./budget-lock";
 import { asRecord, str } from "./meta-map";
 
@@ -303,6 +304,7 @@ async function pause(input: GraphCall & { method: string }, waitMs: number, reas
 }
 
 async function graphRequest(input: GraphCall & { method: "GET" | "POST" }) {
+  assertOutboundOpen("meta");
   const fetchImpl = input.fetchImpl ?? fetch;
   const url = graphUrl(input);
   assertNoAdBudgetWrite({ method: input.method, url: url.toString(), params: input.params });
