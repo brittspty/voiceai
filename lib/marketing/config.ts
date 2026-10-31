@@ -323,6 +323,11 @@ export function audienceLibraryEnabled(env: Env = process.env) {
   return flagOn(env, "AUDIENCE_LIBRARY");
 }
 
+/** Off unless AUDIENCE_DATA is explicitly on. Staff-only example screen. No outbound calls. */
+export function audienceDataEnabled(env: Env = process.env) {
+  return flagOn(env, "AUDIENCE_DATA");
+}
+
 /**
  * Off unless AUDIENCE_PUSH_ENABLED is explicitly on.
  * Has no effect while the audience library is off. Default is dry-run logging.

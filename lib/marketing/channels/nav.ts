@@ -11,6 +11,7 @@ export function navActive(pathname: string, href: string) {
   if (href === "/live") return pathname === "/live" || pathname.startsWith("/live/");
   if (href === "/marketing/audiences/pixel") return pathname.startsWith("/marketing/audiences/pixel");
   if (href === "/marketing/audiences") return pathname === "/marketing/audiences";
+  if (href === "/audience-data") return pathname === "/audience-data" || pathname.startsWith("/audience-data/");
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -22,6 +23,7 @@ export function jarvisNav(input: {
   showSegments?: boolean;
   showAudiences?: boolean;
   channelLinks?: NavItem[] | null;
+  showAudienceData?: boolean;
 }): NavItem[] {
   const decisions: NavItem = { href: "/decisions", label: "Decisions", group: "Overview", count: input.decisionCount };
   if (input.audience === "client") {
@@ -45,6 +47,7 @@ export function jarvisNav(input: {
     decisions,
   ];
   if (input.showLive) items.push({ href: "/live", label: "Live", group: "Overview" });
+  if (input.showAudienceData) items.push({ href: "/audience-data", label: "Audience Data", group: "Data" });
   if (input.channelLinks?.length) items.push(...input.channelLinks);
   else {
     items.push(

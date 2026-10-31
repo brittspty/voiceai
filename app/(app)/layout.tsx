@@ -9,7 +9,8 @@ import { exampleRegistryState, projectSurfaces } from "@/lib/marketing/channels/
 import { jarvisNav } from "@/lib/marketing/channels/nav";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
 import { loginAnalyticsEnabled } from "@/lib/login-analytics";
-import { audienceLibraryEnabled, channelRegistryEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
+import { canOpenAudienceData } from "@/lib/marketing/audience-data/present";
+import { audienceDataEnabled, audienceLibraryEnabled, channelRegistryEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { getOrg } from "@/lib/queries";
@@ -40,6 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showSegments: segmentEngineEnabled(),
       showAudiences: staff && audienceLibraryEnabled(),
       channelLinks: registry ? (staff ? registry.nav : registry.clientNav) : undefined,
+      showAudienceData: audienceDataEnabled() && canOpenAudienceData(access.kind),
     });
     return (
       <JarvisShell productName={PRODUCT_NAME} wordmark={BRAND_WORDMARK} logoOnDark={LOGO_ON_DARK} logoOnLight={LOGO_ON_LIGHT} items={items} unread={unread} moreChannels={registry?.commandCenter.moreLabel}>
@@ -61,6 +63,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showReports={reportsV2Enabled()}
       homeHref={appHomePath()}
       showPortfolio={loginAnalyticsEnabled() && (user.role === "super_admin" || user.role === "account_manager")}
+      showAudienceData={audienceDataEnabled() && user.role !== "client_viewer" && user.role !== "owner"}
     >
       {children}
     </AppShell>

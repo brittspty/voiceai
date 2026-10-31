@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, BarChart3, Bell, BookOpen, FileText, Globe, Layers, LayoutDashboard, LineChart, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer, Users } from "lucide-react";
+import { Activity, BarChart3, Bell, BookOpen, Database, FileText, Globe, Layers, LayoutDashboard, LineChart, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
@@ -38,6 +38,7 @@ export function AppShell({
   showReports = false,
   homeHref = "/",
   showPortfolio = false,
+  showAudienceData = false,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
@@ -52,6 +53,7 @@ export function AppShell({
   showReports?: boolean;
   homeHref?: string;
   showPortfolio?: boolean;
+  showAudienceData?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -76,6 +78,7 @@ export function AppShell({
     if (href === "/marketing/segments") return pathname === "/marketing/segments" || pathname.startsWith("/marketing/segments/");
     if (href === "/marketing/audiences/pixel") return pathname.startsWith("/marketing/audiences/pixel");
     if (href === "/marketing/audiences") return pathname === "/marketing/audiences";
+    if (href === "/audience-data") return pathname === "/audience-data" || pathname.startsWith("/audience-data/");
     if (href === "/portfolio") return pathname === "/portfolio";
     if (href === "/marketing") {
       return pathname === "/marketing" || (pathname.startsWith("/marketing/") && !pathname.startsWith("/marketing/leads") && !pathname.startsWith("/marketing/speed-to-lead") && !pathname.startsWith("/marketing/segments") && !pathname.startsWith("/marketing/audiences"));
@@ -89,6 +92,7 @@ export function AppShell({
     ...(leadScoring ? [{ href: "/marketing/leads", label: "Leads", icon: ListChecks }] : []),
     ...(showSegments ? [{ href: "/marketing/segments", label: "Audience Data", icon: Layers }] : []),
     ...(audienceLibrary ? [{ href: "/marketing/audiences", label: "Audiences", icon: Users }, { href: "/marketing/audiences/pixel", label: "Pixel tracking", icon: Activity }] : []),
+    ...(showAudienceData ? [{ href: "/audience-data", label: "Audience Data", icon: Database }] : []),
   ];
   const baseNav = [...NAV.slice(0, 2), ...extras, ...reportNav, ...NAV.slice(2)];
   const staffNav = showPortfolio ? [{ href: "/portfolio", label: "Portfolio", icon: LayoutDashboard }, ...baseNav] : baseNav;
