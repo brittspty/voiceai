@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { assertNoAdBudgetWrite } from "./budget-lock";
 import { asRecord, str } from "./meta-map";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -304,6 +305,7 @@ async function pause(input: GraphCall & { method: string }, waitMs: number, reas
 async function graphRequest(input: GraphCall & { method: "GET" | "POST" }) {
   const fetchImpl = input.fetchImpl ?? fetch;
   const url = graphUrl(input);
+  assertNoAdBudgetWrite({ method: input.method, url: url.toString(), params: input.params });
   const secrets = [input.token, input.appSecret].filter((value) => value.trim().length >= 6);
   let lastError: Error | null = null;
 

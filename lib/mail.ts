@@ -1,3 +1,5 @@
+import { PRODUCT_NAME } from "./brand/names";
+
 export async function sendInviteEmail(input: { to: string; name: string; link: string }) {
   const key = process.env.RESEND_API_KEY?.trim();
   const from = process.env.MAIL_FROM?.trim();
@@ -8,7 +10,7 @@ export async function sendInviteEmail(input: { to: string; name: string; link: s
     body: JSON.stringify({
       from,
       to: [input.to],
-      subject: "You're invited to Specificity",
+      subject: `You're invited to ${PRODUCT_NAME}`,
       text: `Hi ${input.name},\n\nSet your password to join the workspace:\n${input.link}\n\nThis link works for 7 days.\n`,
     }),
   });

@@ -1,3 +1,5 @@
+import { PRODUCT_NAME } from "../../brand/names";
+
 export type Pixels = { meta: boolean; gtag: boolean; gtm: boolean };
 
 export type PageStatus = "up" | "slow" | "down" | "form_broken";
@@ -285,7 +287,7 @@ export async function probePage(input: {
         const timer = setTimeout(() => controller.abort(), input.timeoutMs ?? 10_000);
         const body = new URLSearchParams({
           [TEST_LEAD_FIELD]: "1",
-          name: "VoiceOps page check",
+          name: `${PRODUCT_NAME} page check`,
           email: TEST_LEAD_EMAIL,
         });
         const posted = await fetchImpl(formTestUrl, {

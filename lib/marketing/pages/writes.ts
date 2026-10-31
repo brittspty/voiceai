@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import type { Env } from "../config";
 import { googleAdsApiVersion, googleAdsEnv, graphVersion } from "../config";
+import { AdBudgetWriteBlockedError, assertNoAdBudgetWrite } from "../connectors/budget-lock";
 import { assertGoogleAdsAllowed, GoogleAdsWriteBlockedError } from "../connectors/google-ads-client";
 import { destinationMatches } from "./probe";
 
@@ -380,6 +381,7 @@ export async function performWrite(input: {
       lookup.searchParams.set("fields", "id,status,effective_status,adset_id,account_id,updated_time,creative{object_story_spec,asset_feed_spec}");
       lookup.searchParams.set("access_token", input.access.accessToken);
       if (input.access.appSecret) lookup.searchParams.set("appsecret_proof", appSecretProof(input.access.accessToken, input.access.appSecret));
+      assertNoAdBudgetWrite({ method: "GET", url: lookup.toString() });
       const looked = await fetchImpl(lookup.toString(), { method: "GET" });
       const judged = judgeMetaAd(await looked.json().catch(() => null), {
         accountId: plan.accountExternalId || "",
@@ -392,6 +394,7 @@ export async function performWrite(input: {
       url.searchParams.set("access_token", input.access.accessToken);
       if (input.access.appSecret) url.searchParams.set("appsecret_proof", appSecretProof(input.access.accessToken, input.access.appSecret));
       const body = new URLSearchParams(metaStatusBody(change));
+      assertNoAdBudgetWrite({ method: "POST", url: url.toString(), body });
       const response = await fetchImpl(url.toString(), { method: "POST", body });
       if (!response.ok) {
         const text = redactSecrets(await response.text(), secrets);
@@ -411,18 +414,21 @@ export async function performWrite(input: {
     };
     if (input.access.loginCustomerId) headers["login-customer-id"] = input.access.loginCustomerId;
     const searchUrl = `https://googleads.googleapis.com/${version}/customers/${change.customerId}/googleAds:search`;
+    const searchBody = {
+      query: `SELECT ad_group_ad.ad.id, ad_group_ad.status, ad_group_ad.ad.final_urls FROM ad_group_ad WHERE ad_group_ad.ad.id = ${change.externalId}`,
+    };
+    assertNoAdBudgetWrite({ method: "POST", url: searchUrl, body: searchBody });
     assertGoogleAdsAllowed("read", "POST", searchUrl);
     const searched = await fetchImpl(searchUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        query: `SELECT ad_group_ad.ad.id, ad_group_ad.status, ad_group_ad.ad.final_urls FROM ad_group_ad WHERE ad_group_ad.ad.id = ${change.externalId}`,
-      }),
+      body: JSON.stringify(searchBody),
     });
     const judged = judgeGoogleAd(await searched.json().catch(() => null), { adId: change.externalId, pageUrl: plan.pageUrl || "", action });
     if (!judged.ok) return { ok: false, mode: "blocked", reason: judged.reason };
     const endpoint = `https://googleads.googleapis.com/${version}/customers/${change.customerId}/adGroupAds:mutate`;
     const mutateBody = googleMutateBody(change);
+    assertNoAdBudgetWrite({ method: "POST", url: endpoint, body: mutateBody });
     assertGoogleAdsAllowed("page-status", "POST", endpoint);
     if (!googleStatusMutateAllowed(endpoint, mutateBody)) return { ok: false, mode: "blocked", reason: "That Google Ads change is not an ad status update." };
     const response = await fetchImpl(endpoint, { method: "POST", headers, body: JSON.stringify(mutateBody) });
@@ -432,7 +438,7 @@ export async function performWrite(input: {
     }
     return { ok: true, mode: "live" };
   } catch (error) {
-    if (error instanceof GoogleAdsWriteBlockedError) {
+    if (error instanceof GoogleAdsWriteBlockedError || error instanceof AdBudgetWriteBlockedError) {
       return { ok: false, mode: "blocked", reason: "Only an ad status change is allowed." };
     }
     const message = error instanceof Error ? error.message : "The ad platform did not respond.";
