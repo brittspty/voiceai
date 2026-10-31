@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, BookOpen, FileText, Globe, LayoutDashboard, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer } from "lucide-react";
+import { BarChart3, Bell, BookOpen, FileText, Globe, LayoutDashboard, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
@@ -31,6 +31,8 @@ export function AppShell({
   mode,
   showSpeedToLead = false,
   leadScoring = false,
+  showInbox = false,
+  unread = 0,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
@@ -38,6 +40,8 @@ export function AppShell({
   mode: { testMode: boolean; agentName: string; wordmark: string; tagline: string };
   showSpeedToLead?: boolean;
   leadScoring?: boolean;
+  showInbox?: boolean;
+  unread?: number;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -130,6 +134,16 @@ export function AppShell({
             </Link>
           )}
           <div className="ml-auto flex items-center gap-1">
+            {showInbox && (
+              <Link href="/marketing/inbox" className="relative rounded-full p-2 text-muted hover:bg-hover" aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"}>
+                <Bell className="h-4 w-4" />
+                {unread > 0 && (
+                  <span className="absolute right-0.5 top-0.5 grid min-h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[10px] font-bold text-on-brand">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
+              </Link>
+            )}
             <button className="rounded-full p-2 text-muted hover:bg-hover" title="Switch theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Switch theme">
               <Sun className="h-4 w-4 dark:hidden" />
               <Moon className="hidden h-4 w-4 dark:block" />

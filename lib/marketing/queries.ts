@@ -1,6 +1,6 @@
 import { prisma } from "../db";
 import { accessFromUser, type MarketingAccess } from "./access";
-import { buildClientShare, CLIENT_TESTING_NOTE } from "./client-view";
+import { buildClientShare, CLIENT_TESTING_NOTE, presentWithoutCost } from "./client-view";
 import { creativeFatigueEnabled, leadScoringEnabled } from "./config";
 import { alertSelect, alertWhere, campaignSelect, dailyMetricSelect, isCostContent, metricSum, recommendationSelect, recommendationWhere, redactMarketingPage, searchTermSelect } from "./cost-visibility";
 import { leadsSince, spendSince } from "./lead-score/store";
@@ -323,7 +323,7 @@ export async function getMarketingPage(access?: MarketingAccess) {
     })),
     leadQuality: await leadQualityTilesFor(seesCost, access?.workspaceId || ""),
   };
-  return redactMarketingPage(page, seesCost);
+  return presentWithoutCost(redactMarketingPage(page, seesCost), seesCost);
 }
 
 async function leadQualityTilesFor(seesCost: boolean, workspaceId: string) {
