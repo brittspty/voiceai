@@ -143,6 +143,8 @@ model User {
   leadValueAudits        LeadValueAudit[]
   notifications          StaffNotification[]
   skillDecisions         SkillDecision[]
+  inboxAssigned          InboxDecision[]      @relation("InboxAssigned")
+  inboxDecided           InboxDecision[]      @relation("InboxDecided")
 }
 
 model Session {
@@ -2325,4 +2327,129 @@ model SegmentDecision {
   createdAt    DateTime  @default(now())
 
   @@index([workspaceId, createdAt])
+}
+
+enum ChannelDailyKind {
+  stackadapt
+  google_business_profile
+  landing_page
+  lead
+  ais2l
+}
+
+model ChannelDailyMetric {
+  id                String           @id @default(cuid())
+  workspaceId       String           @default("org")
+  clientKey         String           @default("")
+  date              DateTime         @db.Date
+  channel           ChannelDailyKind
+  entityKey         String           @default("")
+  entityName        String           @default("")
+  currency          String           @default("USD")
+  impressions       BigInt?
+  clicks            BigInt?
+  reach             BigInt?
+  spend             Decimal?         @db.Decimal(18, 4)
+  leads             Decimal?         @db.Decimal(18, 4)
+  qualifiedLeads    Decimal?         @db.Decimal(18, 4)
+  booked            Decimal?         @db.Decimal(18, 4)
+  conversions       Decimal?         @db.Decimal(18, 4)
+  conversionValue   Decimal?         @db.Decimal(18, 4)
+  profileViews      Int?
+  searches          Int?
+  calls             Int?
+  directionRequests Int?
+  websiteClicks     Int?
+  reviewCount       Int?
+  rating            Decimal?         @db.Decimal(4, 2)
+  failedChecks      Int?
+  uptimeRate        Decimal?         @db.Decimal(8, 4)
+  medianSpeedSec    Int?
+  voiceCalls        Int?
+  ingestedAt        DateTime         @default(now())
+
+  @@unique([workspaceId, date, channel, entityKey], map: "ChannelDailyMetric_identity_key")
+  @@index([workspaceId, clientKey, date])
+}
+
+/// Per-client credit window, creative-approval switch, and flag thresholds.
+/// Creative approvals default off. Credit defaults to 7-day click and 1-day view.
+
+model ClientMetricPolicy {
+  id                       String   @id @default(cuid())
+  workspaceId              String   @default("org")
+  clientKey                String
+  clickCreditDays          Int      @default(7)
+  viewCreditDays           Int      @default(1)
+  learnedClickDays         Int?
+  learnedViewDays          Int?
+  creativeApprovalsEnabled Boolean  @default(false)
+  thresholds               Json     @default("{}")
+  updatedAt                DateTime @updatedAt
+
+  @@unique([workspaceId, clientKey])
+  @@index([workspaceId])
+}
+
+enum InboxDecisionKind {
+  budget_recommendation
+  pacing_recommendation
+  fatigue_pause
+  fatigue_rotation
+  creative_approval
+  lead_check
+  page_alert
+  negative_keyword
+  holdout
+  learning
+}
+
+enum InboxDecisionStatus {
+  waiting
+  accepted
+  declined
+  later
+  done
+}
+
+enum ServeRecommendation {
+  serve
+  pause
+  rotate
+}
+
+/// Yes/no cards. Fatigue pauses and rotations are never automatic.
+/// automatic is constrained false. Budget cards store steps, not a write.
+
+model InboxDecision {
+  id                String               @id @default(cuid())
+  workspaceId       String               @default("org")
+  clientKey         String               @default("")
+  clientName        String               @default("")
+  campaignId        String?
+  adAccountId       String?
+  assigneeId        String?
+  assignee          User?                @relation("InboxAssigned", fields: [assigneeId], references: [id], onDelete: SetNull)
+  kind              InboxDecisionKind
+  status            InboxDecisionStatus  @default(waiting)
+  tier              String               @default("staff")
+  title             String
+  reasoning         String
+  confidence        Int                  @default(0)
+  expiresAt         DateTime?
+  evidence          Json                 @default("[]")
+  steps             Json                 @default("[]")
+  serve             ServeRecommendation?
+  creditWindowLabel String               @default("")
+  automatic         Boolean              @default(false)
+  decidedById       String?
+  decidedBy         User?                @relation("InboxDecided", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt         DateTime?
+  decisionNote      String               @default("")
+  createdAt         DateTime             @default(now())
+
+  @@index([workspaceId, status, createdAt])
+  @@index([assigneeId, status])
+  @@index([campaignId])
+  @@index([decidedById])
 }

@@ -15,6 +15,7 @@ export type DigestItem = {
 export type DigestDecision = DigestItem & {
   prompt: "pause" | "rotate";
   reason: string;
+  assigneeId?: string;
 };
 
 export type DigestPayload = {
@@ -86,6 +87,17 @@ function allowedByAccount(item: DigestItem, accountIds: "all" | string[]) {
   return item.workspace === true || accountIds === "all" || accountIds.includes(item.accountId);
 }
 
+function decisionVisible(
+  input: { userId: string; assignments?: ScopeAssignment[]; accountIds: "all" | string[]; seesAllDecisions?: boolean },
+  item: DigestDecision,
+) {
+  if (item.assigneeId && !input.seesAllDecisions && item.assigneeId !== input.userId) return false;
+  if (input.seesAllDecisions) return true;
+  if (item.assigneeId && !item.workspaceId && !item.campaignId) return true;
+  if (input.assignments) return digestItemAllowed(input.assignments, item);
+  return allowedByAccount(item, input.accountIds);
+}
+
 export function buildManagerDigest(input: {
   userId: string;
   accountIds: "all" | string[];
@@ -96,6 +108,7 @@ export function buildManagerDigest(input: {
   periodStart: Date;
   periodEnd: Date;
   notes?: string[];
+  seesAllDecisions?: boolean;
   env?: Env;
 }): DigestDraft | null {
   const env = input.env ?? process.env;
@@ -104,7 +117,7 @@ export function buildManagerDigest(input: {
     input.assignments ? digestItemAllowed(input.assignments, item) : allowedByAccount(item, input.accountIds);
   const alerts = input.alerts.filter(allowed);
   const recommendations = input.recommendations.filter(allowed);
-  const decisions = (input.decisions ?? []).filter(allowed);
+  const decisions = (input.decisions ?? []).filter((item) => decisionVisible(input, item));
   const notes = (input.notes ?? []).map((note) => note.trim()).filter(Boolean);
   if (!alerts.length && !recommendations.length && !notes.length && !decisions.length) return null;
   const plan = digestDeliveryPlan(env);

@@ -56,16 +56,23 @@ export function Explorer<T extends { id: string }>({
   const sp = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [q, setQ] = useState(sp.get("q") || "");
-  const [hidden, setHidden] = useState<string[]>(columns.filter((c) => c.defaultHidden).map((c) => c.id));
-
-  useEffect(() => {
-    const raw = localStorage.getItem(`cols:${storageKey}`);
-    // Column choices live in the browser. Reading them after paint avoids a server/client mismatch.
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as string[];
-    const timer = window.setTimeout(() => setHidden(parsed), 0);
-    return () => window.clearTimeout(timer);
-  }, [storageKey]);
+  const defaults = columns.filter((c) => c.defaultHidden).map((c) => c.id);
+  const readHidden = (key: string) => {
+    if (typeof window === "undefined") return defaults;
+    const raw = localStorage.getItem(`cols:${key}`);
+    if (!raw) return defaults;
+    try {
+      return JSON.parse(raw) as string[];
+    } catch {
+      return defaults;
+    }
+  };
+  const [hiddenKey, setHiddenKey] = useState(storageKey);
+  const [hidden, setHidden] = useState<string[]>(() => readHidden(storageKey));
+  if (hiddenKey !== storageKey) {
+    setHiddenKey(storageKey);
+    setHidden(readHidden(storageKey));
+  }
 
   function writeHidden(next: string[]) {
     setHidden(next);
