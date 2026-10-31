@@ -77,6 +77,7 @@ test("workspace filters are required on every feature query", () => {
     "lib/marketing/search-waste-store.ts",
     "lib/marketing/competitor-store.ts",
     "lib/marketing/holdout-store.ts",
+    "lib/marketing/audiences/store.ts",
   ];
   for (const file of files) {
     const src = readFileSync(path.join(ROOT, file), "utf8");

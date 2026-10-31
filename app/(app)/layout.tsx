@@ -7,7 +7,7 @@ import { BRAND_TAGLINE, BRAND_WORDMARK, LOGO_ON_DARK, LOGO_ON_LIGHT, PRODUCT_NAM
 import { prisma } from "@/lib/db";
 import { jarvisNav } from "@/lib/marketing/channels/nav";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
-import { inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
+import { audienceLibraryEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { getOrg } from "@/lib/queries";
@@ -31,6 +31,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showAis2l,
       decisionCount: staff ? 7 : 2,
       showLive: access.kind === "super_admin" || access.kind === "account_manager",
+      showSegments: segmentEngineEnabled(),
+      showAudiences: staff && audienceLibraryEnabled(),
     });
     return (
       <JarvisShell productName={PRODUCT_NAME} wordmark={BRAND_WORDMARK} logoOnDark={LOGO_ON_DARK} logoOnLight={LOGO_ON_LIGHT} items={items} unread={unread}>
@@ -48,6 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showInbox={showInbox}
       unread={unread}
       showSegments={segmentEngineEnabled()}
+      audienceLibrary={audienceLibraryEnabled()}
     >
       {children}
     </AppShell>
