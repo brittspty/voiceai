@@ -1,3 +1,4 @@
+import type { P1LogStore } from "../p1-log-store";
 import { evaluateFixture, fixtureById, presentTests } from "./head-to-head";
 
 export type AudienceAction = "scale" | "cut";
@@ -27,11 +28,25 @@ function refuse(error: string, status: 400 | 404) {
   return { ok: false as const, status, error, campaignWrite: false as const, adAccountWrite: false as const, manualSteps: [] as string[] };
 }
 
+function manualStepsFor(action: AudienceAction, label: string) {
+  return action === "scale"
+    ? [
+        `In the ad account, point the audience at ${label}.`,
+        "Leave the campaign amount where a person set it.",
+        "Come back and mark that you did this by hand.",
+      ]
+    : [
+        `In the ad account, pause ${label}.`,
+        "Do not move money between campaigns.",
+        "Come back and mark that you did this by hand.",
+      ];
+}
+
 /**
  * Logs the choice and returns the steps a person does by hand.
  * No campaign amount is written. No write access is approved.
  */
-export function decideExample(input: { testId: string; action: AudienceAction; who: string; at: string }) {
+function planAudienceDecision(input: { testId: string; action: AudienceAction; who: string; at: string }) {
   const fixture = fixtureById(input.testId);
   if (!fixture) return refuse("That test is not in the example.", 404);
   const view = presentTests("staff").tests.find((test) => test.id === input.testId);
@@ -45,17 +60,6 @@ export function decideExample(input: { testId: string; action: AudienceAction; w
   const arm = input.action === "cut" ? view.arms.find((item) => item.canCut && !item.winner) ?? view.arms.find((item) => item.canCut) : view.arms.find((item) => item.winner);
   if (input.action === "cut" && !arm?.canCut) return refuse("Cut only after the minimum sample.", 400);
   if (!arm) return refuse("That arm is not ready.", 400);
-  const manualSteps = input.action === "scale"
-    ? [
-        `In the ad account, point the audience at ${arm.label}.`,
-        "Leave the campaign amount where a person set it.",
-        "Come back and mark that you did this by hand.",
-      ]
-    : [
-        `In the ad account, pause ${arm.label}.`,
-        "Do not move money between campaigns.",
-        "Come back and mark that you did this by hand.",
-      ];
   const entry: DecisionLogEntry = {
     at: input.at,
     who: input.who,
@@ -63,9 +67,47 @@ export function decideExample(input: { testId: string; action: AudienceAction; w
     action: input.action,
     campaignWrite: false,
     adAccountWrite: false,
-    manualSteps,
+    manualSteps: manualStepsFor(input.action, arm.label),
     message: "logged only",
   };
-  decisionLog = [entry, ...decisionLog];
   return { ok: true as const, status: 200 as const, ...entry };
+}
+
+export function decideExample(input: { testId: string; action: AudienceAction; who: string; at: string }) {
+  const result = planAudienceDecision(input);
+  if (result.ok) {
+    decisionLog = [{
+      at: result.at,
+      who: result.who,
+      testId: result.testId,
+      action: result.action,
+      campaignWrite: false,
+      adAccountWrite: false,
+      manualSteps: [...result.manualSteps],
+      message: "logged only",
+    }, ...decisionLog];
+  }
+  return result;
+}
+
+/** Writes a successful scale or cut choice. Refusals are not stored. */
+export async function saveAudienceDecision(store: P1LogStore, workspaceId: string, input: { testId: string; action: AudienceAction; who: string; at: string }) {
+  const result = planAudienceDecision(input);
+  if (result.ok) {
+    await store.insertDecision(workspaceId, {
+      at: result.at,
+      who: result.who,
+      testId: result.testId,
+      action: result.action,
+      campaignWrite: false,
+      adAccountWrite: false,
+      manualSteps: result.manualSteps,
+      message: "logged only",
+    });
+  }
+  return result;
+}
+
+export async function loadAudienceDecisions(store: P1LogStore, workspaceId: string) {
+  return store.listDecisions(workspaceId);
 }
