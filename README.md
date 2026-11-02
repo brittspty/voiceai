@@ -79,7 +79,7 @@ See `.env.example`. Secrets are only read from the environment. Do not commit `.
 | `SEED_OWNER_NAME`, `SEED_OWNER_EMAIL`, `SEED_OWNER_PASSWORD` | Owner created on the first seed. Admin and viewer use the same `SEED_ADMIN_*` and `SEED_VIEWER_*` shape, and are created only when `SEED_SAMPLE_DATA` is true |
 | `SEED_SAMPLE_DATA` | `true` (default) fills Calls and Overview with sample leads and creates the admin and viewer. `false` leaves an empty dialer and creates only the owner |
 | `SHOW_DEMO_LOGIN` | `true` or `false`. Unset shows the demo hint only when `APP_URL` is localhost |
-| `PUBLIC_HOMEPAGE` | `on` serves the public Diver AI page at `/`. Off (default) leaves `/` as the signed-in app |
+| `PUBLIC_HOMEPAGE` | `on` serves the public JAI page at `/`. Off (default) leaves `/` as the signed-in app |
 | `DEMO_WORKSPACE` | `on` shows Try the demo, linking to `/demo`. Off hides those buttons. The demo page itself is separate |
 | `HOMEPAGE_DIRECTION` | `B` (default) or `A`. Layout only. Ignored while `PUBLIC_HOMEPAGE` is off |
 
@@ -93,9 +93,9 @@ Existing app paths stay where they are. `/marketing`, `/calls`, `/settings`, web
 
 After sign-in, with the switch on, a client viewer opens `/marketing/client`. A super admin or account manager opens `/marketing`. Owner, admin, and viewer open `/app`. With the switch off, a client viewer still opens `/marketing/client` and everyone else still opens `/`.
 
-`voiceai.specificityinc.com`, `jarvis.specificityinc.com`, and `diverai.specificityinc.com` are recognized public hosts. A forged host falls back to `APP_URL` and is not echoed. The session cookie stays host-only (`voiceops_session`). Do not set a cookie Domain, `NEXTAUTH_URL`, or `COOKIE_DOMAIN`. `APP_URL` stays `https://voiceai.specificityinc.com` in production. With `CANONICAL_HOST` unset, a request that arrives on diverai stays on diverai.
+`voiceai.specificityinc.com`, `jarvis.specificityinc.com`, `diverai.specificityinc.com`, and `jai.specificityinc.com` are recognized public hosts. A forged host falls back to `APP_URL` and is not echoed. The session cookie stays host-only (`voiceops_session`). Do not set a cookie Domain, `NEXTAUTH_URL`, or `COOKIE_DOMAIN`. `APP_URL` stays `https://voiceai.specificityinc.com` in production. With `CANONICAL_HOST` unset, a request that arrives on diverai or jai stays on that host.
 
-`CANONICAL_HOST` is unset by default. While it is unset, both allowed hosts serve as themselves and nothing redirects. Set it to one of those two hostnames and browser pages on the other host redirect there. `/api` and webhooks stay on the host that received them. Email links use `CANONICAL_HOST` when it is set, otherwise `APP_URL`.
+`CANONICAL_HOST` is unset by default. While it is unset, each allowed host serves as itself and nothing redirects. Set it to one of those hostnames and browser pages on the other hosts redirect there. `/api` and webhooks stay on the host that received them. Email links use `CANONICAL_HOST` when it is set, otherwise `APP_URL`.
 
 `jarvis.specificityinc.com` has no DNS record yet. Caddy still serves only `{$SITE_ADDRESS}`. Production `SITE_ADDRESS` is `voiceai.specificityinc.com` and `APP_URL` is `https://voiceai.specificityinc.com`. Leave those env values as they are, and leave `CANONICAL_HOST` unset, until the DNS record exists. Then set `SITE_ADDRESS` to `jarvis.specificityinc.com, voiceai.specificityinc.com` and point an A record for `jarvis.specificityinc.com` at the same server. Set `CANONICAL_HOST` only after choosing which name is canonical. Do not add the new name to the Caddy site block before that A record exists.
 

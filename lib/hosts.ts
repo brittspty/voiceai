@@ -6,7 +6,7 @@ import { publicHttpsBase } from "./env";
  * Any other host falls back to APP_URL so a forged Host header is not echoed.
  * The session cookie stays host-only. Do not set a Domain attribute.
  */
-export const SPECIFICITY_PUBLIC_HOSTS = ["voiceai.specificityinc.com", "jarvis.specificityinc.com", "diverai.specificityinc.com"] as const;
+export const SPECIFICITY_PUBLIC_HOSTS = ["voiceai.specificityinc.com", "jarvis.specificityinc.com", "diverai.specificityinc.com", "jai.specificityinc.com"] as const;
 
 type Env = Record<string, string | undefined>;
 

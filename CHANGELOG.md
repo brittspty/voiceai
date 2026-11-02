@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- The user-facing product name is Diver AI by Specificity. Flags, route paths, file names, cookies, and the `jarvis.specificityinc.com` host are unchanged.
+- The user-facing product name is JAI by Specificity. Flags, route paths, file names, cookies, and the existing public hosts are unchanged.
+- `jai.specificityinc.com` is a public host alongside voiceai, jarvis, and diverai. With `CANONICAL_HOST` unset, all four serve and nothing redirects. `APP_URL` is unchanged.
+- Flags, route paths, file names, cookies, and the `jarvis.specificityinc.com` host stay as they are.
 - `diverai.specificityinc.com` is a public host alongside `voiceai.specificityinc.com` and `jarvis.specificityinc.com`. With `CANONICAL_HOST` unset, all three serve and nothing redirects. Sign-in, logout, magic-link redeem, company sign-in, contact, and demo redirects stay on the host that received the request. `APP_URL` is unchanged.
 - Sign-in is host-agnostic. With `CANONICAL_HOST` unset, the public hosts serve and nothing redirects. Set `CANONICAL_HOST` to one of those hostnames and browser pages on the other hosts redirect there. API and webhooks stay on the host that received them. The session cookie stays host-only.
 - Super admins see the same teammate invite form as owners, limited to owner, admin, and viewer.
