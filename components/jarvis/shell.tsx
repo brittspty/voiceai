@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { BRAND_TAGLINE } from "@/lib/brand";
+import { BRAND_TAGLINE, PRODUCT_WORDMARK } from "@/lib/brand";
 import { navActive, type NavItem } from "@/lib/marketing/channels/nav";
 import "./jarvis.css";
 
@@ -37,7 +37,7 @@ export function JarvisShell({
     else groups.push({ name: item.group, items: [item] });
   }
   const mobile = [
-    { href: "/", label: "Home" },
+    { href: "/", label: `${PRODUCT_WORDMARK} home` },
     { href: "/decisions", label: "Decisions" },
     { href: "/c/all/meta", label: "Channels" },
     { href: "/leads", label: "Leads" },

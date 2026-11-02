@@ -1,20 +1,20 @@
 import Link from "next/link";
-import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_NAME } from "@/lib/brand";
+import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_WORDMARK } from "@/lib/brand";
 import { recommendAd, type AdSignal } from "@/lib/marketing/channels/recommend";
 import { presentedVideoChannels } from "@/lib/marketing/channels/video-channels";
 import { Crumbs, End, Flag, RecChip, Tile, Tip } from "./bits";
 import { ChannelTable } from "./channel-table";
 import { MoreChannels } from "./more-channels";
 
-const brand = { productName: PRODUCT_NAME, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
+const brand = { productName: PRODUCT_WORDMARK, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
 
 const learned = { clickDays: 9, viewDays: 1, learnedClickDays: 9, learnedViewDays: 1, source: "learned" as const };
 
 export const DRILL_ADS: AdSignal[] = [
-  { name: "Smile Again 55+", leads: 6, clicksChangePct: -31, frequency: 4.2, confidence: 88, decisionId: "D-1042", productName: PRODUCT_NAME, credit: learned },
-  { name: "Free Consult", leads: 8, clicksChangePct: 14, frequency: 2.1, confidence: 84, rising: true, decisionId: "D-1048", productName: PRODUCT_NAME, credit: learned },
-  { name: "Before/After", leads: 0, clicksChangePct: -10, frequency: 1.2, confidence: 71, decisionId: "D-1049", productName: PRODUCT_NAME, credit: learned },
-  { name: "New test", leads: 1, clicksChangePct: null, frequency: null, confidence: 42, decisionId: "D-1099", productName: PRODUCT_NAME, credit: { clickDays: 7, viewDays: 1, source: "default" } },
+  { name: "Smile Again 55+", leads: 6, clicksChangePct: -31, frequency: 4.2, confidence: 88, decisionId: "D-1042", productName: PRODUCT_WORDMARK, credit: learned },
+  { name: "Free Consult", leads: 8, clicksChangePct: 14, frequency: 2.1, confidence: 84, rising: true, decisionId: "D-1048", productName: PRODUCT_WORDMARK, credit: learned },
+  { name: "Before/After", leads: 0, clicksChangePct: -10, frequency: 1.2, confidence: 71, decisionId: "D-1049", productName: PRODUCT_WORDMARK, credit: learned },
+  { name: "New test", leads: 1, clicksChangePct: null, frequency: null, confidence: 42, decisionId: "D-1099", productName: PRODUCT_WORDMARK, credit: { clickDays: 7, viewDays: 1, source: "default" } },
 ];
 
 type RegistryMetric = {
@@ -54,7 +54,7 @@ export function StaffHome({ surfaces = null }: { surfaces?: RegistrySurfaces | n
       <section className="mt" aria-label="Cross-channel results">
         <Tile hero glossaryId="qualified_leads" label="Qualified leads" value="71" prior="▼ 18% vs prior 7 days" priorGood={false} goal="▼ 13 under vs goal" why="Down 18% vs last week, mostly from Meta ad set Retirees FL after its top ad got tired." />
         <Tile glossaryId="cpql" staff label="Cost per qualified lead" value="$124" prior="▲ $8 worse vs prior" priorGood={false} goal="$14 over $110 vs goal" why="Rose because Meta spend held steady while its qualified leads fell 27%." />
-        <Tile glossaryId="spend" staff label="Spend" value="$8.3k" prior="▲ 2% vs prior" priorGood={false} goal="96% of plan vs goal" why={`${PRODUCT_NAME} never edits budgets. Google Ads Harbor Implants is pacing 14% high.`} />
+        <Tile glossaryId="spend" staff label="Spend" value="$8.3k" prior="▲ 2% vs prior" priorGood={false} goal="96% of plan vs goal" why={`${PRODUCT_WORDMARK} never edits budgets. Google Ads Harbor Implants is pacing 14% high.`} />
         <Tile glossaryId="speed_to_lead" label="Speed to lead" value="41s" prior="▼ 6s faster vs prior" priorGood goal="11s over 30s vs goal" why="Faster because AIS2L now calls Google leads first. Measured from landing. Goal 30 seconds." />
       </section>
       <div className="grid2">
@@ -330,7 +330,7 @@ export function Drill() {
         <thead>
           <tr>
             <th>Ad</th>
-            <th>{PRODUCT_NAME} recommends</th>
+            <th>{PRODUCT_WORDMARK} recommends</th>
             <th>Leads</th>
             <th>Status</th>
           </tr>
@@ -351,7 +351,7 @@ export function Drill() {
         <p className="sub">High confidence 88%</p>
         <ol>
           <li>Leads down 61% vs last week, mostly from the Smile Again video after it got tired.</li>
-          <li>Cost per lead doubled because spend stayed put while leads fell. {PRODUCT_NAME} never edits budgets.</li>
+          <li>Cost per lead doubled because spend stayed put while leads fell. {PRODUCT_WORDMARK} never edits budgets.</li>
           <li>The carousel is still healthy.</li>
         </ol>
         <p>Not the cause: the page is up, the form works, and speed to lead held at 34s.</p>

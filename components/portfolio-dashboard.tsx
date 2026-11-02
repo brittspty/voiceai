@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { PRODUCT_WORDMARK } from "@/lib/brand";
 import { analyticsThemeCss } from "@/lib/brand/tokens";
 import {
   PORTFOLIO_REFRESH_MS,
@@ -54,7 +55,7 @@ export function PortfolioDashboard({ initial, viewerRole, costFlag = "" }: { ini
       <style dangerouslySetInnerHTML={{ __html: analyticsThemeCss() }} />
       <header className="flex items-center justify-between gap-4 border-b border-line px-4 py-4 min-[701px]:px-8">
         <div className="text-lg font-bold">
-          spec<span className="text-brand">i</span>ficity · Jarvis
+          spec<span className="text-brand">i</span>ficity · {PRODUCT_WORDMARK}
         </div>
         <p className="num text-right text-[13px] text-soft">{model.roleLine}</p>
       </header>

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { JarvisShell } from "@/components/jarvis/shell";
 import { AppShell } from "@/components/shell";
 import type { SessionUser } from "@/lib/auth";
-import { BRAND_TAGLINE, BRAND_WORDMARK, LOGO_ON_DARK, LOGO_ON_LIGHT, PRODUCT_NAME, resolveBrandColor, resolveLogoUrl } from "@/lib/brand";
+import { BRAND_TAGLINE, BRAND_WORDMARK, LOGO_ON_DARK, LOGO_ON_LIGHT, PRODUCT_WORDMARK, resolveBrandColor, resolveLogoUrl } from "@/lib/brand";
 import { prisma } from "@/lib/db";
 import { exampleRegistryState, projectSurfaces, SEED_REGISTRY } from "@/lib/marketing/channels/registry";
 import { uxLaunchGapsEnabled } from "@/lib/ux-flags";
@@ -75,7 +75,7 @@ export async function SignedInShell({
     const showPeople = userAdminEnabled() && (access.kind === "super_admin" || access.kind === "account_manager");
     return (
       <JarvisShell
-        productName={PRODUCT_NAME}
+        productName={PRODUCT_WORDMARK}
         wordmark={BRAND_WORDMARK}
         logoOnDark={LOGO_ON_DARK}
         logoOnLight={LOGO_ON_LIGHT}

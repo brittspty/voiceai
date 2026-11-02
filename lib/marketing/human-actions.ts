@@ -219,7 +219,7 @@ export async function createClientViewer(input: { name: string; email: string; p
   return { id: created.id, email: created.email };
 }
 
-/** Jarvis leads screen. Viewers stay read-only. The undo window is 30 seconds. */
+/** Leads screen. Viewers stay read-only. The undo window is 30 seconds. */
 export async function logJarvisLeadMark(input: { leadId: string; qualified: boolean; previous: boolean | null }) {
   const user = await requireUserForLead();
   const access = await loadMarketingAccess(user);

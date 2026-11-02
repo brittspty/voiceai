@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_NAME } from "@/lib/brand";
+import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_WORDMARK } from "@/lib/brand";
 import { Crumbs, End } from "./bits";
 
-const end = { productName: PRODUCT_NAME, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
+const end = { productName: PRODUCT_WORDMARK, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
 
 export type SettingsRowModel = {
   key: string;

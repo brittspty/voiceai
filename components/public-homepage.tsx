@@ -317,7 +317,7 @@ export function PublicHomepage({
                 <HomepageDemo segments={model.segments} illustrative={model.illustrative} group={model.demo.group} barNote={model.demo.barNote} />
                 <div className="panel">
                   <div className="ph mono">
-                    <span>JARVIS DECISION FEED</span>
+                    <span>{model.product.toUpperCase()} DECISION FEED</span>
                     <span>{model.example}</span>
                   </div>
                   <HomepageFeed items={model.feed} example={model.example} />

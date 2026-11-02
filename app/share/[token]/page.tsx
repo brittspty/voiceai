@@ -1,7 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { ClientPerformance } from "@/components/client-performance";
 import { MarketingDashboard } from "@/components/marketing-dashboard";
-import { BrandFooter, BrandLockup } from "@/components/brand-lockup";
+import { ShareChrome } from "@/components/share-chrome";
 import { ReportFrame } from "@/components/reports/report-frame";
 import { ReportScreen } from "@/components/reports/report-screen";
 import { prisma } from "@/lib/db";
@@ -16,18 +16,6 @@ import { requestClientMeta } from "@/lib/marketing/request-meta";
 import { hashShareToken, passcodePrompt, SHARE_PASS_COOKIE, shareAccessDecision, shareLinkState } from "@/lib/marketing/share-link";
 
 export const dynamic = "force-dynamic";
-
-function Frame({ children }: { children: React.ReactNode }) {
-  return (
-    <main>
-      <header className="flex items-center gap-3 border-b-[3px] border-brand bg-card px-4 py-3">
-        <BrandLockup />
-      </header>
-      {children}
-      <BrandFooter />
-    </main>
-  );
-}
 
 export default async function SharePage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { token } = await params;
@@ -47,17 +35,17 @@ export default async function SharePage({ params, searchParams }: { params: Prom
   }
   const manager = link?.createdBy?.name && link.createdBy.name !== agentName ? link.createdBy.name : "your account manager";
   const invalid = (
-    <Frame>
+    <ShareChrome>
       <p className="px-4 py-10 text-lg">This link isn&apos;t valid. Ask {manager} for a new one.</p>
-    </Frame>
+    </ShareChrome>
   );
   const jar = await cookies();
   const state = shareLinkState(link, new Date());
   if (reportsV2Enabled() && state === "revoked") {
     return (
-      <Frame>
+      <ShareChrome>
         <p className="px-4 py-10 text-lg">This link was turned off.</p>
-      </Frame>
+      </ShareChrome>
     );
   }
   const decision = shareAccessDecision({
@@ -69,13 +57,13 @@ export default async function SharePage({ params, searchParams }: { params: Prom
   if (decision === "disabled" || decision === "not_found" || !link) return invalid;
   if (decision === "passcode") {
     return (
-      <Frame>
+      <ShareChrome>
         <form className="mx-auto max-w-sm space-y-3 px-4 py-8" method="post" action={`/api/share/${token}/passcode`}>
           <p>{passcodePrompt(code)}</p>
           <input name="code" inputMode="numeric" autoComplete="one-time-code" className="h-11 w-full rounded-lg border border-line px-3" aria-label="Passcode" />
           <button className="min-h-11 rounded-lg bg-brand px-4 font-semibold text-on-brand">Continue</button>
         </form>
-      </Frame>
+      </ShareChrome>
     );
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
@@ -107,9 +95,9 @@ export default async function SharePage({ params, searchParams }: { params: Prom
       adAccountIds: "all",
     });
     return (
-      <Frame>
+      <ShareChrome>
         <pre className="overflow-auto px-4 py-6 text-xs">{clientShareCsv(payload)}</pre>
-      </Frame>
+      </ShareChrome>
     );
   }
   if (dashboardsV2Enabled()) {
@@ -118,9 +106,9 @@ export default async function SharePage({ params, searchParams }: { params: Prom
       loadFeatureCards({ workspaceIds: [link.workspaceId], showMoney: false }),
     ]);
     return (
-      <Frame>
+      <ShareChrome>
         <MarketingDashboard model={data} query={parseDashQuery(query)} basePath={`/share/${token}`} features={features} />
-      </Frame>
+      </ShareChrome>
     );
   }
   const payload = await loadClientPerformance(org?.name || "Performance", {
@@ -131,7 +119,7 @@ export default async function SharePage({ params, searchParams }: { params: Prom
     adAccountIds: "all",
   });
   return (
-    <Frame>
+    <ShareChrome>
       <form className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 px-4 pt-4 text-sm" method="get">
         <label>
           Dates{" "}
@@ -145,6 +133,6 @@ export default async function SharePage({ params, searchParams }: { params: Prom
         <button className="min-h-11 rounded-lg border border-line bg-card px-3">Show</button>
       </form>
       <ClientPerformance data={payload} />
-    </Frame>
+    </ShareChrome>
   );
 }

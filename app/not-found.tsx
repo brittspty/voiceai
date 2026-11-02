@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { SignedInShell } from "@/components/signed-in-shell";
 import { BRAND_WORDMARK } from "@/lib/brand";
 import { getCurrentUser } from "@/lib/auth";
 import { getOrg } from "@/lib/queries";
@@ -28,24 +27,31 @@ function MissingCard({ signedIn }: { signedIn: boolean }) {
   );
 }
 
-export default async function NotFound() {
-  if (!uxLaunchGapsEnabled()) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-canvas px-4 text-center">
-        <div>
-          <p className="text-sm text-muted">{BRAND_WORDMARK}</p>
-          <h1 className="mt-2 text-2xl font-semibold">That page is not here</h1>
-          <Link href="/login" className="mt-3 inline-block text-sm underline">Back to sign in</Link>
-        </div>
+function LegacyNotFound() {
+  return (
+    <div className="grid min-h-screen place-items-center bg-canvas px-4 text-center">
+      <div>
+        <p className="text-sm text-muted">{BRAND_WORDMARK}</p>
+        <h1 className="mt-2 text-2xl font-semibold">That page is not here</h1>
+        <Link href="/login" className="mt-3 inline-block text-sm underline">Back to sign in</Link>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+async function LaunchNotFound() {
   const user = await getCurrentUser();
   if (!user) return <MissingCard signedIn={false} />;
   const org = await getOrg();
+  const { SignedInShell } = await import("@/components/signed-in-shell");
   return (
     <SignedInShell user={user} org={org} path="">
       <MissingCard signedIn />
     </SignedInShell>
   );
+}
+
+export default function NotFound() {
+  if (!uxLaunchGapsEnabled()) return <LegacyNotFound />;
+  return <LaunchNotFound />;
 }
