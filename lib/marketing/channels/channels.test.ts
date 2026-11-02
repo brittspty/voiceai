@@ -121,7 +121,7 @@ test("client and share payloads lose spend, budget, cost, and ROAS", () => {
   assert.deepEqual(collectsCostKeys(clientChannelPayload()), []);
   const home = readFileSync(path.join(ROOT, "app/api/marketing/jarvis/home/route.ts"), "utf8");
   const feed = readFileSync(path.join(ROOT, "app/api/marketing/jarvis/feed/route.ts"), "utf8");
-  assert.match(home, /stripForAudience/);
+  assert.match(home, /readScopedClient/);
   assert.match(feed, /scopeLiveFeed/);
   assert.equal(glossaryFor("staff").length, 18);
   assert.equal(GLOSSARY.length, 18);
