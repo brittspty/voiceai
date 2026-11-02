@@ -177,7 +177,7 @@ export function forbiddenClientKeys(value: unknown) {
   return collectKeys(value).filter((key) => FORBIDDEN_KEY.test(key));
 }
 
-/** Drop spend, cost, and the other client-forbidden keys. Client payloads must not contain them at all. */
+/** Drop spend, bid, and the other client-forbidden keys. The allowlist in projectWithoutSpend is what hides a new money field. */
 export function omitForbiddenClientFields<T>(value: T): T {
   if (Array.isArray(value)) return value.map((item) => omitForbiddenClientFields(item)) as T;
   if (value instanceof Date) return value;

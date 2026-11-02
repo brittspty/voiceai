@@ -1,5 +1,6 @@
 import type { Env } from "../config";
 import { linkTouchpoints } from "./identity";
+import { projectWithoutSpend } from "../spend-access";
 import { costPerIncremental, incrementalLift, planMaidHoldout, recommendFromLift, type LiftResult } from "./incrementality";
 import { exposureExclusion, type QualityLists } from "./quality";
 import type { CtvAudience, CtvConversion, CtvDelivery, CtvExposure, CtvPull, CtvRecommendation } from "./types";
@@ -397,6 +398,9 @@ const MONEY_KEYS = new Set([
   "ecpm",
   "ecpa",
   "ecpc",
+  "bid",
+  "maxbid",
+  "maxbidmicros",
 ]);
 
 const IDENTITY_KEYS = new Set(["vendorid", "iphash", "householdid", "householdids", "iphashes", "vendorids", "identity"]);
@@ -412,6 +416,7 @@ export function ctvPayloadForViewer<T>(value: T, audience: CtvAudience): T {
   if (!stripIdentity || !stripped || typeof stripped !== "object") return stripped;
   const record = stripped as Record<string, unknown>;
   if ("platformLabel" in record) record.platformLabel = CTV_CLIENT_LABEL;
+  if (audience === "client" || audience === "share") return projectWithoutSpend(record) as T;
   return stripped;
 }
 

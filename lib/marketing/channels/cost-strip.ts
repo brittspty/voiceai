@@ -1,3 +1,5 @@
+import { projectWithoutSpend } from "../spend-access";
+
 const COST_KEY = /(spend|budget|cpc|cpm|cpa|cpl|cpql|roas|cost|revenue|conversionvalue|currencyamount|bid)/i;
 
 export type CostAudience = "staff" | "client" | "share";
@@ -20,19 +22,8 @@ export function collectsCostKeys(value: unknown, keys: string[] = []): string[] 
   return keys;
 }
 
-/** Removes spend, budget, cost, and ROAS for client roles and share links. Staff keeps them. */
+/** Staff keeps every field. Everyone else gets the safe-field allowlist, so a new money field stays hidden. */
 export function stripForAudience<T>(value: T, audience: CostAudience): T {
   if (audience === "staff") return value;
-  return stripValue(value) as T;
-}
-
-function stripValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stripValue);
-  if (!value || typeof value !== "object") return value;
-  const next: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    if (isCostKey(key)) continue;
-    next[key] = stripValue(child);
-  }
-  return next;
+  return projectWithoutSpend(value);
 }

@@ -366,9 +366,12 @@ test("cost and workspace access follow the staff roles", () => {
   const owner = accessFromUser({ id: "o", email: "o@example.com", role: "owner" }, [], {});
   const viewer = accessFromUser({ id: "v", email: "v@example.com", role: "viewer" }, [], {});
   const client = accessFromUser({ id: "c", email: "c@example.com", role: "client_viewer" }, [{ workspaceId: "org", scopeKind: "client", adAccountId: null, campaignId: null }], {});
+  const admin = accessFromUser({ id: "admin", email: "admin@example.com", role: "admin" }, [], {});
   assert.equal(superAdmin.seesCost, true);
   assert.equal(manager.seesCost, true);
+  assert.equal(admin.seesCost, true);
   assert.equal(owner.seesCost, false);
+  assert.equal(viewer.seesCost, false);
   assert.equal(canReviewSearchWaste(superAdmin), true);
   assert.equal(canReviewSearchWaste(manager), true);
   assert.equal(canReviewSearchWaste(owner), false);

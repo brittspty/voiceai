@@ -110,14 +110,16 @@ test("leads are counted once and credit is 7 days after a click and 1 day after 
 });
 
 test("client and share payloads lose spend, budget, cost, and ROAS", () => {
-  const staff = stripForAudience({ spend: 10, roas: 2, cpl: 4, cpql: 8, budget: 20, leads: 3, nested: { cost: 1, clicks: 2 } }, "staff");
+  const staff = stripForAudience({ spend: 10, roas: 2, cpl: 4, cpql: 8, budget: 20, leads: 3, clicks: 2, futureMargin: 9, nested: { cost: 1, clicks: 2 } }, "staff");
   assert.equal(staff.roas, 2);
   const client = stripForAudience(staff, "client");
   const share = stripForAudience(staff, "share");
   assert.deepEqual(collectsCostKeys(client), []);
   assert.deepEqual(collectsCostKeys(share), []);
   assert.equal(client.leads, 3);
-  assert.equal((client.nested as { clicks: number }).clicks, 2);
+  assert.equal(client.clicks, 2);
+  assert.equal("futureMargin" in client, false);
+  assert.equal("nested" in client, false);
   assert.deepEqual(collectsCostKeys(clientChannelPayload()), []);
   const home = readFileSync(path.join(ROOT, "app/api/marketing/jarvis/home/route.ts"), "utf8");
   const feed = readFileSync(path.join(ROOT, "app/api/marketing/jarvis/feed/route.ts"), "utf8");
