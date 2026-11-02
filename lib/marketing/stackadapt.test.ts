@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createMemoryStore } from "./store";
-import { decideStackAdapt, parseLookbackArg, stackAdaptEnabled, stackAdaptSyncEnabled } from "./config";
+import { decideStackAdapt, parseLookbackArg, stackAdaptEnabled, stackAdaptLiveRead, stackAdaptSyncEnabled } from "./config";
 import { forSpendViewer } from "./spend-access";
 import { applyClientSurface, defaultVisibility } from "./metric-visibility";
 import {
@@ -15,7 +15,7 @@ import {
   type StackAdaptBundle,
 } from "./connectors/stackadapt-client";
 import { recommendStackAdapt, stackAdaptToSnapshot } from "./connectors/stackadapt-map";
-import { planStackAdaptClients } from "./client-campaign-scope";
+import { liveStackAdaptAdvertiserIds, planStackAdaptClients } from "./client-campaign-scope";
 import { getConnector } from "./connectors/registry";
 import { runStackAdaptSync } from "./stackadapt-sync";
 
@@ -52,17 +52,35 @@ function bundle(): StackAdaptBundle {
   };
 }
 
-const LIVE = { STACKADAPT_SYNC: "on", INTEGRATIONS_MODE: "live", STACKADAPT_API_KEY: KEY, MARKETING_LOOKBACK_DAYS: "7" };
+const LIVE = {
+  STACKADAPT_SYNC: "on",
+  INTEGRATIONS_MODE: "mock",
+  MARKETING_SYNC_MODE: "auto",
+  STACKADAPT_API_KEY: KEY,
+  MARKETING_LOOKBACK_DAYS: "7",
+};
 
-test("stackadapt sync stays off unless STACKADAPT_SYNC and live integrations are both on", () => {
+test("stackadapt live reads follow MARKETING_SYNC_MODE and ignore INTEGRATIONS_MODE", () => {
   assert.equal(stackAdaptEnabled({}), false);
   assert.equal(stackAdaptSyncEnabled({}), false);
   assert.deepEqual(decideStackAdapt({}), { action: "skip", reason: "STACKADAPT_SYNC is off" });
-  assert.equal(decideStackAdapt({ STACKADAPT_SYNC: "on" }).action, "skip");
-  assert.equal(decideStackAdapt({ STACKADAPT_SYNC: "on", INTEGRATIONS_MODE: "mock", STACKADAPT_API_KEY: KEY }).action, "skip");
-  assert.equal(decideStackAdapt({ STACKADAPT_SYNC: "on", INTEGRATIONS_MODE: "live" }).action, "skip");
-  assert.equal(decideStackAdapt({ MARKETING_STACKADAPT: "on", INTEGRATIONS_MODE: "live", STACKADAPT_API_KEY: KEY }).action, "skip");
+  assert.equal(decideStackAdapt({ STACKADAPT_SYNC: "on", INTEGRATIONS_MODE: "mock" }).action, "skip");
+  assert.equal(decideStackAdapt({ STACKADAPT_SYNC: "on", INTEGRATIONS_MODE: "live", STACKADAPT_API_KEY: KEY, MARKETING_SYNC_MODE: "off" }).action, "skip");
+  assert.equal(decideStackAdapt({ MARKETING_STACKADAPT: "on", MARKETING_SYNC_MODE: "live", STACKADAPT_API_KEY: KEY }).action, "skip");
+  assert.equal(decideStackAdapt({ STACKADAPT_SYNC: "on", INTEGRATIONS_MODE: "mock", MARKETING_SYNC_MODE: "mock", STACKADAPT_API_KEY: KEY }).action, "mock");
+  assert.equal(decideStackAdapt({ STACKADAPT_SYNC: "on", INTEGRATIONS_MODE: "mock", MARKETING_SYNC_MODE: "auto", STACKADAPT_API_KEY: KEY }).action, "live");
+  assert.equal(decideStackAdapt({ STACKADAPT_SYNC: "on", INTEGRATIONS_MODE: "mock", MARKETING_SYNC_MODE: "live", STACKADAPT_API_KEY: KEY }).action, "live");
   assert.equal(decideStackAdapt(LIVE).action, "live");
+  const closed = stackAdaptLiveRead({ STACKADAPT_SYNC: "on", INTEGRATIONS_MODE: "mock", MARKETING_SYNC_MODE: "mock", STACKADAPT_API_KEY: KEY });
+  assert.deepEqual(closed, { ok: false, reason: "MARKETING_SYNC_MODE=mock" });
+  const open = stackAdaptLiveRead(LIVE);
+  assert.equal(open.ok, true);
+  const rules = [
+    { id: "cedar", stackadaptAdvertiserIds: [ADVERTISER], stackadaptLiveRead: true },
+    { id: "other", stackadaptAdvertiserIds: [OTHER], stackadaptLiveRead: false },
+  ];
+  assert.deepEqual(liveStackAdaptAdvertiserIds(rules), [ADVERTISER]);
+  assert.equal(liveStackAdaptAdvertiserIds(rules).includes(OTHER), false);
   assert.equal(parseLookbackArg("90"), 90);
   assert.equal(parseLookbackArg("91"), null);
   assert.equal(parseLookbackArg("0"), null);

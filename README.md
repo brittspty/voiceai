@@ -178,6 +178,12 @@ When `META_AD_ACCOUNT_IDS` is set, that list is the only allow-list. When it is 
 
 Set the same variables on the app and the worker, then restart the worker. `npm run marketing:sync` runs the Meta sync and the Google Ads sync. Google Ads does nothing unless `MARKETING_GOOGLE_ADS=on`.
 
+### StackAdapt
+
+Read-only GraphQL. `INTEGRATIONS_MODE` stays `mock` and does not gate this connector. A live request needs `STACKADAPT_SYNC=on`, `STACKADAPT_API_KEY`, and `MARKETING_SYNC_MODE=live` or `auto` (the default) once that key is set. `MARKETING_SYNC_MODE=mock` loads fixtures and makes no request. `off` skips. The sync, backfill, and probe request only advertisers mapped on a client with StackAdapt live read on. The client refuses mutations. Clients, client viewers, and share links do not see spend, cost, CPA, CPL, CPx, ROAS, budget, or bid.
+
+`tsx scripts/stackadapt-client-scope.ts --name "Client" --advertisers 1001` links a client. `tsx scripts/stackadapt-backfill.ts --days 30` backfills up to 90 days. `tsx scripts/stackadapt-probe.ts --advertiser 1001` prints campaign count, the date range, and impression, click, and conversion totals. It does not print the key.
+
 ### Google Ads
 
 The connector is off unless `MARKETING_GOOGLE_ADS` is `on`. With the switch on and credentials missing, the sync skips and does not raise. `MARKETING_SYNC_MODE=mock` loads labeled fixtures and does not call Google, so the marketing screen can be reviewed before a developer token exists.

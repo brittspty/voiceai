@@ -78,8 +78,8 @@ async function stackAdaptRules(passed?: StackAdaptClientRule[]) {
 
 /**
  * Read StackAdapt into the shared metric tables and return recommendations.
- * Off, mock integrations, or a missing STACKADAPT_API_KEY writes nothing on the live path.
- * Live requests are one advertiser at a time, and only advertisers mapped to a client with live read on.
+ * INTEGRATIONS_MODE is not consulted. Live requests need STACKADAPT_SYNC and MARKETING_SYNC_MODE live or auto with a key.
+ * Each request is one advertiser, and only an advertiser mapped to a client with stackadaptLiveRead on.
  * Campaign budget fields on the snapshot are empty. This does not call a mutation.
  */
 export async function runStackAdaptSync(options: {

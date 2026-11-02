@@ -254,10 +254,10 @@ export function googleBusinessProfileEnabled(env: Env = process.env) {
 export type StackAdaptDecision = { action: "skip"; reason: string } | { action: "mock" } | { action: "live"; apiKey: string };
 
 /**
- * Live reads need STACKADAPT_SYNC, INTEGRATIONS_MODE=live, and STACKADAPT_API_KEY.
- * INTEGRATIONS_MODE defaults to mock, which skips and makes no request.
- * MARKETING_SYNC_MODE=mock uses the fixture and makes no request.
- * A missing STACKADAPT_API_KEY skips. It does not throw.
+ * Same gate as Meta reads. INTEGRATIONS_MODE stays mock and is not consulted.
+ * STACKADAPT_SYNC must be on. MARKETING_SYNC_MODE=live, or auto (the default) with
+ * STACKADAPT_API_KEY set, is a live read. mock uses fixtures. off skips.
+ * A missing key skips. It does not throw. Per-client stackadaptLiveRead is applied by the sync.
  */
 export function decideStackAdapt(env: Env): StackAdaptDecision {
   if (!stackAdaptSyncEnabled(env)) return { action: "skip", reason: "STACKADAPT_SYNC is off" };
@@ -265,11 +265,17 @@ export function decideStackAdapt(env: Env): StackAdaptDecision {
   if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };
   if (mode === "mock") return { action: "mock" };
   if (mode !== "auto" && mode !== "live") return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
-  const integrations = (env.INTEGRATIONS_MODE || "mock").trim().toLowerCase();
-  if (integrations !== "live") return { action: "skip", reason: "INTEGRATIONS_MODE is mock" };
   const apiKey = (env.STACKADAPT_API_KEY || "").trim();
   if (!apiKey) return { action: "skip", reason: "missing STACKADAPT_API_KEY" };
   return { action: "live", apiKey };
+}
+
+/** Probe and backfill call StackAdapt only when this is live. Mock and skip make no request. */
+export function stackAdaptLiveRead(env: Env): { ok: true; apiKey: string } | { ok: false; reason: string } {
+  const decision = decideStackAdapt(env);
+  if (decision.action === "live") return { ok: true, apiKey: decision.apiKey };
+  if (decision.action === "mock") return { ok: false, reason: "MARKETING_SYNC_MODE=mock" };
+  return { ok: false, reason: decision.reason };
 }
 
 /** Whole days for a backfill or probe. Null when the value is missing, not a whole number, or above 90. */
