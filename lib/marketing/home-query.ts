@@ -19,6 +19,8 @@ import { effectiveLabel } from "./lead-score/summary";
 import { assembleHome, homeFeatures, type HomeFeature, type HomeMetric, type HomeModel, type HomeWorkspace } from "./home-dashboard";
 import { homeScope, scopeWorkspaceIds, workspaceReads } from "./isolation";
 import { median } from "./speed-to-lead";
+import { clientSurfaceMetricWhere, metricVisibleToClient } from "./client-read-scope";
+import { WORKSPACE_ID } from "./types";
 import { isolatedWhere, requireWorkspaceId } from "./workspace";
 
 function num(value: bigint | number | null | undefined) {
@@ -47,15 +49,50 @@ async function countEach(ids: string[], read: (workspaceId: string) => Promise<n
  * Staff who roll up clients may list every workspace.
  * Every other role is limited to their own id before any other table is read.
  */
+async function marketingClientChoices(access: MarketingAccess): Promise<{ id: string; name: string }[]> {
+  const rows = await prisma.marketingClient.findMany({
+    where: { workspaceId: WORKSPACE_ID },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+  if (access.kind !== "account_manager" || access.accounts === "all") return rows;
+  const accountIds = access.accounts;
+  const campaignIds = access.campaigns === "all" ? [] : access.campaigns;
+  const linked = await prisma.campaign.findMany({
+    where: {
+      workspaceId: WORKSPACE_ID,
+      OR: [
+        { adAccountId: { in: accountIds.length ? accountIds : ["__none__"] } },
+        ...(campaignIds.length ? [{ id: { in: campaignIds } }] : []),
+      ],
+    },
+    select: { clientId: true, adAccount: { select: { clientId: true } } },
+  });
+  const allowed = new Set<string>();
+  for (const row of linked) {
+    if (row.clientId) allowed.add(row.clientId);
+    if (row.adAccount.clientId) allowed.add(row.adAccount.clientId);
+  }
+  return rows.filter((row) => allowed.has(row.id));
+}
+
 export async function listHomeWorkspaces(access: MarketingAccess): Promise<HomeWorkspace[]> {
   if (access.kind === "super_admin" || access.kind === "all_clients_viewer" || access.kind === "account_manager") {
     const rows = await prisma.workspace.findMany({ orderBy: { name: "asc" } });
-    if (rows.length) return rows;
-    const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
-    return [{ id: "org", name: org?.name || "This client", voiceEnabled: true }];
+    const org = rows.length ? null : await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
+    const base = rows.length ? rows : [{ id: "org", name: org?.name || "This client", voiceEnabled: true }];
+    const extra = await marketingClientChoices(access);
+    const seen = new Set(base.map((row) => row.id));
+    return [
+      ...base,
+      ...extra.filter((row) => !seen.has(row.id)).map((row) => ({ id: row.id, name: row.name, voiceEnabled: false })),
+    ];
   }
   const id = requireWorkspaceId(access.workspaceId);
-  return prisma.workspace.findMany({ where: { id }, orderBy: { name: "asc" } });
+  const own = await prisma.workspace.findMany({ where: { id }, orderBy: { name: "asc" } });
+  if (own.length) return own;
+  const client = await prisma.marketingClient.findFirst({ where: { id }, select: { id: true, name: true } });
+  return client ? [{ id: client.id, name: client.name, voiceEnabled: false }] : [];
 }
 
 export async function loadFeatureCards(input: {
@@ -167,12 +204,34 @@ export async function loadHome(input: { access: MarketingAccess; requestedId?: s
   const end = zonedISODate(now, "America/New_York");
   const start = addDaysISO(end, -29);
   const platforms = googleAdsEnabled(env) ? (["meta", "google_ads"] as const) : (["meta"] as const);
-  const workspaces = known.filter((row) => ids.includes(row.id));
-  const metricRows = await eachWorkspace(ids, (workspaceId) =>
+  const storedWorkspaceIds = new Set((await prisma.workspace.findMany({ select: { id: true } })).map((row) => row.id));
+  const workspaces = (scope.kind === "aggregate" ? known.filter((row) => storedWorkspaceIds.has(row.id)) : known).filter((row) => ids.includes(row.id));
+  const windowStart = new Date(`${start}T00:00:00.000Z`);
+  const windowEnd = new Date(`${end}T00:00:00.000Z`);
+  const metricRows = scope.kind === "one"
+    ? await prisma.dailyMetric.findMany({
+        where: {
+          AND: [
+            clientSurfaceMetricWhere(scope.workspaceId, "all", windowStart, windowEnd),
+            { platform: { in: [...platforms] } },
+          ],
+        },
+        select: {
+          workspaceId: true,
+          platform: true,
+          impressions: true,
+          clicks: true,
+          platformLeads: true,
+          platformConversions: true,
+          campaign: { select: { objective: true, clientId: true, workspaceId: true, adAccount: { select: { clientId: true } } } },
+          ...(seesCost ? { spend: true } : {}),
+        },
+      })
+    : await eachWorkspace(workspaces.map((row) => row.id), (workspaceId) =>
     prisma.dailyMetric.findMany({
       where: {
         ...isolatedWhere(workspaceId),
-        date: { gte: new Date(`${start}T00:00:00.000Z`), lte: new Date(`${end}T00:00:00.000Z`) },
+        date: { gte: windowStart, lte: windowEnd },
         platform: { in: [...platforms] },
       },
       select: {
@@ -187,7 +246,21 @@ export async function loadHome(input: { access: MarketingAccess; requestedId?: s
       },
     }),
   );
-  const metrics: HomeMetric[] = metricRows
+  const keptRows = scope.kind === "one"
+    ? metricRows.filter((row) => {
+        const campaign = row.campaign as { clientId?: string | null; adAccount?: { clientId: string | null } | null } | null;
+        return metricVisibleToClient(
+          {
+            workspaceId: row.workspaceId,
+            campaignId: campaign ? row.workspaceId : null,
+            clientId: campaign?.clientId ?? null,
+            accountClientId: campaign?.adAccount?.clientId ?? null,
+          },
+          scope.workspaceId,
+        );
+      })
+    : metricRows;
+  const metrics: HomeMetric[] = keptRows
     .filter((row) => row.platform === "meta" || row.platform === "google_ads")
     .map((row) => {
       const counts = resultCounts(row.campaign?.objective || "leads", dec(row.platformLeads), dec(row.platformConversions));
@@ -204,7 +277,7 @@ export async function loadHome(input: { access: MarketingAccess; requestedId?: s
     });
 
   const features = await loadFeatureCards({
-    workspaceIds: ids,
+    workspaceIds: workspaces.map((row) => row.id),
     showMoney: seesCost,
     hasGoogleRows: metrics.some((row) => row.platform === "google_ads"),
     env,

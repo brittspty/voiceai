@@ -8,7 +8,7 @@ import { leadsSince, spendSince } from "./lead-score/store";
 import { buildLeadQualityTiles, effectiveLabel, splitByWindow } from "./lead-score/summary";
 import { filterShareView } from "./metric-visibility";
 import { loadResolvedVisibility } from "./metric-visibility-store";
-import { clientMetricWhere, queuedTestingWhere } from "./scope";
+import { clientSurfaceMetricWhere, clientSurfaceTestingWhere, clientOwnsCampaignFilter, clientScopeWhere } from "./client-read-scope";
 import { clientViewEvent, type ClientViewEvent } from "./share-link";
 
 function num(value: bigint | number | null | undefined) {
@@ -133,37 +133,42 @@ function inScope(access: MarketingAccess | undefined, input: { adAccountId?: str
   return false;
 }
 
-export async function getMarketingPage(access?: MarketingAccess) {
+export async function getMarketingPage(access?: MarketingAccess, clientId = "") {
   const seesCost = Boolean(access?.seesCost);
+  const scopeId = clientId.trim();
+  const campaignWhere = scopeId ? clientOwnsCampaignFilter(scopeId) : undefined;
+  const rowWhere = scopeId ? clientScopeWhere(scopeId) : undefined;
   const [accounts, campaigns, metrics, searchTerms, lastRun, totalsRaw] = await Promise.all([
     prisma.adAccount.findMany({ orderBy: { name: "asc" } }),
-    prisma.campaign.findMany({ orderBy: { name: "asc" }, select: campaignSelect(seesCost) }) as Promise<LoadedCampaign[]>,
+    prisma.campaign.findMany({ where: campaignWhere, orderBy: { name: "asc" }, select: campaignSelect(seesCost) }) as Promise<LoadedCampaign[]>,
     prisma.dailyMetric.findMany({
+      where: rowWhere,
       orderBy: [{ date: "desc" }, { adId: "asc" }],
       take: 100,
       select: dailyMetricSelect(seesCost),
     }) as Promise<LoadedMetric[]>,
     prisma.searchTermMetric.findMany({
+      where: scopeId ? { campaign: campaignWhere } : undefined,
       orderBy: [{ date: "desc" }, { term: "asc" }],
       take: 100,
       select: searchTermSelect(seesCost),
     }) as Promise<LoadedSearchTerm[]>,
     prisma.marketingSyncRun.findFirst({ orderBy: { startedAt: "desc" } }),
     seesCost
-      ? prisma.dailyMetric.groupBy({ by: ["currency"], _sum: metricSum(seesCost) })
-      : prisma.dailyMetric.aggregate({ _sum: metricSum(seesCost) }),
+      ? prisma.dailyMetric.groupBy({ by: ["currency"], where: rowWhere, _sum: metricSum(seesCost) })
+      : prisma.dailyMetric.aggregate({ where: rowWhere, _sum: metricSum(seesCost) }),
   ]);
 
   const [alerts, recommendations, digests] = access?.seesAlerts
     ? await Promise.all([
         prisma.adAlert.findMany({
-          where: alertWhere(seesCost),
+          where: scopeId ? { AND: [alertWhere(seesCost), { campaign: campaignWhere }] } : alertWhere(seesCost),
           orderBy: { detectedAt: "desc" },
           take: 50,
           select: alertSelect(),
         }) as Promise<LoadedAlert[]>,
         prisma.recommendation.findMany({
-          where: recommendationWhere(seesCost),
+          where: scopeId ? { AND: [recommendationWhere(seesCost), { campaign: campaignWhere }] } : recommendationWhere(seesCost),
           orderBy: { createdAt: "desc" },
           take: 50,
           select: recommendationSelect(seesCost),
@@ -172,8 +177,12 @@ export async function getMarketingPage(access?: MarketingAccess) {
       ])
     : [[], [], []];
 
-  const visibleAccounts = accounts.filter((account) => inScope(access, { adAccountId: account.id }));
   const visibleCampaigns = campaigns.filter((campaign) => campaign.adAccount && inScope(access, { adAccountId: campaign.adAccount.id, campaignId: campaign.id }));
+  const visibleAccounts = accounts.filter((account) => {
+    if (!inScope(access, { adAccountId: account.id })) return false;
+    if (!scopeId) return true;
+    return account.clientId === scopeId || visibleCampaigns.some((campaign) => campaign.adAccount?.id === account.id);
+  });
   const visibleMetrics = metrics.filter((metric) => inScope(access, { adAccountId: metric.campaign?.adAccountId, campaignId: metric.campaign?.id }));
   const visibleSearchTerms = searchTerms.filter((row) => inScope(access, { adAccountId: row.campaign?.adAccountId, campaignId: row.campaign?.id }));
 
@@ -367,7 +376,7 @@ export async function loadClientPerformance(
   const window = clientRange(meta.range);
   const adAccountIds = meta.adAccountIds ?? "all";
   const metrics = await prisma.dailyMetric.findMany({
-    where: clientMetricWhere(meta.workspaceId, adAccountIds, window.start, window.end),
+    where: clientSurfaceMetricWhere(meta.workspaceId, adAccountIds, window.start, window.end),
     orderBy: [{ date: "desc" }],
     take: 200,
     select: {
@@ -400,7 +409,7 @@ export async function loadClientPerformance(
   const qualified = await qualifiedForRange(window.start, window.end, window.label, meta.workspaceId);
   const notes: string[] = [];
   if (creativeFatigueEnabled()) {
-    const testing = await prisma.creativeVersion.count({ where: queuedTestingWhere(meta.workspaceId, adAccountIds) });
+    const testing = await prisma.creativeVersion.count({ where: clientSurfaceTestingWhere(meta.workspaceId, adAccountIds) });
     if (testing > 0) notes.push(CLIENT_TESTING_NOTE);
   }
   const view = buildClientShare({

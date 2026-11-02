@@ -26,7 +26,7 @@ import { loadDashboardForAccess } from "@/lib/marketing/dashboard-query";
 import { loadFatigueBoard } from "@/lib/marketing/fatigue-job";
 import { canReviewSearchWaste, canViewHoldouts, canWatchCompetitors } from "@/lib/marketing/feature-access";
 import { loadPacingBoard } from "@/lib/marketing/pacing-job";
-import { loadFeatureCards } from "@/lib/marketing/home-query";
+import { listHomeWorkspaces, loadFeatureCards } from "@/lib/marketing/home-query";
 import { getMarketingPage, loadMarketingAccess } from "@/lib/marketing/queries";
 import { appHomePath } from "@/lib/public-routing";
 import { loadSpeedPage } from "@/lib/marketing/speed-to-lead-store";
@@ -39,9 +39,25 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
   if (access.kind === "client_viewer") redirect("/marketing/client");
   if (access.kind === "none") redirect(appHomePath());
   const query = await searchParams;
+  const requested = typeof query.client === "string" ? query.client : Array.isArray(query.client) ? query.client[0] || "" : "";
+  const choices = await listHomeWorkspaces(access);
+  const clientId = choices.some((row) => row.id === requested) ? requested : "";
   const classic = !dashboardsV2Enabled() || query.view === "budget";
+  const clientPicker = choices.length > 1 ? (
+    <form method="get" className="mb-4 flex flex-wrap items-center gap-2">
+      <label htmlFor="client" className="text-sm text-muted">Client</label>
+      <select id="client" name="client" defaultValue={clientId} className="h-11 rounded-lg border border-line bg-card px-2">
+        <option value="">All clients</option>
+        {choices.map((choice) => (
+          <option key={choice.id} value={choice.id}>{choice.name}</option>
+        ))}
+      </select>
+      {classic ? <input type="hidden" name="view" value="budget" /> : null}
+      <button className="min-h-11 rounded-lg border border-line bg-card px-3 text-sm">Show</button>
+    </form>
+  ) : null;
   if (classic) {
-    const data = await getMarketingPage(access);
+    const data = await getMarketingPage(access, clientId);
     const speedToLead = speedToLeadEnabled()
       ? await loadSpeedPage().catch(() => ({ error: true as const }))
       : null;
@@ -51,6 +67,7 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
     const pacing = pacingOn ? await loadPacingBoard(access) : { enabled: false as const, recommendationOnly: true as const, writesBudget: false as const, bars: [] };
     return (
       <>
+      {clientPicker}
       <AmFeed access={access} />
       <MarketingView
         {...data}
@@ -83,8 +100,13 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
   const [data, features] = await Promise.all([
-    loadDashboardForAccess(access, "staff", org?.name || "Campaigns"),
-    loadFeatureCards({ workspaceIds: [access.workspaceId], showMoney: access.seesCost }),
+    loadDashboardForAccess(access, "staff", org?.name || "Campaigns", undefined, clientId),
+    loadFeatureCards({ workspaceIds: clientId ? [clientId] : [access.workspaceId], showMoney: access.seesCost }),
   ]);
-  return <MarketingDashboard model={data} query={parseDashQuery(query)} basePath="/marketing" features={features} />;
+  return (
+    <>
+      {clientPicker}
+      <MarketingDashboard model={data} query={parseDashQuery(query)} basePath="/marketing" features={features} />
+    </>
+  );
 }

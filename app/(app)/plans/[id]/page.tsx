@@ -5,6 +5,7 @@ import { denyAccess } from "@/lib/deny";
 import { prisma } from "@/lib/db";
 import { DEMO_WORKSPACE_ID } from "@/lib/demo/isolation";
 import { approvePlanAction, previewPlan, revokePlanAction, savePlan } from "@/lib/plans/actions";
+import { WORKSPACE_ID } from "@/lib/marketing/types";
 import { clientPlansEnabled } from "@/lib/plans/flags";
 import { PLAN_CHANNELS, PLAN_CONTACT_HREF, PLAN_START_LABEL, canEditPlans, planLinkDays, sharePath } from "@/lib/plans/plan";
 import { planRecord } from "@/lib/plans/store";
@@ -26,7 +27,12 @@ export default async function PlanEditorPage({
   const issuedRaw = (await searchParams).issued;
   const issued = typeof issuedRaw === "string" ? issuedRaw : "";
   const shared = issued ? sharePath(plan, issued) : null;
-  const workspaces = await prisma.workspace.findMany({ where: { id: { not: DEMO_WORKSPACE_ID } }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+  const [workspaces, marketingClients] = await Promise.all([
+    prisma.workspace.findMany({ where: { id: { not: DEMO_WORKSPACE_ID } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.marketingClient.findMany({ where: { workspaceId: WORKSPACE_ID }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
+  const seen = new Set(workspaces.map((row) => row.id));
+  const baselines = [...workspaces, ...marketingClients.filter((row) => !seen.has(row.id))];
   return (
     <div>
       <PageTitle title={plan.clientName} subtitle="Super admins and account managers edit this plan. Visitors stay anonymous." />
@@ -66,8 +72,8 @@ export default async function PlanEditorPage({
           <label className="mt-2 flex min-h-11 items-center gap-2 text-sm"><input type="radio" name="dashboardSource" value="demo" defaultChecked={plan.dashboardSource === "demo"} /> Demo seed</label>
           <label className="flex min-h-11 items-center gap-2 text-sm"><input type="radio" name="dashboardSource" value="baseline" defaultChecked={plan.dashboardSource === "baseline"} /> This client baseline</label>
           <select name="baselineWorkspaceId" defaultValue={plan.baselineWorkspaceId} className="mt-2 h-11 w-full rounded-lg border border-line bg-card px-3">
-            <option value="">Choose a workspace</option>
-            {workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
+            <option value="">Choose a client</option>
+            {baselines.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
           </select>
         </fieldset>
         <label className="block text-sm font-medium">Timeline
