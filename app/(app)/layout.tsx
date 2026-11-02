@@ -10,7 +10,8 @@ import { jarvisNav } from "@/lib/marketing/channels/nav";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
 import { loginAnalyticsEnabled } from "@/lib/login-analytics";
 import { canOpenAudienceData } from "@/lib/marketing/audience-data/present";
-import { audienceDataClientEnabled, audienceDataEnabled, audienceLibraryEnabled, channelRegistryEnabled, chatgptAdsEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
+import { audienceDataClientEnabled, audienceDataEnabled, audienceLibraryEnabled, channelRegistryEnabled, chatgptAdsEnabled, ctvAttributionEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
+import { canViewCtvAttribution } from "@/lib/marketing/feature-access";
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { getOrg } from "@/lib/queries";
@@ -47,6 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       channelLinks: registry ? (staff ? registry.nav : registry.clientNav) : undefined,
       showAudienceData: audienceDataEnabled() && canOpenAudienceData(access.kind),
       showAudienceDataClient: audienceDataClientEnabled() && (access.kind === "client_owner" || access.kind === "client_viewer"),
+      showCtv: ctvAttributionEnabled() && canViewCtvAttribution(access),
     });
     return (
       <JarvisShell productName={PRODUCT_NAME} wordmark={BRAND_WORDMARK} logoOnDark={LOGO_ON_DARK} logoOnLight={LOGO_ON_LIGHT} items={items} unread={unread} moreChannels={registry?.commandCenter.moreLabel}>
@@ -70,6 +72,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showPortfolio={loginAnalyticsEnabled() && (user.role === "super_admin" || user.role === "account_manager")}
       showAudienceData={audienceDataEnabled() && user.role !== "client_viewer" && user.role !== "owner"}
       showAudienceDataClient={audienceDataClientEnabled() && user.role === "client_viewer"}
+      showCtv={ctvAttributionEnabled() && user.role !== "client_viewer" && user.role !== "owner"}
     >
       {children}
     </AppShell>

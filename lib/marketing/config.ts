@@ -209,6 +209,28 @@ export function stackAdaptEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_STACKADAPT");
 }
 
+/** Off unless CTV_ATTRIBUTION is explicitly on. Staff-only read of CTV attribution. */
+export function ctvAttributionEnabled(env: Env = process.env) {
+  return flagOn(env, "CTV_ATTRIBUTION");
+}
+
+export type CtvAttributionDecision = { action: "skip"; reason: string } | { action: "mock" } | { action: "live"; apiKey: string };
+
+/**
+ * Mock, or a missing StackAdapt key, uses fixtures and makes no outbound call.
+ * INTEGRATIONS_MODE must be live before a GET is allowed.
+ */
+export function decideCtvAttribution(env: Env): CtvAttributionDecision {
+  if (!ctvAttributionEnabled(env)) return { action: "skip", reason: "CTV_ATTRIBUTION is off" };
+  const sync = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
+  if (sync === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };
+  const integrations = (env.INTEGRATIONS_MODE || "mock").trim().toLowerCase();
+  if (integrations !== "live" || sync === "mock") return { action: "mock" };
+  const apiKey = (env.STACKADAPT_API_KEY || "").trim();
+  if (!apiKey) return { action: "mock" };
+  return { action: "live", apiKey };
+}
+
 /** Off unless MARKETING_GBP is explicitly on. Read-only Business Profile reads. */
 export function googleBusinessProfileEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_GBP");
