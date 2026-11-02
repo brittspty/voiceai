@@ -303,11 +303,23 @@ async function pause(input: GraphCall & { method: string }, waitMs: number, reas
   if (waitMs > 0) await (input.sleep ?? defaultSleep)(waitMs);
 }
 
+/**
+ * The Meta connector is read-only. The one POST allowed creates an async insights report job
+ * on an ad account (Meta's read API for long windows). Every other POST is refused.
+ */
+export function assertMetaReadOnly(method: string, path: string) {
+  if (method === "GET") return;
+  const clean = path.replace(/^\/+/, "");
+  if (method === "POST" && /^act_\d+\/insights$/.test(clean)) return;
+  throw new Error(`Meta connector is read-only: ${method} ${clean.slice(0, 80)} refused`);
+}
+
 async function graphRequest(input: GraphCall & { method: "GET" | "POST" }) {
   assertOutboundOpen("meta");
   const fetchImpl = input.fetchImpl ?? fetch;
   const url = graphUrl(input);
   assertNoAdBudgetWrite({ method: input.method, url: url.toString(), params: input.params });
+  assertMetaReadOnly(input.method, input.path);
   const secrets = [input.token, input.appSecret].filter((value) => value.trim().length >= 6);
   let lastError: Error | null = null;
 

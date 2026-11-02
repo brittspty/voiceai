@@ -39,7 +39,7 @@ test("appsecret_proof is sent on GET and POST only when the app secret is set", 
   };
   const expected = appSecretProof(TOKEN, SECRET);
   await graphGet(graph({ fetchImpl }));
-  await graphPost(graph({ fetchImpl }));
+  await graphPost({ ...graph({ fetchImpl }), path: "act_1/insights" });
   assert.deepEqual(
     calls.map((call) => call.proof),
     [expected, expected],
@@ -51,7 +51,7 @@ test("appsecret_proof is sent on GET and POST only when the app secret is set", 
 
   calls.length = 0;
   await graphGet({ ...graph({ fetchImpl }), appSecret: "   " });
-  await graphPost({ ...graph({ fetchImpl }), appSecret: "" });
+  await graphPost({ ...graph({ fetchImpl }), path: "act_1/insights", appSecret: "" });
   assert.deepEqual(
     calls.map((call) => call.proof),
     [null, null],

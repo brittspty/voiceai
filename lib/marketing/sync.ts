@@ -217,6 +217,15 @@ export async function runMarketingSync(options: {
       });
       return applied.rowsWritten;
     });
+    if (!options.store) {
+      try {
+        const { prisma } = await import("../db");
+        const { applyClientCampaignScopes } = await import("./client-campaign-scope");
+        await applyClientCampaignScopes(prisma as never, WORKSPACE_ID);
+      } catch {
+        // Scoping is best effort. Unlinked campaigns stay staff-only.
+      }
+    }
     return {
       status,
       error: error ?? undefined,
