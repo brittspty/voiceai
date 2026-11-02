@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ConsentOnboardingPanel } from "@/components/consent-onboarding-panel";
 import { LeadValueForm } from "@/components/lead-value-form";
+import { consentPopupEnabled } from "@/lib/consent/flags";
+import { loadConsentOnboarding } from "@/lib/consent/store";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { roleLabel } from "@/lib/marketing/access";
@@ -25,6 +28,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
     prisma.clientSettings.findUnique({ where: { workspaceId: access.workspaceId }, include: { leadValueSetBy: { select: { name: true, role: true } } } }),
   ]);
   const client = org?.name || "This client";
+  const consent = consentPopupEnabled() ? await loadConsentOnboarding(access.workspaceId).catch(() => null) : null;
 
   return (
     <div className="mx-auto grid max-w-[980px] gap-6 md:grid-cols-[250px_1fr]">
@@ -47,6 +51,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       </nav>
       <main className="rounded-2xl border border-line bg-card p-6">
         <p className="text-[13px] text-muted">Step {step} of 6 · {client}</p>
+        {consent ? <ConsentOnboardingPanel selection={consent} /> : null}
         {step === 4 ? (
           <>
             <h1 className="text-xl font-semibold">What is a lead worth to this client?</h1>

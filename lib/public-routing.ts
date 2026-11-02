@@ -91,6 +91,12 @@ export function isLoginAnalyticsPath(pathname: string) {
   return normalizePath(pathname) === "/api/public/login-analytics";
 }
 
+/** Public consent widget. The handler returns 404 while CONSENT_POPUP is off. */
+export function isConsentPublicPath(pathname: string) {
+  const path = normalizePath(pathname);
+  return path === "/api/public/consent" || path.startsWith("/api/public/consent/");
+}
+
 export const PORTFOLIO_PATH = "/portfolio";
 
 export function isLegacyPublic(pathname: string) {
@@ -100,6 +106,7 @@ export function isLegacyPublic(pathname: string) {
 export function isPublicPath(pathname: string, env: Env) {
   if (isLegacyPublic(pathname)) return true;
   if (isLoginAnalyticsPath(pathname)) return true;
+  if (isConsentPublicPath(pathname)) return true;
   if (publicHomepageEnabled(env) && normalizePath(pathname) === "/") return true;
   if (publicHomepageEnabled(env) && isHomepageContactPath(pathname)) return true;
   if (demoWorkspaceEnabled(env) && (isDemoPath(pathname) || isDemoApiPath(pathname))) return true;

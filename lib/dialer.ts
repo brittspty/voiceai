@@ -20,6 +20,7 @@ import { digitsOnly, normalizePhone } from "./phone";
 import { scoreCallIfEnabled } from "./marketing/lead-score/store";
 import { enqueue } from "./queue";
 import { SYSTEM_ACTOR, type CallOutcomeName, type TimelineEvent, type TranscriptLine } from "./types";
+import { voiceDecisionForContact } from "./consent/enforce";
 import { noteVoiceTouch } from "./marketing/speed-to-lead-store";
 import { errorText } from "./marketing/speed-to-lead";
 import { zonedDayBounds } from "./time";
@@ -90,6 +91,27 @@ export async function processDialJob(job: { id: string; payload: unknown; callId
   if (call.status === "completed" || call.status === "failed") return;
   if (payload.placed) return;
 
+  // Which recorded level unlocks voice is a legal decision for Jason. See lib/consent/voice-gate.ts.
+  // When VOICE_CONSENT_GATE is on this fails closed: a contact without a matching record at or above the setting is never called.
+  const voiceConsent = await voiceDecisionForContact(call.contact);
+  if (voiceConsent.enabled && !voiceConsent.allow) {
+    const checks = [{ id: "recorded_consent", label: "Recorded consent", passed: false, detail: voiceConsent.reason }];
+    await prisma.call.update({
+      where: { id: call.id },
+      data: {
+        status: "failed",
+        outcome: "failed",
+        gatesPassed: false,
+        failureReason: voiceConsent.reason,
+        endedAt: new Date(),
+        gateChecks: checks as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await appendTimeline(call.id, { at: new Date().toISOString(), label: "Blocked before dial", detail: voiceConsent.reason });
+    await audit(SYSTEM_ACTOR, voiceConsent.reason, { type: "contact", id: call.contact.id, label: call.contact.name }).catch(() => undefined);
+    return;
+  }
+
   const org = await prisma.org.findUnique({ where: { id: "org" } });
   const agent = await prisma.agentVersion.findFirst({ where: { status: "published" }, orderBy: { version: "desc" } });
   const draft = agent ?? (await prisma.agentVersion.findFirst({ orderBy: { version: "desc" } }));
@@ -152,6 +174,7 @@ export async function processDialJob(job: { id: string; payload: unknown; callId
     {
       gate: ctx.gate,
       voice: ports.voice,
+      voiceConsent: voiceConsent.enabled ? voiceConsent : undefined,
       voiceInput: {
         to: call.contact.phone,
         contactName: call.contact.name,

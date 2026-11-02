@@ -6,6 +6,9 @@ import { hasEnv, integrationsMode } from "./env";
 import { pageOf, one, type SP } from "./params";
 import { getPublishedPolicy } from "./policy";
 import { digitsOnly } from "./phone";
+import { consentPopupEnabled } from "./consent/flags";
+import { loadConsentChecklist } from "./consent/store";
+import { WORKSPACE_ID } from "./marketing/types";
 import { readinessItems } from "./readiness";
 import { addDaysISO, zonedDayBounds, zonedISODate, zonedTimeToUtc, startOfWeekMonday } from "./time";
 import { callSummaryText, ghlSyncLabel } from "./ais2l/screen";
@@ -478,6 +481,14 @@ export async function getSettingsBundle() {
   ]);
   const publishedAgent = agentVersions.find((v) => v.status === "published") ?? null;
   const draftAgent = agentVersions.find((v) => v.status === "draft") ?? publishedAgent;
+  let consentPopup: { required: boolean; installed: boolean } | undefined;
+  if (consentPopupEnabled()) {
+    try {
+      consentPopup = await loadConsentChecklist(WORKSPACE_ID);
+    } catch {
+      consentPopup = { required: true, installed: false };
+    }
+  }
   const readiness = readinessItems({
     testMode: org.testMode,
     scheduleEnabled: org.scheduleEnabled,
@@ -499,6 +510,7 @@ export async function getSettingsBundle() {
     officeReady: offices.some((o) => o.status === "active" && o.timezone && o.calendarName),
     anyTotp: users.some((u) => u.totpEnabled && (u.role === "owner" || u.role === "admin")),
     webhookSecrets: hasEnv("GHL_WEBHOOK_SECRET") && hasEnv("ELEVENLABS_WEBHOOK_SECRET") && hasEnv("TWILIO_AUTH_TOKEN"),
+    consentPopup,
   });
   return { org, policy, agentVersions, voiceVersions, publishedAgent, draftAgent, offices, users, mappings, checks, activity, readiness };
 }

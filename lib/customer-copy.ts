@@ -145,6 +145,14 @@ const COPY: Record<string, Omit<GoLiveCopy, "id" | "ok" | "adminHint">> = {
     href: "/contact",
     handledBySpecificity: true,
   },
+  "consent-popup": {
+    group: "Connect tools",
+    title: "Consent pop-up on every website",
+    helper: "Required for every client website. It is already selected and cannot be skipped.",
+    action: "View snippet",
+    href: "/settings/consent",
+    handledBySpecificity: false,
+  },
 };
 
 export function presentGoLiveItem(item: ReadinessItem): GoLiveCopy {

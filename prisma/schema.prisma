@@ -25,6 +25,19 @@ enum Consent {
   high
 }
 
+enum ConsentChoiceLevel {
+  reject
+  low
+  medium
+  high
+}
+
+enum ConsentChoiceAction {
+  grant
+  change
+  withdraw
+}
+
 enum CallStatus {
   queued
   dialing
@@ -1053,6 +1066,8 @@ model ClientSettings {
   leadValueSetById String?
   leadValueSetBy   User?     @relation("LeadValueSetBy", fields: [leadValueSetById], references: [id], onDelete: SetNull)
   leadValueSetAt   DateTime?
+  /// Null uses the global default, which is high. Which level unlocks voice is a legal decision for Jason.
+  voiceConsentMinLevel Consent?
   updatedAt        DateTime  @updatedAt
 }
 
@@ -3130,4 +3145,53 @@ model CtvPlatformLift {
   pulledAt      DateTime @default(now())
 
   @@index([workspaceId, pulledAt])
+}
+
+/// Exact wording shown in the pop-up. Bump the id when the text changes. Pending legal review while status is draft.
+model ConsentWordingVersion {
+  id        String          @id
+  version   String          @unique
+  status    String          @default("draft")
+  text      String
+  textHash  String
+  createdAt DateTime        @default(now())
+  records   ConsentRecord[]
+}
+
+/// Append-only. Insert a row for every choice, change, and withdrawal. The latest createdAt wins. Do not update or delete.
+model ConsentRecord {
+  id               String              @id @default(cuid())
+  workspaceId      String
+  clientKey        String              @default("")
+  visitorId        String              @default("")
+  deviceId         String              @default("")
+  contactMatchKey  String              @default("")
+  matchKeys        String[]            @default([])
+  level            ConsentChoiceLevel
+  action           ConsentChoiceAction
+  wordingVersionId String
+  wording          ConsentWordingVersion @relation(fields: [wordingVersionId], references: [id])
+  wordingHash      String
+  pageUrl          String              @default("")
+  userAgentSummary String              @default("")
+  ipHash           String              @default("")
+  createdAt        DateTime            @default(now())
+
+  @@index([workspaceId, visitorId, createdAt])
+  @@index([workspaceId, deviceId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([matchKeys], type: Gin)
+}
+
+/// A client website requested the snippet or the snippet ran. Append-only.
+model ConsentInstall {
+  id          String   @id @default(cuid())
+  workspaceId String
+  clientKey   String   @default("")
+  pageUrl     String   @default("")
+  kind        String
+  seenAt      DateTime @default(now())
+
+  @@index([workspaceId, clientKey, seenAt])
+  @@index([workspaceId, pageUrl])
 }
