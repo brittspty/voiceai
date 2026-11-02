@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { loginNextField } from "@/lib/public-routing";
-import { readToken, signToken, SESSION_COOKIE } from "@/lib/session-token";
+import { readToken, signToken, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session-token";
 import { verifyTotp } from "@/lib/totp";
 
 export async function POST(request: Request) {
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That sign-in step expired. Start again." }, { status: 401 });
   }
   const user = await prisma.user.findUnique({ where: { id: ticket.uid } });
-  if (!user?.totpSecret || !(await verifyTotp(user.totpSecret, body.code || ""))) {
+  if (!user?.totpSecret || user.disabledAt || !(await verifyTotp(user.totpSecret, body.code || ""))) {
     return NextResponse.json({ error: "That code is wrong or expired." }, { status: 401 });
   }
   const session = await prisma.session.create({
@@ -21,12 +21,6 @@ export async function POST(request: Request) {
   const token = await signToken({ kind: "session", sid: session.id, role: user.role, exp: Math.floor(session.expiresAt.getTime() / 1000) });
   await audit({ id: user.id, name: user.name }, "Signed in with two-step verification", { type: "session", id: session.id, label: user.email });
   const res = NextResponse.json({ ok: true, ...loginNextField(user.role) });
-  res.cookies.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 12,
-  });
+  res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
   return res;
 }

@@ -2,6 +2,17 @@ import { sessionSecret } from "./env";
 
 export const SESSION_COOKIE = "voiceops_session";
 
+/** Host-only. No Domain attribute, so the cookie is not shared across hostnames. */
+export function sessionCookieOptions(maxAge = 60 * 60 * 24 * 12) {
+  return {
+    httpOnly: true as const,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge,
+  };
+}
+
 export type TokenPayload =
   | { kind: "session"; sid: string; exp: number; role?: string }
   | { kind: "totp"; uid: string; exp: number };

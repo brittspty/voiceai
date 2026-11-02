@@ -139,8 +139,8 @@ export function collectKeys(value: unknown, keys: string[] = []): string[] {
   return keys;
 }
 
-const VIEW_COST_KEY = /spend|budget|cpc|cpm|cpa|cpl|roas|cost|revenue|overpace|paceratio|conversionvalue|currency/i;
-const VIEW_COST_TEXT = /\$|\b(spend|budgets?|cpc|cpm|cpa|cpl|roas|revenue|costs?)\b/i;
+const VIEW_COST_KEY = /spend|budget|cpc|cpm|cpa|cpl|roas|cost|bid|revenue|overpace|paceratio|conversionvalue|currency/i;
+const VIEW_COST_TEXT = /\$|\b(spend|budgets?|cpc|cpm|cpa|cpl|roas|revenue|costs?|bids?)\b/i;
 
 function isEmptyObject(value: unknown) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value) && Object.keys(value as object).length === 0);
@@ -197,8 +197,8 @@ export function clientShareHasMoney(view: ClientShareView) {
 }
 
 /** Contract scan for reports, PDFs, and share snapshots. */
-export const REPORT_COST_TEXT = /spend|cost|cpl|cpql|cpa|roas|budget|\$/i;
-export const REPORT_COST_KEY = /spend|budget|cpc|cpm|cpa|roas|cost|cpl|cpql|currency|amount|revenue/i;
+export const REPORT_COST_TEXT = /spend|cost|cpl|cpql|cpa|roas|budget|\bbid\b|\$/i;
+export const REPORT_COST_KEY = /spend|budget|cpc|cpm|cpa|roas|cost|cpl|cpql|bid|currency|amount|revenue/i;
 const STAFF_SERIES = /cpql|cpa|cpl|roas|spend|cost|budget/i;
 const MONEY_FORMAT = new Set(["currency", "multiple"]);
 

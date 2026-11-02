@@ -11,7 +11,7 @@ import { clientViewerAllowed } from "@/lib/marketing/client-gate";
 import { loginAnalyticsEnabled } from "@/lib/login-analytics";
 import { insightsEnabled } from "@/lib/insights/learn";
 import { canOpenAudienceData } from "@/lib/marketing/audience-data/present";
-import { audienceDataClientEnabled, audienceDataEnabled, audienceLibraryEnabled, channelRegistryEnabled, chatgptAdsEnabled, ctvAttributionEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
+import { audienceDataClientEnabled, audienceDataEnabled, audienceLibraryEnabled, channelRegistryEnabled, chatgptAdsEnabled, ctvAttributionEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled, userAdminEnabled } from "@/lib/marketing/config";
 import { canViewCtvAttribution } from "@/lib/marketing/feature-access";
 import { pushNotificationsEnabled } from "@/lib/push/notify";
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
@@ -55,8 +55,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showInsights: staff && insightsEnabled(),
       showNotifications: staff && pushNotificationsEnabled(),
     });
+    const showPeople = userAdminEnabled() && (access.kind === "super_admin" || access.kind === "account_manager");
     return (
-      <JarvisShell productName={PRODUCT_NAME} wordmark={BRAND_WORDMARK} logoOnDark={LOGO_ON_DARK} logoOnLight={LOGO_ON_LIGHT} items={items} unread={unread} moreChannels={registry?.commandCenter.moreLabel}>
+      <JarvisShell
+        productName={PRODUCT_NAME}
+        wordmark={BRAND_WORDMARK}
+        logoOnDark={LOGO_ON_DARK}
+        logoOnLight={LOGO_ON_LIGHT}
+        items={items}
+        unread={unread}
+        moreChannels={registry?.commandCenter.moreLabel}
+        account={{
+          name: user.name,
+          email: user.email,
+          showTeam: user.role === "owner" || user.role === "super_admin",
+          showRoles: user.role === "super_admin",
+          showPeople,
+        }}
+      >
         {children}
       </JarvisShell>
     );
@@ -80,6 +96,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showCtv={ctvAttributionEnabled() && user.role !== "client_viewer" && user.role !== "owner"}
       showInsights={insightsEnabled()}
       showNotifications={pushNotificationsEnabled()}
+      showPeople={userAdminEnabled() && (user.role === "super_admin" || user.role === "account_manager")}
     >
       {children}
     </AppShell>

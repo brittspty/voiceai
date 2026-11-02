@@ -1,7 +1,8 @@
 import { collectsCostKeys, stripForAudience } from "./channels/cost-strip";
+import { omitForbiddenClientFields } from "./client-view";
 
 /** Field names a client owner, client viewer, or share link must never receive. */
-export const CLIENT_COST_FIELDS = ["spend", "budget", "cost", "cpl", "cpql", "roas"] as const;
+export const CLIENT_COST_FIELDS = ["spend", "budget", "cost", "cpl", "cpql", "cpa", "roas", "bid"] as const;
 
 export type ContractAudience = "client_owner" | "client_viewer" | "share" | "account_manager" | "super_admin" | "staff" | "all_clients_viewer" | "none";
 
@@ -15,13 +16,14 @@ function normalizedKey(key: string) {
   return key.toLowerCase().replace(/[_-]/g, "");
 }
 
-/** True when a JSON key is spend, budget, cost, CPL, CPQL, or ROAS, including compounds such as costPerLead. */
+/** True when a JSON key is spend, budget, cost, CPL, CPQL, CPA, ROAS, or bid, including compounds. */
 export function isClientCostField(key: string) {
   const token = normalizedKey(key);
   if (!token || token === "coastal") return false;
   if (token.includes("cpql")) return true;
   if (token === "cpl" || token.endsWith("cpl")) return true;
   if (token.includes("roas") || token.includes("spend") || token.includes("budget")) return true;
+  if (token.includes("cpa") || token.includes("bid")) return true;
   if (token === "cost" || token.startsWith("cost") || token.endsWith("cost") || token.includes("costper")) return true;
   return false;
 }
@@ -57,7 +59,7 @@ export function readScopedClient<T>(input: {
     const own = input.ownClientId.trim();
     if (!own || !requested || requested !== own) return { ok: false, status: 403, error: "Not allowed" };
     const audience = input.kind === "share" ? "share" : "client";
-    return { ok: true, body: stripForAudience(input.payload, audience) };
+    return { ok: true, body: omitForbiddenClientFields(stripForAudience(input.payload, audience)) };
   }
   if (input.kind === "account_manager") {
     if (!requested || !input.assignedClientIds.includes(requested)) {

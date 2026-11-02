@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { acceptHomepageContact, contactOriginAllowed } from "@/lib/homepage-contact";
 
+import { requestOrigin } from "@/lib/hosts";
+
 function originOf(request: Request) {
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || new URL(request.url).host;
-  const proto = request.headers.get("x-forwarded-proto") || "http";
-  return `${proto}://${host}`;
+  return requestOrigin(request);
 }
 
 async function fieldsOf(request: Request) {

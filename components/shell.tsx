@@ -44,6 +44,7 @@ export function AppShell({
   showCtv = false,
   showAudienceData = false,
   showAudienceDataClient = false,
+  showPeople = false,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
@@ -63,6 +64,7 @@ export function AppShell({
   showCtv?: boolean;
   showAudienceData?: boolean;
   showAudienceDataClient?: boolean;
+  showPeople?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -209,13 +211,23 @@ export function AppShell({
                     <div className="text-xs text-muted">{user.email}</div>
                     <div className="mt-1 text-xs text-muted">{roleLabel(user.role)}</div>
                   </div>
-                  {user.role !== "client_viewer" && user.role !== "account_manager" && (
+                  {(user.role === "owner" || user.role === "super_admin") && (
                     <Dropdown.Item asChild>
-                      <Link href="/settings/users" className="block rounded-md px-2 py-1.5 text-sm outline-none hover:bg-hover">Two-step sign-in</Link>
+                      <Link href="/settings/users" className="block rounded-md px-2 py-1.5 text-sm outline-none hover:bg-hover">Team & security</Link>
+                    </Dropdown.Item>
+                  )}
+                  {user.role === "super_admin" && (
+                    <Dropdown.Item asChild>
+                      <Link href="/settings/roles" className="block rounded-md px-2 py-1.5 text-sm outline-none hover:bg-hover">Roles</Link>
+                    </Dropdown.Item>
+                  )}
+                  {showPeople && (
+                    <Dropdown.Item asChild>
+                      <Link href="/settings/people" className="block rounded-md px-2 py-1.5 text-sm outline-none hover:bg-hover">People</Link>
                     </Dropdown.Item>
                   )}
                   <form action="/api/auth/logout" method="post">
-                    <button className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-hover">Sign out</button>
+                    <button type="submit" className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-hover">Sign out</button>
                   </form>
                 </Dropdown.Content>
               </Dropdown.Portal>

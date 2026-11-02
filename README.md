@@ -93,7 +93,22 @@ Existing app paths stay where they are. `/marketing`, `/calls`, `/settings`, web
 
 After sign-in, with the switch on, a client viewer opens `/marketing/client`. A super admin or account manager opens `/marketing`. Owner, admin, and viewer open `/app`. With the switch off, a client viewer still opens `/marketing/client` and everyone else still opens `/`.
 
-`voiceai.specificityinc.com` and `jarvis.specificityinc.com` are both recognized. A request on either host uses that host as the public canonical URL. Any other host falls back to `APP_URL`. The session cookie stays host-only.
+`voiceai.specificityinc.com` and `jarvis.specificityinc.com` are both recognized. A forged host falls back to `APP_URL` and is not echoed. The session cookie stays host-only (`voiceops_session`). Do not set a cookie Domain, `NEXTAUTH_URL`, or `COOKIE_DOMAIN`.
+
+`CANONICAL_HOST` is unset by default. While it is unset, both allowed hosts serve as themselves and nothing redirects. Set it to one of those two hostnames and browser pages on the other host redirect there. `/api` and webhooks stay on the host that received them. Email links use `CANONICAL_HOST` when it is set, otherwise `APP_URL`.
+
+`jarvis.specificityinc.com` has no DNS record yet. Caddy still serves only `{$SITE_ADDRESS}`. Production `SITE_ADDRESS` is `voiceai.specificityinc.com` and `APP_URL` is `https://voiceai.specificityinc.com`. Leave those env values as they are, and leave `CANONICAL_HOST` unset, until the DNS record exists. Then set `SITE_ADDRESS` to `jarvis.specificityinc.com, voiceai.specificityinc.com` and point an A record for `jarvis.specificityinc.com` at the same server. Set `CANONICAL_HOST` only after choosing which name is canonical. Do not add the new name to the Caddy site block before that A record exists.
+
+## Google Workspace sign-in
+
+Team login is not connected. The button on the sign-in page says so and does not start OAuth. Do not add Google OAuth credentials to the server for this. When someone approves a Google Workspace OIDC app, it needs:
+
+- OAuth client ID
+- OAuth client secret
+- Redirect URI `https://jarvis.specificityinc.com/api/auth/oidc/callback`
+- Allowed domain `specificityinc.com`
+
+`AUTH_EMAIL_LIVE` (default off) is the only switch that lets sign-in-link and password-reset mail use Resend while `INTEGRATIONS_MODE=mock` keeps voice, SMS, and other sends mocked. `PASSWORD_RESET` and `MAGIC_LINK_ENABLED` also default off. `USER_ADMIN_V2` defaults off.
 
 The homepage contact form writes a `HomepageContact` row and does not send email. Privacy, pricing, and reply time are FAQ answers marked `TODO(jason)` until Jason signs off. They are not claims. Rename `Book a demo` and `Try the demo` in `lib/homepage-cta.ts`. On a phone, including a 390px screen, those logins sit behind the header Menu button (`aria-expanded`). Set `HOMEPAGE_DIRECTION=A` to preview the other layout. Direction B is the default. Section order does not change.
 
@@ -156,7 +171,7 @@ A live sync needs a Meta system user token and the app that issued it:
 | `META_AD_LIBRARY_COUNTRIES` | Countries for Ad Library search. Default `US` |
 | `MARKETING_DASHBOARDS_V2` | `off` (default). `on` shows the campaign dashboards (staff overview, drill-down, client view, share links, and onboarding lead value). Spend, budget, and estimated ROAS stay limited to super admins and account managers. The screens only read synced rows |
 | `MARKETING_GOOGLE_ADS` | `off` (default). When on, Google Ads sync runs and the dashboards include `google_ads` rows. Meta rows show either way |
-| `MARKETING_SUPER_ADMIN_EMAILS` | Comma-separated emails treated as super admins. Default placeholders: Jason, Brittany, and Chris |
+| `MARKETING_SUPER_ADMIN_EMAILS` | Comma-separated emails treated as super admins. Unset means nobody. A database role of `super_admin` still counts. |
 | `DATABASE_URL` | Postgres URL the CLI writes to. Required for `npm run meta:sync` unless you pass `--dry-run` |
 
 When `META_AD_ACCOUNT_IDS` is set, that list is the only allow-list. When it is empty, the sync uses `AdAccount` rows with `syncEnabled` still true. Clearing the env var does not delete history. Set `MARKETING_SYNC_MODE=off` to stop all syncs. Accounts removed from the allow-list stay in the database and are not pulled while the env list is non-empty.

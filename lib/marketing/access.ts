@@ -35,18 +35,20 @@ export type MarketingAccess = {
   canCreateShareLink: boolean;
 };
 
+/** Names used only when MARKETING_SUPER_ADMIN_EMAILS lists that address. An unset value grants nobody. */
+export const SUPER_ADMIN_NAMES = new Map<string, string>(DEFAULT_SUPER_ADMINS.map((person) => [person.email, person.name]));
+
 export function superAdminEmails(env: Env = process.env) {
   const raw = (env.MARKETING_SUPER_ADMIN_EMAILS || "").trim();
-  if (!raw) return DEFAULT_SUPER_ADMINS.map((person) => person.email);
+  if (!raw) return [];
   return [...new Set(raw.split(",").map((part) => part.trim().toLowerCase()).filter(Boolean))];
 }
 
 export function plannedSuperAdmins(env: Env = process.env) {
   const password = (env.SEED_SUPER_ADMIN_PASSWORD || "ChangeMe!super").trim() || "ChangeMe!super";
   const emails = superAdminEmails(env);
-  const defaults = new Map<string, string>(DEFAULT_SUPER_ADMINS.map((person) => [person.email, person.name]));
   return emails.map((email) => ({
-    name: defaults.get(email) || email.split("@")[0] || "Super admin",
+    name: SUPER_ADMIN_NAMES.get(email) || email.split("@")[0] || "Super admin",
     email,
     password,
   }));

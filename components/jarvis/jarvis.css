@@ -12,6 +12,12 @@
 .jarvis .side a.on { background: #3a3435; box-shadow: inset 3px 0 0 var(--brand); }
 .jarvis .side a .ct { font: 500 11px var(--mono); background: var(--brand); color: var(--j-ink); border-radius: 999px; padding: 1px 7px; }
 .jarvis .side .foot { margin-top: auto; font-size: 11px; color: #a8a2a0; padding: 10px; }
+.jarvis .acct { margin-bottom: 8px; }
+.jarvis .acct summary { list-style: none; cursor: pointer; color: #edeae8; min-height: 44px; display: flex; align-items: center; }
+.jarvis .acct summary::-webkit-details-marker { display: none; }
+.jarvis .acct .panel { display: flex; flex-direction: column; gap: 4px; }
+.jarvis .acct .panel p { margin: 0; color: #a8a2a0; }
+.jarvis .acct button { background: transparent; color: #edeae8; border: 0; text-align: left; padding: 8px 0; font: inherit; cursor: pointer; min-height: 44px; }
 .jarvis .maincol { min-width: 0; display: flex; flex-direction: column; }
 .jarvis main { padding: 28px 40px 48px; max-width: 1208px; scroll-padding-top: 64px; scroll-padding-bottom: 88px; }
 .jarvis .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; border-bottom: 1px solid var(--j-line); padding-bottom: 18px; margin-bottom: 24px; }
