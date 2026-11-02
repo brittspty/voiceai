@@ -2828,6 +2828,73 @@ model ClientPlanView {
   @@index([planId, viewedAt])
 }
 
+/// Staff chart note for Reports P1. The author is a name, not a User relation.
+/// Client and share reports keep clientBody and drop the author.
+model ReportChartNote {
+  id          String   @id @default(cuid())
+  workspaceId String   @default("org")
+  seriesId    String
+  noteDate    String
+  label       String
+  body        String
+  clientBody  String
+  authorName  String
+  loggedAt    DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, loggedAt])
+}
+
+/// Scheduled report. Client moneyInCopy is always NO. Seed rows are EXAMPLE DATA.
+model ReportSchedule {
+  workspaceId String   @default("org")
+  id          String
+  name        String
+  cadence     String   @default("Weekly")
+  audience    String
+  moneyInCopy String
+  exampleData Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@id([workspaceId, id])
+  @@index([workspaceId, createdAt])
+}
+
+/// Mock delivery log. The message stays "would send". Nothing is emailed, texted, or pushed.
+model ReportScheduleDelivery {
+  id          String   @id @default(cuid())
+  workspaceId String   @default("org")
+  scheduleId  String
+  at          DateTime
+  audience    String
+  moneyInCopy String
+  message     String   @default("would send")
+  sent        Boolean  @default(false)
+  email       Boolean  @default(false)
+  sms         Boolean  @default(false)
+  push        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, at])
+}
+
+/// Scale or cut choice. Manual steps only. campaignWrite and adAccountWrite stay false.
+model AudienceScaleCutLog {
+  id             String   @id @default(cuid())
+  workspaceId    String   @default("org")
+  at             DateTime
+  who            String
+  testId         String
+  action         String
+  campaignWrite  Boolean  @default(false)
+  adAccountWrite Boolean  @default(false)
+  manualSteps    Json
+  message        String   @default("logged only")
+  createdAt      DateTime @default(now())
+
+  @@index([workspaceId, at])
+}
+
 // CTV attribution. Read-only ingest. Raw IPs are not stored.
 // Holdout drafts cannot be uploaded. Segment reads cannot change spend.
 
