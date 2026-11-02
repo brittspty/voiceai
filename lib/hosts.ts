@@ -2,12 +2,11 @@ import { publicHttpsBase } from "./env";
 
 /**
  * Public hosts this product is served on.
- * Sign-in links use the canonical host. The other public host redirects there.
+ * Both serve normally until CANONICAL_HOST names one of them.
  * Any other host falls back to APP_URL so a forged Host header is not echoed.
  * The session cookie stays host-only. Do not set a Domain attribute.
  */
-export const CANONICAL_PUBLIC_HOST = "jarvis.specificityinc.com";
-export const SPECIFICITY_PUBLIC_HOSTS = ["voiceai.specificityinc.com", CANONICAL_PUBLIC_HOST] as const;
+export const SPECIFICITY_PUBLIC_HOSTS = ["voiceai.specificityinc.com", "jarvis.specificityinc.com"] as const;
 
 type Env = Record<string, string | undefined>;
 
@@ -35,13 +34,30 @@ export function canonicalOrigin(hostHeader: string | null | undefined, env: Env)
   return publicHttpsBase(env);
 }
 
-/** Browser pages on the alias host move to the canonical host. API and webhooks stay put. */
-export function publicHostRedirect(hostHeader: string | null | undefined, pathname: string, search = ""): string | null {
+/**
+ * Unset, empty, or not one of the allowed hosts: no redirect.
+ * Set to an allowed host: browser pages on the other allowed host redirect there.
+ * API and webhook paths stay on the host that received them.
+ */
+export function canonicalHost(env: Env = process.env): string | null {
+  const host = hostnameFrom(env.CANONICAL_HOST);
+  if (!host || !isSpecificityPublicHost(host)) return null;
+  return host;
+}
+
+export function publicHostRedirect(
+  hostHeader: string | null | undefined,
+  pathname: string,
+  search = "",
+  env: Env = process.env,
+): string | null {
+  const canonical = canonicalHost(env);
+  if (!canonical) return null;
   if (pathname === "/api" || pathname.startsWith("/api/")) return null;
   const host = hostnameFrom(hostHeader);
-  if (!host || host === CANONICAL_PUBLIC_HOST || !isSpecificityPublicHost(host)) return null;
+  if (!host || host === canonical || !isSpecificityPublicHost(host)) return null;
   const query = search ? (search.startsWith("?") ? search : `?${search}`) : "";
-  return `https://${CANONICAL_PUBLIC_HOST}${pathname}${query}`;
+  return `https://${canonical}${pathname}${query}`;
 }
 
 function configuredOrigin(env: Env) {
@@ -74,10 +90,9 @@ export function requestOrigin(request: { headers: { get(name: string): string | 
   return safeRequestOrigin(null, env);
 }
 
-/** Links we email. On the Specificity hosts this is always the canonical sign-in origin. */
+/** Links we email. Uses CANONICAL_HOST when that is an allowed host, otherwise APP_URL. */
 export function authLinkOrigin(env: Env = process.env) {
-  const configured = configuredOrigin(env);
-  const host = hostnameFrom(configured);
-  if (host && isSpecificityPublicHost(host)) return `https://${CANONICAL_PUBLIC_HOST}`;
-  return configured;
+  const canonical = canonicalHost(env);
+  if (canonical) return `https://${canonical}`;
+  return configuredOrigin(env);
 }

@@ -23,13 +23,13 @@ export async function proxy(request: NextRequest, envOverride?: unknown) {
     return NextResponse.next();
   }
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+  const env = envForProxy(envOverride);
   if (request.method === "GET" || request.method === "HEAD") {
-    const bounce = publicHostRedirect(host, pathname, request.nextUrl.search);
+    const bounce = publicHostRedirect(host, pathname, request.nextUrl.search, env);
     if (bounce) return NextResponse.redirect(bounce, 308);
   }
   const demoPath = rewriteForDemoHost(host, pathname);
   const effectivePath = demoPath && demoPath !== pathname ? demoPath : pathname;
-  const env = envForProxy(envOverride);
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const payload = await readToken(token);
   const signedIn = payload?.kind === "session";

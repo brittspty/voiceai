@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Sign-in is host-agnostic. Canonical login is `https://jarvis.specificityinc.com/login`. Browser pages on `voiceai.specificityinc.com` redirect there once that name reaches the app. Caddy still serves only `SITE_ADDRESS` until DNS exists. The session cookie stays host-only.
+- Sign-in is host-agnostic. With `CANONICAL_HOST` unset, both public hosts serve and nothing redirects. Set `CANONICAL_HOST` to `voiceai.specificityinc.com` or `jarvis.specificityinc.com` and browser pages on the other host redirect there. API and webhooks stay on the host that received them. The session cookie stays host-only.
 - Super admins see the same teammate invite form as owners, limited to owner, admin, and viewer.
 - Password reset (`PASSWORD_RESET`, default off) stores a hashed single-use token for 30 minutes, rate limits requests, invalidates sessions, and does not reveal whether the email exists. While the switch is off, the support address stays the only path.
 - `AUTH_EMAIL_LIVE` (default off) is the only path that sends sign-in and reset mail through Resend while integrations stay mocked. Otherwise those messages are a MailLog row with transport `would send`.

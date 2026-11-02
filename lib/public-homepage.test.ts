@@ -386,20 +386,42 @@ test("the rotating feed pauses for hover, focus, and reduced motion", () => {
   assert.match(source, /feedShouldAdvance/);
 });
 
-test("jarvis is the canonical sign-in host and voiceai pages redirect there", async () => {
-  assert.equal(publicHostRedirect("voiceai.specificityinc.com", "/login", "?audience=team"), "https://jarvis.specificityinc.com/login?audience=team");
-  assert.equal(publicHostRedirect("jarvis.specificityinc.com", "/login"), null);
-  assert.equal(publicHostRedirect("voiceai.specificityinc.com", "/api/webhooks/ghl"), null);
-  assert.equal(publicHostRedirect("evil.example", "/login"), null);
-  assert.equal(safeRequestOrigin("evil.example", { APP_URL: "https://voiceai.specificityinc.com" }), "https://voiceai.specificityinc.com");
-  assert.equal(safeRequestOrigin("jarvis.specificityinc.com", { APP_URL: "https://voiceai.specificityinc.com" }), "https://jarvis.specificityinc.com");
-  assert.equal(authLinkOrigin({ APP_URL: "https://voiceai.specificityinc.com" }), "https://jarvis.specificityinc.com");
+test("both public hosts serve until CANONICAL_HOST is set", async () => {
+  assert.equal(publicHostRedirect("voiceai.specificityinc.com", "/login", "", {}), null);
+  assert.equal(publicHostRedirect("jarvis.specificityinc.com", "/login", "", {}), null);
+  assert.equal(publicHostRedirect("voiceai.specificityinc.com", "/login", "", { CANONICAL_HOST: "" }), null);
+  assert.equal(publicHostRedirect("voiceai.specificityinc.com", "/login", "", { CANONICAL_HOST: "evil.example" }), null);
+  assert.equal(authLinkOrigin({ APP_URL: "https://voiceai.specificityinc.com" }), "https://voiceai.specificityinc.com");
   assert.equal(authLinkOrigin({ APP_URL: "http://127.0.0.1:43123" }), "http://127.0.0.1:43123");
   assert.equal("domain" in sessionCookieOptions(), false);
-  const bounced = await proxy(request("/login", undefined, { host: "voiceai.specificityinc.com" }));
+  const stayed = await proxy(request("/login", undefined, { host: "voiceai.specificityinc.com" }), {});
+  assert.equal(stayed.headers.get("location"), null);
+  const jarvis = await proxy(request("/login", undefined, { host: "jarvis.specificityinc.com" }), {});
+  assert.equal(jarvis.headers.get("location"), null);
+});
+
+test("CANONICAL_HOST redirects browser pages and leaves APIs on the request host", async () => {
+  const toJarvis = { CANONICAL_HOST: "jarvis.specificityinc.com" };
+  assert.equal(
+    publicHostRedirect("voiceai.specificityinc.com", "/login", "?audience=team", toJarvis),
+    "https://jarvis.specificityinc.com/login?audience=team",
+  );
+  assert.equal(publicHostRedirect("jarvis.specificityinc.com", "/login", "", toJarvis), null);
+  assert.equal(publicHostRedirect("voiceai.specificityinc.com", "/api/webhooks/ghl", "", toJarvis), null);
+  assert.equal(publicHostRedirect("evil.example", "/login", "", toJarvis), null);
+  assert.equal(authLinkOrigin({ APP_URL: "https://voiceai.specificityinc.com", ...toJarvis }), "https://jarvis.specificityinc.com");
+  const bounced = await proxy(request("/login", undefined, { host: "voiceai.specificityinc.com" }), toJarvis);
   assert.equal(bounced.headers.get("location"), "https://jarvis.specificityinc.com/login");
-  const api = await proxy(request("/api/health", undefined, { host: "voiceai.specificityinc.com" }));
+  const api = await proxy(request("/api/health", undefined, { host: "voiceai.specificityinc.com" }), toJarvis);
   assert.equal(api.headers.get("location"), null);
+
+  const toVoice = { CANONICAL_HOST: "voiceai.specificityinc.com" };
+  assert.equal(publicHostRedirect("jarvis.specificityinc.com", "/login", "", toVoice), "https://voiceai.specificityinc.com/login");
+  assert.equal(publicHostRedirect("voiceai.specificityinc.com", "/login", "", toVoice), null);
+  const back = await proxy(request("/login", undefined, { host: "jarvis.specificityinc.com" }), toVoice);
+  assert.equal(back.headers.get("location"), "https://voiceai.specificityinc.com/login");
+  assert.equal(safeRequestOrigin("evil.example", { APP_URL: "https://voiceai.specificityinc.com" }), "https://voiceai.specificityinc.com");
+  assert.equal(safeRequestOrigin("jarvis.specificityinc.com", { APP_URL: "https://voiceai.specificityinc.com" }), "https://jarvis.specificityinc.com");
 });
 
 test("voiceai and jarvis are both public hosts", () => {

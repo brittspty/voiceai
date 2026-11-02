@@ -11,9 +11,10 @@
 # Once the A record for jarvis.specificityinc.com points at this server,
 # set SITE_ADDRESS (in the server env, not in this repo) to both names:
 #   jarvis.specificityinc.com, voiceai.specificityinc.com
-# Canonical sign-in is https://jarvis.specificityinc.com/login.
-# The app redirects other public-host pages there. /api and webhooks stay
-# on the host that received them.
+# Leave CANONICAL_HOST unset and both hosts serve as themselves.
+# Set CANONICAL_HOST to one of those names only when browser pages on the
+# other host should redirect there. /api and webhooks stay on the host
+# that received them.
 {$SITE_ADDRESS} {
 	reverse_proxy app:43123
 }

@@ -95,9 +95,9 @@ After sign-in, with the switch on, a client viewer opens `/marketing/client`. A 
 
 `voiceai.specificityinc.com` and `jarvis.specificityinc.com` are both recognized. A forged host falls back to `APP_URL` and is not echoed. The session cookie stays host-only (`voiceops_session`). Do not set a cookie Domain, `NEXTAUTH_URL`, or `COOKIE_DOMAIN`.
 
-Canonical sign-in is `https://jarvis.specificityinc.com/login`. A browser page on `voiceai.specificityinc.com` redirects there. `/api` and webhooks stay on the host that received them, so existing callbacks keep working. Email links (sign-in and password reset) use the canonical host when `APP_URL` is one of those two names. Local `APP_URL` is unchanged.
+`CANONICAL_HOST` is unset by default. While it is unset, both allowed hosts serve as themselves and nothing redirects. Set it to one of those two hostnames and browser pages on the other host redirect there. `/api` and webhooks stay on the host that received them. Email links use `CANONICAL_HOST` when it is set, otherwise `APP_URL`.
 
-`jarvis.specificityinc.com` has no DNS record yet. Caddy still serves only `{$SITE_ADDRESS}`. Production `SITE_ADDRESS` is `voiceai.specificityinc.com` and `APP_URL` is `https://voiceai.specificityinc.com`. Leave those env values as they are until the DNS record exists. Then set `SITE_ADDRESS` to `jarvis.specificityinc.com, voiceai.specificityinc.com` and point an A record for `jarvis.specificityinc.com` at the same server. Do not add the new name to the Caddy site block before that A record exists.
+`jarvis.specificityinc.com` has no DNS record yet. Caddy still serves only `{$SITE_ADDRESS}`. Production `SITE_ADDRESS` is `voiceai.specificityinc.com` and `APP_URL` is `https://voiceai.specificityinc.com`. Leave those env values as they are, and leave `CANONICAL_HOST` unset, until the DNS record exists. Then set `SITE_ADDRESS` to `jarvis.specificityinc.com, voiceai.specificityinc.com` and point an A record for `jarvis.specificityinc.com` at the same server. Set `CANONICAL_HOST` only after choosing which name is canonical. Do not add the new name to the Caddy site block before that A record exists.
 
 ## Google Workspace sign-in
 
