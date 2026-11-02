@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { EXAMPLE_ASSIGNMENTS, EXAMPLE_FEED } from "@/lib/marketing/channels/catalog";
 import { readScopedClient } from "@/lib/marketing/client-contract";
 import { deliverUrgentEmail, scopeLiveFeed, urgentEmailOptIn } from "@/lib/marketing/channels/feed";
 import { feedSseChunk } from "@/lib/marketing/feed";
 import { amRealtimeEnabled, jarvisUiV2Enabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { notifyAccountManager, pushNotificationsEnabled } from "@/lib/push/notify";
 
 /** Assignment scope is applied here. Delivery stays with the live-feed service. */
 export async function GET(request: Request) {
@@ -36,6 +38,29 @@ export async function GET(request: Request) {
     const email = deliverUrgentEmail({ optIn: urgentEmailOptIn(user.id) && item.severity === "urgent", title: item.title });
     return { ...item, urgentEmail: email.logged };
   });
+  if (pushNotificationsEnabled()) {
+    await notifyAccountManager({
+      userId: user.id,
+      items: items.map((item) => ({
+        id: item.id,
+        severity: item.severity,
+        kind: item.driver === "landing_page" ? "outage" : "other",
+        title: item.title,
+        body: item.reason,
+      })),
+      loadPrefs: async () => {
+        const row = await prisma.pushPreference.findUnique({ where: { userId: user.id } });
+        if (!row) return null;
+        return {
+          optedIn: row.optedIn,
+          quietStartHour: row.quietStartHour,
+          quietEndHour: row.quietEndHour,
+          urgentOutageBreaksQuiet: row.urgentOutageBreaksQuiet,
+          timeZone: row.timeZone,
+        };
+      },
+    }).catch((error) => console.error("[push] skipped", error));
+  }
   if (url.searchParams.get("stream") === "1") {
     if (!amRealtimeEnabled()) return NextResponse.json({ error: "Off" }, { status: 404 });
     const stream = new ReadableStream({

@@ -148,6 +148,7 @@ model User {
   inboxDecided           InboxDecision[]      @relation("InboxDecided")
   clientPlansCreated     ClientPlan[]         @relation("ClientPlanCreator")
   clientPlansApproved    ClientPlan[]         @relation("ClientPlanApprover")
+  pushPreference         PushPreference?
 }
 
 model Session {
@@ -1947,6 +1948,19 @@ model LiftObservation {
 }
 
 /// In-app inbox row. Digests, live feed items, and skill offers land here.
+/// Per-person push opt-in. Delivery is mock until a push provider is approved.
+model PushPreference {
+  userId                   String   @id
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  optedIn                  Boolean  @default(false)
+  quietStartHour           Int      @default(22)
+  quietEndHour             Int      @default(7)
+  urgentOutageBreaksQuiet  Boolean  @default(true)
+  timeZone                 String   @default("America/New_York")
+  subscription             Json?
+  updatedAt                DateTime @updatedAt
+}
+
 model StaffNotification {
   id        String    @id @default(cuid())
   userId    String
