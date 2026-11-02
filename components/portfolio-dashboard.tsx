@@ -104,6 +104,7 @@ export function PortfolioDashboard({ initial }: { initial: PortfolioModel }) {
                 </a>
               </h2>
               <p className={`mt-2 text-sm font-semibold ${client.alerts > 0 ? "text-danger" : ""}`}>Alerts: {client.alerts > 0 ? client.alertLabel : "No alerts"}</p>
+              {client.moreChannels?.length ? <MoreChannelLine channels={client.moreChannels} /> : null}
               <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-sm">
                 <dt className="text-soft">Leads</dt>
                 <dd className="num m-0">{client.leads.toLocaleString("en-US")}</dd>
@@ -193,6 +194,15 @@ function SortHead({
   );
 }
 
+function MoreChannelLine({ channels }: { channels: { label: string; status: string }[] }) {
+  return (
+    <span className="mt-1 block text-xs font-normal text-muted">
+      More channels +{channels.length} more
+      <span className="block">{channels.map((row) => `${row.label} · ${row.status}`).join("; ")}</span>
+    </span>
+  );
+}
+
 function Mix({ client }: { client: PortfolioModel["clients"][number] }) {
   return (
     <>
@@ -212,7 +222,10 @@ function PortfolioRow({ client, showMoney }: { client: PortfolioModel["clients"]
         </a>
         {client.detail && <span className="num mt-1 block text-xs text-muted">{client.detail}</span>}
       </td>
-      <td className="num border-b border-line px-2.5 py-3">{client.channels}</td>
+      <td className="num border-b border-line px-2.5 py-3">
+        {client.channels}
+        {client.moreChannels?.length ? <MoreChannelLine channels={client.moreChannels} /> : null}
+      </td>
       <td className="num border-b border-line px-2.5 py-3">{client.leads.toLocaleString("en-US")}</td>
       <td className="num border-b border-line px-2.5 py-3">
         {client.quality == null ? "—" : client.quality}
