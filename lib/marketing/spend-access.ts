@@ -98,7 +98,7 @@ const SAFE_KEYS = new Set(
     "window", "start", "end", "label", "value", "share", "id", "color", "points",
     "splits", "date", "series", "flags", "title", "detail", "pdf", "footer",
     "attribution", "headline", "subhead", "kicker", "annotation", "preparer",
-    "resultskicker", "resultstitle", "coverseentence", "periodname", "clientpdf",
+    "resultskicker", "resultstitle", "coversentence", "periodname", "clientpdf",
     "funnel", "step", "steps", "channelheading", "flagsheading", "defaultseriesid",
     "updatedat", "exampledata", "sourceid", "scopelabel", "periodlabel", "comparelabel",
     "compare", "range", "clientid", "clientname", "audience", "annotations",
