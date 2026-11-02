@@ -607,6 +607,9 @@ model Campaign {
   workspaceId  String                @default("org")
   adAccountId  String
   adAccount    AdAccount             @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  /// Set by client campaign scoping when one ad account is shared by several clients.
+  clientId     String?
+  client       MarketingClient?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
   platform     AdPlatform
   externalId   String
   name         String
@@ -642,6 +645,7 @@ model Campaign {
   @@unique([workspaceId, platform, externalId])
   @@index([adAccountId])
   @@index([budgetSetById])
+  @@index([clientId])
 }
 
 model AdGroup {
@@ -1577,9 +1581,16 @@ model MarketingClient {
   id           String                @id @default(cuid())
   workspaceId  String                @default("org")
   name         String
+  /// Meta campaign ids this client owns inside a shared ad account. The id list wins over the name rule.
+  metaCampaignIds          String[]   @default([])
+  /// Case-insensitive name-contains rule, used only when metaCampaignIds is empty.
+  metaCampaignNameContains String     @default("")
+  /// Off by default. Campaigns are linked to this client only while it is on.
+  metaLiveRead             Boolean    @default(false)
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
   accounts     AdAccount[]
+  campaigns    Campaign[]
   pages        LandingPage[]
   settings     ClientPageSetting[]
   credentials  PageWriteCredential[]
