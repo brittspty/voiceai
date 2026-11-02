@@ -9,6 +9,7 @@ import { easeOutCubic, REPORT_MOTION, shouldAnimate } from "@/lib/marketing/repo
 import { reportHref } from "@/lib/marketing/reports/query";
 import type { ClientReport, FlagKind, KpiFormat, ReportCompare, ReportDocument, ReportRange, StaffReport } from "@/lib/marketing/reports/types";
 import { ChannelChart, CohortChart, FunnelChart, Sparkline, TrendChart, useReducedMotion, type ChartSeries } from "./charts";
+import { AnnotationForm } from "./p1-annotation";
 import { ShareDialog } from "./share-dialog";
 
 const RANGES: ReportRange[] = ["7d", "30d", "qtd", "custom"];
@@ -137,6 +138,7 @@ export function ReportScreen({
   pdfDefault,
   pollUrl,
   shareOpen = false,
+  p1 = false,
 }: {
   initial: ReportDocument;
   mode: "app" | "share";
@@ -145,6 +147,7 @@ export function ReportScreen({
   pdfDefault: "staff" | "client";
   pollUrl: string | null;
   shareOpen?: boolean;
+  p1?: boolean;
 }) {
   const reduce = useReducedMotion();
   const [report, setReport] = useState(initial);
@@ -237,7 +240,7 @@ export function ReportScreen({
   };
 
   return (
-    <div className="jr-wrap">
+    <div className={p1 ? "jr-wrap jr-p1" : "jr-wrap"}>
       <p className="jr-sr" aria-live="polite">{liveMessage}</p>
       <header className="jr-top">
         <div className="jr-brand">
@@ -262,8 +265,9 @@ export function ReportScreen({
             </div>
           )}
           {mode === "app" && (
-            <select className="jr-select" aria-label="Compare" value={report.compare} onChange={(event) => go({ compare: event.target.value === "none" ? "none" : "prior" })}>
+            <select className="jr-select" aria-label="Compare" value={report.compare} onChange={(event) => go({ compare: event.target.value === "none" ? "none" : event.target.value === "yoy" ? "yoy" : "prior" })}>
               <option value="prior">Compare: {report.compare === "prior" ? report.compareLabel : "prior period"}</option>
+              {p1 && <option value="yoy">Compare: same period last year</option>}
               <option value="none">Compare: none</option>
             </select>
           )}
@@ -315,7 +319,7 @@ export function ReportScreen({
       {staff ? (
         <>
           <div className="jr-g2">
-            <TrendChart series={series} seriesId={seriesId} onSeries={setSeriesId} compare={report.compare === "prior"} reduce={reduce} annotation={annotation} />
+            <TrendChart series={series} seriesId={seriesId} onSeries={setSeriesId} compare={report.compare !== "none"} compareNoun={report.compare === "yoy" ? "same period last year" : "same day prior"} reduce={reduce} annotation={annotation} />
             <Flags heading={report.flagsHeading} count={report.flags.length} flags={report.flags} />
           </div>
           <div className="jr-g3">
@@ -327,7 +331,7 @@ export function ReportScreen({
       ) : (
         <>
           <div className="jr-g2">
-            <TrendChart series={series} seriesId={seriesId} onSeries={setSeriesId} compare={report.compare === "prior"} reduce={reduce} annotation={annotation} />
+            <TrendChart series={series} seriesId={seriesId} onSeries={setSeriesId} compare={report.compare !== "none"} compareNoun={report.compare === "yoy" ? "same period last year" : "same day prior"} reduce={reduce} annotation={annotation} />
             <ChannelChart title={report.channelHeading} bars={bars} note={client?.attribution} />
           </div>
           <div className="jr-g2">
@@ -335,6 +339,29 @@ export function ReportScreen({
             <Flags heading={report.flagsHeading} flags={report.flags} />
           </div>
         </>
+      )}
+      {p1 && (
+        <nav className="jr-p1-links" aria-label="Report pages">
+          {report.channels.map((row) => {
+            const name = "staffName" in row ? row.staffName : row.name;
+            return <Link key={row.id} href={`/reports/channels/${row.id}`}>{name}</Link>;
+          })}
+          <Link href="/reports/schedules">Scheduled reports</Link>
+        </nav>
+      )}
+      {p1 && staff && mode === "app" && (
+        <section className="jr-panel" aria-label="Chart notes">
+          <div className="jr-ph"><h2>Chart notes</h2><span className="jr-ex">EXAMPLE DATA</span></div>
+          <ul>
+            {staff.annotations.map((note) => (
+              <li key={`${note.seriesId}-${note.date}-${note.label}`}>
+                <b>{note.label}.</b> {note.body}
+                {note.authorName && note.loggedAt ? <span className="jr-sub"> Added by {note.authorName} at {note.loggedAt}.</span> : null}
+              </li>
+            ))}
+          </ul>
+          <AnnotationForm seriesId={seriesId} />
+        </section>
       )}
       {staff && <p className="jr-attr">{staff.attribution}</p>}
       <footer className="jr-foot">
@@ -349,6 +376,7 @@ export function ReportScreen({
           canStaffPdf={canStaffPdf}
           pdfDefault={pdfDefault}
           reduce={reduce}
+          p1={p1}
           onToast={setToast}
         />
       )}

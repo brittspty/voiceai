@@ -1,4 +1,4 @@
-import { audienceDataClientEnabled, jarvisUiV2Enabled, type Env } from "./config";
+import { audienceDataClientEnabled, audienceDataP1Enabled, jarvisUiV2Enabled, reportsP1Enabled, type Env } from "./config";
 
 /** Paths a signed-in client viewer may open. Everything else is blocked. */
 export function clientViewerAllowed(pathname: string, env: Env = process.env) {
@@ -12,8 +12,16 @@ export function clientViewerAllowed(pathname: string, env: Env = process.env) {
   if (pathname === "/share" || pathname.startsWith("/share/")) return true;
   if (pathname.startsWith("/api/share/")) return true;
   if (pathname === "/api/health") return true;
-  if (pathname === "/reports" || pathname.startsWith("/reports/")) return true;
+  if (pathname === "/reports" || pathname === "/reports/print") return true;
   if (pathname === "/api/marketing/reports" || pathname === "/api/marketing/reports/export") return true;
+  if (reportsP1Enabled(env)) {
+    if (pathname === "/reports/schedules" || pathname.startsWith("/reports/channels/")) return true;
+    if (pathname === "/api/marketing/reports/p1/schedules" || pathname.startsWith("/api/marketing/reports/p1/channels/")) return true;
+  }
+  if (audienceDataP1Enabled(env)) {
+    if (pathname === "/audience-data/lineage" || pathname === "/audience-data/drill" || pathname === "/audience-data/tests") return true;
+    if (pathname === "/api/marketing/audience-p1/lineage" || pathname === "/api/marketing/audience-p1/drill" || pathname === "/api/marketing/audience-p1/tests") return true;
+  }
   if (pathname === "/api/homepage/contact") return true;
   if (pathname === "/demo" || pathname.startsWith("/demo/")) return true;
   if (pathname === "/plan" || pathname.startsWith("/plan/")) return true;
