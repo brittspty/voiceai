@@ -304,12 +304,20 @@ export async function refreshGoogleAdsAccessToken(input: {
   return token;
 }
 
+/**
+ * Developer tokens were retired on 2026-09-09. The header is optional and the
+ * API ignores it, so send it only when a token is still configured.
+ * login-customer-id is sent when GOOGLE_ADS_LOGIN_CUSTOMER_ID is set.
+ */
 function adsHeaders(input: { accessToken: string; developerToken: string; loginCustomerId: string }) {
-  return {
+  const headers: Record<string, string> = {
     authorization: `Bearer ${input.accessToken}`,
-    "developer-token": input.developerToken,
-    "login-customer-id": input.loginCustomerId,
   };
+  const developerToken = input.developerToken.trim();
+  if (developerToken) headers["developer-token"] = developerToken;
+  const loginCustomerId = input.loginCustomerId.trim();
+  if (loginCustomerId) headers["login-customer-id"] = loginCustomerId;
+  return headers;
 }
 
 function resultRows(body: unknown) {

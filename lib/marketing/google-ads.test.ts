@@ -17,6 +17,7 @@ import {
   googleAdsGuard,
   googleAdsRequest,
   googleAdsSearch,
+  googleAdsSearchStream,
   googleAdsServiceUrl,
   redactGoogleSecrets,
   refreshGoogleAdsAccessToken,
@@ -123,6 +124,70 @@ test("the Google Ads env helper is the version and customer-id source of truth",
   if (live.action === "live") {
     assert.deepEqual(live.customerIds, ["5555555555"]);
     assert.equal(live.apiVersion, "v26");
+  }
+});
+
+test("Google Ads config is valid without a developer token", () => {
+  const missing = liveEnv();
+  delete missing.GOOGLE_ADS_DEVELOPER_TOKEN;
+  const blank = liveEnv({ GOOGLE_ADS_DEVELOPER_TOKEN: "   " });
+  for (const env of [missing, blank]) {
+    const decision = decideGoogleAdsSync(env);
+    assert.equal(decision.action, "live");
+    if (decision.action === "live") assert.equal(decision.developerToken, "");
+    assert.equal(googleAdsEnv(env).developerToken, "");
+  }
+  assert.equal(decideGoogleAdsSync({}).action, "skip");
+  assert.equal(googleAdsEnv({}).enabled, false);
+});
+
+test("developer-token is omitted when blank and included when set", async () => {
+  const seen: { developer: string | null; login: string | null }[] = [];
+  const fetchImpl: FetchLike = async (_url, init) => {
+    const headers = new Headers(init?.headers);
+    seen.push({ developer: headers.get("developer-token"), login: headers.get("login-customer-id") });
+    return new Response(JSON.stringify({ results: [] }), { status: 200 });
+  };
+  const base = {
+    customerId: CUSTOMER,
+    query: "SELECT campaign.id FROM campaign",
+    accessToken: "access-token-value",
+    loginCustomerId: "2000000002",
+    apiVersion: "v26",
+    fetchImpl,
+  };
+  await googleAdsSearch({ ...base, developerToken: "" });
+  await googleAdsSearch({ ...base, developerToken: "   " });
+  await googleAdsSearchStream({ ...base, developerToken: SECRET });
+  await googleAdsSearch({ ...base, developerToken: "", loginCustomerId: "" });
+  assert.equal(seen[0]?.developer, null);
+  assert.equal(seen[0]?.login, "2000000002");
+  assert.equal(seen[1]?.developer, null);
+  assert.equal(seen[1]?.login, "2000000002");
+  assert.equal(seen[2]?.developer, SECRET);
+  assert.equal(seen[2]?.login, "2000000002");
+  assert.equal(seen[3]?.developer, null);
+  assert.equal(seen[3]?.login, null);
+});
+
+test("a blank developer token does not skip the Google Ads sync", async () => {
+  const headers: { developer: string | null; login: string | null }[] = [];
+  const fetchImpl: FetchLike = async (url, init) => {
+    if (String(url) === GOOGLE_ADS_TOKEN_URL) {
+      return new Response(JSON.stringify({ access_token: "ya29.fixture-token" }), { status: 200 });
+    }
+    const requestHeaders = new Headers(init?.headers);
+    headers.push({ developer: requestHeaders.get("developer-token"), login: requestHeaders.get("login-customer-id") });
+    return new Response(JSON.stringify({ results: [] }), { status: 200 });
+  };
+  const env = liveEnv({ GOOGLE_ADS_DEVELOPER_TOKEN: "", GOOGLE_ADS_CUSTOMER_IDS: CUSTOMER });
+  const result = await runGoogleAdsSync({ env, store: createMemoryStore(), now: NOW, timezone: TZ, fetchImpl });
+  assert.equal(result.status, "succeeded");
+  assert.equal(result.mode, "live");
+  assert.ok(headers.length > 0);
+  for (const header of headers) {
+    assert.equal(header.developer, null);
+    assert.equal(header.login, "2000000002");
   }
 });
 
@@ -298,11 +363,16 @@ test("google rows map into the shared marketing snapshot", () => {
 });
 
 test("a live pull uses only search and searchStream", async () => {
-  const calls: { url: string; method: string; login: string }[] = [];
+  const calls: { url: string; method: string; login: string; developerToken: string | null }[] = [];
   const fetchImpl: FetchLike = async (url, init) => {
     const href = String(url);
     const headers = new Headers(init?.headers);
-    calls.push({ url: href, method: String(init?.method ?? ""), login: headers.get("login-customer-id") ?? "" });
+    calls.push({
+      url: href,
+      method: String(init?.method ?? ""),
+      login: headers.get("login-customer-id") ?? "",
+      developerToken: headers.get("developer-token"),
+    });
     if (href === GOOGLE_ADS_TOKEN_URL) {
       return new Response(JSON.stringify({ access_token: "ya29.fixture-token", expires_in: 3600 }), { status: 200 });
     }
@@ -417,6 +487,7 @@ test("a live pull uses only search and searchStream", async () => {
     assert.notEqual(classifyGoogleAdsRequest(call.method, call.url), "blocked");
     assert.equal(call.url.includes("mutate"), false);
     assert.equal(call.login, "2000000002");
+    assert.equal(call.developerToken, SECRET);
   }
   assert.equal(calls.filter((call) => call.url === GOOGLE_ADS_TOKEN_URL).length, 1);
   assert.equal(JSON.stringify(result).includes(SECRET), false);
@@ -448,6 +519,16 @@ test("connection status hides secrets and blocks client roles", () => {
   assert.equal(view.chipLabel, "Needs attention");
   assert.equal(view.readOnly, true);
   assert.equal(view.credentials.every((row) => row.present), true);
+  assert.deepEqual(
+    view.credentials.map((row) => row.id),
+    ["oauth-client", "oauth-client-secret", "refresh-token", "login-customer-id"],
+  );
+
+  const missing = describeGoogleAdsConnection({ env: { MARKETING_GOOGLE_ADS: "on" } });
+  assert.equal(
+    missing.summary,
+    "Add the OAuth client, refresh token, and login customer ID on the server. This page never asks for a password.",
+  );
 
   const off = describeGoogleAdsConnection({ env: { MARKETING_GOOGLE_ADS: "off", GOOGLE_ADS_DEVELOPER_TOKEN: SECRET } });
   assert.equal(off.chip, "not_connected");

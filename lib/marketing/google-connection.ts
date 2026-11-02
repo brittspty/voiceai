@@ -9,7 +9,6 @@ import { redactGoogleSecrets } from "./connectors/google-ads-client";
 import { WORKSPACE_ID } from "./types";
 
 const CREDENTIAL_LABELS: Record<(typeof GOOGLE_ADS_REQUIRED)[number], { id: string; label: string }> = {
-  GOOGLE_ADS_DEVELOPER_TOKEN: { id: "developer-token", label: "Developer token" },
   GOOGLE_ADS_CLIENT_ID: { id: "oauth-client", label: "OAuth client" },
   GOOGLE_ADS_CLIENT_SECRET: { id: "oauth-client-secret", label: "OAuth client secret" },
   GOOGLE_ADS_REFRESH_TOKEN: { id: "refresh-token", label: "Refresh token" },
@@ -38,7 +37,8 @@ export function googleAdsConnectionDenial(access: Pick<MarketingAccess, "kind">)
 }
 
 function secretsFrom(env: Env) {
-  return GOOGLE_ADS_REQUIRED.map((name) => (env[name] || "").trim()).filter((value) => value.length >= 6);
+  const names = [...GOOGLE_ADS_REQUIRED, "GOOGLE_ADS_DEVELOPER_TOKEN"];
+  return names.map((name) => (env[name] || "").trim()).filter((value) => value.length >= 6);
 }
 
 /** Status for the setup screen. Credential values are never copied onto the view. */
@@ -90,7 +90,7 @@ export function describeGoogleAdsConnection(input: {
 
   if (decision.action === "skip") {
     const reason = decision.reason.startsWith("missing")
-      ? "Add the developer token, OAuth client, refresh token, and login customer ID on the server. This page never asks for a password."
+      ? "Add the OAuth client, refresh token, and login customer ID on the server. This page never asks for a password."
       : decision.reason === "GOOGLE_ADS_LOGIN_CUSTOMER_ID is not a 10-digit customer id"
         ? "The login customer ID needs to be the 10-digit manager account id. This page never asks for a password."
         : "Google Ads sync did not start. This page never asks for a password.";
