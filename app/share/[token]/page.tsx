@@ -6,7 +6,8 @@ import { ReportFrame } from "@/components/reports/report-frame";
 import { ReportScreen } from "@/components/reports/report-screen";
 import { prisma } from "@/lib/db";
 import { clientShareCsv, reopenClientReport } from "@/lib/marketing/client-view";
-import { dashboardsV2Enabled, reportsP1Enabled, reportsV2Enabled } from "@/lib/marketing/config";
+import { dashboardsV2Enabled, googleBusinessProfileEnabled, reportsP1Enabled, reportsV2Enabled } from "@/lib/marketing/config";
+import { presentGbpClient } from "@/lib/marketing/gbp-view";
 import { materializeShare } from "@/lib/marketing/reports/p1/share";
 import { parseDashQuery } from "@/lib/marketing/dashboard-model";
 import { loadClientDashboard } from "@/lib/marketing/dashboard-query";
@@ -82,7 +83,16 @@ export default async function SharePage({ params, searchParams }: { params: Prom
     if (!sharedReport) return invalid;
     return (
       <ReportFrame>
-        <ReportScreen initial={sharedReport} mode="share" canShare={false} canStaffPdf={false} pdfDefault="client" pollUrl={null} />
+        <ReportScreen
+          initial={sharedReport}
+          mode="share"
+          canShare={false}
+          canStaffPdf={false}
+          pdfDefault="client"
+          pollUrl={null}
+          gbp={googleBusinessProfileEnabled() ? presentGbpClient({ clientId: sharedReport.clientId === "all" ? "harbor" : sharedReport.clientId, audience: "share" }) : null}
+          initialSection={query.section === "gbp" ? "gbp" : "overview"}
+        />
       </ReportFrame>
     );
   }

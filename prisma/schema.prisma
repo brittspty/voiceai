@@ -1566,6 +1566,8 @@ model MarketingClient {
   pages        LandingPage[]
   settings     ClientPageSetting[]
   credentials  PageWriteCredential[]
+  gbpLocations GbpLocation[]
+  gbpSnapshots BusinessProfileSnapshot[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
@@ -2134,11 +2136,142 @@ model BusinessProfileSnapshot {
   unansweredReviews  Int      @default(0)
   missingInfo        String[] @default([])
   recommendationOnly Boolean  @default(true)
+  marketingClientId  String?
+  marketingClient    MarketingClient? @relation(fields: [marketingClientId], references: [id], onDelete: SetNull)
+  searchDesktop      Int      @default(0)
+  searchMobile       Int      @default(0)
+  mapsDesktop        Int      @default(0)
+  mapsMobile         Int      @default(0)
+  bookings           Int      @default(0)
+  conversations      Int      @default(0)
+  foodOrders         Int      @default(0)
   fetchedAt          DateTime
   createdAt          DateTime @default(now())
 
   @@unique([workspaceId, locationId, date])
   @@index([workspaceId, fetchedAt])
+  @@index([marketingClientId])
+}
+
+/// One Google Business Profile location, mapped to a JAI client by staff. No tokens are stored here.
+model GbpLocation {
+  id                   String    @id @default(cuid())
+  workspaceId          String    @default("org")
+  marketingClientId    String?
+  marketingClient      MarketingClient? @relation(fields: [marketingClientId], references: [id], onDelete: SetNull)
+  accountId            String
+  locationId           String
+  title                String    @default("")
+  primaryCategory      String    @default("")
+  additionalCategories String[]  @default([])
+  phone                String    @default("")
+  websiteUri           String    @default("")
+  address              Json      @default("{}")
+  hours                Json      @default("{}")
+  attributes           Json      @default("{}")
+  services             Json      @default("[]")
+  description          String    @default("")
+  verificationState    String    @default("")
+  fieldsHash           String    @default("")
+  photoCount           Int       @default(0)
+  lastPhotoAt          DateTime?
+  hasLogo              Boolean   @default(false)
+  hasCover             Boolean   @default(false)
+  postCount            Int       @default(0)
+  lastPostAt           DateTime?
+  fetchedAt            DateTime
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  keywords             GbpKeywordMonthly[]
+  reviews              GbpReview[]
+  media                GbpMediaStat[]
+  posts                GbpPost[]
+  audits               GbpAudit[]
+
+  @@unique([workspaceId, locationId])
+  @@index([workspaceId, marketingClientId])
+}
+
+/// Monthly search keyword impressions. A threshold bucket is used when Google hides the exact count.
+model GbpKeywordMonthly {
+  id          String      @id @default(cuid())
+  workspaceId String      @default("org")
+  locationRef String
+  location    GbpLocation @relation(fields: [locationRef], references: [id], onDelete: Cascade)
+  locationId  String
+  month       String
+  keyword     String
+  impressions Int?
+  threshold   String      @default("")
+  fetchedAt   DateTime
+
+  @@unique([locationRef, month, keyword])
+  @@index([workspaceId, locationId, month])
+}
+
+/// Review facts. The reviewer name is stored only as a hash.
+model GbpReview {
+  id               String      @id @default(cuid())
+  workspaceId      String      @default("org")
+  reviewId         String
+  locationRef      String
+  location         GbpLocation @relation(fields: [locationRef], references: [id], onDelete: Cascade)
+  locationId       String
+  starRating       Int
+  comment          String      @default("")
+  createTime       DateTime
+  updateTime       DateTime?
+  reviewerNameHash String      @default("")
+  hasOwnerReply    Boolean     @default(false)
+  replyTime        DateTime?
+  replyText        String      @default("")
+  fetchedAt        DateTime
+
+  @@unique([workspaceId, reviewId])
+  @@index([locationId, createTime])
+}
+
+/// Photo summary rows. Count and recency also live on GbpLocation.
+model GbpMediaStat {
+  id          String      @id @default(cuid())
+  locationRef String
+  location    GbpLocation @relation(fields: [locationRef], references: [id], onDelete: Cascade)
+  mediaId     String
+  type        String      @default("")
+  category    String      @default("")
+  createTime  DateTime?
+  fetchedAt   DateTime
+
+  @@unique([locationRef, mediaId])
+}
+
+/// Post summary rows. Count and recency also live on GbpLocation.
+model GbpPost {
+  id          String      @id @default(cuid())
+  locationRef String
+  location    GbpLocation @relation(fields: [locationRef], references: [id], onDelete: Cascade)
+  postId      String
+  type        String      @default("")
+  state       String      @default("")
+  createTime  DateTime?
+  fetchedAt   DateTime
+
+  @@unique([locationRef, postId])
+}
+
+/// Versioned audit score. checks is the ten weighted results. Nothing is published from this row.
+model GbpAudit {
+  id          String      @id @default(cuid())
+  workspaceId String      @default("org")
+  locationRef String
+  location    GbpLocation @relation(fields: [locationRef], references: [id], onDelete: Cascade)
+  locationId  String
+  score       Int
+  checks      Json
+  version     String
+  createdAt   DateTime    @default(now())
+
+  @@index([locationId, createdAt])
 }
 
 /// Dictionary overrides. The catalog module is the default. Fact tables stay on DailyMetric

@@ -1,4 +1,4 @@
-import { audienceDataClientEnabled, audienceDataP1Enabled, jarvisUiV2Enabled, reportsP1Enabled, type Env } from "./config";
+import { audienceDataClientEnabled, audienceDataP1Enabled, googleBusinessProfileEnabled, jarvisUiV2Enabled, reportsP1Enabled, type Env } from "./config";
 
 /** Paths a signed-in client viewer may open. Everything else is blocked. */
 export function clientViewerAllowed(pathname: string, env: Env = process.env) {
@@ -7,6 +7,7 @@ export function clientViewerAllowed(pathname: string, env: Env = process.env) {
   if (pathname === "/marketing/segments" || pathname === "/marketing/segments/lineage" || pathname === "/marketing/segments/drill" || pathname === "/marketing/segments/tests") return true;
   if (pathname === "/sites/landing-pages") return true;
   if (pathname === "/api/marketing/client" || pathname === "/api/marketing/client/export") return true;
+  if (googleBusinessProfileEnabled(env) && pathname === "/api/marketing/gbp") return true;
   if (pathname === "/api/auth/logout") return true;
   if (pathname === "/login") return true;
   if (pathname === "/share" || pathname.startsWith("/share/")) return true;

@@ -246,6 +246,11 @@ export function googleBusinessProfileEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_GBP");
 }
 
+/** Off unless MARKETING_GBP_AUDIT is explicitly on. Stores the audit and files a recommendation for each failed check. */
+export function googleBusinessProfileAuditEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_GBP_AUDIT");
+}
+
 export type StackAdaptDecision = { action: "skip"; reason: string } | { action: "mock" } | { action: "live"; apiKey: string };
 
 /** Missing STACKADAPT_API_KEY skips. It does not throw. */
@@ -262,33 +267,21 @@ export function decideStackAdapt(env: Env): StackAdaptDecision {
 
 export type GoogleBusinessDecision =
   | { action: "skip"; reason: string }
-  | { action: "mock"; accountId: string; locationIds: string[] }
-  | { action: "live"; clientId: string; clientSecret: string; refreshToken: string; accountId: string; locationIds: string[] };
-
-function businessIds(raw: string | undefined) {
-  const seen = new Set<string>();
-  const ids: string[] = [];
-  for (const part of (raw || "").split(",")) {
-    const digits = part.trim().replace(/^locations\//, "");
-    if (!/^\d+$/.test(digits) || seen.has(digits)) continue;
-    seen.add(digits);
-    ids.push(digits);
-  }
-  return ids;
-}
+  | { action: "mock" }
+  | { action: "live"; clientId: string; clientSecret: string; refreshToken: string };
 
 /**
  * Business Profile uses the same Google OAuth client id, secret, and refresh token as Google Ads.
- * This connector only GETs. A missing location list skips.
+ * Live locations come from the database mapping. INTEGRATIONS_MODE=mock uses fixtures and makes no outbound call.
+ * GOOGLE_BUSINESS_ACCOUNT_ID and GOOGLE_BUSINESS_LOCATION_IDS are not the sync source.
  */
 export function decideGoogleBusinessProfile(env: Env): GoogleBusinessDecision {
   if (!googleBusinessProfileEnabled(env)) return { action: "skip", reason: "MARKETING_GBP is off" };
   const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
-  const locationIds = businessIds(env.GOOGLE_BUSINESS_LOCATION_IDS);
-  const accountId = (env.GOOGLE_BUSINESS_ACCOUNT_ID || "").trim().replace(/^accounts\//, "");
   if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };
-  if (mode === "mock") return { action: "mock", accountId, locationIds };
-  if (mode !== "auto" && mode !== "live") return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
+  if (mode !== "auto" && mode !== "live" && mode !== "mock") return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
+  const integrations = (env.INTEGRATIONS_MODE || "").trim().toLowerCase();
+  if (mode === "mock" || integrations === "mock") return { action: "mock" };
   const clientId = (env.GOOGLE_ADS_CLIENT_ID || "").trim();
   const clientSecret = (env.GOOGLE_ADS_CLIENT_SECRET || "").trim();
   const refreshToken = (env.GOOGLE_ADS_REFRESH_TOKEN || "").trim();
@@ -296,10 +289,9 @@ export function decideGoogleBusinessProfile(env: Env): GoogleBusinessDecision {
     !clientId ? "GOOGLE_ADS_CLIENT_ID" : "",
     !clientSecret ? "GOOGLE_ADS_CLIENT_SECRET" : "",
     !refreshToken ? "GOOGLE_ADS_REFRESH_TOKEN" : "",
-    !locationIds.length ? "GOOGLE_BUSINESS_LOCATION_IDS" : "",
   ].filter(Boolean);
   if (missing.length) return { action: "skip", reason: `missing ${missing.join(", ")}` };
-  return { action: "live", clientId, clientSecret, refreshToken, accountId, locationIds };
+  return { action: "live", clientId, clientSecret, refreshToken };
 }
 
 /** Off unless MARKETING_DATA_INTAKE is explicitly on. */

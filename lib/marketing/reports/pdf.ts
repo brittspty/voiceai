@@ -58,8 +58,8 @@ function renderPdf(pages: string[][]) {
 }
 
 /** Light-theme export. Client documents are sealed before this runs. */
-export function buildReportPdf(report: ReportDocument) {
-  const lines = reportPdfLines(report).map(pdfSafe).filter((line) => line.trim().length > 0);
+export function buildReportPdf(report: ReportDocument, extraLines: string[] = []) {
+  const lines = [...reportPdfLines(report), ...extraLines].map(pdfSafe).filter((line) => line.trim().length > 0);
   const pages: string[][] = [];
   for (let index = 0; index < lines.length; index += 40) pages.push(lines.slice(index, index + 40));
   if (!pages.length) pages.push(["Report"]);

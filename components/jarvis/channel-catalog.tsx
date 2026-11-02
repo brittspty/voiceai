@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { GbpSetup } from "@/components/gbp/gbp-setup";
 import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_WORDMARK } from "@/lib/brand";
+import type { GbpSetupView } from "@/lib/marketing/gbp-view";
 import { Crumbs, End } from "./bits";
 
 const end = { productName: PRODUCT_WORDMARK, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
@@ -39,6 +41,7 @@ export function ChannelCatalog({
   initialResult = "",
   showConnected = false,
   capabilities = {},
+  gbpSetup = null,
 }: {
   cards: CatalogCardModel[];
   clients: { id: string; name: string }[];
@@ -49,6 +52,7 @@ export function ChannelCatalog({
   initialResult?: string;
   showConnected?: boolean;
   capabilities?: Record<string, { items: { name: string; result: string }[]; matchNote: string }>;
+  gbpSetup?: GbpSetupView | null;
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
@@ -239,7 +243,11 @@ export function ChannelCatalog({
         </section>
       )}
 
-      {step === "connect" && platform && (
+      {step === "connect" && platform?.key === "google_business_profile" && gbpSetup && (
+        <GbpSetup model={gbpSetup} />
+      )}
+
+      {step === "connect" && platform && platform.key !== "google_business_profile" && (
         <section aria-labelledby="connect-title">
           <h2 id="connect-title">Connect {platform.name}</h2>
           <div className="field">

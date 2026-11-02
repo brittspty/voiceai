@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { readScopedClient } from "@/lib/marketing/client-contract";
-import { reportsV2Enabled } from "@/lib/marketing/config";
+import { googleBusinessProfileEnabled, reportsV2Enabled } from "@/lib/marketing/config";
+import { gbpPdfLines, presentGbpClient } from "@/lib/marketing/gbp-view";
 import { prisma } from "@/lib/db";
 import { buildReport } from "@/lib/marketing/reports/guard";
 import { buildReportPdf } from "@/lib/marketing/reports/pdf";
@@ -47,7 +48,10 @@ export async function GET(request: Request) {
     report = scoped.body;
   }
   report = forSpendViewer(report, access);
-  const pdf = buildReportPdf(report);
+  const gbpLines = googleBusinessProfileEnabled()
+    ? gbpPdfLines(presentGbpClient({ clientId: report.clientId === "all" ? "harbor" : report.clientId, audience: access.seesCost ? "staff" : "client" }))
+    : [];
+  const pdf = buildReportPdf(report, gbpLines);
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",

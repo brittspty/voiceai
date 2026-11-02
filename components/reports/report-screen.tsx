@@ -8,6 +8,8 @@ import { formatKpi, formatUpdatedEt } from "@/lib/marketing/reports/format";
 import { easeOutCubic, REPORT_MOTION, shouldAnimate } from "@/lib/marketing/reports/motion";
 import { reportHref } from "@/lib/marketing/reports/query";
 import type { ClientReport, FlagKind, KpiFormat, ReportCompare, ReportDocument, ReportRange, StaffReport } from "@/lib/marketing/reports/types";
+import { GbpPanel } from "@/components/gbp/gbp-panel";
+import type { GbpClientView } from "@/lib/marketing/gbp-view";
 import { ChannelChart, CohortChart, FunnelChart, Sparkline, TrendChart, useReducedMotion, type ChartSeries } from "./charts";
 import { AnnotationForm } from "./p1-annotation";
 import { ShareDialog } from "./share-dialog";
@@ -139,6 +141,8 @@ export function ReportScreen({
   pollUrl,
   shareOpen = false,
   p1 = false,
+  gbp = null,
+  initialSection = "overview",
 }: {
   initial: ReportDocument;
   mode: "app" | "share";
@@ -148,6 +152,8 @@ export function ReportScreen({
   pollUrl: string | null;
   shareOpen?: boolean;
   p1?: boolean;
+  gbp?: GbpClientView | null;
+  initialSection?: "overview" | "gbp";
 }) {
   const reduce = useReducedMotion();
   const [report, setReport] = useState(initial);
@@ -157,6 +163,7 @@ export function ReportScreen({
   const [offline, setOffline] = useState(false);
   const [liveMessage, setLiveMessage] = useState("");
   const [tip, setTip] = useState("");
+  const [section, setSection] = useState<"overview" | "gbp">(initialSection === "gbp" && gbp ? "gbp" : "overview");
   const replayKey = `${report.range}:${report.compare}:${report.clientId}`;
 
   useEffect(() => {
@@ -295,6 +302,15 @@ export function ReportScreen({
           <button className="jr-btn" type="submit">Apply</button>
         </form>
       )}
+      {gbp ? (
+        <div className="jr-seg" role="tablist" aria-label="Report sections" style={{ marginTop: 16 }}>
+          <button type="button" role="tab" aria-selected={section === "overview"} onClick={() => setSection("overview")}>Overview</button>
+          <button type="button" role="tab" aria-selected={section === "gbp"} onClick={() => setSection("gbp")}>Google Business Profile</button>
+        </div>
+      ) : null}
+      {section === "gbp" && gbp ? <GbpPanel view={gbp} /> : null}
+      {section === "overview" ? (
+      <>
       <h1 className="jr-h1">{report.headline}</h1>
       <p className="jr-sub">{report.subhead}</p>
       <section className="jr-hero" aria-label="Headline results">
@@ -368,6 +384,8 @@ export function ReportScreen({
         <span>{report.footer}</span>
         <span>{report.exampleData ? "All figures are EXAMPLE DATA" : report.periodLabel}</span>
       </footer>
+      </>
+      ) : null}
       {share && canShare && (
         <ShareDialog
           open={share}
