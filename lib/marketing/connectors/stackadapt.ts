@@ -6,6 +6,7 @@ export type StackAdaptPullInput = {
   apiKey: string;
   since: string;
   until: string;
+  advertiserId: string;
   fetchImpl?: FetchLike;
 };
 
@@ -19,6 +20,7 @@ export async function pullStackAdaptSnapshot(input: StackAdaptPullInput): Promis
       apiKey: input.apiKey,
       from: input.since,
       to: input.until,
+      advertiserId: input.advertiserId,
       fetchImpl: input.fetchImpl,
     });
     const snapshot = stackAdaptToSnapshot(bundle);

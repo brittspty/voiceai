@@ -1,9 +1,11 @@
 /**
  * StackAdapt GraphQL client.
- * Reads campaigns, line items, creatives, and daily delivery.
+ * Reads one advertiser's campaigns, ads, and daily delivery.
  * Mutations and subscriptions are refused before any network call.
+ * A campaigns or delivery query without a single advertiser id is refused.
  */
 
+import { addDaysISO } from "../../time";
 import { assertNoAdBudgetWrite } from "./budget-lock";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -11,31 +13,56 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 export const STACKADAPT_ENDPOINT = "https://api.stackadapt.com/graphql";
 export const STACKADAPT_MAX_PAGES = 20;
 
-export const STACKADAPT_DELIVERY_QUERY = `
-query StackAdaptDelivery($from: ISO8601Date!, $to: ISO8601Date!, $after: String) {
-  campaigns(first: 50, after: $after) {
+/** Campaigns for exactly one advertiser. The id is a variable, never interpolated. */
+export const STACKADAPT_CAMPAIGNS_QUERY = `
+query StackAdaptAdvertiserCampaigns($advertiserIds: [ID!]!, $after: String) {
+  campaigns(first: 50, after: $after, filterBy: { advertiserIds: $advertiserIds }) {
     pageInfo { hasNextPage endCursor }
     nodes {
       id
       name
-      status
-      lineItems(first: 50) {
+      isArchived
+      advertiser { id }
+      campaignStatus { state }
+      ads(first: 50) {
+        pageInfo { hasNextPage }
+        nodes { id name paused isArchived }
+      }
+    }
+  }
+}
+`.trim();
+
+/**
+ * Daily delivery for exactly one advertiser.
+ * StackAdapt's date `to` is exclusive. Callers pass an inclusive end and this client adds a day.
+ * cost is stored for staff. Client surfaces strip it. Budget and bid fields are not requested.
+ */
+export const STACKADAPT_DELIVERY_QUERY = `
+query StackAdaptAdvertiserDelivery($advertiserIds: [ID!]!, $from: ISO8601Date!, $to: ISO8601Date!, $after: String) {
+  campaignDelivery(
+    dataType: TABLE
+    granularity: DAILY
+    date: { from: $from, to: $to }
+    filterBy: { advertiserIds: $advertiserIds }
+  ) {
+    ... on CampaignDeliveryOutcome {
+      records(first: 50, after: $after) {
+        pageInfo { hasNextPage endCursor }
         nodes {
-          id
-          name
-          status
-          creatives(first: 50) {
-            nodes { id name status }
-          }
-          dailyStats(from: $from, to: $to) {
-            date
-            impressions
-            clicks
-            conversions
-            spend
+          campaign { id advertiser { id } }
+          granularity { startTime }
+          metrics {
+            impressionsBigint
+            clicksBigint
+            conversionsBigint
+            cost
           }
         }
       }
+    }
+    ... on Progress {
+      __typename
     }
   }
 }
@@ -66,18 +93,57 @@ export function redactStackAdaptSecrets(value: string, secrets: string[] = []) {
   return redacted;
 }
 
-/** Strips comments and string literals, then refuses mutation and subscription operations. */
-export function assertStackAdaptReadOnly(document: string) {
-  const stripped = document
+function stripGraphql(document: string) {
+  return document
     .replace(/#[^\n]*/g, " ")
     .replace(/"""[\s\S]*?"""/g, " ")
     .replace(/"(?:\\.|[^"\\])*"/g, " ");
+}
+
+/** Strips comments and string literals, then refuses mutation and subscription operations. */
+export function assertStackAdaptReadOnly(document: string) {
+  const stripped = stripGraphql(document);
   if (/\bmutation\b/i.test(stripped) || /\bsubscription\b/i.test(stripped)) {
     throw new StackAdaptWriteBlockedError("StackAdapt client is read-only. Mutations and subscriptions are blocked.");
   }
   if (!/\bquery\b/i.test(stripped) && !stripped.includes("{")) {
     throw new StackAdaptWriteBlockedError("StackAdapt client is read-only. Only a GraphQL query is allowed.");
   }
+}
+
+const CAMPAIGN_READ = /\b(campaigns|campaignDelivery|adDelivery|advertiserDelivery|campaignGroupDelivery)\s*\(/;
+
+/**
+ * Campaign and delivery reads must name exactly one advertiser.
+ * Listing every advertiser is refused. The id comes from variables, not from the document text.
+ */
+export function assertStackAdaptAdvertiserQuery(document: string, variables: Record<string, unknown> = {}) {
+  assertStackAdaptReadOnly(document);
+  const stripped = stripGraphql(document);
+  if (/\badvertisers\s*\(/.test(stripped)) {
+    throw new StackAdaptWriteBlockedError("StackAdapt client is read-only. Listing every advertiser is blocked.");
+  }
+  if (!CAMPAIGN_READ.test(stripped)) return "";
+  if (!/\badvertiserIds\b/.test(stripped)) {
+    throw new StackAdaptWriteBlockedError("StackAdapt client is read-only. Campaign and delivery queries must filter by one advertiser.");
+  }
+  const withoutSignatures = stripped.replace(/\$[A-Za-z0-9_]+\s*:\s*\[[^\]]*\]!?/g, " ");
+  const literal = withoutSignatures.match(/advertiserIds\s*:\s*\[([^\]]*)\]/);
+  if (literal) {
+    const parts = literal[1].split(",").map((part) => part.trim().replace(/['"]/g, "")).filter(Boolean);
+    if (parts.length !== 1 || !/^\d+$/.test(parts[0])) {
+      throw new StackAdaptWriteBlockedError("StackAdapt client is read-only. Exactly one advertiser id is allowed.");
+    }
+  }
+  const ids = variables.advertiserIds;
+  if (!Array.isArray(ids) || ids.length !== 1) {
+    throw new StackAdaptWriteBlockedError("StackAdapt client is read-only. Exactly one advertiser id is allowed.");
+  }
+  const id = String(ids[0] ?? "").trim();
+  if (!/^\d+$/.test(id) || ids.some((value) => String(value).trim() !== id)) {
+    throw new StackAdaptWriteBlockedError("StackAdapt client is read-only. The advertiser id is invalid.");
+  }
+  return id;
 }
 
 export function assertStackAdaptEndpoint(rawUrl: string) {
@@ -104,9 +170,10 @@ export async function stackAdaptGraphql(input: {
   fetchImpl?: FetchLike;
 }) {
   const query = input.query ?? STACKADAPT_DELIVERY_QUERY;
+  const variables = input.variables ?? {};
   const endpoint = assertStackAdaptEndpoint(input.endpoint ?? STACKADAPT_ENDPOINT);
-  assertStackAdaptReadOnly(query);
-  assertNoAdBudgetWrite({ method: "POST", url: endpoint, body: { query, variables: input.variables ?? {} } });
+  assertStackAdaptAdvertiserQuery(query, variables);
+  assertNoAdBudgetWrite({ method: "POST", url: endpoint, body: { query, variables } });
   const apiKey = input.apiKey.trim();
   if (!apiKey) throw new StackAdaptApiError("STACKADAPT_API_KEY is empty");
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -120,7 +187,7 @@ export async function stackAdaptGraphql(input: {
         "content-type": "application/json",
         accept: "application/json",
       },
-      body: JSON.stringify({ query, variables: input.variables ?? {} }),
+      body: JSON.stringify({ query, variables }),
       redirect: "error",
     });
   } catch (error) {
@@ -156,7 +223,7 @@ function nodes<T>(value: unknown): T[] {
 export type StackAdaptCreative = { id: string; name: string; status: string };
 export type StackAdaptDailyStat = { date: string; impressions: number; clicks: number; conversions: number; spend: number };
 export type StackAdaptLineItem = { id: string; name: string; status: string; creatives: StackAdaptCreative[]; dailyStats: StackAdaptDailyStat[] };
-export type StackAdaptCampaign = { id: string; name: string; status: string; lineItems: StackAdaptLineItem[] };
+export type StackAdaptCampaign = { id: string; name: string; status: string; advertiserId?: string; lineItems: StackAdaptLineItem[] };
 export type StackAdaptBundle = { campaigns: StackAdaptCampaign[]; warnings: string[] };
 
 function num(value: unknown) {
@@ -168,87 +235,209 @@ function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function stat(value: unknown): StackAdaptDailyStat | null {
-  if (!value || typeof value !== "object") return null;
-  const row = value as Record<string, unknown>;
-  const date = text(row.date).slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const spend = row.spend ?? row.cost ?? row.costUsd;
-  return {
-    date,
-    impressions: num(row.impressions),
-    clicks: num(row.clicks),
-    conversions: num(row.conversions),
-    spend: num(spend),
-  };
+function record(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
-function creative(value: unknown): StackAdaptCreative | null {
-  if (!value || typeof value !== "object") return null;
-  const row = value as Record<string, unknown>;
-  const id = text(row.id);
-  if (!id) return null;
-  return { id, name: text(row.name), status: text(row.status) };
+function adStatus(row: Record<string, unknown>) {
+  if (row.isArchived === true) return "ARCHIVED";
+  if (row.paused === true) return "PAUSED";
+  return "ACTIVE";
 }
 
-function lineItem(value: unknown): StackAdaptLineItem | null {
-  if (!value || typeof value !== "object") return null;
-  const row = value as Record<string, unknown>;
-  const id = text(row.id);
-  if (!id) return null;
-  const stats = Array.isArray(row.dailyStats) ? row.dailyStats : nodes(row.dailyStats);
-  return {
-    id,
-    name: text(row.name),
-    status: text(row.status),
-    creatives: nodes<unknown>(row.creatives).map(creative).filter((row): row is StackAdaptCreative => Boolean(row)),
-    dailyStats: stats.map(stat).filter((row): row is StackAdaptDailyStat => Boolean(row)),
-  };
+function campaignStatus(row: Record<string, unknown>) {
+  if (row.isArchived === true) return "ARCHIVED";
+  const status = record(row.campaignStatus);
+  return text(status?.state) || text(row.status) || "unknown";
 }
 
-function campaign(value: unknown): StackAdaptCampaign | null {
-  if (!value || typeof value !== "object") return null;
-  const row = value as Record<string, unknown>;
+/** Keeps a campaign only when its advertiser id is the one that was requested. */
+export function parseStackAdaptCampaignNode(value: unknown, advertiserId: string): StackAdaptCampaign | null {
+  const row = record(value);
+  if (!row) return null;
   const id = text(row.id);
-  if (!id) return null;
+  const owner = text(record(row.advertiser)?.id);
+  if (!id || owner !== advertiserId) return null;
+  const creatives = nodes<unknown>(record(row.ads)?.nodes ?? row.ads)
+    .map((item) => {
+      const ad = record(item);
+      const adId = ad ? text(ad.id) : "";
+      if (!ad || !adId) return null;
+      return { id: adId, name: text(ad.name), status: adStatus(ad) };
+    })
+    .filter((item): item is StackAdaptCreative => Boolean(item));
   return {
     id,
-    name: text(row.name),
-    status: text(row.status),
-    lineItems: nodes<unknown>(row.lineItems).map(lineItem).filter((row): row is StackAdaptLineItem => Boolean(row)),
+    name: text(row.name) || id,
+    status: campaignStatus(row),
+    advertiserId,
+    lineItems: [
+      {
+        id: `line:${id}`,
+        name: text(row.name) || id,
+        status: campaignStatus(row),
+        creatives,
+        dailyStats: [],
+      },
+    ],
   };
 }
 
-export function parseStackAdaptData(data: unknown): StackAdaptCampaign[] {
-  const root = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
-  return nodes<unknown>(root.campaigns).map(campaign).filter((row): row is StackAdaptCampaign => Boolean(row));
+export function parseStackAdaptDeliveryNode(value: unknown, advertiserId: string): { campaignId: string; stat: StackAdaptDailyStat } | null {
+  const row = record(value);
+  if (!row) return null;
+  const campaign = record(row.campaign);
+  const owner = text(record(campaign?.advertiser)?.id);
+  const campaignId = text(campaign?.id);
+  if (!campaignId || owner !== advertiserId) return null;
+  const metrics = record(row.metrics);
+  const date = text(record(row.granularity)?.startTime).slice(0, 10);
+  if (!metrics || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  return {
+    campaignId,
+    stat: {
+      date,
+      impressions: num(metrics.impressionsBigint ?? metrics.impressions),
+      clicks: num(metrics.clicksBigint ?? metrics.clicks),
+      conversions: num(metrics.conversionsBigint ?? metrics.conversions),
+      spend: num(metrics.cost ?? metrics.spend),
+    },
+  };
+}
+
+export function parseStackAdaptData(data: unknown, advertiserId = ""): StackAdaptCampaign[] {
+  const root = record(data);
+  const rows = nodes<unknown>(record(root?.campaigns)?.nodes ?? root?.campaigns);
+  if (!advertiserId) return [];
+  return rows.map((row) => parseStackAdaptCampaignNode(row, advertiserId)).filter((row): row is StackAdaptCampaign => Boolean(row));
+}
+
+function attachStats(campaigns: StackAdaptCampaign[], stats: { campaignId: string; stat: StackAdaptDailyStat }[], advertiserId: string) {
+  const byId = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
+  for (const row of stats) {
+    let campaign = byId.get(row.campaignId);
+    if (!campaign) {
+      campaign = {
+        id: row.campaignId,
+        name: row.campaignId,
+        status: "unknown",
+        advertiserId,
+        lineItems: [{ id: `line:${row.campaignId}`, name: row.campaignId, status: "unknown", creatives: [], dailyStats: [] }],
+      };
+      campaigns.push(campaign);
+      byId.set(row.campaignId, campaign);
+    }
+    const line = campaign.lineItems[0];
+    if (!line) continue;
+    const existing = line.dailyStats.find((stat) => stat.date === row.stat.date);
+    if (!existing) {
+      line.dailyStats.push({ ...row.stat });
+      continue;
+    }
+    existing.impressions += row.stat.impressions;
+    existing.clicks += row.stat.clicks;
+    existing.conversions += row.stat.conversions;
+    existing.spend += row.stat.spend;
+  }
+}
+
+function pageInfo(value: unknown) {
+  const info = record(value);
+  const cursor = text(info?.endCursor);
+  return { hasNext: Boolean(info?.hasNextPage && cursor), cursor: cursor || null };
+}
+
+/** Totals a probe may print. Spend, cost, and the key are not included. */
+export function stackAdaptProbeSummary(bundle: StackAdaptBundle, range: { advertiserId: string; from: string; to: string }) {
+  let impressions = 0;
+  let clicks = 0;
+  let conversions = 0;
+  for (const campaign of bundle.campaigns) {
+    for (const line of campaign.lineItems) {
+      for (const stat of line.dailyStats) {
+        impressions += stat.impressions;
+        clicks += stat.clicks;
+        conversions += stat.conversions;
+      }
+    }
+  }
+  return {
+    advertiserId: range.advertiserId,
+    campaigns: bundle.campaigns.length,
+    from: range.from,
+    to: range.to,
+    impressions,
+    clicks,
+    conversions,
+  };
 }
 
 export async function pullStackAdaptBundle(input: {
   apiKey: string;
   from: string;
   to: string;
+  advertiserId: string;
   endpoint?: string;
   fetchImpl?: FetchLike;
 }): Promise<StackAdaptBundle> {
+  const advertiserId = assertStackAdaptAdvertiserQuery(STACKADAPT_CAMPAIGNS_QUERY, { advertiserIds: [input.advertiserId] });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.from) || !/^\d{4}-\d{2}-\d{2}$/.test(input.to) || input.from > input.to) {
+    throw new StackAdaptApiError("StackAdapt date range is invalid");
+  }
   const warnings: string[] = [];
   const campaigns: StackAdaptCampaign[] = [];
   let after: string | null = null;
-  for (let page = 0; page < STACKADAPT_MAX_PAGES; page += 1) {
+  let campaignPages = 0;
+  for (; campaignPages < STACKADAPT_MAX_PAGES; campaignPages += 1) {
     const data = await stackAdaptGraphql({
       apiKey: input.apiKey,
       endpoint: input.endpoint,
       fetchImpl: input.fetchImpl,
-      variables: { from: input.from, to: input.to, after },
+      query: STACKADAPT_CAMPAIGNS_QUERY,
+      variables: { advertiserIds: [advertiserId], after },
     });
-    campaigns.push(...parseStackAdaptData(data));
-    const root = data && typeof data === "object" ? (data as { campaigns?: { pageInfo?: { hasNextPage?: boolean; endCursor?: string | null } } }).campaigns : undefined;
-    const pageInfo = root?.pageInfo;
-    if (!pageInfo?.hasNextPage || !pageInfo.endCursor) break;
-    after = pageInfo.endCursor;
+    const connection = record(record(data)?.campaigns);
+    const before = campaigns.length;
+    campaigns.push(...parseStackAdaptData(data, advertiserId));
+    if (nodes<unknown>(connection?.nodes).length > campaigns.length - before) warnings.push("Ignored a campaign outside the requested advertiser.");
+    const info = pageInfo(connection?.pageInfo);
+    const adsTruncated = nodes<unknown>(connection?.nodes).some((node) => record(record(record(node)?.ads)?.pageInfo)?.hasNextPage === true);
+    if (adsTruncated) warnings.push("Some creatives were not loaded.");
+    if (!info.hasNext) break;
+    after = info.cursor;
   }
+  if (campaignPages >= STACKADAPT_MAX_PAGES) warnings.push("StackAdapt campaign page limit reached.");
+
+  const stats: { campaignId: string; stat: StackAdaptDailyStat }[] = [];
+  after = null;
+  let deliveryPages = 0;
+  const exclusiveTo = addDaysISO(input.to, 1);
+  for (; deliveryPages < STACKADAPT_MAX_PAGES; deliveryPages += 1) {
+    const data = await stackAdaptGraphql({
+      apiKey: input.apiKey,
+      endpoint: input.endpoint,
+      fetchImpl: input.fetchImpl,
+      query: STACKADAPT_DELIVERY_QUERY,
+      variables: { advertiserIds: [advertiserId], from: input.from, to: exclusiveTo, after },
+    });
+    const delivery = record(record(data)?.campaignDelivery);
+    if (delivery?.__typename === "Progress" || (delivery && !("records" in delivery))) {
+      warnings.push("StackAdapt delivery is still processing.");
+      break;
+    }
+    const records = record(delivery?.records);
+    for (const node of nodes<unknown>(records?.nodes)) {
+      const parsed = parseStackAdaptDeliveryNode(node, advertiserId);
+      if (parsed) stats.push(parsed);
+    }
+    const info = pageInfo(records?.pageInfo);
+    if (!info.hasNext) break;
+    after = info.cursor;
+  }
+  if (deliveryPages >= STACKADAPT_MAX_PAGES) warnings.push("StackAdapt delivery page limit reached.");
+  attachStats(campaigns, stats, advertiserId);
   if (!campaigns.length) warnings.push("StackAdapt returned no campaigns.");
-  return { campaigns, warnings };
+  return { campaigns, warnings: [...new Set(warnings)] };
 }
 
 export const STACKADAPT_REST_BASE = "https://api.stackadapt.com/service/v2";
