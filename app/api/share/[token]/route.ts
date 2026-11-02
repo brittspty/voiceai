@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { readScopedClient } from "@/lib/marketing/client-contract";
 import { clientShareCsv, type ClientShareView } from "@/lib/marketing/client-view";
-import { reportsP1Enabled, reportsV2Enabled } from "@/lib/marketing/config";
+import { clientMetricVisibilityEnabled, reportsP1Enabled, reportsV2Enabled } from "@/lib/marketing/config";
+import { applyClientSurface } from "@/lib/marketing/metric-visibility";
+import { loadResolvedVisibility } from "@/lib/marketing/metric-visibility-store";
 import { materializeShare } from "@/lib/marketing/reports/p1/share";
 import { presentForAudience } from "@/lib/marketing/share-payload";
 import { buildReportPdf } from "@/lib/marketing/reports/pdf";
@@ -11,6 +13,11 @@ import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries
 import { requestClientMeta } from "@/lib/marketing/request-meta";
 import { attachShareCtv } from "@/lib/marketing/ctv/sync";
 import { hashShareToken, SHARE_PASS_COOKIE, shareAccessDecision, shareHttpStatus, shareLinkState } from "@/lib/marketing/share-link";
+
+async function releaseShare<T>(workspaceId: string, payload: T): Promise<T> {
+  if (!clientMetricVisibilityEnabled()) return payload;
+  return applyClientSurface(payload, await loadResolvedVisibility(workspaceId));
+}
 
 function shareResponse(response: NextResponse) {
   response.headers.set("Referrer-Policy", "no-referrer");
@@ -60,7 +67,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
         payload: opened,
       });
       if (!scopedReport.ok) return shareResponse(NextResponse.json({ error: scopedReport.error }, { status: scopedReport.status }));
-      const report = presentForAudience(scopedReport.body, "share");
+      const report = await releaseShare(link.workspaceId, presentForAudience(scopedReport.body, "share"));
       if (isExport) {
         const pdf = buildReportPdf(report);
         return shareResponse(new NextResponse(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": "attachment; filename=\"report.pdf\"" } }));
@@ -84,5 +91,5 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   if (isExport) {
     return shareResponse(new NextResponse(clientShareCsv(payload), { headers: { "Content-Type": "text/csv; charset=utf-8" } }));
   }
-  return shareResponse(NextResponse.json(await attachShareCtv(payload)));
+  return shareResponse(NextResponse.json(await releaseShare(link.workspaceId, await attachShareCtv(payload))));
 }

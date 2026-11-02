@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { PlanClosed } from "@/components/plan-closed";
 import { PlanDocument } from "@/components/plan-document";
 import { prisma } from "@/lib/db";
+import { clientMetricVisibilityEnabled } from "@/lib/marketing/config";
+import { filterPlanChannels, filterPlanNumbers } from "@/lib/marketing/metric-visibility";
+import { loadResolvedVisibility } from "@/lib/marketing/metric-visibility-store";
 import { clientPlansEnabled } from "@/lib/plans/flags";
 import { hashToken, parsePlanCode, resolvePublicPlan } from "@/lib/plans/plan";
 import { loadPlanDashboard, planRecord, recordPlanView } from "@/lib/plans/store";
@@ -18,7 +21,11 @@ export default async function PublicPlanPage({ params }: { params: Promise<{ cod
   if (access === "unknown") notFound();
   if (access === "expired" || access === "revoked") return <PlanClosed state={access} />;
   await recordPlanView(row.id, (await headers()).get("user-agent") || "");
-  const dashboard = await loadPlanDashboard({ ...plan, showCost: false });
+  const rawDashboard = await loadPlanDashboard({ ...plan, showCost: false });
+  const visibilityOn = clientMetricVisibilityEnabled();
+  const visibility = visibilityOn ? await loadResolvedVisibility(plan.baselineWorkspaceId || (plan.dashboardSource === "demo" ? "demo" : "")) : null;
+  const dashboard = visibility ? filterPlanNumbers(rawDashboard, visibility) : rawDashboard;
+  const channels = visibility ? filterPlanChannels(plan.channels, visibility) : plan.channels;
   const logoSrc = row.logoMime && row.logoData ? `data:${row.logoMime};base64,${Buffer.from(row.logoData).toString("base64")}` : null;
   return (
     <PlanDocument
@@ -26,7 +33,7 @@ export default async function PublicPlanPage({ params }: { params: Promise<{ cod
         clientName: plan.clientName,
         logoSrc,
         goals: plan.goals,
-        channels: plan.channels,
+        channels,
         audiences: plan.audiences,
         segments: plan.segments,
         timeline: plan.timeline,

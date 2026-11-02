@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, BarChart3, Bell, BellRing, BookOpen, Database, FileText, Globe, Layers, LayoutDashboard, Lightbulb, LineChart, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer, Tv, Users } from "lucide-react";
+import { Activity, BarChart3, Bell, BellRing, BookOpen, Database, FileText, Globe, Layers, LayoutDashboard, Lightbulb, LineChart, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, SlidersHorizontal, Sun, Timer, Tv, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
@@ -41,6 +41,7 @@ export function AppShell({
   showPortfolio = false,
   showInsights = false,
   showNotifications = false,
+  showMetricSettings = false,
   showCtv = false,
   showAudienceData = false,
   showAudienceDataClient = false,
@@ -61,6 +62,7 @@ export function AppShell({
   showPortfolio?: boolean;
   showInsights?: boolean;
   showNotifications?: boolean;
+  showMetricSettings?: boolean;
   showCtv?: boolean;
   showAudienceData?: boolean;
   showAudienceDataClient?: boolean;
@@ -94,8 +96,9 @@ export function AppShell({
     if (href === "/portfolio") return pathname === "/portfolio";
     if (href === "/insights") return pathname === "/insights";
     if (href === "/notifications") return pathname === "/notifications";
+    if (href === "/marketing/metrics") return pathname === "/marketing/metrics" || pathname.startsWith("/marketing/metrics/");
     if (href === "/marketing") {
-      return pathname === "/marketing" || (pathname.startsWith("/marketing/") && !pathname.startsWith("/marketing/leads") && !pathname.startsWith("/marketing/speed-to-lead") && !pathname.startsWith("/marketing/segments") && !pathname.startsWith("/marketing/audiences") && !pathname.startsWith("/marketing/ctv"));
+      return pathname === "/marketing" || (pathname.startsWith("/marketing/") && !pathname.startsWith("/marketing/leads") && !pathname.startsWith("/marketing/speed-to-lead") && !pathname.startsWith("/marketing/segments") && !pathname.startsWith("/marketing/audiences") && !pathname.startsWith("/marketing/ctv") && !pathname.startsWith("/marketing/metrics"));
     }
     const base = href === "/settings/calling" ? "/settings" : href;
     return pathname === href || pathname.startsWith(base);
@@ -110,9 +113,9 @@ export function AppShell({
     ...(showAudienceData ? [{ href: "/audience-data", label: "Audience Data", icon: Database }] : []),
   ];
   const baseNav = [...NAV.slice(0, 2), ...extras, ...reportNav, ...NAV.slice(2)];
-  const switchNav = optionalStaffLinks({ showInsights, showNotifications }).map((item) => ({
+  const switchNav = optionalStaffLinks({ showInsights, showNotifications, showMetricSettings }).map((item) => ({
     ...item,
-    icon: item.href === "/insights" ? Lightbulb : BellRing,
+    icon: item.href === "/insights" ? Lightbulb : item.href === "/marketing/metrics" ? SlidersHorizontal : BellRing,
   }));
   const staffNav = [...(showPortfolio ? [{ href: "/portfolio", label: "Portfolio", icon: LayoutDashboard }] : []), ...baseNav, ...switchNav];
   const clientNav = [

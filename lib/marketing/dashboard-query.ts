@@ -17,6 +17,7 @@ import {
   type RawMetric,
 } from "./dashboard-model";
 import { canEditLeadValue } from "./lead-value";
+import { withClientDashboardMetrics } from "./metric-visibility-store";
 import { isolatedWhere } from "./workspace";
 
 const WINDOW_DAYS = 60;
@@ -86,17 +87,20 @@ export async function loadDashboard(input: {
   mode: "staff" | "client";
   access?: MarketingAccess;
   now?: Date;
+  /** Staff preview loads the full client-safe model and applies unsaved toggles in the browser. */
+  applyVisibility?: boolean;
 }): Promise<DashboardModel> {
   const workspaceId = input.workspaceId.trim();
   const dates = dashboardDateAxis(input.now);
   const mode = input.mode;
-  if (!workspaceId) return emptyModel({ mode, workspaceName: input.workspaceName, dates });
+  const finish = (model: DashboardModel) => withClientDashboardMetrics(model, workspaceId, input.applyVisibility !== false);
+  if (!workspaceId) return finish(emptyModel({ mode, workspaceName: input.workspaceName, dates }));
   const access = input.access;
   const showMoney = mode === "staff" && Boolean(access?.seesCost);
   const editable = mode === "staff" && access ? canEditLeadValue(access) : false;
   const scope = access ? scopeFilter(access) : { blocked: false as const, campaignIds: "all" as const, adAccountIds: "all" as const };
-  if (access && access.workspaceId !== workspaceId) return emptyModel({ mode, workspaceName: input.workspaceName, dates });
-  if (scope.blocked) return emptyModel({ mode, workspaceName: input.workspaceName, dates });
+  if (access && access.workspaceId !== workspaceId) return finish(emptyModel({ mode, workspaceName: input.workspaceName, dates }));
+  if (scope.blocked) return finish(emptyModel({ mode, workspaceName: input.workspaceName, dates }));
 
   const platforms = dashboardPlatforms();
   const where = dashboardCampaignWhere({
@@ -105,7 +109,7 @@ export async function loadDashboard(input: {
     campaignIds: scope.campaignIds,
     adAccountIds: scope.adAccountIds,
   });
-  if (where.id && where.id.in.length === 0) return emptyModel({ mode, workspaceName: input.workspaceName, dates });
+  if (where.id && where.id.in.length === 0) return finish(emptyModel({ mode, workspaceName: input.workspaceName, dates }));
 
   const campaignSelect = {
     id: true,
@@ -284,7 +288,7 @@ export async function loadDashboard(input: {
     workspaceName: input.workspaceName,
     mock: latest?.mode === "mock",
   };
-  return presentWithoutCost(projectDashboard(model, { mode, showMoney, canEditLeadValue: editable }), showMoney);
+  return finish(presentWithoutCost(projectDashboard(model, { mode, showMoney, canEditLeadValue: editable }), showMoney));
 }
 
 export async function loadDashboardForAccess(access: MarketingAccess, mode: "staff" | "client", workspaceName: string, now?: Date) {

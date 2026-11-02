@@ -71,6 +71,8 @@ export type DashboardModel = {
   sourceLine: string;
   workspaceName: string;
   mock: boolean;
+  /** Set only when CLIENT_METRIC_VISIBILITY is on and this is the client view. */
+  metricVisibility?: Record<string, boolean>;
 };
 
 export type DashQuery = {

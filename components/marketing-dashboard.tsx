@@ -29,6 +29,7 @@ import {
   type MetricKey,
 } from "@/lib/marketing/dashboard-model";
 import { formatCents } from "@/lib/marketing/lead-value";
+import { kpiTileShown, metricShown, trendChoices } from "@/lib/marketing/metric-visibility";
 import { AudienceChart, CompareBars, CompareScatter, DonutChart, PacingChart, Sparkline, TrendChart } from "@/components/marketing-dashboard-charts";
 import { LeadValueForm } from "@/components/lead-value-form";
 import type { HomeFeature } from "@/lib/marketing/home-dashboard";
@@ -63,8 +64,12 @@ function Icon({ format }: { format: string }) {
   );
 }
 
+function shown(model: DashboardModel, id: string) {
+  return metricShown(model.metricVisibility, id);
+}
+
 function Kpis({ model, campaigns, days, basePath }: { model: DashboardModel; campaigns: DashCampaign[]; days: number; basePath: string }) {
-  const tiles = buildKpis({ campaigns, days, showMoney: model.showMoney, leadValue: model.leadValue ?? null });
+  const tiles = buildKpis({ campaigns, days, showMoney: model.showMoney, leadValue: model.leadValue ?? null }).filter((tile) => kpiTileShown(model.metricVisibility, tile.label));
   return (
     <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
       {tiles.map((tile) => (
@@ -97,6 +102,7 @@ function Kpis({ model, campaigns, days, basePath }: { model: DashboardModel; cam
 }
 
 function Notes({ model, notes }: { model: DashboardModel; notes: DashboardModel["notes"] }) {
+  if (!shown(model, "chart.notes")) return null;
   const staff = model.mode === "staff";
   return (
     <section className="mb-4 rounded-[14px] border border-line bg-card p-4 max-md:order-1">
@@ -171,6 +177,13 @@ function LeadCard({ model, basePath }: { model: DashboardModel; basePath: string
 function CampaignTable({ model, rows, query, basePath }: { model: DashboardModel; rows: ReturnType<typeof rollupCampaigns>; query: DashQuery; basePath: string }) {
   const max = Math.max(...rows.map((row) => row.results), 1);
   const linkFor = (id: string) => href(basePath, query, { campaignId: id });
+  const status = shown(model, "column.status");
+  const views = shown(model, "column.views");
+  const clicks = shown(model, "column.clicks");
+  const clickRate = shown(model, "column.click_rate");
+  const results = shown(model, "column.results");
+  const reach = shown(model, "column.reach");
+  const money = model.showMoney ? "hidden md:table-cell" : "";
   return (
     <section className="mb-4 rounded-[14px] border border-line bg-card p-4 max-md:order-2">
       <h2 className="mb-2 text-base font-semibold">Campaigns</h2>
@@ -179,11 +192,11 @@ function CampaignTable({ model, rows, query, basePath }: { model: DashboardModel
           <thead>
             <tr className="text-left text-muted">
               <th scope="col" className="border-b border-line px-2 py-2 font-medium">Campaign</th>
-              <th scope="col" className="border-b border-line px-2 py-2 font-medium">Status</th>
-              <th scope="col" className={`border-b border-line px-2 py-2 font-medium ${model.showMoney ? "hidden md:table-cell" : ""}`}>Views</th>
-              <th scope="col" className={`border-b border-line px-2 py-2 font-medium ${model.showMoney ? "hidden md:table-cell" : ""}`}>Clicks</th>
-              <th scope="col" className="hidden border-b border-line px-2 py-2 font-medium md:table-cell">Click rate</th>
-              <th scope="col" className="border-b border-line px-2 py-2 font-medium">Leads + calls</th>
+              {status && <th scope="col" className="border-b border-line px-2 py-2 font-medium">Status</th>}
+              {views && <th scope="col" className={`border-b border-line px-2 py-2 font-medium ${money}`}>Views</th>}
+              {clicks && <th scope="col" className={`border-b border-line px-2 py-2 font-medium ${money}`}>Clicks</th>}
+              {clickRate && <th scope="col" className="hidden border-b border-line px-2 py-2 font-medium md:table-cell">Click rate</th>}
+              {results && <th scope="col" className="border-b border-line px-2 py-2 font-medium">Leads + calls</th>}
               {model.showMoney && (
                 <>
                   <th scope="col" className="border-b border-line px-2 py-2 font-medium">Spend</th>
@@ -199,14 +212,17 @@ function CampaignTable({ model, rows, query, basePath }: { model: DashboardModel
                 <td className="border-b border-line px-2 py-2.5">
                   <Link className="font-semibold hover:underline" href={linkFor(row.campaign.id)}>{row.campaign.name}</Link>
                 </td>
+                {status && (
+                  <td className="border-b border-line px-2 py-2.5">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${row.campaign.status === "active" ? "bg-success-soft text-success" : "bg-chip text-muted"}`}>{statusLabel(row.campaign.status)}</span>
+                  </td>
+                )}
+                {views && <td className={`border-b border-line px-2 py-2.5 ${money}`}>{formatCount(row.views)}</td>}
+                {clicks && <td className={`border-b border-line px-2 py-2.5 ${money}`}>{formatCount(row.clicks)}</td>}
+                {clickRate && <td className="hidden border-b border-line px-2 py-2.5 md:table-cell">{formatPct(row.ctr)}</td>}
+                {results && (
                 <td className="border-b border-line px-2 py-2.5">
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${row.campaign.status === "active" ? "bg-success-soft text-success" : "bg-chip text-muted"}`}>{statusLabel(row.campaign.status)}</span>
-                </td>
-                <td className={`border-b border-line px-2 py-2.5 ${model.showMoney ? "hidden md:table-cell" : ""}`}>{formatCount(row.views)}</td>
-                <td className={`border-b border-line px-2 py-2.5 ${model.showMoney ? "hidden md:table-cell" : ""}`}>{formatCount(row.clicks)}</td>
-                <td className="hidden border-b border-line px-2 py-2.5 md:table-cell">{formatPct(row.ctr)}</td>
-                <td className="border-b border-line px-2 py-2.5">
-                  {row.campaign.goal === "awareness" ? (
+                  {row.campaign.goal === "awareness" && reach ? (
                     <span className="text-xs text-muted">{awarenessText(row.reach)}</span>
                   ) : (
                     <span className="inline-flex items-center gap-2">
@@ -217,6 +233,7 @@ function CampaignTable({ model, rows, query, basePath }: { model: DashboardModel
                     </span>
                   )}
                 </td>
+                )}
                 {model.showMoney && (
                   <>
                     <td className="border-b border-line px-2 py-2.5">{formatMoney(row.spend)}</td>
@@ -239,12 +256,14 @@ function CampaignTable({ model, rows, query, basePath }: { model: DashboardModel
               <Link key={row.campaign.id} href={linkFor(row.campaign.id)} className="block rounded-xl border border-line p-3">
                 <span className="flex items-start justify-between gap-2 font-semibold">
                   <span>{row.campaign.name}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] ${row.campaign.status === "active" ? "bg-success-soft text-success" : "bg-chip text-muted"}`}>{statusLabel(row.campaign.status)}</span>
+                  {status && <span className={`rounded-full px-2 py-0.5 text-[11px] ${row.campaign.status === "active" ? "bg-success-soft text-success" : "bg-chip text-muted"}`}>{statusLabel(row.campaign.status)}</span>}
                 </span>
-                <span className="mt-1.5 block text-sm">
-                  {row.campaign.goal === "awareness" ? awarenessText(row.reach) : <><b>{formatCount(row.results)}</b> leads + calls</>}
-                </span>
-                <Sparkline values={spark} />
+                {results && (
+                  <span className="mt-1.5 block text-sm">
+                    {row.campaign.goal === "awareness" && reach ? awarenessText(row.reach) : <><b>{formatCount(row.results)}</b> leads + calls</>}
+                  </span>
+                )}
+                {shown(model, "chart.trend") && <Sparkline values={spark} />}
               </Link>
             );
           })}
@@ -293,7 +312,8 @@ export function MarketingDashboard({
     if (node && !leadOpen && node.open) node.close();
   };
 
-  const metricOptions = (Object.keys(METRIC_NAMES) as MetricKey[]).filter((key) => model.showMoney || key !== "s");
+  const metricOptions = trendChoices(model.metricVisibility, model.showMoney);
+  const metricAllowed = metricOptions.includes(metric) ? metric : metricOptions[0] || metric;
 
   return (
     <div>
@@ -326,11 +346,13 @@ export function MarketingDashboard({
           </select>
           <button className="min-h-11 rounded-[10px] border border-line bg-card px-3 font-semibold" type="submit">Apply</button>
         </form>
-        <select aria-label="Chart shows" value={metric} className="min-h-11 rounded-[10px] border border-line bg-card px-2.5" onChange={(event) => router.push(href(basePath, query, { metric: event.target.value as MetricKey }))}>
-          {metricOptions.map((key) => (
-            <option key={key} value={key}>Chart shows: {METRIC_NAMES[key]}</option>
-          ))}
-        </select>
+        {shown(model, "chart.trend") && metricOptions.length > 0 && (
+          <select aria-label="Chart shows" value={metricAllowed} className="min-h-11 rounded-[10px] border border-line bg-card px-2.5" onChange={(event) => router.push(href(basePath, query, { metric: event.target.value as MetricKey }))}>
+            {metricOptions.map((key) => (
+              <option key={key} value={key}>Chart shows: {METRIC_NAMES[key]}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {features.length > 0 && (
@@ -349,9 +371,9 @@ export function MarketingDashboard({
 
       <div className="flex flex-col">
         {selected ? (
-          <Drill model={model} campaign={selected} query={query} metric={metric} basePath={basePath} />
+          <Drill model={model} campaign={selected} query={query} metric={metricAllowed} basePath={basePath} />
         ) : (
-          <Overview model={model} query={query} metric={metric} list={list} basePath={basePath} onOpen={(id) => router.push(href(basePath, query, { campaignId: id }))} />
+          <Overview model={model} query={query} metric={metricAllowed} list={list} basePath={basePath} onOpen={(id) => router.push(href(basePath, query, { campaignId: id }))} />
         )}
       </div>
 
@@ -421,6 +443,7 @@ function Overview({
       <Kpis model={model} campaigns={list} days={query.days} basePath={basePath} />
       <Notes model={model} notes={notes} />
       <LeadCard model={model} basePath={basePath} />
+      {shown(model, "chart.trend") && (
       <section className="mb-4 rounded-[14px] border border-line bg-card p-4 max-md:order-3">
         <h2 className="text-base font-semibold">{METRIC_NAMES[metric]} over time</h2>
         <TrendChart name={METRIC_NAMES[metric]} points={points} />
@@ -439,8 +462,11 @@ function Overview({
           <p className="mt-2 text-[13px] text-muted">No unusual days in this range.</p>
         )}
       </section>
+      )}
+      {(shown(model, "chart.compare") || shown(model, "chart.sources")) && (
       <More>
         <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
+          {shown(model, "chart.compare") && (
           <section className="rounded-[14px] border border-line bg-card p-4">
             <h2 className="text-base font-semibold">{model.showMoney ? "Campaign comparison" : "Leads + calls by campaign"}</h2>
             <p className="mb-2 text-[13px] text-muted">
@@ -455,13 +481,17 @@ function Overview({
               <CompareBars rows={ranked.map((row) => ({ id: row.campaign.id, name: row.campaign.name, value: row.results }))} onOpen={onOpen} />
             )}
           </section>
+          )}
+          {shown(model, "chart.sources") && (
           <section className="rounded-[14px] border border-line bg-card p-4">
             <h2 className="text-base font-semibold">Where leads + calls come from</h2>
             <p className="mb-2 text-[13px] text-muted">Top 5 campaigns, the rest grouped as Other</p>
             {slices.length ? <DonutChart slices={slices} center={`${formatCount(ranked.reduce((sum, row) => sum + row.results, 0))}\nleads + calls`} /> : <p className="text-sm text-muted">No leads or calls in this range.</p>}
           </section>
+          )}
         </div>
       </More>
+      )}
       {!list.length && <p className="mb-4 text-sm text-muted">No campaigns in this workspace for these filters. Numbers show up after a sync.</p>}
       <CampaignTable model={model} rows={rows} query={query} basePath={basePath} />
     </>
@@ -536,7 +566,9 @@ function Drill({
       </div>
       <Kpis model={model} campaigns={[campaign]} days={query.days} basePath={basePath} />
       <Notes model={model} notes={notes} />
+      {(shown(model, "chart.funnel") || shown(model, "chart.trend")) && (
       <div className="mb-4 grid gap-4 md:grid-cols-[2fr_1fr]">
+        {shown(model, "chart.funnel") && (
         <section className="rounded-[14px] border border-line bg-card p-4">
           <h2 className="text-base font-semibold">Who saw it, who clicked, who reached out</h2>
           <p className="mb-2 text-[13px] text-muted">{funnelCaption({ awareness, views, clicks, reach, results })}</p>
@@ -558,6 +590,8 @@ function Drill({
             ))}
           </div>
         </section>
+        )}
+        {shown(model, "chart.trend") && (
         <section className="rounded-[14px] border border-line bg-card p-4">
           <h2 className="text-base font-semibold">{METRIC_NAMES[metric]} by day</h2>
           <TrendChart name={METRIC_NAMES[metric]} points={points} />
@@ -573,7 +607,9 @@ function Drill({
             <p className="mt-2 text-[13px] text-muted">No unusual days in this range.</p>
           )}
         </section>
+        )}
       </div>
+      )}
       {model.showMoney && (
         <section className="mb-4 rounded-[14px] border border-line bg-card p-4">
           <h2 className="text-base font-semibold">Budget pacing (last 7 days)</h2>
@@ -589,6 +625,7 @@ function Drill({
           </p>
         </section>
       )}
+      {shown(model, "chart.audiences") && (
       <More>
         <section className="rounded-[14px] border border-line bg-card p-4">
           <h2 className="text-base font-semibold">Audiences</h2>
@@ -596,6 +633,7 @@ function Drill({
           <AudienceChart rows={[...audiences.values()]} resultName={awareness ? "People reached" : "Leads + calls"} />
         </section>
       </More>
+      )}
       <section className="mb-4 rounded-[14px] border border-line bg-card p-4">
         <h2 className="text-base font-semibold">Your ads</h2>
         <p className="mb-3 text-[13px] text-muted">Ranked by {awareness ? "clicks" : "leads + calls"} · swipe to see more</p>
@@ -620,9 +658,11 @@ function Drill({
                 <strong className="mb-1 block text-[13px]">{row.ad.name}</strong>
                 {row.ad.audience}
                 <br />
-                {formatCount(row.views)} views · {formatPct(row.clicks / Math.max(1, row.views))} click rate
+                {shown(model, "column.views") ? `${formatCount(row.views)} views` : ""}
+                {shown(model, "column.views") && shown(model, "column.click_rate") ? " · " : ""}
+                {shown(model, "column.click_rate") ? `${formatPct(row.clicks / Math.max(1, row.views))} click rate` : ""}
                 <br />
-                <b>{awareness ? `${formatCount(row.reach)} reached` : `${formatCount(row.results)} leads + calls`}</b>
+                <b>{awareness && shown(model, "column.reach") ? `${formatCount(row.reach)} reached` : shown(model, "column.results") ? `${formatCount(row.results)} leads + calls` : ""}</b>
                 {model.showMoney && <> · {formatMoney(row.spend)} spend · CPA {row.results ? formatMoney(row.spend / row.results) : "—"}</>}
               </div>
             </article>
