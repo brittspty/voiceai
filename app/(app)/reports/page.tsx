@@ -3,7 +3,7 @@ import { ReportsPage } from "@/components/jarvis/pages";
 import { ReportFrame } from "@/components/reports/report-frame";
 import { ReportScreen } from "@/components/reports/report-screen";
 import { requireUser } from "@/lib/auth";
-import { jarvisUiV2Enabled, reportsV2Enabled } from "@/lib/marketing/config";
+import { jarvisUiV2Enabled, reportsP1Enabled, reportsV2Enabled } from "@/lib/marketing/config";
 import { buildReport } from "@/lib/marketing/reports/guard";
 import { SHARE_LINK_DEFAULT_MS } from "@/lib/marketing/share-link";
 
@@ -37,6 +37,7 @@ export default async function ReportsRoute({ searchParams }: { searchParams: Pro
           pdfDefault="client"
           pollUrl={`/api/marketing/reports?${poll.toString()}`}
           shareOpen={query.share === "open" && built.canShare}
+          p1={reportsP1Enabled()}
         />
       </ReportFrame>
     );

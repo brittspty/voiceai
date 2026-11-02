@@ -1,6 +1,7 @@
 import { BRAND_WORDMARK } from "../../brand";
 import { reportFooterLine } from "./brand";
 import { addIsoDays, axisLabel } from "./format";
+import { compareNoun, yearAgoValue } from "./p1/compare";
 import type { ReportChannel, ReportMetricsSource, ReportPoint, ReportQuery, ReportSeries, ReportSplit, StaffReport } from "./types";
 
 const START = "2026-10-01";
@@ -583,15 +584,18 @@ function applyQuery(report: StaffReport, query: ReportQuery): StaffReport {
   const dates = report.series[0]?.points.map((point) => point.date) ?? [];
   const span = windowFor(dates, query);
   const periodLabel = query.range === "7d" ? "Last 7 days" : query.range === "custom" ? `${span.start} – ${span.end}` : report.periodLabel;
+  const compareLabel = query.compare === "yoy" ? compareNoun("yoy") : query.compare === "none" ? "none" : report.compareLabel;
   return {
     ...report,
     range: query.range,
     compare: query.compare,
-    compareLabel: query.compare === "none" ? "none" : report.compareLabel,
+    compareLabel,
     periodLabel,
     series: report.series.map((item) => ({
       ...item,
-      points: item.points.filter((point) => point.date >= span.start && point.date <= span.end),
+      points: item.points
+        .filter((point) => point.date >= span.start && point.date <= span.end)
+        .map((point, index) => (query.compare === "yoy" ? { ...point, prior: yearAgoValue(point.value, index) } : point)),
     })),
     annotations: report.annotations.filter((note) => note.date >= span.start && note.date <= span.end),
   };

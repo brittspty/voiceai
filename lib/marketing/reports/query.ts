@@ -1,13 +1,15 @@
+import { reportsP1Enabled, type Env } from "../config";
+import { resolveReportCompare } from "./p1/compare";
 import type { ReportQuery, ReportRange } from "./types";
 
-export function parseReportQuery(input: Record<string, string | string[] | undefined>): ReportQuery & { view: "staff" | "client" } {
+export function parseReportQuery(input: Record<string, string | string[] | undefined>, env: Env = process.env): ReportQuery & { view: "staff" | "client" } {
   const one = (key: string) => {
     const value = input[key];
     return (Array.isArray(value) ? value[0] : value) || "";
   };
   const rangeRaw = one("range");
   const range: ReportRange = rangeRaw === "7d" || rangeRaw === "qtd" || rangeRaw === "custom" ? rangeRaw : "30d";
-  const compare = one("compare") === "none" ? "none" : "prior";
+  const compare = resolveReportCompare(one("compare"), reportsP1Enabled(env));
   const view = one("view") === "client" ? "client" : "staff";
   return {
     range,
@@ -23,6 +25,7 @@ export function reportHref(query: ReportQuery & { view?: "staff" | "client"; sha
   const params = new URLSearchParams();
   if (query.range !== "30d") params.set("range", query.range);
   if (query.compare === "none") params.set("compare", "none");
+  if (query.compare === "yoy") params.set("compare", "yoy");
   if (query.clientId && query.clientId !== "all") params.set("client", query.clientId);
   if (query.view === "client") params.set("view", "client");
   if (query.range === "custom" && query.start) params.set("start", query.start);

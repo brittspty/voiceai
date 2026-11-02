@@ -1,5 +1,5 @@
 export type ReportRange = "7d" | "30d" | "qtd" | "custom";
-export type ReportCompare = "prior" | "none";
+export type ReportCompare = "prior" | "yoy" | "none";
 export type KpiFormat = "integer" | "currency" | "multiple" | "seconds" | "percent" | "rating";
 export type DeltaTone = "good" | "bad";
 export type FlagKind = "anomaly" | "opportunity" | "up" | "heads_up";
@@ -100,6 +100,9 @@ export type ReportAnnotation = {
   label: string;
   body: string;
   clientBody?: string;
+  /** Staff log. Omitted from the client and share report. */
+  authorName?: string;
+  loggedAt?: string;
 };
 
 export type StaffReport = {

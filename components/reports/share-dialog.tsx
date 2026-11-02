@@ -29,6 +29,7 @@ export function ShareDialog({
   pdfDefault,
   reduce,
   onToast,
+  p1 = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -37,6 +38,7 @@ export function ShareDialog({
   pdfDefault: "staff" | "client";
   reduce: boolean;
   onToast: (message: string) => void;
+  p1?: boolean;
 }) {
   if (!open) return null;
   return (
@@ -47,6 +49,7 @@ export function ShareDialog({
       reduce={reduce}
       onClose={onClose}
       onToast={onToast}
+      p1={p1}
     />
   );
 }
@@ -58,6 +61,7 @@ function ShareDialogBody({
   reduce,
   onClose,
   onToast,
+  p1,
 }: {
   query: string;
   canStaffPdf: boolean;
@@ -65,6 +69,7 @@ function ShareDialogBody({
   reduce: boolean;
   onClose: () => void;
   onToast: (message: string) => void;
+  p1: boolean;
 }) {
   const titleId = useId();
   const [closing, setClosing] = useState(false);
@@ -76,6 +81,7 @@ function ShareDialogBody({
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [keepLive, setKeepLive] = useState(false);
 
   useEffect(() => {
     let dead = false;
@@ -107,7 +113,7 @@ function ShareDialogBody({
     const response = await fetch("/api/marketing/reports/share", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ days, passcode: passcodeOn ? code : "", query }),
+      body: JSON.stringify({ days, passcode: passcodeOn ? code : "", query, keepLive: p1 && keepLive }),
     });
     const data = await response.json();
     setBusy(false);
@@ -215,7 +221,18 @@ function ShareDialogBody({
             <button type="button" className="jr-btn" onClick={() => setCode(mintCode())}>Regenerate</button>
           </div>
         )}
-        <p className="jr-attr">Hidden from search engines (noindex). Every view is logged. The link is a snapshot of the client view.</p>
+        {p1 && (
+          <div className="jr-switch">
+            <div>
+              <strong>Keep live</strong>
+              <div className="jr-sub">Off by default. A snapshot stays frozen. Live rebuilds the client view when someone opens the link.</div>
+            </div>
+            <button type="button" role="switch" aria-checked={keepLive} aria-label="Keep live" onClick={() => setKeepLive((on) => !on)}>
+              <i />
+            </button>
+          </div>
+        )}
+        <p className="jr-attr">Hidden from search engines (noindex). Every view is logged. {p1 && keepLive ? "This link stays live." : "The link is a snapshot of the client view."}</p>
         {error && <p className="jr-delta bad">{error}</p>}
         <div className="jr-links">
           <div className="jr-ph"><h3 style={{ fontSize: 14 }}>Active links ({links.length})</h3></div>

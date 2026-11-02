@@ -6,7 +6,8 @@ import { ReportFrame } from "@/components/reports/report-frame";
 import { ReportScreen } from "@/components/reports/report-screen";
 import { prisma } from "@/lib/db";
 import { clientShareCsv, reopenClientReport } from "@/lib/marketing/client-view";
-import { dashboardsV2Enabled, reportsV2Enabled } from "@/lib/marketing/config";
+import { dashboardsV2Enabled, reportsP1Enabled, reportsV2Enabled } from "@/lib/marketing/config";
+import { materializeShare } from "@/lib/marketing/reports/p1/share";
 import { parseDashQuery } from "@/lib/marketing/dashboard-model";
 import { loadClientDashboard } from "@/lib/marketing/dashboard-query";
 import { loadFeatureCards } from "@/lib/marketing/home-query";
@@ -86,7 +87,7 @@ export default async function SharePage({ params, searchParams }: { params: Prom
   let sharedReport: ReturnType<typeof reopenClientReport> | null = null;
   if (reportsV2Enabled() && link.snapshot && !exporting) {
     try {
-      sharedReport = reopenClientReport(link.snapshot);
+      sharedReport = await materializeShare(link.snapshot, reportsP1Enabled());
     } catch {
       sharedReport = null;
     }

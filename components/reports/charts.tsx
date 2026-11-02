@@ -105,6 +105,7 @@ export function TrendChart({
   compare,
   reduce,
   annotation,
+  compareNoun = "same day prior",
 }: {
   series: ChartSeries[];
   seriesId: string;
@@ -112,6 +113,7 @@ export function TrendChart({
   compare: boolean;
   reduce: boolean;
   annotation?: { label: string; body: string } | null;
+  compareNoun?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const chartRef = useRef<import("echarts").ECharts | null>(null);
@@ -316,7 +318,7 @@ export function TrendChart({
         <div className="jr-tip" style={{ right: 24, top: 78 }}>
           <span className="jr-lbl">{pointTitle(pinnedPoint.date)}</span>
           <b>{formatKpi(pinnedPoint.value, "integer")} {active.unit}</b>
-          <span className="jr-delta good">▲ {Math.abs(pinnedPoint.value - pinnedPoint.prior)} vs same day prior</span>
+          <span className="jr-delta good">▲ {Math.abs(pinnedPoint.value - pinnedPoint.prior)} vs {compareNoun}</span>
           <div className="jr-sub">{pinnedPoint.splitText}{pinnedPoint.staffNote ? ` · ${pinnedPoint.staffNote}` : ""}</div>
         </div>
       )}
