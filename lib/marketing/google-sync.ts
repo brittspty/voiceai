@@ -1,6 +1,7 @@
 import { demoForcesMock } from "../demo/outbound";
 import { addDaysISO, zonedISODate } from "../time";
 import { applySnapshot } from "./apply";
+import { googleAdsCustomersToRead, type GoogleAdsClientRule } from "./client-campaign-scope";
 import {
   decideGoogleAdsSync,
   intradaySyncEnabled,
@@ -62,9 +63,22 @@ async function readStore<T>(store: MarketingStore | undefined, run: (store: Mark
   return run(createPrismaMarketingStore(prisma));
 }
 
+async function googleAdsRules(passed?: GoogleAdsClientRule[]) {
+  if (passed) return passed;
+  const { prisma } = await import("../db");
+  return prisma.marketingClient.findMany({
+    where: { workspaceId: WORKSPACE_ID },
+    select: { id: true, googleAdsCustomerIds: true, googleAdsLiveRead: true },
+  });
+}
+
 /**
  * Pull Google Ads into the shared marketing tables.
- * Returns skipped, and writes nothing, when the switch is off or credentials are missing.
+ * Returns skipped, and writes nothing, when the switch is off, credentials are missing,
+ * or no client with googleAdsLiveRead has a customer id to read.
+ * INTEGRATIONS_MODE is not consulted. A blank developer token does not skip.
+ * Live reads only customer ids mapped to a client with googleAdsLiveRead on,
+ * intersected with GOOGLE_ADS_CUSTOMER_IDS when that list is set.
  */
 export async function runGoogleAdsSync(options: {
   env?: Env;
@@ -73,11 +87,24 @@ export async function runGoogleAdsSync(options: {
   store?: MarketingStore;
   fetchImpl?: FetchLike;
   snapshot?: NormalizedSnapshot;
+  /** When set, these rules are used instead of the database. */
+  customers?: GoogleAdsClientRule[];
+  /** When set, this many days are read and the intraday shortcut is not used. */
+  lookbackDays?: number;
 } = {}): Promise<GoogleSyncResult> {
   if (demoForcesMock()) return { status: "skipped", reason: "demo workspace does not sync" };
   const env = options.env ?? process.env;
   const decision = decideGoogleAdsSync(env);
   if (decision.action === "skip") return { status: "skipped", reason: decision.reason };
+
+  let requestedCustomers: string[] = [];
+  if (decision.action === "live") {
+    const rules = await googleAdsRules(options.customers);
+    requestedCustomers = googleAdsCustomersToRead(rules, decision.customerIds);
+    if (!requestedCustomers.length) {
+      return { status: "skipped", reason: "no Google Ads customer is mapped" };
+    }
+  }
 
   const now = options.now ?? new Date();
   const timeZone = options.timezone ?? (await defaultTimezone());
@@ -99,11 +126,15 @@ export async function runGoogleAdsSync(options: {
   const lastFull = await readStore(options.store, (store) => store.lastSuccessfulFull(WORKSPACE_ID, "google_ads"));
   const today = zonedISODate(now, timeZone);
   const intraday =
-    intradaySyncEnabled(env) && Boolean(lastFull) && zonedISODate(lastFull!.finishedAt, timeZone) === today;
-  const window = intraday ? { since: addDaysISO(today, -1), until: today } : insightWindow(now, timeZone, lookbackDays(env));
+    options.lookbackDays == null &&
+    intradaySyncEnabled(env) &&
+    Boolean(lastFull) &&
+    zonedISODate(lastFull!.finishedAt, timeZone) === today;
+  const forcedDays = options.lookbackDays;
+  const window = intraday ? { since: addDaysISO(today, -1), until: today } : insightWindow(now, timeZone, forcedDays ?? lookbackDays(env));
   const cadence = intraday ? "intraday" : "full";
   const mode: StoredSyncMode = decision.action === "mock" ? "mock" : "live";
-  const accountIds = decision.action === "live" ? (decision.customerIds.length ? decision.customerIds : [decision.loginCustomerId]) : [];
+  const accountIds = decision.action === "live" ? requestedCustomers : [];
 
   const claimed = await readStore(options.store, async (store) => {
     const connection = await store.upsertConnection({
@@ -155,8 +186,8 @@ export async function runGoogleAdsSync(options: {
     }
     if (!snapshot && decision.action === "live") {
       const pulled = await getConnector("google_ads").pull({
-        customerIds: decision.customerIds,
-        discoverCustomers: decision.customerIds.length === 0,
+        customerIds: requestedCustomers,
+        discoverCustomers: false,
         loginCustomerId: decision.loginCustomerId,
         developerToken: decision.developerToken,
         clientId: decision.clientId,
@@ -208,6 +239,15 @@ export async function runGoogleAdsSync(options: {
       });
       return applied.rowsWritten;
     });
+    if (!options.store) {
+      try {
+        const { prisma } = await import("../db");
+        const { applyGoogleAdsClientScopes } = await import("./client-campaign-scope");
+        await applyGoogleAdsClientScopes(prisma as never, WORKSPACE_ID);
+      } catch {
+        // Scoping is best effort. Unlinked campaigns stay staff-only.
+      }
+    }
     return {
       status,
       error: error ?? undefined,

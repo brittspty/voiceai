@@ -190,7 +190,9 @@ The connector is off unless `MARKETING_GOOGLE_ADS` is `on`. With the switch on a
 
 Google's OAuth scope (`https://www.googleapis.com/auth/adwords`) can read and write. This connector does not use that write power. `googleAdsRequest` allows only `GoogleAdsService` `search` and `searchStream`. `googleAdsGuard(kind)` in `lib/marketing/connectors/google-ads-client.ts` is the shared allowlist: `read` (this connector), `page-status` (`adGroupAds:mutate` only), and `upload` (`uploadClickConversions` only). A URL on one list is still blocked on the others. Read calls reject every mutate and upload before `fetch`.
 
-`googleAdsEnv()` in `lib/marketing/config.ts` is the only parser. The customer-id variable is `GOOGLE_ADS_CUSTOMER_IDS` (plural). `GOOGLE_ADS_CUSTOMER_ID` is not read. This deployment is one database per client, so the list is that client's accounts. A later multi-client database should store the customer id on the client row, not in a second env var. The API version is `v26` (`GOOGLE_ADS_API_VERSION`). v18 through v22 are sunset and fall back to `v26`.
+`googleAdsEnv()` in `lib/marketing/config.ts` is the only parser. The customer-id variable is `GOOGLE_ADS_CUSTOMER_IDS` (plural). `GOOGLE_ADS_CUSTOMER_ID` is not read. `INTEGRATIONS_MODE` stays `mock` and does not gate this connector. A live request needs `MARKETING_GOOGLE_ADS=on` and `MARKETING_SYNC_MODE=live` or `auto` (the default) once the OAuth client, client secret, refresh token, and login customer id are set. `MARKETING_SYNC_MODE=mock` loads fixtures and makes no request. `off` skips. `GOOGLE_ADS_DEVELOPER_TOKEN` stays optional.
+
+The sync, backfill, and probe read only customer ids saved on a client with Google Ads live read on. When `GOOGLE_ADS_CUSTOMER_IDS` is set, that list is an extra allow-list and the read is the overlap. Nothing is read until a client is scoped. Synced campaigns and their ad account are linked to that client. The API version is `v26` (`GOOGLE_ADS_API_VERSION`). v18 through v22 are sunset and fall back to `v26`. Campaign dates use `start_date_time` and `end_date_time`.
 
 | Variable | Use |
 | --- | --- |
@@ -200,14 +202,22 @@ Google's OAuth scope (`https://www.googleapis.com/auth/adwords`) can read and wr
 | `GOOGLE_ADS_CLIENT_SECRET` | OAuth client secret. Never written to the database |
 | `GOOGLE_ADS_REFRESH_TOKEN` | Refresh token for the Google account that can see the manager account. Stored only as the pointer `env:GOOGLE_ADS_REFRESH_TOKEN` |
 | `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | 10-digit manager (MCC) id, with or without dashes. Sent as `login-customer-id` when set |
-| `GOOGLE_ADS_CUSTOMER_IDS` | Optional comma-separated 10-digit account ids for this deployment. Not `GOOGLE_ADS_CUSTOMER_ID`. When empty, the sync lists non-manager accounts under the login customer id |
+| `GOOGLE_ADS_CUSTOMER_IDS` | Optional comma-separated 10-digit account ids. Not `GOOGLE_ADS_CUSTOMER_ID`. When set, the sync reads only the overlap with a client's `googleAdsCustomerIds`. When empty, every client with live read on is still the only source |
 | `GOOGLE_ADS_API_VERSION` | Default `v26`. Sunset majors v18–v22 are ignored and replaced with `v26` |
 
 ```bash
 MARKETING_GOOGLE_ADS=on MARKETING_SYNC_MODE=mock npm run google-ads:sync
 ```
 
-A live pull uses the same command with `MARKETING_SYNC_MODE=live` and the credentials above. It reads campaigns, ad groups, ads, daily ad metrics, and search terms. It does not change the Google Ads account.
+A live pull uses the same command with `MARKETING_SYNC_MODE=live` and the credentials above, after a client is scoped. It reads campaigns, ad groups, ads, daily ad metrics, and search terms. It does not change the Google Ads account.
+
+```bash
+tsx scripts/google-ads-client-scope.ts --name "Client" --customers 1234567890
+tsx scripts/google-ads-backfill.ts --days 30
+tsx scripts/google-ads-probe.ts --customer 1234567890
+```
+
+`--name` is a client name or an existing client id. `--customers` is a comma-separated list of 10-digit ids, with or without dashes; they are stored without dashes. `--off` keeps the ids and turns live read off. `--days` is 1–90. The probe prints campaign count plus impression, click, and cost totals and writes nothing. Spend stays hidden on client dashboards, client viewers, share links, and exports.
 
 To roll back without a deploy, set `MARKETING_GOOGLE_ADS=off` (or remove it) on the app and the worker and restart both. To roll back the code, revert this change. There is no mutate call to undo in Google Ads.
 

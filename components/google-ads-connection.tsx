@@ -107,7 +107,7 @@ export function GoogleAdsConnection({
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm">
             <li>Create an OAuth client and a refresh token with the Google Ads scope. The scope can write. This app still refuses every mutate call.</li>
             <li>Add the 10-digit login customer ID for the manager account. GOOGLE_ADS_DEVELOPER_TOKEN is optional. Google retired developer tokens on September 9, 2026, and access follows the Cloud project that owns the OAuth client.</li>
-            <li>Set the variables on the app and the worker. The account list is GOOGLE_ADS_CUSTOMER_IDS. Leave them empty and the sync does nothing.</li>
+            <li>Set the variables on the app and the worker. Live reads use customer ids saved on a client with Google Ads live read on. GOOGLE_ADS_CUSTOMER_IDS, when set, limits that list. Nothing is read until a client is scoped.</li>
             <li>Set MARKETING_GOOGLE_ADS to on. Set MARKETING_SYNC_MODE to mock to load example data without calling Google.</li>
             <li>To roll back, set MARKETING_GOOGLE_ADS to off and restart. Stored campaigns stay. Google is not called.</li>
           </ol>

@@ -618,9 +618,10 @@ export type GoogleAdsEnv = {
 };
 
 /**
- * One parser for Google Ads env. One deployment is one client, so
- * GOOGLE_ADS_CUSTOMER_IDS is that client's account allow-list. A later
- * multi-client database should store the customer id on the client row.
+ * One parser for Google Ads env.
+ * GOOGLE_ADS_CUSTOMER_IDS is an optional extra allow-list.
+ * The sync reads only customer ids saved on a client with googleAdsLiveRead on,
+ * and only the overlap when this list is set.
  */
 export function googleAdsEnv(env: Env = process.env): GoogleAdsEnv {
   return {
@@ -651,8 +652,11 @@ export type GoogleAdsDecision =
 
 /**
  * Google Ads sync does nothing unless MARKETING_GOOGLE_ADS is on.
- * Missing OAuth credentials or a login customer id skip. They do not throw.
+ * INTEGRATIONS_MODE stays mock in production and is not consulted.
+ * MARKETING_SYNC_MODE=live, or auto (the default) with OAuth credentials, is a live read.
+ * mock uses fixtures. off skips. Missing OAuth credentials or a login customer id skip.
  * A blank GOOGLE_ADS_DEVELOPER_TOKEN does not skip.
+ * Per-client googleAdsLiveRead is applied by the sync, not here.
  */
 export function decideGoogleAdsSync(env: Env): GoogleAdsDecision {
   if (!googleAdsEnabled(env)) return { action: "skip", reason: "MARKETING_GOOGLE_ADS is off" };
@@ -676,6 +680,36 @@ export function decideGoogleAdsSync(env: Env): GoogleAdsDecision {
     customerIds: settings.customerIds,
     apiVersion: settings.apiVersion,
   };
+}
+
+/** Probe and backfill call Google only when this is live. Mock and skip make no request. */
+export function googleAdsLiveRead(env: Env):
+  | {
+      ok: true;
+      developerToken: string;
+      clientId: string;
+      clientSecret: string;
+      refreshToken: string;
+      loginCustomerId: string;
+      customerIds: string[];
+      apiVersion: string;
+    }
+  | { ok: false; reason: string } {
+  const decision = decideGoogleAdsSync(env);
+  if (decision.action === "live") {
+    return {
+      ok: true,
+      developerToken: decision.developerToken,
+      clientId: decision.clientId,
+      clientSecret: decision.clientSecret,
+      refreshToken: decision.refreshToken,
+      loginCustomerId: decision.loginCustomerId,
+      customerIds: decision.customerIds,
+      apiVersion: decision.apiVersion,
+    };
+  }
+  if (decision.action === "mock") return { ok: false, reason: "MARKETING_SYNC_MODE=mock" };
+  return { ok: false, reason: decision.reason };
 }
 
 export function decideSync(env: Env): SyncDecision {

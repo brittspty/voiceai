@@ -141,3 +141,153 @@ export async function applyStackAdaptClientScopes(db: StackAdaptScopeDb, workspa
   for (const change of changes) await db.campaign.update({ where: { id: change.id }, data: { clientId: change.clientId } });
   return { linked: changes.filter((change) => change.clientId).length, cleared: changes.filter((change) => !change.clientId).length };
 }
+
+export type GoogleAdsClientRule = {
+  id: string;
+  googleAdsCustomerIds: string[];
+  googleAdsLiveRead: boolean;
+};
+
+function googleCustomerId(raw: string) {
+  const id = raw.trim().replace(/-/g, "");
+  return /^\d{10}$/.test(id) ? id : "";
+}
+
+/** Customer ids the live sync may request. Live read must be on. Ids are 10 digits and unique. */
+export function liveGoogleAdsCustomerIds(rules: GoogleAdsClientRule[]) {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const rule of rules) {
+    if (!rule.googleAdsLiveRead) continue;
+    for (const raw of rule.googleAdsCustomerIds) {
+      const id = googleCustomerId(raw);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Mapped live-read customers.
+ * A non-empty allow-list (GOOGLE_ADS_CUSTOMER_IDS) keeps only the overlap.
+ * An empty allow-list does not discover other accounts.
+ */
+export function googleAdsCustomersToRead(rules: GoogleAdsClientRule[], allowList: string[]) {
+  const mapped = liveGoogleAdsCustomerIds(rules);
+  const allowed = allowList.map(googleCustomerId).filter(Boolean);
+  if (!allowed.length) return mapped;
+  const set = new Set(allowed);
+  return mapped.filter((id) => set.has(id));
+}
+
+export function googleAdsCustomerIdFromCampaign(campaign: { namingParsed: unknown; accountExternalId?: string }) {
+  const parsed = campaign.namingParsed;
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const id = (parsed as { googleAdsCustomerId?: unknown }).googleAdsCustomerId;
+    if (typeof id === "string") {
+      const normalized = googleCustomerId(id);
+      if (normalized) return normalized;
+    }
+  }
+  return googleCustomerId(campaign.accountExternalId || "");
+}
+
+/** The one client that owns this customer, or null when none or more than one match. Live read off owns nothing. */
+export function clientForGoogleAdsCustomer(rules: GoogleAdsClientRule[], customerId: string) {
+  const id = googleCustomerId(customerId);
+  if (!id) return null;
+  const hits = rules.filter((rule) => rule.googleAdsLiveRead && rule.googleAdsCustomerIds.some((raw) => googleCustomerId(raw) === id));
+  return hits.length === 1 ? hits[0].id : null;
+}
+
+export function clientForGoogleAdsCampaign(
+  rules: GoogleAdsClientRule[],
+  campaign: { namingParsed: unknown; accountExternalId?: string },
+) {
+  return clientForGoogleAdsCustomer(rules, googleAdsCustomerIdFromCampaign(campaign));
+}
+
+/** Plans Campaign.clientId for Google Ads rows. A campaign linked to a scoped client is cleared when it no longer matches. */
+export function planGoogleAdsClients(
+  rules: GoogleAdsClientRule[],
+  campaigns: { id: string; clientId: string | null; namingParsed: unknown; accountExternalId?: string }[],
+) {
+  const scoped = new Set(rules.map((rule) => rule.id));
+  const changes: { id: string; clientId: string | null }[] = [];
+  for (const campaign of campaigns) {
+    const next = clientForGoogleAdsCampaign(rules, campaign);
+    if (next === campaign.clientId) continue;
+    if (next === null && campaign.clientId && !scoped.has(campaign.clientId)) continue;
+    changes.push({ id: campaign.id, clientId: next });
+  }
+  return changes;
+}
+
+/** Plans AdAccount.clientId from the account's 10-digit external id. */
+export function planGoogleAdsAccounts(
+  rules: GoogleAdsClientRule[],
+  accounts: { id: string; clientId: string | null; externalId: string }[],
+) {
+  const scoped = new Set(rules.map((rule) => rule.id));
+  const changes: { id: string; clientId: string | null }[] = [];
+  for (const account of accounts) {
+    const next = clientForGoogleAdsCustomer(rules, account.externalId);
+    if (next === account.clientId) continue;
+    if (next === null && account.clientId && !scoped.has(account.clientId)) continue;
+    changes.push({ id: account.id, clientId: next });
+  }
+  return changes;
+}
+
+type GoogleAdsScopeDb = {
+  marketingClient: { findMany(args: unknown): Promise<GoogleAdsClientRule[]> };
+  campaign: {
+    findMany(args: unknown): Promise<{
+      id: string;
+      clientId: string | null;
+      namingParsed: unknown;
+      adAccount?: { externalId: string } | null;
+    }[]>;
+    update(args: { where: { id: string }; data: { clientId: string | null } }): Promise<unknown>;
+  };
+  adAccount: {
+    findMany(args: unknown): Promise<{ id: string; clientId: string | null; externalId: string }[]>;
+    update(args: { where: { id: string }; data: { clientId: string | null } }): Promise<unknown>;
+  };
+};
+
+/** Database writes are local only (Campaign.clientId and AdAccount.clientId). Nothing is sent to Google. */
+export async function applyGoogleAdsClientScopes(db: GoogleAdsScopeDb, workspaceId: string) {
+  const rules = await db.marketingClient.findMany({
+    where: { workspaceId },
+    select: { id: true, googleAdsCustomerIds: true, googleAdsLiveRead: true },
+  });
+  const campaignRows = await db.campaign.findMany({
+    where: { workspaceId, platform: "google_ads" },
+    select: { id: true, clientId: true, namingParsed: true, adAccount: { select: { externalId: true } } },
+  });
+  const campaignChanges = planGoogleAdsClients(
+    rules,
+    campaignRows.map((row) => ({
+      id: row.id,
+      clientId: row.clientId,
+      namingParsed: row.namingParsed,
+      accountExternalId: row.adAccount?.externalId || "",
+    })),
+  );
+  for (const change of campaignChanges) await db.campaign.update({ where: { id: change.id }, data: { clientId: change.clientId } });
+  const accounts = await db.adAccount.findMany({
+    where: { workspaceId, platform: "google_ads" },
+    select: { id: true, clientId: true, externalId: true },
+  });
+  const accountChanges = planGoogleAdsAccounts(rules, accounts);
+  for (const change of accountChanges) await db.adAccount.update({ where: { id: change.id }, data: { clientId: change.clientId } });
+  return {
+    linked: campaignChanges.filter((change) => change.clientId).length,
+    cleared: campaignChanges.filter((change) => !change.clientId).length,
+    accountsLinked: accountChanges.filter((change) => change.clientId).length,
+    accountsCleared: accountChanges.filter((change) => !change.clientId).length,
+  };
+}
