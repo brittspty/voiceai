@@ -14,12 +14,12 @@ export default async function SegmentsPage({ searchParams }: { searchParams: Pro
   if (!segmentEngineEnabled()) {
     return (
       <div>
-        <h1 className="text-2xl font-semibold">Segments</h1>
-        <p className="mt-2 text-sm text-muted">Segments are turned off.</p>
+        <h1 className="text-2xl font-semibold">Audience Data</h1>
+        <p className="mt-2 text-sm text-muted">Audience Data is turned off.</p>
       </div>
     );
   }
-  if (!access.workspaceId || access.kind === "none") return <NoAccess title="Segments" />;
+  if (!access.workspaceId || access.kind === "none") return <NoAccess title="Audience Data" />;
   const query = await searchParams;
   const sort: BoardSort = query.sort === "quality" || query.sort === "revenue" ? query.sort : "conversion";
   const mode = segmentAudience(access);

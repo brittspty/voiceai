@@ -133,7 +133,7 @@
   .jarvis .kpis .kpi:nth-child(n + 3), .jarvis .mt .m:nth-child(n + 3) { display: none; }
   .jarvis .kpis .kpi, .jarvis .mt .m { border-left: 0; border-top: 1px solid var(--j-line); }
   .jarvis h1 { font-size: 21px; }
-  .jarvis .acts .btn, .jarvis .tabbar a, .jarvis .tabbar button { min-height: 44px; }
+  .jarvis .acts .btn, .jarvis .tabbar a, .jarvis .tabbar button, .jarvis .exp, .jarvis .toast button { min-height: 44px; min-width: 44px; }
   .jarvis .mobile-logo { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--j-line); }
   .jarvis .mobile-logo img { height: 26px; }
   .jarvis .tabbar { display: flex; position: sticky; bottom: 0; z-index: 20; background: #fff; border-top: 1px solid var(--j-line); justify-content: space-around; padding: 6px 0 10px; }
