@@ -9,7 +9,7 @@ import { exampleRegistryState, projectSurfaces } from "@/lib/marketing/channels/
 import { jarvisNav } from "@/lib/marketing/channels/nav";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
 import { loginAnalyticsEnabled } from "@/lib/login-analytics";
-import { audienceLibraryEnabled, channelRegistryEnabled, ctvAttributionEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
+import { audienceLibraryEnabled, channelRegistryEnabled, chatgptAdsEnabled, ctvAttributionEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled } from "@/lib/marketing/config";
 import { canViewCtvAttribution } from "@/lib/marketing/feature-access";
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
@@ -32,7 +32,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     const spaces = access.kind === "none" ? [] : await listHomeWorkspaces(access).catch(() => []);
     const showAis2l = spaces.some((row) => row.voiceEnabled);
     const staff = access.seesCost;
-    const registry = channelRegistryEnabled() ? projectSurfaces(exampleRegistryState(), { audience: staff ? "staff" : "client", clientId: "harbor" }) : null;
+    const registryState = exampleRegistryState();
+    const visibleRegistry = chatgptAdsEnabled()
+      ? registryState
+      : { ...registryState, registry: registryState.registry.filter((row) => row.key !== "chatgpt_ads") };
+    const registry = channelRegistryEnabled() ? projectSurfaces(visibleRegistry, { audience: staff ? "staff" : "client", clientId: "harbor" }) : null;
     const items = jarvisNav({
       audience: staff ? "staff" : "client",
       showAis2l,
