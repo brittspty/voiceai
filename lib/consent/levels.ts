@@ -5,7 +5,7 @@ export type ChoiceLevel = (typeof CHOICE_LEVELS)[number];
 export const CHOICE_ACTIONS = ["grant", "change", "withdraw"] as const;
 export type ChoiceAction = (typeof CHOICE_ACTIONS)[number];
 
-/** Voice may require one of these. The global default is high. */
+/** Voice may require one of these. Jason chose medium on Nov 2, 2026, and that is the global default. */
 export const VOICE_LEVELS = ["low", "medium", "high"] as const;
 export type VoiceLevel = (typeof VOICE_LEVELS)[number];
 

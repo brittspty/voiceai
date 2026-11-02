@@ -1,5 +1,6 @@
 import { hashEmailForMeta, hashPhoneForMeta } from "../marketing/offline/hash";
 import { hashIp } from "../marketing/ctv/quality";
+import { normalizePhone } from "../phone";
 import { CONSENT_WORDING_VERSION, exactWordingText, wordingHash } from "./copy";
 import type { ChoiceAction, ChoiceLevel } from "./levels";
 
@@ -59,13 +60,40 @@ function clip(value: unknown, max: number) {
   return trimmed;
 }
 
-/** Hashed email and phone, plus the click and CRM ids this app already stores on a contact. Raw email and phone are not returned. */
+/**
+ * Consent rows are kept indefinitely. There is no retention date and no purge job.
+ * The log stays append-only: insert a choice, and let the latest row win.
+ */
+export const CONSENT_RECORD_RETENTION = "indefinite" as const;
+
+function formEmail(email: string | null | undefined) {
+  const normalized = (email || "").trim().toLowerCase();
+  const at = normalized.lastIndexOf("@");
+  if (at < 1 || at === normalized.length - 1) return "";
+  return normalized;
+}
+
+function formPhone(phone: string | null | undefined) {
+  const e164 = normalizePhone(phone || "");
+  const digits = e164.replace(/\D/g, "");
+  if (!e164.startsWith("+") || digits.length < 8 || digits.length > 15) return "";
+  return digits;
+}
+
+/**
+ * Every tie Jason asked for on Nov 2, 2026: the form email and phone, the hashed email and phone,
+ * click ids, and the CRM id. A contact matches when any one key overlaps.
+ */
 export function matchKeysFromContact(contact: ContactMatchInput) {
   const keys: string[] = [];
-  const email = contact.email ? hashEmailForMeta(contact.email) : "";
-  if (email) keys.push(`email:${email}`);
-  const phone = contact.phone ? hashPhoneForMeta(contact.phone) : "";
-  if (phone) keys.push(`phone:${phone}`);
+  const email = formEmail(contact.email);
+  if (email) keys.push(`form:email:${email}`);
+  const phone = formPhone(contact.phone);
+  if (phone) keys.push(`form:phone:${phone}`);
+  const emailHash = contact.email ? hashEmailForMeta(contact.email) : "";
+  if (emailHash) keys.push(`email:${emailHash}`);
+  const phoneHash = contact.phone ? hashPhoneForMeta(contact.phone) : "";
+  if (phoneHash) keys.push(`phone:${phoneHash}`);
   const ghl = clip(contact.ghlContactId, 80);
   if (ghl) keys.push(`ghl:${ghl}`);
   const clicks: [string, string | null | undefined][] = [
@@ -79,6 +107,19 @@ export function matchKeysFromContact(contact: ContactMatchInput) {
     if (trimmed) keys.push(`${name}:${trimmed}`);
   }
   return keys;
+}
+
+export function keysOverlap(left: readonly string[], right: readonly string[]) {
+  if (!left.length || !right.length) return false;
+  const known = new Set(left);
+  return right.some((key) => known.has(key));
+}
+
+export function latestMatchingConsent<T extends StoredChoice & { matchKeys: readonly string[] }>(
+  contactKeys: readonly string[],
+  records: readonly T[],
+): T | null {
+  return latestRecord(records.filter((row) => keysOverlap(contactKeys, row.matchKeys)));
 }
 
 export function summarizeUserAgent(ua: string) {

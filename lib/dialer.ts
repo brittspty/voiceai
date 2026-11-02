@@ -91,7 +91,7 @@ export async function processDialJob(job: { id: string; payload: unknown; callId
   if (call.status === "completed" || call.status === "failed") return;
   if (payload.placed) return;
 
-  // Which recorded level unlocks voice is a legal decision for Jason. See lib/consent/voice-gate.ts.
+  // Jason chose medium on Nov 2, 2026. See lib/consent/voice-gate.ts.
   // When VOICE_CONSENT_GATE is on this fails closed: a contact without a matching record at or above the setting is never called.
   const voiceConsent = await voiceDecisionForContact(call.contact);
   if (voiceConsent.enabled && !voiceConsent.allow) {

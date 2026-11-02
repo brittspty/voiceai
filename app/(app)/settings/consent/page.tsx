@@ -34,7 +34,7 @@ export default async function ConsentSettingsPage() {
       <section className="rounded-2xl border border-line bg-card p-4 text-sm">
         <p>CONSENT_POPUP is {popupOn ? "on" : "off"}. {popupOn ? "Client websites can load the widget." : "Client websites do not load the widget."}</p>
         <p className="mt-2">VOICE_CONSENT_GATE is {gateOn ? "on" : "off"}. {gateOn ? "Voice fails closed without a matching record." : "Voice is not held by this gate."}</p>
-        <p className="mt-2">Which level unlocks voice is a legal decision for Jason. The default is high.</p>
+        <p className="mt-2">Jason chose medium on Nov 2, 2026. Medium or high unlocks voice. Low, a rejection, or no record does not.</p>
       </section>
       <section className="rounded-2xl border border-line bg-card p-4">
         <h2 className="text-base font-semibold">Snippet</h2>
@@ -44,11 +44,11 @@ export default async function ConsentSettingsPage() {
       {selection ? <ConsentOnboardingPanel selection={selection} /> : null}
       <section className="rounded-2xl border border-line bg-card p-4">
         <h2 className="text-base font-semibold">Voice minimum</h2>
-        <p className="mt-1 text-sm text-muted">Per client. Leave it on the default unless Jason has chosen a level. The global default stays high.</p>
+        <p className="mt-1 text-sm text-muted">Per client. Jason chose medium on Nov 2, 2026. Leave this on the global default unless a client needs a different level.</p>
         <form action={saveVoiceConsentMinimum} className="mt-3 flex flex-wrap items-center gap-2">
           <label className="text-sm font-medium" htmlFor="voice-consent-level">Level</label>
           <select id="voice-consent-level" name="level" defaultValue={minimum} disabled={!canSave} className="min-h-11 rounded-lg border border-line bg-card px-2">
-            <option value="default">Use the global default (high)</option>
+            <option value="default">Use the global default (medium)</option>
             <option value="high">High</option>
             <option value="medium">Medium</option>
             <option value="low">Low</option>
@@ -57,12 +57,12 @@ export default async function ConsentSettingsPage() {
         </form>
       </section>
       <section className="rounded-2xl border border-line bg-card p-4 text-sm">
-        <h2 className="text-base font-semibold">Open questions</h2>
+        <h2 className="text-base font-semibold">Decisions</h2>
         <ul className="mt-2 list-disc space-y-1 pl-5">
-          <li>Which level unlocks voice. The code default is high until Jason decides.</li>
-          <li>How long consent records are kept. Rows are append-only and have no deletion date yet.</li>
-          <li>The final wording. Everything shown here is DRAFT pending legal review.</li>
-          <li>Whether a choice ties to a contact by a form field or by a hashed email, phone, or click id. The log stores hashed email and phone plus the click and CRM ids already on a contact, and never the raw address.</li>
+          <li>Jason chose medium on Nov 2, 2026. Medium or high unlocks voice. Low or no record does not.</li>
+          <li>Consent records are kept indefinitely. There is no retention date and no purge job. The log stays append-only.</li>
+          <li>A choice ties to a contact when any form email or phone, hashed email or phone, click id, or CRM id matches.</li>
+          <li>The wording is still DRAFT pending legal review.</li>
         </ul>
       </section>
     </div>

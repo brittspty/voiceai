@@ -7,8 +7,8 @@ import { voiceConsentDecision } from "./voice-gate";
 export type VoiceDialDecision = { enabled: boolean; allow: boolean; reason: string };
 
 /**
- * Loads the latest append-only record for this contact and applies the voice gate.
- * The level that unlocks voice is a legal decision for Jason. See voice-gate.ts.
+ * Loads the latest append-only record that shares any match key with this contact.
+ * Jason chose medium on Nov 2, 2026. See voice-gate.ts.
  * When the switch is on and the read fails, the contact is not called.
  */
 export async function voiceDecisionForContact(
@@ -17,7 +17,7 @@ export async function voiceDecisionForContact(
   workspaceId = WORKSPACE_ID,
 ): Promise<VoiceDialDecision> {
   if (!voiceConsentGateEnabled(env)) {
-    const decision = voiceConsentDecision({ enabled: false, required: "high", latest: null });
+    const decision = voiceConsentDecision({ enabled: false, required: "medium", latest: null });
     return { enabled: false, allow: decision.allow, reason: decision.reason };
   }
   try {

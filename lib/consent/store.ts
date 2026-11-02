@@ -9,7 +9,10 @@ import type { StoredChoice } from "./record";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Consent rows are insert-only. This updates the wording version table, never a choice row. */
+/**
+ * Consent rows are insert-only and kept indefinitely.
+ * There is no retention date and no purge job. This updates the wording version table, never a choice row.
+ */
 export async function saveConsentRecord(record: ConsentLog) {
   await prisma.consentWordingVersion.upsert({
     where: { id: record.wordingVersionId },

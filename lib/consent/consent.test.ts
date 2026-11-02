@@ -17,9 +17,9 @@ import { consentPopupEnabled, voiceConsentGateEnabled } from "./flags";
 import { consentOnboardingSelection, refuseConsentSkip } from "./onboarding";
 import { OUR_TRACKING_TAGS, detectConsentSnippet, scriptWouldLoad, tagsToRelease } from "./pixels";
 import { createConsentLimiter, handleConsentChoice } from "./public";
-import { effectiveLevel, latestRecord, type StoredChoice } from "./record";
+import { CONSENT_RECORD_RETENTION, effectiveLevel, latestRecord, matchKeysFromContact, type StoredChoice } from "./record";
 import { consentScriptSource, consentSnippet } from "./script";
-import { requiredVoiceLevel, voiceConsentDecision } from "./voice-gate";
+import { requiredVoiceLevel, voiceConsentDecision, voiceConsentForContactKeys, VOICE_CONSENT_DEFAULT_LEVEL } from "./voice-gate";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
@@ -94,12 +94,13 @@ test("a choice logs the exact wording version, a hashed address, and no raw cont
   assert.equal(result.record?.userAgentSummary, "Chrome on Windows");
   assert.equal(result.record?.ipHash, hashIp("203.0.113.10"));
   assert.equal(result.record?.pageUrl.includes("drop-me"), false);
+  assert.equal(result.record?.matchKeys.includes(`form:email:person@example.com`), true);
   assert.equal(result.record?.matchKeys.includes(`email:${hashEmailForMeta("person@example.com")}`), true);
   const stored = JSON.stringify(result.record);
   assert.equal(stored.includes("203.0.113.10"), false);
-  assert.equal(stored.includes("person@example.com"), false);
   assert.equal(stored.includes("Mozilla/5.0"), false);
   const shown = JSON.stringify(result.body).toLowerCase();
+  assert.equal(shown.includes("person@example.com"), false);
   for (const word of ["spend", "bid", "cpa", "cpl", "roas", "budget"]) assert.equal(shown.includes(word), false, word);
 });
 
@@ -133,25 +134,82 @@ test("the newest record wins, including a withdrawal", () => {
   assert.equal(effectiveLevel(latestRecord(restored)), "high");
 });
 
-test("the voice gate fails closed below the setting and allows a match at or above it", () => {
+test("medium or high unlocks voice, and low or none blocks it", () => {
   assert.equal(voiceConsentGateEnabled({}), false);
   assert.equal(consentPopupEnabled({}), false);
   assert.equal(consentPopupEnabled({ CONSENT_POPUP: "on" }), true);
-  assert.equal(requiredVoiceLevel(null), "high");
-  assert.equal(requiredVoiceLevel("none"), "high");
+  assert.equal(VOICE_CONSENT_DEFAULT_LEVEL, "medium");
+  assert.equal(requiredVoiceLevel(null), "medium");
+  assert.equal(requiredVoiceLevel("none"), "medium");
   assert.equal(requiredVoiceLevel("low"), "low");
-  assert.equal(voiceConsentDecision({ enabled: false, required: "high", latest: null }).allow, true);
-  assert.equal(voiceConsentDecision({ enabled: true, required: "high", latest: null }).allow, false);
-  assert.match(voiceConsentDecision({ enabled: true, required: "high", latest: null }).reason, /No recorded consent/);
-  assert.equal(voiceConsentDecision({ enabled: true, required: "high", latest: { level: "medium", action: "grant" } }).allow, false);
-  assert.match(voiceConsentDecision({ enabled: true, required: "high", latest: { level: "medium", action: "grant" } }).reason, /below the high minimum/);
-  assert.equal(voiceConsentDecision({ enabled: true, required: "high", latest: { level: "low", action: "change" } }).allow, false);
-  assert.equal(voiceConsentDecision({ enabled: true, required: "medium", latest: { level: "medium", action: "grant" } }).allow, true);
-  assert.equal(voiceConsentDecision({ enabled: true, required: "medium", latest: { level: "high", action: "change" } }).allow, true);
-  assert.equal(voiceConsentDecision({ enabled: true, required: "high", latest: { level: "high", action: "grant" } }).allow, true);
-  assert.equal(voiceConsentDecision({ enabled: true, required: "low", latest: { level: "high", action: "withdraw" } }).allow, false);
-  assert.match(voiceConsentDecision({ enabled: true, required: "low", latest: { level: "high", action: "withdraw" } }).reason, /withdrawn or rejected/);
-  assert.equal(voiceConsentDecision({ enabled: true, required: "none", latest: { level: "medium", action: "grant" } }).allow, false);
+  assert.equal(voiceConsentDecision({ enabled: false, latest: null }).allow, true);
+  assert.equal(voiceConsentDecision({ enabled: true, latest: null }).allow, false);
+  assert.match(voiceConsentDecision({ enabled: true, latest: null }).reason, /No recorded consent/);
+  assert.equal(voiceConsentDecision({ enabled: true, latest: { level: "low", action: "grant" } }).allow, false);
+  assert.match(voiceConsentDecision({ enabled: true, latest: { level: "low", action: "grant" } }).reason, /below the medium minimum/);
+  assert.equal(voiceConsentDecision({ enabled: true, latest: { level: "reject", action: "grant" } }).allow, false);
+  assert.equal(voiceConsentDecision({ enabled: true, latest: { level: "medium", action: "grant" } }).allow, true);
+  assert.equal(voiceConsentDecision({ enabled: true, latest: { level: "high", action: "change" } }).allow, true);
+  assert.equal(voiceConsentDecision({ enabled: true, latest: { level: "high", action: "withdraw" } }).allow, false);
+  assert.match(voiceConsentDecision({ enabled: true, latest: { level: "medium", action: "withdraw" } }).reason, /withdrawn or rejected/);
+});
+
+test("a contact matches on any one form field, hash, click id, or CRM id", () => {
+  const contactKeys = matchKeysFromContact({
+    email: "person@example.com",
+    phone: "+15555550123",
+    ghlContactId: "ghl_example",
+    gclid: "gclid_example",
+    fbclid: "fbclid_example",
+    gbraid: "gbraid_example",
+    wbraid: "wbraid_example",
+  });
+  const prefixes = ["form:email:", "form:phone:", "email:", "phone:", "ghl:", "gclid:", "fbclid:", "gbraid:", "wbraid:"];
+  for (const prefix of prefixes) {
+    const key = contactKeys.find((item) => item.startsWith(prefix));
+    assert.ok(key, prefix);
+    const allowed = voiceConsentForContactKeys({
+      enabled: true,
+      contactKeys,
+      records: [{ id: prefix, createdAt: "2026-11-02T15:00:00.000Z", level: "medium", action: "grant", matchKeys: [key!] }],
+    });
+    assert.equal(allowed.allow, true, prefix);
+    const low = voiceConsentForContactKeys({
+      enabled: true,
+      contactKeys: [key!],
+      records: [{ id: `${prefix}-low`, createdAt: "2026-11-02T15:00:00.000Z", level: "low", action: "grant", matchKeys: [key!] }],
+    });
+    assert.equal(low.allow, false, prefix);
+  }
+  const none = voiceConsentForContactKeys({ enabled: true, contactKeys, records: [] });
+  assert.equal(none.allow, false);
+  const otherPerson = voiceConsentForContactKeys({
+    enabled: true,
+    contactKeys: ["gclid:someone-else"],
+    records: [{ id: "other", createdAt: "2026-11-02T16:00:00.000Z", level: "high", action: "grant", matchKeys: ["gclid:gclid_example"] }],
+  });
+  assert.equal(otherPerson.allow, false);
+  const olderMatch = voiceConsentForContactKeys({
+    enabled: true,
+    contactKeys,
+    records: [
+      { id: "email", createdAt: "2026-11-02T12:00:00.000Z", level: "medium", action: "grant", matchKeys: [contactKeys.find((item) => item.startsWith("form:email:"))!] },
+      { id: "other-click", createdAt: "2026-11-02T18:00:00.000Z", level: "reject", action: "grant", matchKeys: ["gclid:someone-else"] },
+    ],
+  });
+  assert.equal(olderMatch.allow, true);
+});
+
+test("consent records are kept indefinitely and the choice log is append-only", () => {
+  assert.equal(CONSENT_RECORD_RETENTION, "indefinite");
+  const store = readFileSync(path.join(ROOT, "lib/consent/store.ts"), "utf8");
+  const schema = readFileSync(path.join(ROOT, "prisma/schema.prisma"), "utf8");
+  assert.match(store, /no retention date/);
+  assert.match(store, /no purge job/);
+  assert.equal(store.includes("consentRecord.delete"), false);
+  assert.equal(store.includes("consentRecord.update"), false);
+  assert.match(schema, /Kept indefinitely/);
+  assert.match(schema, /No retention date and no purge job/);
 });
 
 test("a denied voice consent check does not call the vendor", async () => {

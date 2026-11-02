@@ -1066,7 +1066,7 @@ model ClientSettings {
   leadValueSetById String?
   leadValueSetBy   User?     @relation("LeadValueSetBy", fields: [leadValueSetById], references: [id], onDelete: SetNull)
   leadValueSetAt   DateTime?
-  /// Null uses the global default, which is high. Which level unlocks voice is a legal decision for Jason.
+  /// Null uses the global default. Jason chose medium on Nov 2, 2026.
   voiceConsentMinLevel Consent?
   updatedAt        DateTime  @updatedAt
 }
@@ -3159,6 +3159,7 @@ model ConsentWordingVersion {
 }
 
 /// Append-only. Insert a row for every choice, change, and withdrawal. The latest createdAt wins. Do not update or delete.
+/// Kept indefinitely. No retention date and no purge job.
 model ConsentRecord {
   id               String              @id @default(cuid())
   workspaceId      String

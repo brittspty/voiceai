@@ -56,7 +56,7 @@ async function syncGhlContact(event: Extract<GhlEvent, { kind: "contact" }>) {
   }).catch((error) => console.error("[speed-to-lead] lead was not recorded", errorText(error)));
   const org = await prisma.org.findUnique({ where: { id: "org" } });
   if (org?.scheduleEnabled) {
-    // Which recorded level unlocks voice is a legal decision for Jason. See lib/consent/voice-gate.ts.
+    // Jason chose medium on Nov 2, 2026. See lib/consent/voice-gate.ts.
     // When VOICE_CONSENT_GATE is on, a resolved contact without a matching record is skipped and never queued.
     const voiceConsent = await voiceDecisionForContact(contact);
     if (voiceConsent.enabled && !voiceConsent.allow) {

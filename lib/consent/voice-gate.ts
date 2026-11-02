@@ -1,15 +1,15 @@
 import type { VoiceLevel } from "./levels";
 import { isVoiceLevel, levelMeets } from "./levels";
-import { effectiveLevel, type StoredChoice } from "./record";
+import { effectiveLevel, latestMatchingConsent, type StoredChoice } from "./record";
 
 /**
- * Which recorded consent level unlocks voice is a legal decision for Jason.
- * The shipped default is high. A per-client setting may name low, medium, or high.
- * Null, none, or any other value stays on that high default.
+ * Jason chose medium on Nov 2, 2026. Medium or high unlocks voice.
+ * The global default is medium. A per-client setting may still name low, medium, or high.
+ * Null, none, or any other value stays on that medium default.
  * When VOICE_CONSENT_GATE is on, this fails closed: no matching record, a withdrawal,
  * a rejection, or a lower level is skipped and never called.
  */
-export const VOICE_CONSENT_DEFAULT_LEVEL: VoiceLevel = "high";
+export const VOICE_CONSENT_DEFAULT_LEVEL: VoiceLevel = "medium";
 
 export function requiredVoiceLevel(setting: string | null | undefined): VoiceLevel {
   return isVoiceLevel(setting) ? setting : VOICE_CONSENT_DEFAULT_LEVEL;
@@ -41,4 +41,18 @@ export function voiceConsentDecision(input: VoiceConsentInput): { allow: boolean
     };
   }
   return { allow: true, reason: `Recorded consent is ${level}, which meets the ${required} minimum.` };
+}
+
+/** Uses the latest record that shares any form, hash, click, or CRM key with the contact. */
+export function voiceConsentForContactKeys(input: {
+  enabled: boolean;
+  required?: string | null;
+  contactKeys: readonly string[];
+  records: readonly (StoredChoice & { matchKeys: readonly string[] })[];
+}) {
+  return voiceConsentDecision({
+    enabled: input.enabled,
+    required: input.required,
+    latest: latestMatchingConsent(input.contactKeys, input.records),
+  });
 }
