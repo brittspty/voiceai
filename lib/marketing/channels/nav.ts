@@ -31,6 +31,7 @@ export function jarvisNav(input: {
   showAudienceData?: boolean;
   showAudienceDataClient?: boolean;
   showVideoChannels?: boolean;
+  showMetricSettings?: boolean;
 }): NavItem[] {
   const decisions: NavItem = { href: "/decisions", label: "Decisions", group: "Overview", count: input.decisionCount };
   if (input.audience === "client") {
@@ -48,6 +49,7 @@ export function jarvisNav(input: {
     if (input.showSegments) items.push({ href: "/marketing/segments", label: "Audience Data", group: "Results" });
     if (input.showCtv) items.push({ href: "/marketing/ctv", label: "CTV (StackAdapt)", group: "Results" });
     items.push({ href: "/reports", label: "Reports", group: "Share" });
+    if (input.showMetricSettings) items.push({ href: "/marketing/metrics", label: "Client metrics", group: "Account" });
     items.push({ href: "/settings", label: "Settings & connections", group: "Account" });
     return items;
   }
@@ -81,6 +83,7 @@ export function jarvisNav(input: {
   }
   if (input.showCtv) items.push({ href: "/marketing/ctv", label: "CTV (StackAdapt)", group: "Channels" });
   items.push({ href: "/reports", label: "Reports", group: "Share" });
+  if (input.showMetricSettings) items.push({ href: "/marketing/metrics", label: "Client metrics", group: "Account" });
   if (input.showInsights) items.push({ href: "/insights", label: "Insights", group: "Share" });
   if (input.showNotifications) items.push({ href: "/notifications", label: "Notifications", group: "Overview" });
   items.push({ href: "/settings", label: "Settings & connections", group: "Account" });

@@ -335,6 +335,11 @@ export function adLibraryCountries(env: Env = process.env) {
   return parts.length ? parts : ["US"];
 }
 
+/** Off unless CLIENT_METRIC_VISIBILITY is explicitly on. Existing client dashboards stay as they are. */
+export function clientMetricVisibilityEnabled(env: Env = process.env) {
+  return flagOn(env, "CLIENT_METRIC_VISIBILITY");
+}
+
 /** Off unless MARKETING_DASHBOARDS_V2 is explicitly on. */
 export function dashboardsV2Enabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_DASHBOARDS_V2");

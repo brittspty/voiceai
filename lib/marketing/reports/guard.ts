@@ -1,4 +1,6 @@
-import { reportsV2Enabled } from "../config";
+import { clientMetricVisibilityEnabled, reportsV2Enabled } from "../config";
+import { filterClientReport } from "../metric-visibility";
+import { loadResolvedVisibility } from "../metric-visibility-store";
 import { loadMarketingAccess } from "../queries";
 import { loadStaffReport, reportForRequester } from "./load";
 import { parseReportQuery } from "./query";
@@ -28,8 +30,13 @@ export async function buildReport(
     start: parsed.start,
     end: parsed.end,
   });
+  let report = reportForRequester(staff, { seesCost, view });
+  if (clientMetricVisibilityEnabled() && "audience" in report && report.audience === "client") {
+    const reportClientId = report.clientId && report.clientId !== "all" ? report.clientId : "";
+    if (reportClientId) report = filterClientReport(report, await loadResolvedVisibility(reportClientId));
+  }
   return {
-    report: reportForRequester(staff, { seesCost, view }),
+    report,
     seesCost,
     canShare: access.canCreateShareLink,
     canStaffPdf: seesCost,

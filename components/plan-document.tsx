@@ -1,6 +1,7 @@
 import { brandTokens } from "@/lib/brand/tokens";
 import { BRAND_TAGLINE, BRAND_WORDMARK } from "@/lib/brand";
-import { PLAN_START_LABEL, type DashboardNumbers } from "@/lib/plans/plan";
+import { PLAN_START_LABEL } from "@/lib/plans/plan";
+import type { PlanClientStats } from "@/lib/marketing/metric-visibility";
 
 export type PlanDocumentModel = {
   clientName: string;
@@ -13,7 +14,7 @@ export type PlanDocumentModel = {
   weekly: string;
   ctaLabel: string;
   ctaHref: string;
-  dashboard: DashboardNumbers;
+  dashboard: PlanClientStats;
   showCost: boolean;
   preview?: boolean;
 };
@@ -36,11 +37,9 @@ export function PlanDocument({ plan }: { plan: PlanDocumentModel }) {
         <section className="mt-8 rounded-2xl border p-5" style={{ borderColor: tone.line, background: tone.card }}>
           <h2 className="text-lg font-semibold">Sample dashboard</h2>
           <dl className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
-            <Stat label="Impressions" value={plan.dashboard.impressions.toLocaleString("en-US")} />
-            <Stat label="Clicks" value={plan.dashboard.clicks.toLocaleString("en-US")} />
-            <Stat label="Leads" value={plan.dashboard.leads.toLocaleString("en-US")} />
-            {plan.showCost && plan.dashboard.spendCents !== undefined ? <Stat label="Spend" value={(plan.dashboard.spendCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })} /> : null}
-            {plan.showCost && plan.dashboard.roas !== undefined ? <Stat label="ROAS" value={String(plan.dashboard.roas)} /> : null}
+            {plan.dashboard.impressions != null ? <Stat label="Impressions" value={plan.dashboard.impressions.toLocaleString("en-US")} /> : null}
+            {plan.dashboard.clicks != null ? <Stat label="Clicks" value={plan.dashboard.clicks.toLocaleString("en-US")} /> : null}
+            {plan.dashboard.leads != null ? <Stat label="Leads" value={plan.dashboard.leads.toLocaleString("en-US")} /> : null}
           </dl>
         </section>
         {plan.timeline ? <Block title="Timeline" body={plan.timeline} /> : null}
