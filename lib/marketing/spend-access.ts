@@ -56,7 +56,7 @@ const SAFE_KEYS = new Set(
     "pixelvisitors", "pushstatus", "undountil", "statuslabel", "dataquality", "scope",
     "verifiedconversionratelabel", "qualityscore", "key", "listid", "gppstring",
     "periodlabel", "comparelabel", "rangelabel", "scopelabel", "clientheadline", "clientsubhead",
-    "defaultseriesid", "annotations", "channelheading", "flagsheading", "kicker", "coverseentence",
+    "defaultseriesid", "annotations", "channelheading", "flagsheading", "kicker", "coversentence", "splittext",
     "resultskicker", "resultstitle", "preparer", "annotation", "periodname", "share", "text",
     "body", "logged", "delivery", "message", "sent", "includescost", "schedule", "schedules",
     "author", "loggedat", "clientbody", "seriesid", "staffname", "clientname", "qualifiedleads",
