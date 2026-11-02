@@ -23,9 +23,12 @@ export function jarvisNav(input: {
   showSegments?: boolean;
   showAudiences?: boolean;
   channelLinks?: NavItem[] | null;
+  showInsights?: boolean;
+  showNotifications?: boolean;
   showCtv?: boolean;
   showAudienceData?: boolean;
   showAudienceDataClient?: boolean;
+  showVideoChannels?: boolean;
 }): NavItem[] {
   const decisions: NavItem = { href: "/decisions", label: "Decisions", group: "Overview", count: input.decisionCount };
   if (input.audience === "client") {
@@ -54,12 +57,15 @@ export function jarvisNav(input: {
   if (input.showAudienceData) items.push({ href: "/audience-data", label: "Audience Data", group: "Data" });
   if (input.channelLinks?.length) items.push(...input.channelLinks);
   else {
-    items.push(
+    const channels: NavItem[] = [
       { href: "/c/all/meta", label: "Meta", group: "Channels" },
       { href: "/c/all/google-ads", label: "Google Ads", group: "Channels" },
-      { href: "/c/all/stackadapt", label: "StackAdapt", group: "Channels" },
-      { href: "/c/all/google-business-profile", label: "Google Business Profile", group: "Channels" },
-    );
+    ];
+    if (input.showVideoChannels) channels.push({ href: "/c/all/youtube", label: "YouTube", group: "Channels" });
+    channels.push({ href: "/c/all/stackadapt", label: "StackAdapt", group: "Channels" });
+    if (input.showVideoChannels) channels.push({ href: "/c/all/ctv", label: "CTV (StackAdapt)", group: "Channels" });
+    channels.push({ href: "/c/all/google-business-profile", label: "Google Business Profile", group: "Channels" });
+    items.push(...channels);
   }
   items.push(
     { href: "/sites/landing-pages", label: "Landing pages", group: "Conversion" },
@@ -73,6 +79,8 @@ export function jarvisNav(input: {
   }
   if (input.showCtv) items.push({ href: "/marketing/ctv", label: "CTV (StackAdapt)", group: "Channels" });
   items.push({ href: "/reports", label: "Reports", group: "Share" });
+  if (input.showInsights) items.push({ href: "/insights", label: "Insights", group: "Share" });
+  if (input.showNotifications) items.push({ href: "/notifications", label: "Notifications", group: "Overview" });
   items.push({ href: "/settings", label: "Settings & connections", group: "Account" });
   return items;
 }

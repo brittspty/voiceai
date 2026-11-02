@@ -8,6 +8,7 @@ import { getPublishedPolicy } from "./policy";
 import { digitsOnly } from "./phone";
 import { readinessItems } from "./readiness";
 import { addDaysISO, zonedDayBounds, zonedISODate, zonedTimeToUtc, startOfWeekMonday } from "./time";
+import { callSummaryText, ghlSyncLabel } from "./ais2l/screen";
 import type { GateCheckView, TimelineEvent, TranscriptLine } from "./types";
 
 function asArray<T>(value: unknown): T[] {
@@ -94,6 +95,8 @@ export async function getOverview(range = "today") {
     };
   });
 
+  const ghl = await ghlStatusMap(recent.map((call) => call.id));
+
   return {
     org,
     range,
@@ -126,7 +129,7 @@ export async function getOverview(range = "today") {
       connected: connects,
       booked,
     },
-    recent: recent.map(toCallRow),
+    recent: recent.map((call) => toCallRow(call, { crmStatus: ghl.get(call.id) ?? null })),
   };
 }
 
@@ -149,7 +152,8 @@ export function toCallRow(call: {
   failureReason: string | null;
   contact: { name: string; phone: string };
   office: { name: string } | null;
-}) {
+}, extras?: { crmStatus?: string | null }) {
+  const transcript = asArray<TranscriptLine>(call.transcript);
   return {
     id: call.id,
     time: (call.startedAt ?? call.createdAt).toISOString(),
@@ -163,13 +167,32 @@ export function toCallRow(call: {
     durationSec: call.durationSec,
     costCents: call.costCents,
     isTest: call.isTest,
-    transcript: asArray<TranscriptLine>(call.transcript),
+    summary: callSummaryText({ contactName: call.contact.name, outcome: call.outcome, durationSec: call.durationSec }),
+    ghlSync: ghlSyncLabel(extras?.crmStatus),
+    transcriptAvailable: transcript.length > 0,
+    transcript,
     timeline: asArray<TimelineEvent>(call.timeline),
     gateChecks: asArray<GateCheckView>(call.gateChecks),
     recordingUrl: call.recordingUrl,
     elevenLabsId: call.elevenLabsConversationId,
     failureReason: call.failureReason,
   };
+}
+
+async function ghlStatusMap(callIds: string[]) {
+  const ids = callIds.filter(Boolean);
+  if (!ids.length) return new Map<string, string>();
+  const updates = await prisma.crmUpdate.findMany({
+    where: { callId: { in: ids } },
+    orderBy: { createdAt: "desc" },
+    select: { callId: true, status: true },
+  });
+  const map = new Map<string, string>();
+  for (const update of updates) {
+    if (!update.callId || map.has(update.callId)) continue;
+    map.set(update.callId, update.status);
+  }
+  return map;
 }
 
 function callWhere(sp: SP): Prisma.CallWhereInput {
@@ -217,7 +240,8 @@ export async function listCalls(sp: SP) {
     prisma.call.count({ where }),
     prisma.office.findMany({ orderBy: { name: "asc" } }),
   ]);
-  return { rows: rows.map(toCallRow), total, page, perPage, offices };
+  const ghl = await ghlStatusMap(rows.map((call) => call.id));
+  return { rows: rows.map((call) => toCallRow(call, { crmStatus: ghl.get(call.id) ?? null })), total, page, perPage, offices };
 }
 
 export async function listAppointments(sp: SP) {

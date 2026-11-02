@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { readScopedClient } from "@/lib/marketing/client-contract";
 import { clientShareCsv, reopenClientReport, type ClientShareView } from "@/lib/marketing/client-view";
+import { presentForAudience } from "@/lib/marketing/share-payload";
 import { reportsV2Enabled } from "@/lib/marketing/config";
 import { buildReportPdf } from "@/lib/marketing/reports/pdf";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
@@ -58,7 +59,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
         payload: opened,
       });
       if (!scopedReport.ok) return shareResponse(NextResponse.json({ error: scopedReport.error }, { status: scopedReport.status }));
-      const report = scopedReport.body;
+      const report = presentForAudience(scopedReport.body, "share");
       if (isExport) {
         const pdf = buildReportPdf(report);
         return shareResponse(new NextResponse(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": "attachment; filename=\"report.pdf\"" } }));
@@ -78,7 +79,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
     payload: loaded,
   });
   if (!scoped.ok) return shareResponse(NextResponse.json({ error: scoped.error }, { status: scoped.status }));
-  const payload = scoped.body as ClientShareView;
+  const payload = presentForAudience(scoped.body, "share") as ClientShareView;
   if (isExport) {
     return shareResponse(new NextResponse(clientShareCsv(payload), { headers: { "Content-Type": "text/csv; charset=utf-8" } }));
   }

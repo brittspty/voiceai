@@ -9,9 +9,11 @@ import { exampleRegistryState, projectSurfaces } from "@/lib/marketing/channels/
 import { jarvisNav } from "@/lib/marketing/channels/nav";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
 import { loginAnalyticsEnabled } from "@/lib/login-analytics";
+import { insightsEnabled } from "@/lib/insights/learn";
 import { canOpenAudienceData } from "@/lib/marketing/audience-data/present";
 import { audienceDataClientEnabled, audienceDataEnabled, audienceLibraryEnabled, channelRegistryEnabled, chatgptAdsEnabled, ctvAttributionEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled, userAdminEnabled } from "@/lib/marketing/config";
 import { canViewCtvAttribution } from "@/lib/marketing/feature-access";
+import { pushNotificationsEnabled } from "@/lib/push/notify";
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { getOrg } from "@/lib/queries";
@@ -48,7 +50,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       channelLinks: registry ? (staff ? registry.nav : registry.clientNav) : undefined,
       showAudienceData: audienceDataEnabled() && canOpenAudienceData(access.kind),
       showAudienceDataClient: audienceDataClientEnabled() && (access.kind === "client_owner" || access.kind === "client_viewer"),
+      showVideoChannels: !registry,
       showCtv: ctvAttributionEnabled() && canViewCtvAttribution(access),
+      showInsights: staff && insightsEnabled(),
+      showNotifications: staff && pushNotificationsEnabled(),
     });
     const showPeople = userAdminEnabled() && (access.kind === "super_admin" || access.kind === "account_manager");
     return (
@@ -89,6 +94,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showAudienceData={audienceDataEnabled() && user.role !== "client_viewer" && user.role !== "owner"}
       showAudienceDataClient={audienceDataClientEnabled() && user.role === "client_viewer"}
       showCtv={ctvAttributionEnabled() && user.role !== "client_viewer" && user.role !== "owner"}
+      showInsights={insightsEnabled()}
+      showNotifications={pushNotificationsEnabled()}
       showPeople={userAdminEnabled() && (user.role === "super_admin" || user.role === "account_manager")}
     >
       {children}

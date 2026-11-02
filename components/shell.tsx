@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Activity, BarChart3, Bell, BookOpen, Database, FileText, Globe, Layers, LayoutDashboard, LineChart, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer, Tv, Users } from "lucide-react";
+import { Activity, BarChart3, Bell, BellRing, BookOpen, Database, FileText, Globe, Layers, LayoutDashboard, Lightbulb, LineChart, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer, Tv, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
 import { AIS2L_NAME } from "@/lib/brand/names";
 import { roleLabel } from "@/lib/marketing/access";
+import { optionalStaffLinks } from "@/lib/shell-nav";
 import { cn } from "@/lib/cn";
 
 const NAV = [
@@ -38,6 +39,8 @@ export function AppShell({
   showReports = false,
   homeHref = "/",
   showPortfolio = false,
+  showInsights = false,
+  showNotifications = false,
   showCtv = false,
   showAudienceData = false,
   showAudienceDataClient = false,
@@ -56,6 +59,8 @@ export function AppShell({
   showReports?: boolean;
   homeHref?: string;
   showPortfolio?: boolean;
+  showInsights?: boolean;
+  showNotifications?: boolean;
   showCtv?: boolean;
   showAudienceData?: boolean;
   showAudienceDataClient?: boolean;
@@ -87,6 +92,8 @@ export function AppShell({
     if (href === "/marketing/ctv") return pathname === "/marketing/ctv" || pathname.startsWith("/marketing/ctv/");
     if (href === "/audience-data") return pathname === "/audience-data" || pathname.startsWith("/audience-data/");
     if (href === "/portfolio") return pathname === "/portfolio";
+    if (href === "/insights") return pathname === "/insights";
+    if (href === "/notifications") return pathname === "/notifications";
     if (href === "/marketing") {
       return pathname === "/marketing" || (pathname.startsWith("/marketing/") && !pathname.startsWith("/marketing/leads") && !pathname.startsWith("/marketing/speed-to-lead") && !pathname.startsWith("/marketing/segments") && !pathname.startsWith("/marketing/audiences") && !pathname.startsWith("/marketing/ctv"));
     }
@@ -103,7 +110,11 @@ export function AppShell({
     ...(showAudienceData ? [{ href: "/audience-data", label: "Audience Data", icon: Database }] : []),
   ];
   const baseNav = [...NAV.slice(0, 2), ...extras, ...reportNav, ...NAV.slice(2)];
-  const staffNav = showPortfolio ? [{ href: "/portfolio", label: "Portfolio", icon: LayoutDashboard }, ...baseNav] : baseNav;
+  const switchNav = optionalStaffLinks({ showInsights, showNotifications }).map((item) => ({
+    ...item,
+    icon: item.href === "/insights" ? Lightbulb : BellRing,
+  }));
+  const staffNav = [...(showPortfolio ? [{ href: "/portfolio", label: "Portfolio", icon: LayoutDashboard }] : []), ...baseNav, ...switchNav];
   const clientNav = [
     ...CLIENT_NAV.slice(0, 1),
     ...reportNav,
@@ -127,7 +138,7 @@ export function AppShell({
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
-              className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm", active ? "bg-hover font-medium text-ink" : "text-muted hover:bg-hover")}
+              className={cn("flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-2 text-sm", active ? "bg-hover font-medium text-ink" : "text-muted hover:bg-hover")}
             >
               <Icon className="h-4 w-4" />
               {!collapsed && item.label}
