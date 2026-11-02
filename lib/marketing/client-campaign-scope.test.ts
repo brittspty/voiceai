@@ -2,13 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyClientCampaignScopes,
+  applyGoogleAdsClientScopes,
   applyStackAdaptClientScopes,
   clientForCampaign,
+  clientForGoogleAdsCampaign,
   clientForStackAdaptCampaign,
+  googleAdsCustomersToRead,
+  liveGoogleAdsCustomerIds,
   liveStackAdaptAdvertiserIds,
   planCampaignClients,
+  planGoogleAdsAccounts,
+  planGoogleAdsClients,
   planStackAdaptClients,
   type ClientCampaignRule,
+  type GoogleAdsClientRule,
   type StackAdaptClientRule,
 } from "./client-campaign-scope";
 import { assertMetaReadOnly } from "./connectors/meta-client";
@@ -112,6 +119,65 @@ test("stackadapt scope writes only local campaign rows", async () => {
   );
   assert.deepEqual(result, { linked: 1, cleared: 0 });
   assert.deepEqual(updates, [{ where: { id: "row" }, data: { clientId: "cedar" } }]);
+});
+
+const googleRule = (over: Partial<GoogleAdsClientRule>): GoogleAdsClientRule => ({
+  id: "cedar",
+  googleAdsCustomerIds: ["1111111111"],
+  googleAdsLiveRead: true,
+  ...over,
+});
+
+test("google ads live read requests only mapped customers", () => {
+  const rules = [
+    googleRule({ id: "cedar", googleAdsCustomerIds: ["111-111-1111", "1111111111", "short"] }),
+    googleRule({ id: "other", googleAdsCustomerIds: ["2222222222"], googleAdsLiveRead: false }),
+  ];
+  assert.deepEqual(liveGoogleAdsCustomerIds(rules), ["1111111111"]);
+  assert.deepEqual(googleAdsCustomersToRead(rules, []), ["1111111111"]);
+  assert.deepEqual(googleAdsCustomersToRead(rules, ["2222222222", "1111111111"]), ["1111111111"]);
+  assert.deepEqual(googleAdsCustomersToRead(rules, ["3333333333"]), []);
+  assert.equal(clientForGoogleAdsCampaign(rules, { namingParsed: { googleAdsCustomerId: "1111111111" } }), "cedar");
+  assert.equal(clientForGoogleAdsCampaign(rules, { namingParsed: {}, accountExternalId: "1111111111" }), "cedar");
+  assert.equal(clientForGoogleAdsCampaign(rules, { namingParsed: { googleAdsCustomerId: "2222222222" } }), null);
+  assert.equal(clientForGoogleAdsCampaign([googleRule({ googleAdsLiveRead: false })], { namingParsed: { googleAdsCustomerId: "1111111111" } }), null);
+});
+
+test("two clients claiming one Google Ads customer stay unassigned", () => {
+  const rules = [googleRule({ id: "a" }), googleRule({ id: "b" })];
+  assert.equal(clientForGoogleAdsCampaign(rules, { namingParsed: { googleAdsCustomerId: "1111111111" } }), null);
+  const changes = planGoogleAdsClients(rules, [
+    { id: "row", clientId: "a", namingParsed: { googleAdsCustomerId: "1111111111" } },
+    { id: "kept", clientId: "outside", namingParsed: {} },
+  ]);
+  assert.deepEqual(changes, [{ id: "row", clientId: null }]);
+  const accounts = planGoogleAdsAccounts(rules, [
+    { id: "acct", clientId: "a", externalId: "1111111111" },
+    { id: "other", clientId: "outside", externalId: "9999999999" },
+  ]);
+  assert.deepEqual(accounts, [{ id: "acct", clientId: null }]);
+});
+
+test("google ads scope writes local campaign and account rows", async () => {
+  const campaigns: unknown[] = [];
+  const accounts: unknown[] = [];
+  const result = await applyGoogleAdsClientScopes(
+    {
+      marketingClient: { findMany: async () => [googleRule({})] },
+      campaign: {
+        findMany: async () => [{ id: "row", clientId: null, namingParsed: { googleAdsCustomerId: "1111111111" }, adAccount: { externalId: "1111111111" } }],
+        update: async (args) => campaigns.push(args),
+      },
+      adAccount: {
+        findMany: async () => [{ id: "acct", clientId: null, externalId: "1111111111" }],
+        update: async (args) => accounts.push(args),
+      },
+    },
+    "org",
+  );
+  assert.deepEqual(result, { linked: 1, cleared: 0, accountsLinked: 1, accountsCleared: 0 });
+  assert.deepEqual(campaigns, [{ where: { id: "row" }, data: { clientId: "cedar" } }]);
+  assert.deepEqual(accounts, [{ where: { id: "acct" }, data: { clientId: "cedar" } }]);
 });
 
 test("Meta connector refuses every write except the insights report job", () => {

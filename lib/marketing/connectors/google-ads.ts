@@ -28,7 +28,11 @@ const CLIENT_QUERY = `
   WHERE customer_client.status = 'ENABLED'
 `.trim();
 
-const CAMPAIGN_QUERY = `
+/**
+ * v26 renamed campaign.start_date and campaign.end_date to start_date_time and end_date_time
+ * (yyyy-MM-dd HH:mm:ss in the customer timezone). The old names are unrecognized and fail the query.
+ */
+export const GOOGLE_ADS_CAMPAIGN_QUERY = `
   SELECT
     customer.id,
     customer.descriptive_name,
@@ -39,8 +43,8 @@ const CAMPAIGN_QUERY = `
     campaign.name,
     campaign.status,
     campaign.advertising_channel_type,
-    campaign.start_date,
-    campaign.end_date,
+    campaign.start_date_time,
+    campaign.end_date_time,
     campaign_budget.amount_micros,
     campaign_budget.period,
     campaign_budget.total_amount_micros
@@ -186,7 +190,7 @@ export async function pullGoogleAdsAccount(
   if (input.insightsOnly) {
     return { customer, campaigns: [], adGroups: [], ads: [], metrics, searchTerms, warnings };
   }
-  const campaigns = await googleAdsSearch({ ...common, query: CAMPAIGN_QUERY });
+  const campaigns = await googleAdsSearch({ ...common, query: GOOGLE_ADS_CAMPAIGN_QUERY });
   const adGroups = await googleAdsSearch({ ...common, query: AD_GROUP_QUERY });
   let ads: unknown[] = [];
   try {
@@ -232,15 +236,15 @@ export async function pullGoogleAdsSnapshot(input: GoogleAdsPullInput) {
     fetchImpl: input.fetchImpl,
   });
   let customerIds = input.customerIds.filter((id) => /^\d{10}$/.test(id));
-  if (input.discoverCustomers || !customerIds.length) {
+  if (!customerIds.length && input.discoverCustomers) {
     try {
       const discovered = await discoverCustomerIds({ ...input, accessToken });
       if (discovered.length) customerIds = discovered;
     } catch {
-      if (!customerIds.length) customerIds = [input.loginCustomerId];
+      if (/^\d{10}$/.test(input.loginCustomerId)) customerIds = [input.loginCustomerId];
     }
+    if (!customerIds.length && /^\d{10}$/.test(input.loginCustomerId)) customerIds = [input.loginCustomerId];
   }
-  if (!customerIds.length) customerIds = [input.loginCustomerId];
 
   const parts = [];
   const failures: string[] = [];

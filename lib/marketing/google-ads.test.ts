@@ -5,7 +5,7 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { GoogleAdsConnection } from "../../components/google-ads-connection";
 import { accessFromUser } from "./access";
-import { GOOGLE_ADS_API_VERSION, decideGoogleAdsSync, googleAdsApiVersion, googleAdsEnv } from "./config";
+import { GOOGLE_ADS_API_VERSION, decideGoogleAdsSync, googleAdsApiVersion, googleAdsEnv, googleAdsLiveRead } from "./config";
 import { mockGoogleAdsBundle } from "./connectors/google-fixtures";
 import { AdBudgetWriteBlockedError } from "./connectors/budget-lock";
 import {
@@ -23,8 +23,9 @@ import {
   refreshGoogleAdsAccessToken,
   type FetchLike,
 } from "./connectors/google-ads-client";
-import { mapGoogleBudget, mapGoogleObjective, mapGoogleStatus, normalizeGoogleAdsBundle } from "./connectors/google-ads-map";
-import { pullGoogleAdsSnapshot } from "./connectors/google-ads";
+import { googleAdsProbeSummary, mapGoogleBudget, mapGoogleObjective, mapGoogleStatus, normalizeGoogleAdsBundle } from "./connectors/google-ads-map";
+import { GOOGLE_ADS_CAMPAIGN_QUERY, pullGoogleAdsSnapshot } from "./connectors/google-ads";
+import { googleAdsCustomersToRead } from "./client-campaign-scope";
 import { getConnector } from "./connectors/registry";
 import { describeGoogleAdsConnection, googleAdsConnectionDenial } from "./google-connection";
 import { runGoogleAdsSync } from "./google-sync";
@@ -125,6 +126,14 @@ test("the Google Ads env helper is the version and customer-id source of truth",
     assert.deepEqual(live.customerIds, ["5555555555"]);
     assert.equal(live.apiVersion, "v26");
   }
+
+  const ignored = decideGoogleAdsSync(liveEnv({ INTEGRATIONS_MODE: "mock", MARKETING_SYNC_MODE: "auto" }));
+  assert.equal(ignored.action, "live");
+  const closed = googleAdsLiveRead(liveEnv({ INTEGRATIONS_MODE: "live", MARKETING_SYNC_MODE: "mock" }));
+  assert.deepEqual(closed, { ok: false, reason: "MARKETING_SYNC_MODE=mock" });
+  const open = googleAdsLiveRead(liveEnv({ INTEGRATIONS_MODE: "mock", MARKETING_SYNC_MODE: "auto", GOOGLE_ADS_DEVELOPER_TOKEN: "" }));
+  assert.equal(open.ok, true);
+  if (open.ok) assert.equal(open.developerToken, "");
 });
 
 test("Google Ads config is valid without a developer token", () => {
@@ -180,8 +189,15 @@ test("a blank developer token does not skip the Google Ads sync", async () => {
     headers.push({ developer: requestHeaders.get("developer-token"), login: requestHeaders.get("login-customer-id") });
     return new Response(JSON.stringify({ results: [] }), { status: 200 });
   };
-  const env = liveEnv({ GOOGLE_ADS_DEVELOPER_TOKEN: "", GOOGLE_ADS_CUSTOMER_IDS: CUSTOMER });
-  const result = await runGoogleAdsSync({ env, store: createMemoryStore(), now: NOW, timezone: TZ, fetchImpl });
+  const env = liveEnv({ GOOGLE_ADS_DEVELOPER_TOKEN: "", GOOGLE_ADS_CUSTOMER_IDS: CUSTOMER, INTEGRATIONS_MODE: "mock" });
+  const result = await runGoogleAdsSync({
+    env,
+    store: createMemoryStore(),
+    now: NOW,
+    timezone: TZ,
+    fetchImpl,
+    customers: [{ id: "client-a", googleAdsCustomerIds: [CUSTOMER], googleAdsLiveRead: true }],
+  });
   assert.equal(result.status, "succeeded");
   assert.equal(result.mode, "live");
   assert.ok(headers.length > 0);
@@ -350,7 +366,9 @@ test("google rows map into the shared marketing snapshot", () => {
   assert.equal(snapshot.accounts[0]?.externalId, "1000000001");
   assert.equal(snapshot.accounts[0]?.platform, "google_ads");
   assert.equal(snapshot.campaigns[0]?.budgetAmount, "50.0000");
+  assert.equal(snapshot.campaigns[0]?.startDate, "2026-10-06T00:00:00.000Z");
   assert.equal(snapshot.campaigns[0]?.endDate, null);
+  assert.deepEqual(snapshot.campaigns[0]?.namingParsed, { googleAdsCustomerId: "1000000001" });
   assert.equal(snapshot.campaigns[0]?.objective, "leads");
   assert.equal(snapshot.adGroups.length, 2);
   assert.equal(snapshot.ads.length, 2);
@@ -360,6 +378,100 @@ test("google rows map into the shared marketing snapshot", () => {
   assert.equal(snapshot.searchTerms.length, 4);
   assert.equal(snapshot.searchTerms[0]?.spend, "4.5000");
   assert.equal(snapshot.searchTerms[0]?.term, "roof leak repair");
+});
+
+test("v26 campaign dates use start_date_time and end_date_time", () => {
+  assert.match(GOOGLE_ADS_CAMPAIGN_QUERY, /campaign\.start_date_time/);
+  assert.match(GOOGLE_ADS_CAMPAIGN_QUERY, /campaign\.end_date_time/);
+  assert.equal(/campaign\.start_date(?!_time)/.test(GOOGLE_ADS_CAMPAIGN_QUERY), false);
+  assert.equal(/campaign\.end_date(?!_time)/.test(GOOGLE_ADS_CAMPAIGN_QUERY), false);
+  const snapshot = normalizeGoogleAdsBundle({
+    customer: { customer: { id: "1000000001", descriptiveName: "MOCK", currencyCode: "USD", timeZone: "UTC", status: "ENABLED" } },
+    campaigns: [{
+      campaign: {
+        id: "9",
+        name: "MOCK search",
+        status: "ENABLED",
+        advertisingChannelType: "SEARCH",
+        startDateTime: "2026-10-01 00:00:00",
+        endDateTime: "2026-12-15 23:59:59",
+      },
+      campaignBudget: { amountMicros: "1000000", period: "DAILY" },
+    }],
+    adGroups: [],
+    ads: [],
+    metrics: [{
+      segments: { date: "2026-10-07" },
+      campaign: { id: "9" },
+      adGroup: { id: "8" },
+      adGroupAd: { ad: { id: "7" } },
+      metrics: { costMicros: "2500000", impressions: "10", clicks: "2", conversions: "1", conversionsValue: "0" },
+    }],
+    searchTerms: [],
+  });
+  assert.equal(snapshot.campaigns[0]?.startDate, "2026-10-01T00:00:00.000Z");
+  assert.equal(snapshot.campaigns[0]?.endDate, "2026-12-15T00:00:00.000Z");
+  const summary = googleAdsProbeSummary(snapshot, { customerId: "1000000001", from: "2026-10-01", to: "2026-10-07" });
+  assert.equal(summary.campaigns, 1);
+  assert.equal(summary.impressions, 10);
+  assert.equal(summary.clicks, 2);
+  assert.equal(summary.cost, "2.5000");
+  const openEnded = normalizeGoogleAdsBundle({
+    customer: { customer: { id: "1000000001", descriptiveName: "MOCK", currencyCode: "USD", timeZone: "UTC", status: "ENABLED" } },
+    campaigns: [{
+      campaign: { id: "9", name: "MOCK search", status: "ENABLED", advertisingChannelType: "SEARCH", endDateTime: "2037-12-30 23:59:59" },
+    }],
+    adGroups: [],
+    ads: [],
+    metrics: [],
+    searchTerms: [],
+  });
+  assert.equal(openEnded.campaigns[0]?.startDate, null);
+  assert.equal(openEnded.campaigns[0]?.endDate, null);
+});
+
+test("a live sync reads only customers mapped to a client with live read on", async () => {
+  const seen: string[] = [];
+  let calls = 0;
+  const fetchImpl: FetchLike = async (url) => {
+    calls += 1;
+    const href = String(url);
+    if (href === GOOGLE_ADS_TOKEN_URL) return new Response(JSON.stringify({ access_token: "ya29.fixture-token" }), { status: 200 });
+    const customerId = href.match(/customers\/(\d{10})/)?.[1] ?? "";
+    if (customerId) seen.push(customerId);
+    return new Response(JSON.stringify({ results: [] }), { status: 200 });
+  };
+  const customers = [
+    { id: "client-a", googleAdsCustomerIds: ["1111111111", "2222222222"], googleAdsLiveRead: true },
+    { id: "client-b", googleAdsCustomerIds: ["3333333333"], googleAdsLiveRead: false },
+  ];
+  const quiet = await runGoogleAdsSync({
+    env: liveEnv({ INTEGRATIONS_MODE: "mock" }),
+    store: createMemoryStore(),
+    now: NOW,
+    timezone: TZ,
+    fetchImpl,
+    customers: [],
+  });
+  assert.equal(quiet.status, "skipped");
+  assert.match(quiet.reason ?? "", /no Google Ads customer is mapped/);
+  assert.equal(calls, 0);
+
+  const narrowed = await runGoogleAdsSync({
+    env: liveEnv({ INTEGRATIONS_MODE: "mock", GOOGLE_ADS_CUSTOMER_IDS: "2222222222,4444444444" }),
+    store: createMemoryStore(),
+    now: NOW,
+    timezone: TZ,
+    fetchImpl,
+    customers,
+  });
+  assert.equal(narrowed.status, "succeeded");
+  assert.equal(narrowed.mode, "live");
+  assert.deepEqual([...new Set(seen)], ["2222222222"]);
+  assert.equal(seen.includes("1111111111"), false);
+  assert.equal(seen.includes("3333333333"), false);
+  assert.equal(seen.includes("4444444444"), false);
+  assert.deepEqual(googleAdsCustomersToRead(customers, ["2222222222", "4444444444"]), ["2222222222"]);
 });
 
 test("a live pull uses only search and searchStream", async () => {
@@ -390,11 +502,22 @@ test("a live pull uses only search and searchStream", async () => {
       );
     }
     if (query.includes("FROM campaign")) {
+      assert.match(query, /campaign\.start_date_time/);
+      assert.match(query, /campaign\.end_date_time/);
+      assert.equal(/campaign\.start_date(?!_time)/.test(query), false);
+      assert.equal(/campaign\.end_date(?!_time)/.test(query), false);
       return new Response(
         JSON.stringify({
           results: [
             {
-              campaign: { id: "9", name: "Search", status: "ENABLED", advertisingChannelType: "SEARCH", startDate: "2026-10-01", endDate: "2037-12-30" },
+              campaign: {
+                id: "9",
+                name: "Search",
+                status: "ENABLED",
+                advertisingChannelType: "SEARCH",
+                startDateTime: "2026-10-01 00:00:00",
+                endDateTime: "2037-12-30 23:59:59",
+              },
               campaignBudget: { amountMicros: "1000000", period: "DAILY" },
             },
           ],
@@ -473,7 +596,14 @@ test("a live pull uses only search and searchStream", async () => {
   };
 
   const store = createMemoryStore();
-  const result = await runGoogleAdsSync({ env: liveEnv(), store, now: NOW, timezone: TZ, fetchImpl });
+  const result = await runGoogleAdsSync({
+    env: liveEnv({ INTEGRATIONS_MODE: "mock" }),
+    store,
+    now: NOW,
+    timezone: TZ,
+    fetchImpl,
+    customers: [{ id: "client-a", googleAdsCustomerIds: ["2000000002"], googleAdsLiveRead: true }],
+  });
   assert.equal(result.status, "succeeded");
   assert.equal(result.mode, "live");
   assert.ok(result.searchTerms && result.searchTerms > 0);
@@ -499,7 +629,14 @@ test("a live transport failure is recorded and does not throw", async () => {
   const fetchImpl: FetchLike = async () => {
     throw new Error("network down");
   };
-  const result = await runGoogleAdsSync({ env: liveEnv(), store, now: NOW, timezone: TZ, fetchImpl });
+  const result = await runGoogleAdsSync({
+    env: liveEnv(),
+    store,
+    now: NOW,
+    timezone: TZ,
+    fetchImpl,
+    customers: [{ id: "client-a", googleAdsCustomerIds: ["2000000002"], googleAdsLiveRead: true }],
+  });
   assert.equal(result.status, "failed");
   assert.match(result.error ?? "", /network down/);
   assert.equal(result.error?.includes(SECRET), false);

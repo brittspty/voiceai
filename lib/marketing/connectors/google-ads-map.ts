@@ -82,6 +82,18 @@ function googleDate(value: unknown) {
   return `${raw}T00:00:00.000Z`;
 }
 
+/**
+ * v26 returns start_date_time / end_date_time as "yyyy-MM-dd HH:mm:ss".
+ * The date prefix is what Campaign.startDate and Campaign.endDate store.
+ * A legacy start_date / end_date value is still accepted.
+ */
+function campaignBound(campaign: Record<string, unknown>, kind: "start" | "end") {
+  const timeKey = kind === "start" ? "startDateTime" : "endDateTime";
+  const snake = kind === "start" ? "start_date_time" : "end_date_time";
+  const legacy = kind === "start" ? "startDate" : "endDate";
+  return googleDate(campaign[timeKey] ?? campaign[snake] ?? campaign[legacy]);
+}
+
 function texts(value: unknown) {
   if (!Array.isArray(value)) return [];
   const rows: string[] = [];
@@ -124,7 +136,7 @@ function ensureCampaign(
     budgetAmount: null,
     startDate: null,
     endDate: null,
-    namingParsed: {},
+    namingParsed: accountId ? { googleAdsCustomerId: accountId } : {},
     placeholder: true,
   });
 }
@@ -232,9 +244,9 @@ export function normalizeGoogleAdsBundle(bundle: GoogleAdsBundle): NormalizedSna
       statusRaw,
       budgetType: budget.budgetType,
       budgetAmount: budget.budgetAmount,
-      startDate: googleDate(campaign.startDate),
-      endDate: googleDate(campaign.endDate),
-      namingParsed: {},
+      startDate: campaignBound(campaign, "start"),
+      endDate: campaignBound(campaign, "end"),
+      namingParsed: accountId ? { googleAdsCustomerId: accountId } : {},
     });
     snapshot.raw.push({ platform, objectType: "campaign", externalId, payload: item });
   }
@@ -416,4 +428,28 @@ export function normalizeGoogleAdsBundle(bundle: GoogleAdsBundle): NormalizedSna
   }
 
   return snapshot;
+}
+
+/** Staff probe totals. Cost is major currency units. Client surfaces do not call this. */
+export function googleAdsProbeSummary(
+  snapshot: NormalizedSnapshot,
+  range: { customerId: string; from: string; to: string },
+) {
+  let impressions = 0;
+  let clicks = 0;
+  let cost = 0;
+  for (const metric of snapshot.metrics) {
+    impressions += Number(metric.impressions) || 0;
+    clicks += Number(metric.clicks) || 0;
+    cost += Number(metric.spend) || 0;
+  }
+  return {
+    customerId: range.customerId,
+    campaigns: snapshot.campaigns.filter((row) => !row.placeholder).length,
+    from: range.from,
+    to: range.to,
+    impressions,
+    clicks,
+    cost: cost.toFixed(4),
+  };
 }

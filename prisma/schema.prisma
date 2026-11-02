@@ -1591,6 +1591,10 @@ model MarketingClient {
   stackadaptAdvertiserIds  String[]   @default([])
   /// Off by default. StackAdapt campaigns are linked to this client only while it is on.
   stackadaptLiveRead       Boolean    @default(false)
+  /// Google Ads customer ids this client owns. 10 digits, no dashes. The sync requests only these.
+  googleAdsCustomerIds     String[]   @default([])
+  /// Off by default. Google Ads campaigns are linked to this client only while it is on.
+  googleAdsLiveRead        Boolean    @default(false)
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
   accounts     AdAccount[]

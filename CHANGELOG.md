@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Google Ads live reads are per client and stay read-only. `MarketingClient.googleAdsCustomerIds` and `googleAdsLiveRead` (default off) choose the accounts. `GOOGLE_ADS_CUSTOMER_IDS`, when set, is an extra allow-list. Campaign queries use v26 `start_date_time` and `end_date_time`. Spend stays hidden from clients.
 - The user-facing product name is JAI by Specificity. Flags, route paths, file names, cookies, and the existing public hosts are unchanged.
 - `jai.specificityinc.com` is a public host alongside voiceai, jarvis, and diverai. With `CANONICAL_HOST` unset, all four serve and nothing redirects. `APP_URL` is unchanged.
 - Flags, route paths, file names, cookies, and the `jarvis.specificityinc.com` host stay as they are.
