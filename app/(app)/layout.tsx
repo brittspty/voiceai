@@ -11,7 +11,7 @@ import { clientViewerAllowed } from "@/lib/marketing/client-gate";
 import { loginAnalyticsEnabled } from "@/lib/login-analytics";
 import { insightsEnabled } from "@/lib/insights/learn";
 import { canOpenAudienceData } from "@/lib/marketing/audience-data/present";
-import { audienceDataClientEnabled, audienceDataEnabled, audienceLibraryEnabled, channelRegistryEnabled, chatgptAdsEnabled, ctvAttributionEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled, userAdminEnabled } from "@/lib/marketing/config";
+import { audienceDataClientEnabled, audienceDataEnabled, audienceLibraryEnabled, channelRegistryEnabled, chatgptAdsEnabled, clientMetricVisibilityEnabled, ctvAttributionEnabled, inboxEnabled, jarvisUiV2Enabled, leadScoringEnabled, reportsV2Enabled, segmentEngineEnabled, speedToLeadEnabled, userAdminEnabled } from "@/lib/marketing/config";
 import { canViewCtvAttribution } from "@/lib/marketing/feature-access";
 import { pushNotificationsEnabled } from "@/lib/push/notify";
 import { listHomeWorkspaces } from "@/lib/marketing/home-query";
@@ -54,6 +54,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showCtv: ctvAttributionEnabled() && canViewCtvAttribution(access),
       showInsights: staff && insightsEnabled(),
       showNotifications: staff && pushNotificationsEnabled(),
+      showMetricSettings: clientMetricVisibilityEnabled() && (access.kind === "super_admin" || access.kind === "account_manager" || access.kind === "all_clients_viewer"),
     });
     const showPeople = userAdminEnabled() && (access.kind === "super_admin" || access.kind === "account_manager");
     return (
@@ -96,6 +97,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showCtv={ctvAttributionEnabled() && user.role !== "client_viewer" && user.role !== "owner"}
       showInsights={insightsEnabled()}
       showNotifications={pushNotificationsEnabled()}
+      showMetricSettings={clientMetricVisibilityEnabled() && (user.role === "super_admin" || user.role === "account_manager" || user.role === "all_clients_viewer")}
       showPeople={userAdminEnabled() && (user.role === "super_admin" || user.role === "account_manager")}
     >
       {children}

@@ -1,11 +1,13 @@
 import { prisma } from "../db";
 import { accessFromUser, type MarketingAccess } from "./access";
 import { buildClientShare, CLIENT_TESTING_NOTE, presentWithoutCost } from "./client-view";
-import { creativeFatigueEnabled, leadScoringEnabled } from "./config";
+import { clientMetricVisibilityEnabled, creativeFatigueEnabled, leadScoringEnabled } from "./config";
 import { alertSelect, alertWhere, campaignSelect, dailyMetricSelect, isCostContent, metricSum, recommendationSelect, recommendationWhere, redactMarketingPage, searchTermSelect } from "./cost-visibility";
 import { inboxMeta } from "./decision-ui";
 import { leadsSince, spendSince } from "./lead-score/store";
 import { buildLeadQualityTiles, effectiveLabel, splitByWindow } from "./lead-score/summary";
+import { filterShareView } from "./metric-visibility";
+import { loadResolvedVisibility } from "./metric-visibility-store";
 import { clientMetricWhere, queuedTestingWhere } from "./scope";
 import { clientViewEvent, type ClientViewEvent } from "./share-link";
 
@@ -360,7 +362,7 @@ export function clientRange(range: string | undefined, now = new Date()) {
 
 export async function loadClientPerformance(
   clientName: string,
-  meta: { workspaceId: string; adAccountIds?: "all" | string[]; sharedBy?: string; expires?: string; range?: string },
+  meta: { workspaceId: string; adAccountIds?: "all" | string[]; sharedBy?: string; expires?: string; range?: string; applyVisibility?: boolean },
 ) {
   const window = clientRange(meta.range);
   const adAccountIds = meta.adAccountIds ?? "all";
@@ -401,7 +403,7 @@ export async function loadClientPerformance(
     const testing = await prisma.creativeVersion.count({ where: queuedTestingWhere(meta.workspaceId, adAccountIds) });
     if (testing > 0) notes.push(CLIENT_TESTING_NOTE);
   }
-  return buildClientShare({
+  const view = buildClientShare({
     client: clientName,
     adViews,
     leads,
@@ -414,6 +416,8 @@ export async function loadClientPerformance(
     qualified,
     notes,
   });
+  if (meta.applyVisibility === false || !clientMetricVisibilityEnabled()) return view;
+  return filterShareView(view, await loadResolvedVisibility(meta.workspaceId));
 }
 
 async function qualifiedForRange(start: Date, end: Date, label: string, workspaceId: string) {

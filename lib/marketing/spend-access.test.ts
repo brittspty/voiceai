@@ -11,6 +11,8 @@ import { forReader } from "./p1-reader";
 import { presentForAudience } from "./share-payload";
 import { allClientsViewerSeesCost } from "./config";
 import { canSeeSpend, moneyText, projectWithoutSpend } from "./spend-access";
+import { applyClientSurface, parseMetricWrite, resolveVisibility } from "./metric-visibility";
+import { putMetricSettings, type MetricSettingsStore } from "./metric-visibility-api";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
@@ -75,6 +77,9 @@ const CLIENT_SURFACES: { file: string; mark: RegExp }[] = [
   { file: "app/(app)/plans/[id]/preview/page.tsx", mark: /showCost: false/ },
   { file: "lib/demo/present.ts", mark: /projectWithoutSpend/ },
   { file: "lib/marketing/digest.ts", mark: /account_manager|buildManagerDigest/ },
+  { file: "app/api/marketing/metric-visibility/route.ts", mark: /putMetricSettings/ },
+  { file: "lib/marketing/metric-visibility.ts", mark: /Cost metrics stay off for clients/ },
+  { file: "app/api/share/[token]/route.ts", mark: /releaseShare|applyClientSurface/ },
 ];
 
 test("only Specificity staff can see spend and bid", () => {
@@ -137,4 +142,32 @@ test("each client-facing route and export drops spend, bid, CPA, and unknown mon
   assert.deepEqual(leaked(ctvPayloadForViewer(view, "client")), []);
   assert.deepEqual(leaked(ctvPayloadForViewer(view, "share")), []);
   assert.equal(ctvPayloadForViewer(view, "staff").delivery.spend > 0, true);
+});
+
+test("a forced cost metric on the settings API stays stripped for the client", async () => {
+  const writes: unknown[] = [];
+  const store: MetricSettingsStore = {
+    async read() {
+      return { spend: true, "kpi.spend": true, cpa: true, roas: true, "kpi.leads": true };
+    },
+    async write(_workspaceId, metrics) {
+      writes.push(metrics);
+    },
+    async audit() {
+      throw new Error("cost metrics must not be audited");
+    },
+  };
+  const forced = await putMetricSettings(
+    { id: "sa", name: "Jordan Lee", kind: "super_admin", knownIds: ["demo"], assignedIds: [] },
+    { clientId: "demo", metrics: { spend: true, "kpi.cpa": true, "kpi.roas": true, margin: true, internal_cost: true } },
+    store,
+    { CLIENT_METRIC_VISIBILITY: "on" },
+  );
+  assert.equal(forced.status, 400);
+  assert.equal(writes.length, 0);
+  const rejected = parseMetricWrite(resolveVisibility(null), { metrics: { "kpi.cpm": true } });
+  assert.equal(rejected.ok, false);
+  const released = projectWithoutSpend(applyClientSurface({ ...POISON, viewOnly: true, client: "Harbor Point Marine", kpis: [{ label: "Spend", value: "$10", delta: "", meaning: "Media spend" }, { label: "New leads", value: "4", delta: "", meaning: "People who asked." }], campaigns: [] }, resolveVisibility(await store.read()), true));
+  assert.deepEqual(leaked(released), []);
+  assert.equal(released.leads, 4);
 });

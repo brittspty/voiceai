@@ -143,6 +143,7 @@ model User {
   liftTestsStarted   LiftTest[]         @relation("LiftTestStartedBy")
   leadValuesSet          ClientSettings[]     @relation("LeadValueSetBy")
   leadValueAudits        LeadValueAudit[]
+  metricAudits           ClientMetricAudit[]
   notifications          StaffNotification[]
   skillDecisions         SkillDecision[]
   inboxAssigned          InboxDecision[]      @relation("InboxAssigned")
@@ -1047,13 +1048,15 @@ model ClientShareLink {
 }
 
 model ClientSettings {
-  workspaceId      String    @id
-  leadValueCents   Int?
-  callValueCents   Int?
-  leadValueSetById String?
-  leadValueSetBy   User?     @relation("LeadValueSetBy", fields: [leadValueSetById], references: [id], onDelete: SetNull)
-  leadValueSetAt   DateTime?
-  updatedAt        DateTime  @updatedAt
+  workspaceId       String    @id
+  leadValueCents    Int?
+  callValueCents    Int?
+  leadValueSetById  String?
+  leadValueSetBy    User?     @relation("LeadValueSetBy", fields: [leadValueSetById], references: [id], onDelete: SetNull)
+  leadValueSetAt    DateTime?
+  /// Client-safe metric toggles. Null means the current client view. Cost metrics are never stored.
+  metricVisibility  Json?
+  updatedAt         DateTime  @updatedAt
 }
 
 model LeadValueAudit {
@@ -1068,6 +1071,20 @@ model LeadValueAudit {
   setAt        DateTime @default(now())
 
   @@index([workspaceId, setAt])
+}
+
+/// Who turned a client metric on or off. Cost metrics are not recorded because they cannot be turned on.
+model ClientMetricAudit {
+  id          String   @id @default(cuid())
+  workspaceId String
+  metricId    String
+  oldValue    Boolean
+  newValue    Boolean
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
 }
 
 model ClientViewAudit {
