@@ -1,5 +1,6 @@
 import { campaignTotals, type DemoDataset, type DemoMetric } from "./dataset";
 import { dataChipLabel } from "./chip";
+import { projectWithoutSpend } from "../marketing/spend-access";
 
 export type DemoView = "staff" | "client";
 
@@ -7,11 +8,7 @@ const COST_KEY = /spend|roas|cost|cpa|cpl|cpc|cpm|budget|revenue/i;
 
 export function stripCostFields<T extends Record<string, unknown>>(row: T, showCost: boolean): T {
   if (showCost) return row;
-  const copy = { ...row };
-  for (const key of Object.keys(copy)) {
-    if (COST_KEY.test(key)) delete copy[key];
-  }
-  return copy;
+  return projectWithoutSpend(row);
 }
 
 export function presentDemo(dataset: DemoDataset, view: DemoView) {

@@ -162,9 +162,9 @@ test("cost queries omit spend and budget columns unless the viewer is staff", ()
   assert.ok(compare.indexOf('kind !== "super_admin"') < compare.indexOf("spend: true"));
 });
 
-test("only super admins and account managers receive cost fields", () => {
-  const staff = ["super_admin", "account_manager"];
-  const blocked = ["owner", "admin", "viewer", "client_viewer", "all_clients_viewer"];
+test("Specificity staff receive cost fields and client roles do not", () => {
+  const staff = ["super_admin", "account_manager", "admin"];
+  const blocked = ["owner", "viewer", "client_viewer", "all_clients_viewer"];
   for (const role of staff) {
     const access = accessFor(role);
     assert.equal(access.seesCost, true, role);
