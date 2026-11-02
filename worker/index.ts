@@ -3,7 +3,7 @@ import { demoWorkspaceEnabled } from "../lib/demo/flags";
 import { reseedDue } from "../lib/demo/reseed";
 import { applyDemoDataset } from "../lib/demo/seed-apply";
 import { runJob } from "../lib/dialer";
-import { adFatigueEnabled, amRealtimeEnabled, creativeFatigueEnabled, ctvAttributionEnabled, digestEnabled, googleBusinessProfileEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, skillApprovalFanoutEnabled, speedToLeadEnabled, stackAdaptEnabled } from "../lib/marketing/config";
+import { adFatigueEnabled, amRealtimeEnabled, creativeFatigueEnabled, ctvAttributionEnabled, digestEnabled, googleBusinessProfileEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, skillApprovalFanoutEnabled, speedToLeadEnabled, stackAdaptSyncEnabled } from "../lib/marketing/config";
 import { runAdFatigue } from "../lib/marketing/ad-fatigue-job";
 import { runAmRealtimeFeed } from "../lib/marketing/feed-job";
 import { ensureSkillOfferInbox } from "../lib/marketing/skill-approval-job";
@@ -143,7 +143,7 @@ function startMarketingSync() {
         console.error("[worker] ad fatigue failed", error);
       }
       try {
-        if (stackAdaptEnabled()) {
+        if (stackAdaptSyncEnabled()) {
           const stackadapt = await runStackAdaptSync();
           if (stackadapt.status !== "skipped") console.log(`[worker] stackadapt ${stackadapt.status}`);
         }

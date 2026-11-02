@@ -214,9 +214,14 @@ export function adFatigueEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_AD_FATIGUE");
 }
 
-/** Off unless MARKETING_STACKADAPT is explicitly on. Read-only GraphQL. */
+/** Off unless MARKETING_STACKADAPT is explicitly on. Kept for older deploys. Live reads use STACKADAPT_SYNC. */
 export function stackAdaptEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_STACKADAPT");
+}
+
+/** Off unless STACKADAPT_SYNC is explicitly on. Read-only, and only for mapped advertisers. */
+export function stackAdaptSyncEnabled(env: Env = process.env) {
+  return flagOn(env, "STACKADAPT_SYNC");
 }
 
 /** Off unless CTV_ATTRIBUTION is explicitly on. Staff-only read of CTV attribution. */
@@ -248,16 +253,32 @@ export function googleBusinessProfileEnabled(env: Env = process.env) {
 
 export type StackAdaptDecision = { action: "skip"; reason: string } | { action: "mock" } | { action: "live"; apiKey: string };
 
-/** Missing STACKADAPT_API_KEY skips. It does not throw. */
+/**
+ * Live reads need STACKADAPT_SYNC, INTEGRATIONS_MODE=live, and STACKADAPT_API_KEY.
+ * INTEGRATIONS_MODE defaults to mock, which skips and makes no request.
+ * MARKETING_SYNC_MODE=mock uses the fixture and makes no request.
+ * A missing STACKADAPT_API_KEY skips. It does not throw.
+ */
 export function decideStackAdapt(env: Env): StackAdaptDecision {
-  if (!stackAdaptEnabled(env)) return { action: "skip", reason: "MARKETING_STACKADAPT is off" };
+  if (!stackAdaptSyncEnabled(env)) return { action: "skip", reason: "STACKADAPT_SYNC is off" };
   const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
   if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };
   if (mode === "mock") return { action: "mock" };
   if (mode !== "auto" && mode !== "live") return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
+  const integrations = (env.INTEGRATIONS_MODE || "mock").trim().toLowerCase();
+  if (integrations !== "live") return { action: "skip", reason: "INTEGRATIONS_MODE is mock" };
   const apiKey = (env.STACKADAPT_API_KEY || "").trim();
   if (!apiKey) return { action: "skip", reason: "missing STACKADAPT_API_KEY" };
   return { action: "live", apiKey };
+}
+
+/** Whole days for a backfill or probe. Null when the value is missing, not a whole number, or above 90. */
+export function parseLookbackArg(raw: string | undefined) {
+  const trimmed = (raw || "").trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const days = Number(trimmed);
+  if (days < 1 || days > MAX_LOOKBACK_DAYS) return null;
+  return days;
 }
 
 export type GoogleBusinessDecision =

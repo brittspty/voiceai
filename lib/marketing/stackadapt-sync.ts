@@ -1,12 +1,13 @@
 import { addDaysISO, zonedISODate } from "../time";
 import { applySnapshot } from "./apply";
+import { liveStackAdaptAdvertiserIds, type StackAdaptClientRule } from "./client-campaign-scope";
 import { decideStackAdapt, lookbackDays, type Env } from "./config";
 import { pullStackAdaptSnapshot } from "./connectors/stackadapt";
 import type { FetchLike } from "./connectors/stackadapt-client";
 import { recommendStackAdapt, stackAdaptToSnapshot, type StackAdaptRecommendation } from "./connectors/stackadapt-map";
 import { pickAssignee } from "./ad-fatigue";
 import type { MarketingStore } from "./store";
-import { WORKSPACE_ID, type NormalizedSnapshot } from "./types";
+import { WORKSPACE_ID, emptySnapshot, type NormalizedSnapshot } from "./types";
 import type { StackAdaptBundle } from "./connectors/stackadapt-client";
 
 export function mockStackAdaptBundle(): StackAdaptBundle {
@@ -44,9 +45,41 @@ async function withStore<T>(store: MarketingStore | undefined, run: (store: Mark
   return prisma.$transaction((tx) => run(createPrismaMarketingStore(tx)), { timeout: 120_000, maxWait: 15_000 });
 }
 
+function mergeSnapshots(parts: NormalizedSnapshot[]) {
+  const snapshot = emptySnapshot();
+  for (const part of parts) {
+    snapshot.warnings.push(...part.warnings);
+    for (const account of part.accounts) {
+      if (!snapshot.accounts.some((row) => row.platform === account.platform && row.externalId === account.externalId)) snapshot.accounts.push(account);
+    }
+    snapshot.campaigns.push(...part.campaigns);
+    snapshot.adGroups.push(...part.adGroups);
+    snapshot.ads.push(...part.ads);
+    snapshot.creatives.push(...part.creatives);
+    snapshot.audiences.push(...part.audiences);
+    snapshot.adGroupAudiences.push(...part.adGroupAudiences);
+    snapshot.segments.push(...part.segments.filter((segment) => !snapshot.segments.some((row) => row.segmentKey === segment.segmentKey)));
+    snapshot.metrics.push(...part.metrics);
+    snapshot.hourly.push(...part.hourly);
+    snapshot.searchTerms.push(...part.searchTerms);
+    snapshot.raw.push(...part.raw);
+  }
+  return snapshot;
+}
+
+async function stackAdaptRules(passed?: StackAdaptClientRule[]) {
+  if (passed) return passed;
+  const { prisma } = await import("../db");
+  return prisma.marketingClient.findMany({
+    where: { workspaceId: WORKSPACE_ID },
+    select: { id: true, stackadaptAdvertiserIds: true, stackadaptLiveRead: true },
+  });
+}
+
 /**
  * Read StackAdapt into the shared metric tables and return recommendations.
- * Off, or missing STACKADAPT_API_KEY, writes nothing.
+ * Off, mock integrations, or a missing STACKADAPT_API_KEY writes nothing on the live path.
+ * Live requests are one advertiser at a time, and only advertisers mapped to a client with live read on.
  * Campaign budget fields on the snapshot are empty. This does not call a mutation.
  */
 export async function runStackAdaptSync(options: {
@@ -56,6 +89,7 @@ export async function runStackAdaptSync(options: {
   store?: MarketingStore;
   fetchImpl?: FetchLike;
   snapshot?: NormalizedSnapshot;
+  advertisers?: StackAdaptClientRule[];
 } = {}) {
   const env = options.env ?? process.env;
   const decision = decideStackAdapt(env);
@@ -68,14 +102,30 @@ export async function runStackAdaptSync(options: {
   const mode = decision.action === "mock" ? "mock" : "live";
 
   let snapshot = options.snapshot;
-  let failures: string[] = [];
+  const failures: string[] = [];
   let recommendations: StackAdaptRecommendation[] = [];
+  let requestedAdvertisers: string[] = [];
   if (!snapshot && decision.action === "mock") snapshot = stackAdaptToSnapshot(mockStackAdaptBundle());
   if (!snapshot && decision.action === "live") {
-    const pulled = await pullStackAdaptSnapshot({ apiKey: decision.apiKey, since, until, fetchImpl: options.fetchImpl });
-    snapshot = pulled.snapshot;
-    failures = pulled.failures;
-    recommendations = pulled.recommendations;
+    const rules = await stackAdaptRules(options.advertisers);
+    requestedAdvertisers = liveStackAdaptAdvertiserIds(rules);
+    if (!requestedAdvertisers.length) {
+      return { status: "skipped" as const, reason: "no StackAdapt advertiser is mapped", recommendations: [] as StackAdaptRecommendation[] };
+    }
+    const parts: NormalizedSnapshot[] = [];
+    for (const advertiserId of requestedAdvertisers) {
+      const pulled = await pullStackAdaptSnapshot({
+        apiKey: decision.apiKey,
+        since,
+        until,
+        advertiserId,
+        fetchImpl: options.fetchImpl,
+      });
+      parts.push(pulled.snapshot);
+      failures.push(...pulled.failures);
+    }
+    snapshot = mergeSnapshots(parts);
+    recommendations = recommendStackAdapt(snapshot, until);
   }
   if (!snapshot) return { status: "skipped" as const, reason: "nothing to sync", recommendations };
   if (!recommendations.length) recommendations = recommendStackAdapt(snapshot, until);
@@ -100,7 +150,7 @@ export async function runStackAdaptSync(options: {
       mode,
       windowStart: since,
       windowEnd: until,
-      requestedAccounts: ["stackadapt"],
+      requestedAccounts: requestedAdvertisers.length ? requestedAdvertisers : ["stackadapt"],
     });
     const applied = await applySnapshot(store, snapshot, { workspaceId: WORKSPACE_ID, connectionId: connection.id, runId: run.id });
     await store.finishRun(run.id, {
@@ -114,7 +164,16 @@ export async function runStackAdaptSync(options: {
     return applied.rowsWritten;
   });
 
-  if (!options.store && recommendations.length) await persistStackAdaptRecommendations(recommendations, now);
+  if (!options.store) {
+    try {
+      const { prisma } = await import("../db");
+      const { applyStackAdaptClientScopes } = await import("./client-campaign-scope");
+      await applyStackAdaptClientScopes(prisma as never, WORKSPACE_ID);
+    } catch {
+      // Scoping is best effort. Unlinked campaigns stay staff-only.
+    }
+    if (recommendations.length) await persistStackAdaptRecommendations(recommendations, now);
+  }
   return {
     status: failures.length ? ("failed" as const) : ("succeeded" as const),
     mode,

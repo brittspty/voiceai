@@ -1587,6 +1587,10 @@ model MarketingClient {
   metaCampaignNameContains String     @default("")
   /// Off by default. Campaigns are linked to this client only while it is on.
   metaLiveRead             Boolean    @default(false)
+  /// StackAdapt advertiser ids this client owns. The sync requests only these.
+  stackadaptAdvertiserIds  String[]   @default([])
+  /// Off by default. StackAdapt campaigns are linked to this client only while it is on.
+  stackadaptLiveRead       Boolean    @default(false)
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
   accounts     AdAccount[]
