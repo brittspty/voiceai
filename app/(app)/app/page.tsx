@@ -35,5 +35,5 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     loadHome({ access, requestedId: requested }),
     listHomeWorkspaces(access),
   ]);
-  return <HomeDashboard homeHref={appHomePath()} model={model} choices={choices.map((row) => ({ id: row.id, name: row.name }))} />;
+  return <HomeDashboard homeHref={appHomePath()} model={model} viewerRole={user.role} choices={choices.map((row) => ({ id: row.id, name: row.name }))} />;
 }

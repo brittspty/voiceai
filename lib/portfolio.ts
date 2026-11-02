@@ -117,8 +117,9 @@ export function matchPresentation(matched: number, total: number) {
   return { rate, label: `${rate}%`, onHold: false };
 }
 
-export function formatPortfolioSpend(amount: number) {
-  const safe = Number.isFinite(amount) ? amount : 0;
+export function formatPortfolioSpend(amount: number | null | undefined) {
+  if (amount == null || !Number.isFinite(amount)) return "n/a";
+  const safe = amount;
   if (Math.abs(safe) >= 1000) {
     const thousands = safe / 1000;
     const text = Math.abs(thousands) >= 100 ? String(Math.round(thousands)) : String(Math.round(thousands * 10) / 10);
@@ -192,7 +193,7 @@ export function assemblePortfolio(input: {
         callOutcomes: row.callOutcomes,
         detail: outcomeDetail(row.callOutcomes, row.conversions, speed),
       };
-      if (showMoney) client.spend = row.spend ?? 0;
+      if (showMoney && row.spend != null && Number.isFinite(row.spend)) client.spend = row.spend;
       return client;
     });
   const ordered = defaultPortfolioOrder(clients);

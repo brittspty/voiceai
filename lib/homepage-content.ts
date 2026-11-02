@@ -4,6 +4,7 @@ import { BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepag
 import { homepageDirection } from "./homepage-style";
 import { canonicalOrigin } from "./hosts";
 import { demoWorkspaceEnabled, postLoginPath, type Env } from "./public-routing";
+import { homeLogosEnabled, homePricingEnabled, homeQuotesEnabled } from "./ux-flags";
 
 /**
  * TODO(jason): Privacy wording, pricing, and reply-time promises need Jason's sign-off before they can be added.
@@ -63,6 +64,9 @@ export type HomepageModel = {
   fonts: { sans: string; mono: string };
   logos: { reversed: string; alt: string };
   signedIn: boolean;
+  showLogos: boolean;
+  showQuotes: boolean;
+  showPricing: boolean;
   appHref: string;
   showTryDemo: boolean;
   demoHref: "/demo";
@@ -174,6 +178,9 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     fonts: { sans: brandTokens.font.stack, mono: brandTokens.font.monoStack },
     logos: { reversed: brandTokens.logo.reversed, alt: brandTokens.logo.alt },
     signedIn: session.signedIn,
+    showLogos: homeLogosEnabled(env),
+    showQuotes: homeQuotesEnabled(env),
+    showPricing: homePricingEnabled(env),
     appHref: session.signedIn ? postLoginPath(session.role, env) : "/app",
     showTryDemo,
     demoHref: "/demo",

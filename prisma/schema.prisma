@@ -144,6 +144,7 @@ model User {
   leadValuesSet          ClientSettings[]     @relation("LeadValueSetBy")
   leadValueAudits        LeadValueAudit[]
   notifications          StaffNotification[]
+  pageAccessRequests     PageAccessRequest[]
   skillDecisions         SkillDecision[]
   inboxAssigned          InboxDecision[]      @relation("InboxAssigned")
   inboxDecided           InboxDecision[]      @relation("InboxDecided")
@@ -923,6 +924,18 @@ model AccessRequest {
   email     String
   business  String
   createdAt DateTime @default(now())
+}
+
+/// In-app request for a page the person's role cannot open. No email is sent.
+model PageAccessRequest {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pageKey   String
+  pageLabel String
+  createdAt DateTime @default(now())
+
+  @@index([userId, pageKey, createdAt])
 }
 
 // Homepage demo requests. Stored only. Nothing is emailed until a destination is chosen.

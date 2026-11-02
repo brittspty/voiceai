@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { AfterArt, BeforeArt, CameraArt, PersonArt, TurnArt } from "@/components/homepage-art";
 import { TrackedLink } from "@/components/homepage-cta-link";
 import { ContactForm } from "@/components/homepage-contact-form";
@@ -13,6 +14,11 @@ import { HOMEPAGE_SECTION_ORDER, homepageJsonLd, type HomepageModel } from "@/li
 import { homepageStyle } from "@/lib/homepage-style";
 
 const BEAT_ART = [BeforeArt, TurnArt, AfterArt];
+const PLACEHOLDER = /todo|jason|sign-off/i;
+
+function placeholderCopy(value: string) {
+  return PLACEHOLDER.test(value);
+}
 
 function Wordmark({ model, large = false }: { model: HomepageModel; large?: boolean }) {
   return (
@@ -41,7 +47,12 @@ function TryLink({ model, className, cta, first = false }: { model: HomepageMode
   );
 }
 
+function approvedCopy(value: string) {
+  return value.trim().length > 0 && !placeholderCopy(value);
+}
+
 function Photo({ caption, wide = false, person = false, team = false }: { caption: string; wide?: boolean; person?: boolean; team?: boolean }) {
+  if (!approvedCopy(caption)) return null;
   const shape = wide ? "photo photo-wide" : team ? "photo photo-team" : "photo";
   return (
     <figure className={shape}>
@@ -195,7 +206,7 @@ export function PublicHomepage({
                   );
                 })}
               </div>
-              <Photo caption={model.story.photo} wide />
+              {model.showQuotes ? <Photo caption={model.story.photo} wide /> : null}
             </div>
           </section>
 
@@ -205,14 +216,16 @@ export function PublicHomepage({
                 <h2>{model.proof.title}</h2>
                 <p className="lead">{model.proof.lead}</p>
               </div>
-              <div className="logo-row" aria-label="Client logos">
-                {model.proof.logos.map((logo, index) => (
-                  <div className="slot logo-slot" key={`${logo}-${index}`}>
-                    <span className="mono lab">LOGO</span>
-                    <b>{logo}</b>
-                  </div>
-                ))}
-              </div>
+              {model.showLogos && model.proof.logos.some((logo) => approvedCopy(logo)) ? (
+                <div className="logo-row" aria-label="Client logos">
+                  {model.proof.logos.filter((logo) => approvedCopy(logo)).map((logo, index) => (
+                    <div className="slot logo-slot" key={`${logo}-${index}`}>
+                      <span className="mono lab">LOGO</span>
+                      <b>{logo}</b>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               <div className="pg rv">
                 <div className="method">
                   <span className="lab mono">The method</span>
@@ -235,27 +248,28 @@ export function PublicHomepage({
                   </div>
                   <TryLink model={model} className="btn sec" cta="try-demo-tour" />
                 </div>
-                {model.proof.slots.map((slot) => (
-                  <div className="slot" key={slot.kicker}>
-                    <span className="mono lab">{slot.kicker}</span>
-                    <b>{slot.title}</b>
-                    <span className="lab">{slot.note}</span>
-                  </div>
-                ))}
+                {model.proof.slots
+                  .filter((slot) => model.showLogos && approvedCopy(`${slot.kicker} ${slot.title} ${slot.note}`))
+                  .map((slot) => (
+                    <div className="slot" key={slot.kicker}>
+                      <span className="mono lab">{slot.kicker}</span>
+                      <b>{slot.title}</b>
+                      <span className="lab">{slot.note}</span>
+                    </div>
+                  ))}
               </div>
-              <div className="voices">
-                <div className="quote">
-                  <span className="mono lab">{model.proof.quotes[0]?.kicker}</span>
-                  <p>{model.proof.quotes[0]?.body}</p>
-                  <span className="lab">{model.proof.quotes[0]?.note}</span>
+              {model.showQuotes && (model.proof.quotes.some((quote) => approvedCopy(`${quote.kicker} ${quote.body} ${quote.note}`)) || approvedCopy(model.proof.quotePhoto)) ? (
+                <div className="voices">
+                  {model.proof.quotes.filter((quote) => approvedCopy(`${quote.kicker} ${quote.body} ${quote.note}`)).map((quote) => (
+                    <div className="quote" key={quote.body}>
+                      <span className="mono lab">{quote.kicker}</span>
+                      <p>{quote.body}</p>
+                      <span className="lab">{quote.note}</span>
+                    </div>
+                  ))}
+                  <Photo caption={model.proof.quotePhoto} person />
                 </div>
-                <Photo caption={model.proof.quotePhoto} person />
-                <div className="quote">
-                  <span className="mono lab">{model.proof.quotes[1]?.kicker}</span>
-                  <p>{model.proof.quotes[1]?.body}</p>
-                  <span className="lab">{model.proof.quotes[1]?.note}</span>
-                </div>
-              </div>
+              ) : null}
             </div>
           </section>
 
@@ -324,11 +338,13 @@ export function PublicHomepage({
                     <li key={point}>{point}</li>
                   ))}
                 </ul>
-                <div className="team">
-                  {[0, 1, 2].map((index) => (
-                    <Photo key={index} caption={model.platform.photos} person team />
-                  ))}
-                </div>
+                {model.showLogos && approvedCopy(model.platform.photos) ? (
+                  <div className="team">
+                    {[0, 1, 2].map((index) => (
+                      <Photo key={index} caption={model.platform.photos} person team />
+                    ))}
+                  </div>
+                ) : null}
                 <p className="lab">{model.platform.note}</p>
               </div>
               <RecommendationSlip illustrative={model.illustrative} title={model.slip.title} body={model.slip.body} why={model.slip.why} />
@@ -382,16 +398,28 @@ export function PublicHomepage({
             </div>
           </section>
 
+          {model.showPricing && model.faq.some((item) => item.question === "What does it cost?" && approvedCopy(item.answer)) ? null : (
+            <section className="faq" aria-labelledby="pricing-title">
+              <div className="w">
+                <h2 id="pricing-title">Talk to us about pricing</h2>
+                <p>Pricing depends on your channels and audiences. Tell us what you run today and we&apos;ll walk you through it.</p>
+                <Link className="btn" href="/request-access">Request a demo</Link>
+              </div>
+            </section>
+          )}
+
           <section className="faq" id="faq">
             <div className="w faq-grid">
               <h2>{model.faqTitle}</h2>
               <div>
-                {model.faq.map((item, index) => (
-                  <details key={item.question} open={index === 0}>
-                    <summary>{item.question}</summary>
-                    <p>{item.answer}</p>
-                  </details>
-                ))}
+                {model.faq
+                  .filter((item) => approvedCopy(item.answer) && (item.question !== "What does it cost?" || model.showPricing))
+                  .map((item, index) => (
+                    <details key={item.question} open={index === 0}>
+                      <summary>{item.question}</summary>
+                      <p>{item.answer}</p>
+                    </details>
+                  ))}
               </div>
             </div>
           </section>

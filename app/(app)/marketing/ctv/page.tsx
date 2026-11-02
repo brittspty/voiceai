@@ -6,7 +6,10 @@ import { ctvAttributionEnabled } from "@/lib/marketing/config";
 import { loadCtvAttributionView } from "@/lib/marketing/ctv/sync";
 import { ctvPayloadForViewer } from "@/lib/marketing/ctv/report";
 import { canViewCtvAttribution } from "@/lib/marketing/feature-access";
+import { canSeeMoney } from "@/lib/marketing/spend-access";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { EmptyState } from "@/components/empty-state";
+import { uxLaunchGapsEnabled } from "@/lib/ux-flags";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +29,12 @@ export default async function CtvAttributionPage() {
   const view = ctvPayloadForViewer(await loadCtvAttributionView(), audience);
   return (
     <div>
-      <PageTitle title="CTV (StackAdapt)" subtitle="Read only. Jason's 7-day click and 1-day view sit beside the platform window." />
-      <CtvAttributionView view={view} showMoney={audience === "staff"} />
+      <PageTitle title="CTV (StackAdapt)" subtitle="Read only. The 7-day click and 1-day view sit beside the platform window." />
+      {uxLaunchGapsEnabled() && !view.segments.length ? (
+        <EmptyState kind="no-data-yet" channel="CTV (StackAdapt)" staff={canSeeMoney(user.role)} />
+      ) : (
+        <CtvAttributionView view={view} role={user.role} />
+      )}
     </div>
   );
 }

@@ -10,9 +10,11 @@ import {
   type PortfolioModel,
   type PortfolioSortKey,
 } from "@/lib/portfolio";
+import { canSeeMoney } from "@/lib/marketing/spend-access";
 
-export function PortfolioDashboard({ initial }: { initial: PortfolioModel }) {
-  const [model, setModel] = useState(initial);
+export function PortfolioDashboard({ initial, viewerRole, costFlag = "" }: { initial: PortfolioModel; viewerRole?: string | null; costFlag?: string }) {
+  const allowed = viewerRole !== undefined ? canSeeMoney(viewerRole, { ALL_CLIENTS_VIEWER_SEES_COST: costFlag }) : initial.showMoney;
+  const [model, setModel] = useState({ ...initial, showMoney: allowed && initial.showMoney });
   const [sortKey, setSortKey] = useState<PortfolioSortKey>("alerts");
   const [direction, setDirection] = useState<"asc" | "desc">("desc");
   const [customSort, setCustomSort] = useState(false);
@@ -25,7 +27,7 @@ export function PortfolioDashboard({ initial }: { initial: PortfolioModel }) {
         const response = await fetch("/api/portfolio");
         if (!response.ok) return;
         const body = (await response.json()) as PortfolioModel;
-        if (body?.clients) setModel(body);
+        if (body?.clients) setModel({ ...body, showMoney: allowed && Boolean(body.showMoney) });
       } catch {
         /* Keep the last staff snapshot. Sign-in is unaffected. */
       }
@@ -34,7 +36,7 @@ export function PortfolioDashboard({ initial }: { initial: PortfolioModel }) {
       window.clearInterval(clock);
       window.clearInterval(pull);
     };
-  }, []);
+  }, [allowed]);
 
   const clients = useMemo(() => (customSort ? sortPortfolio(model.clients, sortKey, direction) : model.clients), [model.clients, customSort, sortKey, direction]);
   const refreshed = Math.max(0, Math.round((now - Date.parse(model.generatedAt)) / 1000));
@@ -122,7 +124,7 @@ export function PortfolioDashboard({ initial }: { initial: PortfolioModel }) {
                 {model.showMoney && (
                   <>
                     <dt className="text-soft">Spend MTD (staff only)</dt>
-                    <dd className="num m-0">{formatPortfolioSpend(client.spend ?? 0)}</dd>
+                    <dd className="num m-0">{formatPortfolioSpend(client.spend)}</dd>
                   </>
                 )}
               </dl>
@@ -240,7 +242,7 @@ function PortfolioRow({ client, showMoney }: { client: PortfolioModel["clients"]
         {client.pixelLabel}
       </td>
       <td className={`num border-b border-line px-2.5 py-3 ${client.matchOnHold ? "text-danger" : ""}`}>{client.matchLabel}</td>
-      {showMoney && <td className="num border-b border-line px-2.5 py-3">{formatPortfolioSpend(client.spend ?? 0)}</td>}
+      {showMoney && <td className="num border-b border-line px-2.5 py-3">{formatPortfolioSpend(client.spend)}</td>}
     </tr>
   );
 }

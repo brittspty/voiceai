@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AIS2L_NAME } from "@/lib/brand/names";
 import { formatCount, formatMoney, homeKpiTotals, type HomeModel } from "@/lib/marketing/home-dashboard";
+import { canSeeMoney } from "@/lib/marketing/spend-access";
+import { SPEND_TOTAL_NOTE, STAFF_MONEY_MISSING_TIP } from "@/lib/marketing/staff-money";
 
 function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -12,29 +14,31 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeModel; choices: { id: string; name: string }[]; homeHref?: string }) {
-  if (model.denied) {
+export function HomeDashboard({ model, choices, homeHref = "/", viewerRole }: { model: HomeModel; choices: { id: string; name: string }[]; homeHref?: string; viewerRole?: string | null }) {
+  const showMoney = viewerRole !== undefined ? canSeeMoney(viewerRole) && model.showMoney : model.showMoney;
+  const gated = { ...model, showMoney };
+  if (gated.denied) {
     return (
       <div>
         <h1 className="text-[22px] font-semibold">Home</h1>
-        <p className="mt-2 text-sm text-muted">{model.subtitle}</p>
+        <p className="mt-2 text-sm text-muted">{gated.subtitle}</p>
       </div>
     );
   }
-  const totals = homeKpiTotals(model.clients);
+  const totals = homeKpiTotals(gated.clients);
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-semibold">{model.title}</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">{model.subtitle}</p>
+          <h1 className="text-[22px] font-semibold">{gated.title}</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted">{gated.subtitle}</p>
         </div>
-        {model.canPickClient && choices.length > 1 && (
+        {gated.canPickClient && choices.length > 1 && (
           <form className="flex flex-wrap items-center gap-2" method="get">
             <label className="text-xs text-muted" htmlFor="client">
               Client
             </label>
-            <select id="client" name="client" defaultValue={model.selectedId ?? ""} className="min-h-11 rounded-[10px] border border-line bg-card px-2.5">
+            <select id="client" name="client" defaultValue={gated.selectedId ?? ""} className="min-h-11 rounded-[10px] border border-line bg-card px-2.5">
               <option value="">All clients</option>
               {choices.map((choice) => (
                 <option key={choice.id} value={choice.id}>
@@ -47,7 +51,7 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
             </button>
           </form>
         )}
-        {model.selectedId && choices.length > 1 && (
+        {gated.selectedId && choices.length > 1 && (
           <Link className="inline-flex min-h-11 items-center font-medium text-info" href={homeHref}>
             ← All clients
           </Link>
@@ -58,11 +62,11 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
         <Tile label="Views" value={formatCount(totals.views)} hint="Last 30 days" />
         <Tile label="Leads" value={formatCount(totals.leads)} hint="Last 30 days" />
         <Tile label="Calls" value={formatCount(totals.calls)} hint="From ad campaigns" />
-        {model.showMoney && <Tile label="Spend" value={formatMoney(totals.spend)} hint="Last 30 days" />}
+        {gated.showMoney && <Tile label="Spend" value={formatMoney(totals.spend)} hint="Last 30 days" />}
       </div>
 
       <section className="mb-4 rounded-[14px] border border-line bg-card p-4">
-        <h2 className="text-base font-semibold">{model.aggregate ? "Clients" : "This client"}</h2>
+        <h2 className="text-base font-semibold">{gated.aggregate ? "Clients" : "This client"}</h2>
         <div className="mt-3 hidden overflow-x-auto md:block">
           <table className="w-full border-collapse text-[13px]">
             <thead>
@@ -72,15 +76,15 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
                 <th scope="col" className="border-b border-line px-2 py-2 font-medium">Views</th>
                 <th scope="col" className="border-b border-line px-2 py-2 font-medium">Leads</th>
                 <th scope="col" className="border-b border-line px-2 py-2 font-medium">Calls</th>
-                {model.showMoney && <th scope="col" className="border-b border-line px-2 py-2 font-medium">Spend</th>}
+                {gated.showMoney && <th scope="col" className="border-b border-line px-2 py-2 font-medium">Spend</th>}
                 <th scope="col" className="border-b border-line px-2 py-2 font-medium">{AIS2L_NAME}</th>
               </tr>
             </thead>
             <tbody>
-              {model.clients.map((client) => (
+              {gated.clients.map((client) => (
                 <tr key={client.id} className="hover:bg-warning-soft">
                   <td className="border-b border-line px-2 py-2.5">
-                    {model.aggregate ? (
+                    {gated.aggregate ? (
                       <Link className="font-semibold hover:underline" href={`/?client=${encodeURIComponent(client.id)}`}>
                         {client.name}
                       </Link>
@@ -92,7 +96,11 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
                   <td className="border-b border-line px-2 py-2.5">{formatCount(client.views)}</td>
                   <td className="border-b border-line px-2 py-2.5">{formatCount(client.leads)}</td>
                   <td className="border-b border-line px-2 py-2.5">{formatCount(client.calls)}</td>
-                  {model.showMoney && <td className="border-b border-line px-2 py-2.5">{formatMoney(client.spend ?? 0)}</td>}
+                  {gated.showMoney && (
+                    <td className="border-b border-line px-2 py-2.5" title={client.spend == null ? STAFF_MONEY_MISSING_TIP : undefined}>
+                      {formatMoney(client.spend)}
+                    </td>
+                  )}
                   <td className="border-b border-line px-2 py-2.5">{client.voiceEnabled ? "On" : "Not included"}</td>
                 </tr>
               ))}
@@ -100,24 +108,25 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
           </table>
         </div>
         <div className="mt-3 grid gap-2 md:hidden">
-          {model.clients.map((client) => (
-            <Link key={client.id} href={model.aggregate ? `/?client=${encodeURIComponent(client.id)}` : "/"} className="block rounded-xl border border-line p-3">
+          {gated.clients.map((client) => (
+            <Link key={client.id} href={gated.aggregate ? `/?client=${encodeURIComponent(client.id)}` : "/"} className="block rounded-xl border border-line p-3">
               <span className="font-semibold">{client.name}</span>
               <span className="mt-1 block text-sm text-muted">
                 {formatCount(client.leads)} leads · {formatCount(client.calls)} calls
-                {model.showMoney ? ` · ${formatMoney(client.spend ?? 0)}` : ""}
+                {gated.showMoney ? ` · ${formatMoney(client.spend)}` : ""}
               </span>
               <span className="mt-1 block text-xs text-muted">{client.voiceEnabled ? `${AIS2L_NAME} on` : `${AIS2L_NAME} not included`}</span>
             </Link>
           ))}
         </div>
-        {!model.clients.length && <p className="mt-3 text-sm text-muted">No clients in this view yet.</p>}
+        {gated.showMoney && gated.clients.some((client) => client.spend == null) ? <p className="mt-3 text-xs text-muted">{SPEND_TOTAL_NOTE}</p> : null}
+        {!gated.clients.length && <p className="mt-3 text-sm text-muted">No clients in this view yet.</p>}
       </section>
 
       <section className="mb-4">
         <h2 className="mb-3 text-base font-semibold">Marketing</h2>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {model.features.map((feature) => (
+          {gated.features.map((feature) => (
             <article key={feature.id} className="rounded-[14px] border border-line border-l-4 border-l-brand bg-card p-4">
               <h3 className="text-sm font-semibold">{feature.title}</h3>
               <p className="mt-1 text-sm text-muted">{feature.detail}</p>
@@ -126,16 +135,16 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
         </div>
       </section>
 
-      {model.voice && (
+      {gated.voice && (
         <section className="rounded-[14px] border border-line bg-card p-4">
           <h2 className="text-base font-semibold">{AIS2L_NAME}</h2>
           <p className="mt-1 text-sm text-muted">
-            A separate add-on for {model.voice.clients.join(", ")}. It is not part of the ad totals above.
+            A separate add-on for {gated.voice.clients.join(", ")}. It is not part of the ad totals above.
           </p>
           <div className="mt-3 grid grid-cols-3 gap-3">
-            <Tile label="Dials" value={formatCount(model.voice.dials)} hint="Last 7 days" />
-            <Tile label="Answered" value={formatCount(model.voice.answered)} />
-            <Tile label="Meetings" value={formatCount(model.voice.meetings)} />
+            <Tile label="Dials" value={formatCount(gated.voice.dials)} hint="Last 7 days" />
+            <Tile label="Answered" value={formatCount(gated.voice.answered)} />
+            <Tile label="Meetings" value={formatCount(gated.voice.meetings)} />
           </div>
         </section>
       )}

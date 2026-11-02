@@ -33,6 +33,12 @@
   --font-sans: var(--font-brand), "Segoe UI", Arial, Helvetica, sans-serif;
 }
 
+/* Dark ink on Specificity orange. rgb(35, 31, 32) on rgb(255, 88, 0) is above 4.5:1. */
+:root {
+  --brand: rgb(255, 88, 0);
+  --on-brand: rgb(35, 31, 32);
+}
+
 html, body { height: 100%; }
 body { background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
 :focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }

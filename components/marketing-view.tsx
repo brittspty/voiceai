@@ -11,6 +11,8 @@ import { PageTitle } from "@/components/shell";
 import { BudgetEditor } from "@/components/budget-editor";
 import { DataChip } from "@/components/data-chip";
 import { formatDateTime } from "@/lib/format";
+import { canSeeMoney } from "@/lib/marketing/spend-access";
+import { money as staffMoney, SPEND_TOTAL_NOTE, STAFF_MONEY_MISSING_TIP } from "@/lib/marketing/staff-money";
 
 type AccountRow = {
   id: string;
@@ -135,12 +137,10 @@ function tone(status: string): "green" | "amber" | "red" | "gray" {
   return "gray";
 }
 
-function money(amount: number, currency: string) {
-  try {
-    return amount.toLocaleString("en-US", { style: "currency", currency });
-  } catch {
-    return amount.toLocaleString("en-US", { style: "currency", currency: "USD" });
-  }
+function money(amount: number | null | undefined, currency: string) {
+  const text = staffMoney(amount, currency);
+  if (text !== "n/a") return text;
+  return text;
 }
 
 function matchLabel(value: string) {
@@ -176,7 +176,14 @@ function rate(clicks: number, impressions: number) {
   return `${((clicks / impressions) * 100).toFixed(2)}%`;
 }
 
-function cpc(spend: number, clicks: number, currency: string) {
+function MoneyText({ amount, currency }: { amount: number | null | undefined; currency: string }) {
+  const text = money(amount, currency);
+  if (text !== "n/a") return <>{text}</>;
+  return <span title={STAFF_MONEY_MISSING_TIP}>{text}</span>;
+}
+
+function cpc(spend: number | null | undefined, clicks: number, currency: string) {
+  if (spend == null || !Number.isFinite(spend)) return "n/a";
   if (!clicks) return "—";
   return money(spend / clicks, currency);
 }
@@ -219,14 +226,14 @@ export function MarketingView(props: {
   alerts?: AlertRow[];
   recommendations?: RecommendationRow[];
   digests?: DigestRow[];
-  flags?: { monitor: boolean; digest: boolean; digestSend?: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean; searchWaste?: boolean; competitorWatch?: boolean; holdouts?: boolean; creativeFatigue?: boolean; pacing?: boolean; adFatigue?: boolean; stackAdapt?: boolean; gbp?: boolean; userId?: string | null };
+  flags?: { monitor: boolean; digest: boolean; digestSend?: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; viewerRole?: string | null; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean; searchWaste?: boolean; competitorWatch?: boolean; holdouts?: boolean; creativeFatigue?: boolean; pacing?: boolean; adFatigue?: boolean; stackAdapt?: boolean; gbp?: boolean; userId?: string | null };
   speedToLead?: SpeedDashboardView | { error: true } | null;
   leadQuality?: { qualified: number; total: number; rateLabel: string; trend: string; costPerQualifiedLead?: string } | null;
   pacing?: { enabled: boolean; bars: { campaignId: string; name: string; status: string; chip: string; text: string; verification: string }[]; stale?: boolean };
   fatigue?: { enabled: boolean; ads: { campaignId: string; adName: string; headline: string; platform: string; chip: string }[] };
   demoData?: boolean;
 }) {
-  const seesCost = Boolean(props.flags?.seesCost);
+  const seesCost = props.flags?.viewerRole !== undefined ? canSeeMoney(props.flags.viewerRole) : Boolean(props.flags?.seesCost);
   const searchTerms = props.searchTerms ?? [];
   const showSearchTerms = searchTerms.length > 0 || props.accounts.some((account) => account.platform === "google_ads");
   const tiredCampaigns = new Set((props.fatigue?.ads ?? []).map((ad) => ad.campaignId));
@@ -345,9 +352,12 @@ export function MarketingView(props: {
                 props.totals.map((total) => (
                   <div key={total.currency} className="rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
                     <div className="text-xs text-muted">Spend · {total.currency}</div>
-                    <div className="mt-1 text-xl font-semibold">{money(total.spend ?? 0, total.currency || "USD")}</div>
+                    <div className="mt-1 text-xl font-semibold"><MoneyText amount={total.spend} currency={total.currency || "USD"} /></div>
                   </div>
                 ))}
+              {seesCost && (props.totals.some((total) => total.spend == null) || props.rows.some((row) => row.spend == null)) ? (
+                <p className="sm:col-span-2 xl:col-span-4 text-xs text-muted">{SPEND_TOTAL_NOTE}</p>
+              ) : null}
               <div className="rounded-xl border border-line bg-card px-4 py-3 shadow-[var(--shadow)]">
                 <div className="text-xs text-muted">Impressions</div>
                 <div className="mt-1 text-xl font-semibold">{count(impressions)}</div>
@@ -433,11 +443,11 @@ export function MarketingView(props: {
                   <td className="px-4 py-3">{row.account}</td>
                   <td className="px-4 py-3">{row.campaign}</td>
                   <td className="px-4 py-3">{row.ad}</td>
-                  {seesCost && <td className="px-4 py-3">{money(row.spend ?? 0, row.currency || "USD")}</td>}
+                  {seesCost && <td className="px-4 py-3"><MoneyText amount={row.spend} currency={row.currency || "USD"} /></td>}
                   <td className="px-4 py-3">{count(row.impressions)}</td>
                   <td className="px-4 py-3">{count(row.clicks)}</td>
                   <td className="px-4 py-3">{rate(row.clicks, row.impressions)}</td>
-                  {seesCost && <td className="px-4 py-3">{cpc(row.spend ?? 0, row.clicks, row.currency || "USD")}</td>}
+                  {seesCost && <td className="px-4 py-3">{cpc(row.spend, row.clicks, row.currency || "USD")}</td>}
                   <td className="px-4 py-3">{count(row.reach)}</td>
                   <td className="px-4 py-3">{count(row.leads)}</td>
                 </tr>
@@ -470,7 +480,7 @@ export function MarketingView(props: {
                         <div className="font-medium">{row.term}</div>
                         <p className="mt-1 text-muted">{row.campaign} · {matchLabel(row.matchType)} · {termStatus(row.status)}</p>
                         <p className="mt-2">{formatIso(row.date)} · {count(row.impressions)} impressions · {count(row.clicks)} clicks</p>
-                        {seesCost && <p className="mt-1">Spend {money(row.spend ?? 0, row.currency || "USD")}</p>}
+                        {seesCost && <p className="mt-1">Spend <MoneyText amount={row.spend} currency={row.currency || "USD"} /></p>}
                       </li>
                     ))}
                   </ul>
@@ -485,7 +495,7 @@ export function MarketingView(props: {
                           <td className="px-4 py-3">{termStatus(row.status)}</td>
                           <td className="px-4 py-3">{count(row.impressions)}</td>
                           <td className="px-4 py-3">{count(row.clicks)}</td>
-                          {seesCost && <td className="px-4 py-3">{money(row.spend ?? 0, row.currency || "USD")}</td>}
+                          {seesCost && <td className="px-4 py-3"><MoneyText amount={row.spend} currency={row.currency || "USD"} /></td>}
                         </tr>
                       ))}
                     </Table>

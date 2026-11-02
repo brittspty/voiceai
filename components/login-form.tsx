@@ -24,15 +24,15 @@ export type DemoHint = {
   adminEmail: string;
 };
 
-export function LoginScreen({ brand, hint, homeHref = "/", magicLink = false, magicLinkDelivery = false }: { brand: LoginBrand; hint: DemoHint | null; homeHref?: string; magicLink?: boolean; magicLinkDelivery?: boolean }) {
+export function LoginScreen({ brand, hint, homeHref = "/", magicLink = false, magicLinkDelivery = false, launchGaps = false }: { brand: LoginBrand; hint: DemoHint | null; homeHref?: string; magicLink?: boolean; magicLinkDelivery?: boolean; launchGaps?: boolean }) {
   return (
     <Suspense>
-      <LoginForm brand={brand} hint={hint} homeHref={homeHref} magicLink={magicLink} magicLinkDelivery={magicLinkDelivery} />
+      <LoginForm brand={brand} hint={hint} homeHref={homeHref} magicLink={magicLink} magicLinkDelivery={magicLinkDelivery} launchGaps={launchGaps} />
     </Suspense>
   );
 }
 
-function LoginForm({ brand, hint, homeHref, magicLink, magicLinkDelivery }: { brand: LoginBrand; hint: DemoHint | null; homeHref: string; magicLink: boolean; magicLinkDelivery: boolean }) {
+function LoginForm({ brand, hint, homeHref, magicLink, magicLinkDelivery, launchGaps }: { brand: LoginBrand; hint: DemoHint | null; homeHref: string; magicLink: boolean; magicLinkDelivery: boolean; launchGaps: boolean }) {
   const router = useRouter();
   const params = useSearchParams();
   const queryError = params.get("error") === "credentials" ? "Email or password is wrong." : params.get("error") === "rate" ? "Too many attempts. Wait a few minutes and try again." : params.get("error") === "totp" ? "This account needs the in-app two-step step. Sign in from this page after it finishes loading." : null;
@@ -81,8 +81,20 @@ function LoginForm({ brand, hint, homeHref, magicLink, magicLinkDelivery }: { br
           >
             <label className="block text-sm">Email<input name="email" type="email" autoComplete="email" required className="mt-1 h-10 w-full rounded-lg border border-line px-3" /></label>
             <label className="block text-sm">Password<input name="password" type="password" autoComplete="current-password" required className="mt-1 h-10 w-full rounded-lg border border-line px-3" /></label>
-            <p className="text-sm"><Link href="/forgot-password" className="underline">Forgot password?</Link></p>
-            {team && <p className="text-sm text-muted">Company sign-in isn&apos;t connected. Use your email and password, or email support@specificityinc.com.</p>}
+            {launchGaps ? (
+              <p className="text-sm">Forgot your password? Ask your Specificity admin to reset it.</p>
+            ) : (
+              <p className="text-sm"><Link href="/forgot-password" className="underline">Forgot password?</Link></p>
+            )}
+            {team && !launchGaps && <p className="text-sm text-muted">Company sign-in isn&apos;t connected. Use your email and password, or ask your Specificity admin.</p>}
+            {launchGaps && (
+              <div>
+                <button type="button" aria-disabled="true" aria-describedby="team-login-reason" className="cursor-not-allowed text-sm text-muted underline opacity-60" onClick={(event) => event.preventDefault()}>
+                  Team login
+                </button>
+                <p id="team-login-reason" className="text-sm text-muted">Team login isn&apos;t available yet. Ask your Specificity admin to get you signed in.</p>
+              </div>
+            )}
             {magicLink && magicLinkDelivery && (
               <button
                 type="button"
@@ -107,7 +119,15 @@ function LoginForm({ brand, hint, homeHref, magicLink, magicLinkDelivery }: { br
                 Email me a sign-in link instead
               </button>
             )}
-            {magicLink && !magicLinkDelivery && <p className="text-sm text-muted">Email sign-in links are not being sent yet. Use your password, or email support@specificityinc.com.</p>}
+            {launchGaps && magicLink && !magicLinkDelivery && (
+              <div>
+                <button type="button" aria-disabled="true" aria-describedby="magic-link-reason" className="cursor-not-allowed text-sm text-muted underline opacity-60" onClick={(event) => event.preventDefault()}>
+                  Email me a sign-in link
+                </button>
+                <p id="magic-link-reason" className="text-sm text-muted">Email sign-in links are paused for launch. Sign in with your password, or ask your Specificity admin for help.</p>
+              </div>
+            )}
+            {!launchGaps && magicLink && !magicLinkDelivery && <p className="text-sm text-muted">Email sign-in links are not being sent yet. Use your password, or ask your Specificity admin.</p>}
             {error && <p className="text-sm text-danger">{error}</p>}
             {notice && <p className="text-sm" role="status">{notice}</p>}
             <button disabled={pending} className="btn-brand h-10 w-full rounded-full text-sm">{pending ? "Signing in…" : "Sign in"}</button>
