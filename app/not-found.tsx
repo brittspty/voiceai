@@ -51,7 +51,11 @@ export default async function NotFound() {
     const access = await loadMarketingAccess(user);
     if (access.workspaceId) {
       const rows = await prisma.clientConnection.findMany({
-        where: { clientId: access.workspaceId, state: "connected", platformKey: { in: ["youtube", "linkedin"] } },
+        where: {
+          state: "connected",
+          platformKey: { in: ["youtube", "linkedin"] },
+          OR: [{ clientId: access.workspaceId }, { workspaceId: access.workspaceId }],
+        },
         select: { platformKey: true },
       });
       for (const row of rows) connected.add(row.platformKey);
