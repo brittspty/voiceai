@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { reportsP1Enabled } from "@/lib/marketing/config";
+import { p1LogStore } from "@/lib/marketing/p1-log-prisma";
 import { forReader, readerFor, staffOnlyStatus } from "@/lib/marketing/p1-reader";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
-import { createSchedule, deliverScheduledReport, presentSchedules } from "@/lib/marketing/reports/p1/schedule";
+import { createScheduleStored, deliverScheduleStored, loadScheduleRows, presentSchedules } from "@/lib/marketing/reports/p1/schedule";
+import { WORKSPACE_ID } from "@/lib/marketing/types";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,12 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   const access = await loadMarketingAccess(user);
-  return NextResponse.json(presentSchedules(readerFor(access)));
+  const reader = readerFor(access);
+  const rows = await loadScheduleRows(p1LogStore, WORKSPACE_ID);
+  const model = presentSchedules(reader, rows);
+  if (reader !== "staff") return NextResponse.json(model);
+  const deliveries = await p1LogStore.listDeliveries(WORKSPACE_ID);
+  return NextResponse.json({ ...model, deliveries });
 }
 
 export async function POST(request: Request) {
@@ -27,11 +34,11 @@ export async function POST(request: Request) {
   if (status !== 200) return NextResponse.json({ error: "Not allowed" }, { status });
   const body = (await request.json()) as { action?: string; id?: string; name?: string; audience?: string; moneyInCopy?: "YES" | "NO" };
   if (body.action === "deliver") {
-    const entry = deliverScheduledReport(body.id || "");
+    const entry = await deliverScheduleStored(p1LogStore, WORKSPACE_ID, body.id || "");
     if (!entry) return NextResponse.json({ error: "Unknown schedule" }, { status: 404 });
     return NextResponse.json(forReader(entry, "staff"));
   }
-  const created = createSchedule({
+  const created = await createScheduleStored(p1LogStore, WORKSPACE_ID, {
     name: body.name || "",
     audience: body.audience === "staff" ? "staff" : "client",
     moneyInCopy: body.moneyInCopy,
