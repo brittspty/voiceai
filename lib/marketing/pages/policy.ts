@@ -5,7 +5,7 @@ import type { AdPlatformWrite, WritePlan } from "./writes";
 
 export const CONFIRM_GAP_MIN_MS = 45_000;
 export const CONFIRM_GAP_MAX_MS = 120_000;
-export const HEALTHY_INTERVAL_MS = 5 * 60 * 1000;
+export const HEALTHY_INTERVAL_MS = 60 * 1000;
 export const CONFIRM_INTERVAL_MS = 60 * 1000;
 export const SLOW_WINDOW_MS = 30 * 60 * 1000;
 export const FORM_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -15,7 +15,7 @@ export const MUTE_MS = 24 * 60 * 60 * 1000;
 export const STALE_CHECK_MS = 20 * 60 * 1000;
 export const PAUSE_AFTER_FAILURES = 3;
 export const RESUME_AFTER_SUCCESSES = 2;
-export const ALERT_AFTER_FAILURES = 2;
+export const ALERT_AFTER_FAILURES = 3;
 
 export const RESUMED_HEADLINE = "Back up, ads resumed";
 export const CLIENT_PAUSED = "Ads paused while your page was down";
@@ -461,7 +461,7 @@ export function evaluatePage(input: {
   const pageDown = downConfirmed(samples);
   const pageRecovered = Boolean(downOpen) && recovered(samples);
 
-  if (pageDown && !downOpen) openIncidents.push({ kind: "down", summary: "Down on two checks about a minute apart." });
+  if (pageDown && !downOpen) openIncidents.push({ kind: "down", summary: "Down on three checks about a minute apart." });
   if (pageRecovered && downOpen) {
     resolveIncidents.push({ kind: "down", summary: "Resolved" });
     resolveAlertCodes.push("page_down", "ads_paused");
@@ -473,7 +473,7 @@ export function evaluatePage(input: {
       code: "page_down",
       severity: "critical",
       title: `${input.page.name} is down`,
-      summary: "Two checks failed about a minute apart.",
+      summary: "Three checks failed about a minute apart.",
       clientSummary: clientDownCopy(input.page.name),
       audience: "both",
       breaksQuietHours: true,
@@ -561,7 +561,7 @@ export function evaluatePage(input: {
   }
 
   const formOpen = openOf(input.incidents, "form_broken");
-  if (formConfirmed(samples) && !formOpen) openIncidents.push({ kind: "form_broken", summary: "The form check failed twice." });
+  if (formConfirmed(samples) && !formOpen) openIncidents.push({ kind: "form_broken", summary: "The form check failed three times." });
   if (formOpen && latest && latest.status !== "form_broken") {
     resolveIncidents.push({ kind: "form_broken", summary: "Resolved" });
     resolveAlertCodes.push("form_broken");
@@ -572,7 +572,7 @@ export function evaluatePage(input: {
       code: "form_broken",
       severity: "critical",
       title: `The form on ${input.page.name} is broken`,
-      summary: "Two checks could not use the form.",
+      summary: "Three checks could not use the form.",
       clientSummary: "",
       audience: "staff",
       breaksQuietHours: true,
