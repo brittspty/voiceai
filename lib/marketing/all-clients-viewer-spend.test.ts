@@ -58,6 +58,14 @@ test("audience data hides spend, cpa, cpl, roas, and data cost from the all-clie
   assert.equal(typeof shownRows[0]?.cpa, "number");
   assert.equal(typeof shownRows[0]?.dataCostCpm, "number");
   assert.equal(typeof staffRows[0]?.spend, "number");
+  const vendor = audienceDetailBody({ access: viewer, sourceId: "vendor-a", env: OFF });
+  const vendorOn = audienceDetailBody({ access: viewer, sourceId: "vendor-a", env: ON });
+  const vendorStaff = audienceDetailBody({ access: staff, sourceId: "vendor-a", env: OFF });
+  assert.equal(vendor.status, 200);
+  assert.deepEqual(moneyKeys(vendor.body), []);
+  assert.equal(JSON.stringify(vendor.body).includes("1840"), false);
+  assert.equal((vendorOn.body as { spend?: number }).spend, 1840);
+  assert.equal((vendorStaff.body as { spend?: number }).spend, 1840);
   const detail = audienceDetailBody({ access: viewer, sourceId: shownRows[0].id, env: OFF });
   const detailOn = audienceDetailBody({ access: viewer, sourceId: shownRows[0].id, env: ON });
   assert.equal(detail.status, 200);

@@ -43,52 +43,80 @@ test("magic links stay off and do not send mail", async () => {
   assert.equal(magicLinkEnabled({}), false);
   assert.equal(magicLinkEnabled({ MAGIC_LINK_ENABLED: "off" }), false);
   assert.equal(magicLinkEnabled({ MAGIC_LINK_ENABLED: "on" }), true);
-  const { store } = memoryStore();
+  const { store, rows } = memoryStore();
+  const mail: { toAddress: string; subject: string; body: string; transport: string }[] = [];
   let loads = 0;
   const off = await requestMagicLink({
     email: "ada@example.com",
     env: {},
-    userExists: async () => {
+    findUser: async () => {
       loads += 1;
-      return true;
+      return { email: "ada@example.com" };
     },
     store,
+    recordMail: async (row) => {
+      mail.push(row);
+    },
   });
   assert.equal(off.status, 404);
   assert.equal(loads, 0);
+  assert.equal(mail.length, 0);
 
   const logs: string[] = [];
   const on = await requestMagicLink({
     email: "Ada@Example.com",
-    env: { MAGIC_LINK_ENABLED: "on", INTEGRATIONS_MODE: "live" },
-    userExists: async () => true,
+    env: { MAGIC_LINK_ENABLED: "on", INTEGRATIONS_MODE: "mock" },
+    findUser: async () => ({ email: "Ada@Example.com" }),
     store,
+    recordMail: async (row) => {
+      mail.push(row);
+    },
     log: (line) => logs.push(line),
+    send: async () => {
+      throw new Error("mock mode must not call Resend");
+    },
   });
   assert.equal(on.status, 200);
   assert.equal(on.status === 200 && on.sent, false);
   assert.equal(on.status === 200 && on.message, MAGIC_LINK_READY);
   assert.deepEqual(logs, ["would send magic link to ada@example.com"]);
+  assert.equal(mail.length, 1);
+  assert.equal(mail[0]?.transport, "would send");
+  assert.equal(mail[0]?.toAddress, "ada@example.com");
+  assert.match(mail[0]?.body || "", /would send|sign-in link/i);
+  assert.equal(rows.size, 1);
+  const saved = [...rows.values()][0];
+  assert.equal(saved?.email, "ada@example.com");
+  assert.notEqual(saved?.tokenHash, "");
+  assert.equal(saved?.usedAt, null);
   assert.equal(deliverMagicLink("ada@example.com", () => undefined).sent, false);
 
   const missing = await requestMagicLink({
     email: "nope",
     env: { MAGIC_LINK_ENABLED: "on" },
-    userExists: async () => true,
+    findUser: async () => ({ email: "nope@example.com" }),
     store,
+    recordMail: async (row) => {
+      mail.push(row);
+    },
   });
   assert.equal(missing.status, 400);
   assert.equal(workEmailError("nope"), "Enter the email you use for work, like name@company.com.");
 
   const quiet: string[] = [];
+  const before = mail.length;
   await requestMagicLink({
     email: "missing@example.com",
-    env: { MAGIC_LINK_ENABLED: "on" },
-    userExists: async () => false,
+    env: { MAGIC_LINK_ENABLED: "on", INTEGRATIONS_MODE: "mock" },
+    findUser: async () => null,
     store,
+    recordMail: async (row) => {
+      mail.push(row);
+    },
     log: (line) => quiet.push(line),
   });
   assert.deepEqual(quiet, []);
+  assert.equal(mail.length, before);
 
   const source = [
     "lib/magic-link.ts",
@@ -101,6 +129,12 @@ test("magic links stay off and do not send mail", async () => {
   assert.equal(source.includes("resend"), false);
   assert.equal(source.includes("sendInviteEmail"), false);
   assert.equal(source.includes("fetch("), false);
+  const route = readFileSync(path.join(ROOT, "app/api/auth/magic-link/route.ts"), "utf8");
+  assert.match(route, /mailLog\.create/);
+  assert.match(route, /findActiveUserByEmail/);
+  const lookup = readFileSync(path.join(ROOT, "lib/active-user.ts"), "utf8");
+  assert.match(lookup, /findFirst/);
+  assert.match(lookup, /mode: "insensitive"/);
 });
 
 test("a magic link is single use and expires after 15 minutes", async () => {
@@ -131,13 +165,17 @@ test("a magic link is single use and expires after 15 minutes", async () => {
   assert.equal(closed.status, 404);
 });
 
-test("team sign-in reuses the Google OAuth client and adds no provider", () => {
+test("team sign-in stays disconnected and documents Google Workspace OIDC without credentials", () => {
   assert.equal(googleOAuthStartUrl({}, "https://app.example/callback", "state"), null);
-  const start = googleOAuthStartUrl({ GOOGLE_ADS_CLIENT_ID: "client" }, "https://app.example/callback", "state");
-  assert.match(start ?? "", /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/);
   const route = readFileSync(path.join(ROOT, "app/api/auth/company/route.ts"), "utf8");
   const screen = readFileSync(path.join(ROOT, "components/login-analytics-screen.tsx"), "utf8");
-  assert.match(route, /googleOAuthStartUrl/);
-  assert.match(screen, /\/api\/auth\/company/);
+  const readme = readFileSync(path.join(ROOT, "README.md"), "utf8");
+  assert.equal(route.includes("googleOAuthStartUrl"), false);
+  assert.equal(route.includes("GOOGLE_ADS_CLIENT"), false);
+  assert.match(route, /specificityinc\.com/);
+  assert.match(route, /client secret/i);
+  assert.match(screen, /disabled/);
+  assert.match(screen, /Company sign-in isn/);
+  assert.match(readme, /jarvis\.specificityinc\.com\/api\/auth\/oidc\/callback/);
   assert.equal(/okta|microsoft|saml|github/i.test(`${route}\n${screen}`), false);
 });

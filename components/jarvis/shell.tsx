@@ -15,6 +15,7 @@ export function JarvisShell({
   items,
   unread,
   moreChannels,
+  account,
   children,
 }: {
   productName: string;
@@ -24,6 +25,7 @@ export function JarvisShell({
   items: NavItem[];
   unread: number;
   moreChannels?: string | null;
+  account?: { name: string; email: string; showTeam: boolean; showRoles: boolean; showPeople: boolean };
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -65,7 +67,10 @@ export function JarvisShell({
               })}
             </div>
           ))}
-          <div className="foot">{BRAND_TAGLINE}</div>
+          <div className="foot">
+            {account ? <AccountMenu account={account} /> : null}
+            <div>{BRAND_TAGLINE}</div>
+          </div>
         </nav>
         <div className="maincol">
           <header className="mobile-logo">
@@ -101,10 +106,28 @@ export function JarvisShell({
               <Link href="/live" onClick={() => setMore(false)} aria-label={`Notifications, ${unread} unread`}>
                 Live notes ({unread} unread)
               </Link>
+              {account ? <AccountMenu account={account} onNavigate={() => setMore(false)} /> : null}
             </div>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function AccountMenu({ account, onNavigate }: { account: { name: string; email: string; showTeam: boolean; showRoles: boolean; showPeople: boolean }; onNavigate?: () => void }) {
+  return (
+    <details className="acct">
+      <summary aria-label="Account menu">{account.name.slice(0, 1)} {account.name}</summary>
+      <div className="panel">
+        <p>{account.email}</p>
+        {account.showTeam ? <Link href="/settings/users" onClick={onNavigate}>Team & security</Link> : null}
+        {account.showRoles ? <Link href="/settings/roles" onClick={onNavigate}>Roles</Link> : null}
+        {account.showPeople ? <Link href="/settings/people" onClick={onNavigate}>People</Link> : null}
+        <form action="/api/auth/logout" method="post">
+          <button type="submit">Sign out</button>
+        </form>
+      </div>
+    </details>
   );
 }

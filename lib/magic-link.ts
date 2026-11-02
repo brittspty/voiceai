@@ -1,4 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
+import { authEmailCanSend, deliverAuthEmail, type AuthMailRow } from "./auth-mail";
+import { PRODUCT_NAME } from "./brand/names";
+import { authLinkOrigin } from "./hosts";
 import { envEnabled, type Env } from "./public-routing";
 
 /** Off unless MAGIC_LINK_ENABLED is explicitly on. */
@@ -11,11 +14,17 @@ export const MAGIC_LINK_READY = "If that work email has an account, a sign-in li
 export const MAGIC_LINK_INVALID = "That sign-in link is no longer valid. Ask for a new one.";
 
 /**
- * TODO(jason): Approve a sender before any magic link can be emailed.
- * Until then every mode, including live, only logs "would send".
+ * MAGIC_LINK_ENABLED gates the feature.
+ * Mail is logged as "would send" until AUTH_EMAIL_LIVE is on.
+ * AUTH_EMAIL_LIVE may use Resend while INTEGRATIONS_MODE stays mock.
  */
 export function magicLinkEnabled(env: Env = process.env) {
   return envEnabled(env.MAGIC_LINK_ENABLED);
+}
+
+export function magicLinkMessage(env: Env = process.env) {
+  if (authEmailCanSend(env)) return "If that work email has an account, a sign-in link is on its way.";
+  return MAGIC_LINK_READY;
 }
 
 export function workEmailError(raw: string) {
@@ -54,7 +63,7 @@ export function mintMagicToken(now = Date.now()) {
   return { token, tokenHash: hashMagicToken(token), expiresAt: new Date(now + MAGIC_LINK_TTL_MS) };
 }
 
-/** Does not send mail. Jason has not approved a sender. */
+/** Logs only. Persistence goes through requestMagicLink so a mock request writes MailLog. */
 export function deliverMagicLink(email: string, log: (line: string) => void = (line) => console.info(line)) {
   log(`would send magic link to ${email}`);
   return { sent: false as const, logged: "would send" as const };
@@ -64,20 +73,36 @@ export async function requestMagicLink(input: {
   email: string;
   env?: Env;
   now?: number;
-  userExists: (email: string) => Promise<boolean>;
+  findUser: (email: string) => Promise<{ email: string } | null>;
   store: MagicLinkStore;
+  recordMail: (row: AuthMailRow) => Promise<void>;
   log?: (line: string) => void;
+  origin?: string;
+  send?: Parameters<typeof deliverAuthEmail>[0]["send"];
 }) {
   const env = input.env ?? process.env;
   if (!magicLinkEnabled(env)) return { status: 404 as const };
   const email = normalizeWorkEmail(input.email);
   if (!email) return { status: 400 as const, error: WORK_EMAIL_ERROR };
-  if (await input.userExists(email)) {
+  const account = await input.findUser(email);
+  if (account) {
     const minted = mintMagicToken(input.now ?? Date.now());
-    await input.store.create({ email, tokenHash: minted.tokenHash, expiresAt: minted.expiresAt, usedAt: null });
-    deliverMagicLink(email, input.log);
+    const storedEmail = account.email.trim().toLowerCase();
+    await input.store.create({ email: storedEmail, tokenHash: minted.tokenHash, expiresAt: minted.expiresAt, usedAt: null });
+    const origin = input.origin ?? authLinkOrigin(env);
+    const link = `${origin}/api/auth/magic-link/redeem?token=${encodeURIComponent(minted.token)}`;
+    await deliverAuthEmail({
+      to: storedEmail,
+      subject: `Sign in to ${PRODUCT_NAME}`,
+      text: `Use this one-time sign-in link:\n${link}\n\nIt expires in 15 minutes.\n`,
+      env,
+      record: input.recordMail,
+      log: input.log,
+      logLine: `would send magic link to ${storedEmail}`,
+      send: input.send,
+    });
   }
-  return { status: 200 as const, sent: false as const, message: MAGIC_LINK_READY };
+  return { status: 200 as const, sent: false as const, message: magicLinkMessage(env) };
 }
 
 export async function redeemMagicLink(input: { token: string; env?: Env; now?: number; store: MagicLinkStore }) {

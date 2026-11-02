@@ -8,7 +8,7 @@ import { PageTitle } from "@/components/shell";
 import { TestConsole } from "@/components/test-console";
 import { TotpSetup } from "@/components/totp-setup";
 import { VoicePicker } from "@/components/voice-picker";
-import { requireUser, isOwner, canWrite, isSuperAdmin, canOpenOperatorSettings, OPERATOR_SETTINGS } from "@/lib/auth";
+import { requireUser, isOwner, canWrite, isSuperAdmin, canInviteTeammate, canOpenOperatorSettings, OPERATOR_SETTINGS } from "@/lib/auth";
 import { resolveBrandColor, resolveMark } from "@/lib/brand";
 import { actorLabel, CONSENT_OPTIONS, humanFieldLabel, integrationKeyId, presentIntegration } from "@/lib/customer-copy";
 import { prisma } from "@/lib/db";
@@ -85,7 +85,7 @@ export default async function SettingsSection({ params, searchParams }: { params
       {section === "voice" && <VoicePicker owner={isOwner(user.role)} voices={VOICE_CATALOG} live={bundle.voiceVersions.find((v) => v.status === "published")} opening={bundle.draftAgent?.openingLine || ""} agentName={bundle.org.agentName} />}
       {section === "calling-rules" && <Rules owner={isOwner(user.role)} policy={bundle.policy.policy} version={bundle.policy.version?.version} />}
       {section === "offices" && <Offices canWrite={canWrite(user.role)} offices={bundle.offices} timezone={bundle.org.timezone} agentName={bundle.org.agentName} />}
-      {section === "users" && <Users owner={isOwner(user.role)} user={user} users={bundle.users} />}
+      {section === "users" && <Users canInvite={canInviteTeammate(user.role)} user={user} users={bundle.users} />}
       {section === "capabilities" && <Capabilities owner={isOwner(user.role)} canWrite={canWrite(user.role)} superAdmin={isSuperAdmin(user.role)} bundle={bundle} />}
       {section === "integrations" && <Integrations checks={bundle.checks} testMode={bundle.org.testMode} readiness={bundle.readiness} />}
       {section === "activity" && <Activity searchParams={await searchParams} />}
@@ -335,7 +335,7 @@ function Offices({ offices, canWrite: allow, timezone, agentName }: { offices: A
   );
 }
 
-function Users({ owner, user, users }: { owner: boolean; user: { id: string; role: string }; users: { id: string; name: string; email: string; role: string; totpEnabled: boolean; createdAt: Date }[] }) {
+function Users({ canInvite, user, users }: { canInvite: boolean; user: { id: string; role: string }; users: { id: string; name: string; email: string; role: string; totpEnabled: boolean; createdAt: Date }[] }) {
   const leadersOff = users.some((row) => (row.role === "owner" || row.role === "admin") && !row.totpEnabled);
   return (
     <div className="space-y-4">
@@ -343,7 +343,7 @@ function Users({ owner, user, users }: { owner: boolean; user: { id: string; rol
         <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">Turn on two-step sign-in for every owner and admin before you go live.</p>
       )}
       <TotpSetup enabled={users.find((row) => row.id === user.id)?.totpEnabled || false} userId={user.id} />
-      {owner && <InviteForm />}
+      {canInvite && <InviteForm />}
       <div className="overflow-hidden rounded-xl border border-line bg-card">
         <table className="w-full text-left text-sm">
           <thead><tr className="border-b border-line text-[11px] text-muted">{["Name", "Email", "Role", "Two-step sign-in", "Added"].map((h) => <th key={h} scope="col" className="px-4 py-3 font-medium">{h}</th>)}</tr></thead>

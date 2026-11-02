@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Sign-in is host-agnostic. With `CANONICAL_HOST` unset, both public hosts serve and nothing redirects. Set `CANONICAL_HOST` to `voiceai.specificityinc.com` or `jarvis.specificityinc.com` and browser pages on the other host redirect there. API and webhooks stay on the host that received them. The session cookie stays host-only.
+- Super admins see the same teammate invite form as owners, limited to owner, admin, and viewer.
+- Password reset (`PASSWORD_RESET`, default off) stores a hashed single-use token for 30 minutes, rate limits requests, invalidates sessions, and does not reveal whether the email exists. While the switch is off, the support address stays the only path.
+- `AUTH_EMAIL_LIVE` (default off) is the only path that sends sign-in and reset mail through Resend while integrations stay mocked. Otherwise those messages are a MailLog row with transport `would send`.
+- Team login does not start Google OAuth. The screen says company sign-in is not connected.
+- The account menu has Sign out, and Team & security and Roles for the roles that can open them.
+- `USER_ADMIN_V2` (default off) assigns account managers, creates a client viewer for one client, and turns accounts off (sessions revoked). Hard delete is super-admin only and requires the email. Account managers cannot create super admins.
+- Client owners, client viewers, and share links also lose CPA and bid. `ALL_CLIENTS_VIEWER_SEES_COST` stays off.
+- An unset `MARKETING_SUPER_ADMIN_EMAILS` no longer treats the placeholder addresses as super admins.
+
 ### VoiceOps UX for paying customers
 
 Plain-language copy, empty states, and Specificity branding on the voice and settings screens. Call logic, consent gates, test mode, and integration checks are unchanged.
@@ -45,7 +55,7 @@ Three read-only marketing tools, each behind its own flag. All three default **o
 - Spend, budgets, CPC, CPM, CPA, and any other cost-derived field are returned only to super admins and account managers. Owners, admins, viewers, client viewers, and share links receive a server payload with those fields, budget cards, and cost rules removed. CSV exports follow the same rule.
 - A share link with a passcode does not return JSON or CSV until the passcode cookie is present. Viewer write actions answer 403. Share pages send `Referrer-Policy: no-referrer`.
 - Marketing migrations run after `20261029193000_invites_and_brand_defaults`: `20261029200000_marketing_ops`, then `20261029210000_share_passcode`.
-- Roles: super admin (Jason, Brittany, and Chris are seeded placeholders; emails come from `MARKETING_SUPER_ADMIN_EMAILS`), account manager scoped to the client, an ad account, or a campaign, and a read-only client viewer for exactly one client.
+- Roles: super admin (a database role, or emails listed in `MARKETING_SUPER_ADMIN_EMAILS`; an unset list grants nobody), account manager scoped to the client, an ad account, or a campaign, and a read-only client viewer for exactly one client.
 - Client viewers and share links get an allowlisted performance payload (impressions, reach, clicks, click rate, conversions, leads, frequency, creative previews, trends). Cost fields are removed on the server. Each view is audited.
 - Specificity theme tokens live in `lib/brand/tokens.ts` and CSS variables. Placeholder colors and Inter until the designer's tokens replace that file. Tagline: Identify. Engage. Convert.
 

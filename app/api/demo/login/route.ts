@@ -3,12 +3,11 @@ import { DEMO_COOKIE, demoLoginAccepted, signDemoCookie } from "@/lib/demo/acces
 import { ensureDemoVisitor } from "@/lib/demo/actions";
 import { demoAccessSecret, demoWorkspaceEnabled } from "@/lib/demo/flags";
 import { prisma } from "@/lib/db";
-import { signToken, SESSION_COOKIE } from "@/lib/session-token";
+import { requestOrigin } from "@/lib/hosts";
+import { signToken, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session-token";
 
 function originOf(request: Request) {
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || new URL(request.url).host;
-  const proto = request.headers.get("x-forwarded-proto") || "http";
-  return `${proto}://${host}`;
+  return requestOrigin(request);
 }
 
 export async function POST(request: Request) {
@@ -32,13 +31,7 @@ export async function POST(request: Request) {
     const userId = await ensureDemoVisitor();
     const session = await prisma.session.create({ data: { userId, expiresAt: new Date(exp * 1000) } });
     const token = await signToken({ kind: "session", sid: session.id, role: "demo_viewer", exp });
-    response.cookies.set(SESSION_COOKIE, token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 12 * 60 * 60,
-    });
+    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(12 * 60 * 60));
   } catch (error) {
     console.error("[demo] visitor session was not stored", error instanceof Error ? error.message : "failed");
   }

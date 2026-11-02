@@ -19,11 +19,14 @@ const POISON = {
   cost: 7,
   cpl: 6,
   cpql: 5,
+  cpa: 15,
   roas: 4,
+  bid: 16,
+  maxBid: 17,
   budgetAmount: 3,
   costPerLead: 2,
   leads: 11,
-  nested: { clicks: 4, roas: 1 },
+  nested: { clicks: 4, roas: 1, bid: 2 },
 };
 
 function files(dir: string): string[] {
@@ -43,7 +46,7 @@ function routeUrl(file: string) {
   return url.replace(/\/$/, "") || "/";
 }
 
-test("every client owner, client viewer, and share endpoint strips spend, budget, cost, CPL, CPQL, and ROAS", () => {
+test("every client owner, client viewer, and share endpoint strips spend, cost, budget, CPL, CPQL, CPA, ROAS, and bid", () => {
   const jarvis = { JARVIS_UI_V2: "on" };
   const payloadRoutes: string[] = [];
   for (const file of files(path.join(ROOT, "app/api"))) {
@@ -78,6 +81,8 @@ test("every client owner, client viewer, and share endpoint strips spend, budget
       assert.deepEqual(clientCostFields(row.read.body), [], `${url} ${row.kind}`);
       assert.equal(scopedBodyIsClean(row.read.body), true, `${url} ${row.kind}`);
       assert.equal((row.read.body as { leads: number }).leads, 11);
+      assert.equal(JSON.stringify(row.read.body).includes("bid"), false);
+      assert.equal(JSON.stringify(row.read.body).includes("cpa"), false);
     }
     assert.equal(result.foreign.ok, false, url);
   }

@@ -24,10 +24,11 @@ const SUPPORT_LINKS = [
   ["/settings/test-console", "Place a test call"],
 ] as const;
 
-function settingsLinks(role: string, email: string, userId: string, showRoles: boolean) {
+function settingsLinks(role: string, email: string, userId: string, showRoles: boolean, showPeople: boolean) {
   const hidden = role === "owner" || role === "super_admin" ? new Set<string>() : new Set(["/settings/users", "/settings/integrations", "/settings/production"]);
   const links = SETTINGS_LINKS.filter(([href]) => !hidden.has(href)).map(([href, label]) => [href, label] as [string, string]);
   if (showRoles) links.push(["/settings/roles", "Roles"]);
+  if (showPeople) links.push(["/settings/people", "People"]);
   if (conversionAccess({ id: userId, role, email }).ok) {
     const at = links.findIndex(([href]) => href === "/settings/integrations");
     links.splice(at >= 0 ? at + 1 : links.length, 0, ["/settings/conversions", "Conversion feedback"]);
@@ -35,12 +36,12 @@ function settingsLinks(role: string, email: string, userId: string, showRoles: b
   return links;
 }
 
-export function SettingsNav({ role = "", email = "", userId = "", showRoles = false, showDemo = false, showPlans = false }: { role?: string; email?: string; userId?: string; showRoles?: boolean; showDemo?: boolean; showPlans?: boolean }) {
+export function SettingsNav({ role = "", email = "", userId = "", showRoles = false, showPeople = false, showDemo = false, showPlans = false }: { role?: string; email?: string; userId?: string; showRoles?: boolean; showPeople?: boolean; showDemo?: boolean; showPlans?: boolean }) {
   const pathname = usePathname();
   const current = pathname === "/settings/go-live" ? "/settings/production" : pathname;
   return (
     <nav className="flex gap-1 overflow-x-auto md:w-52 md:flex-col">
-      {settingsLinks(role, email, userId, showRoles).map(([href, label]) => (
+      {settingsLinks(role, email, userId, showRoles, showPeople).map(([href, label]) => (
         <Link key={href} href={href} className={cn("whitespace-nowrap rounded-lg px-3 py-2 text-sm", current === href ? "bg-hover font-medium" : "text-muted hover:bg-hover")}>
           {label}
         </Link>

@@ -24,20 +24,22 @@ export type DemoHint = {
   adminEmail: string;
 };
 
-export function LoginScreen({ brand, hint, homeHref = "/" }: { brand: LoginBrand; hint: DemoHint | null; homeHref?: string }) {
+export function LoginScreen({ brand, hint, homeHref = "/", magicLink = false, magicLinkDelivery = false }: { brand: LoginBrand; hint: DemoHint | null; homeHref?: string; magicLink?: boolean; magicLinkDelivery?: boolean }) {
   return (
     <Suspense>
-      <LoginForm brand={brand} hint={hint} homeHref={homeHref} />
+      <LoginForm brand={brand} hint={hint} homeHref={homeHref} magicLink={magicLink} magicLinkDelivery={magicLinkDelivery} />
     </Suspense>
   );
 }
 
-function LoginForm({ brand, hint, homeHref }: { brand: LoginBrand; hint: DemoHint | null; homeHref: string }) {
+function LoginForm({ brand, hint, homeHref, magicLink, magicLinkDelivery }: { brand: LoginBrand; hint: DemoHint | null; homeHref: string; magicLink: boolean; magicLinkDelivery: boolean }) {
   const router = useRouter();
   const params = useSearchParams();
   const queryError = params.get("error") === "credentials" ? "Email or password is wrong." : params.get("error") === "rate" ? "Too many attempts. Wait a few minutes and try again." : params.get("error") === "totp" ? "This account needs the in-app two-step step. Sign in from this page after it finishes loading." : null;
   const heading = loginHeading(params.get("audience"), brand.wordmark);
+  const team = params.get("audience") === "team";
   const [error, setError] = useState<string | null>(queryError);
+  const [notice, setNotice] = useState<string | null>(null);
   const [ticket, setTicket] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -80,7 +82,34 @@ function LoginForm({ brand, hint, homeHref }: { brand: LoginBrand; hint: DemoHin
             <label className="block text-sm">Email<input name="email" type="email" autoComplete="email" required className="mt-1 h-10 w-full rounded-lg border border-line px-3" /></label>
             <label className="block text-sm">Password<input name="password" type="password" autoComplete="current-password" required className="mt-1 h-10 w-full rounded-lg border border-line px-3" /></label>
             <p className="text-sm"><Link href="/forgot-password" className="underline">Forgot password?</Link></p>
+            {team && <p className="text-sm text-muted">Company sign-in isn&apos;t connected. Use your email and password, or email support@specificityinc.com.</p>}
+            {magicLink && magicLinkDelivery && (
+              <button
+                type="button"
+                className="text-sm underline"
+                onClick={async (event) => {
+                  const form = event.currentTarget.form;
+                  const email = String(new FormData(form ?? undefined).get("email") || "");
+                  setPending(true);
+                  setError(null);
+                  const res = await fetch("/api/auth/magic-link", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email }),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  setPending(false);
+                  setError(res.ok ? null : data.error || "Could not start email sign-in.");
+                  if (res.ok) setError(null);
+                  if (res.ok) setNotice(data.message || "If that work email has an account, a sign-in link is on its way.");
+                }}
+              >
+                Email me a sign-in link instead
+              </button>
+            )}
+            {magicLink && !magicLinkDelivery && <p className="text-sm text-muted">Email sign-in links are not being sent yet. Use your password, or email support@specificityinc.com.</p>}
             {error && <p className="text-sm text-danger">{error}</p>}
+            {notice && <p className="text-sm" role="status">{notice}</p>}
             <button disabled={pending} className="btn-brand h-10 w-full rounded-full text-sm">{pending ? "Signing in…" : "Sign in"}</button>
           </form>
         ) : (

@@ -5,6 +5,7 @@ import { BRAND_TAGLINE, BRAND_WORDMARK, loadBrand, PRODUCT_TAGLINE } from "@/lib
 import { clientConfig } from "@/lib/client-config";
 import { ANALYTICS_ZONE, assertPublicAnalytics, buildPublicLoginAnalytics, loginAnalyticsEnabled, loginAnalyticsMinClients, publicAsOf } from "@/lib/login-analytics";
 import { loadLoginContributions } from "@/lib/login-analytics-query";
+import { authEmailCanSend } from "@/lib/auth-mail";
 import { magicLinkEnabled } from "@/lib/magic-link";
 import { zonedISODate } from "@/lib/time";
 import { appHomePath } from "@/lib/public-routing";
@@ -20,10 +21,14 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         adminEmail: cfg.admin.email,
       }
     : null;
+  const magicLink = magicLinkEnabled();
+  const magicLinkDelivery = magicLink && authEmailCanSend();
   const props = {
     brand: { companyName: brand.companyName, brandColor: brand.brandColor, logoUrl: brand.logoUrl, mark: brand.mark, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE, productLine: PRODUCT_TAGLINE },
     hint,
     homeHref: appHomePath(),
+    magicLink,
+    magicLinkDelivery,
   };
   if (!loginAnalyticsEnabled()) return <LoginScreen {...props} />;
   let initial = null;
@@ -43,7 +48,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   }
   return (
     <Suspense>
-      <LoginAnalyticsScreen {...props} audience={sp.audience === "team" ? "team" : "client"} magicLink={magicLinkEnabled()} initial={initial} />
+      <LoginAnalyticsScreen {...props} audience={sp.audience === "team" ? "team" : "client"} initial={initial} />
     </Suspense>
   );
 }
