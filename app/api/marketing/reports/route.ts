@@ -5,6 +5,7 @@ import { reportsV2Enabled } from "@/lib/marketing/config";
 import { prisma } from "@/lib/db";
 import { buildReport } from "@/lib/marketing/reports/guard";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { forSpendViewer } from "@/lib/marketing/spend-access";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
       payload: built.report,
     });
     if (!scoped.ok) return NextResponse.json({ error: scoped.error }, { status: scoped.status });
-    return NextResponse.json(scoped.body);
+    return NextResponse.json(forSpendViewer(scoped.body, access));
   }
   if (access.kind === "client_owner" || access.kind === "client_viewer") {
     const own = access.workspaceId;
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
       payload: built.report,
     });
     if (!scoped.ok) return NextResponse.json({ error: scoped.error }, { status: scoped.status });
-    return NextResponse.json(scoped.body);
+    return NextResponse.json(forSpendViewer(scoped.body, access));
   }
-  return NextResponse.json(built.report);
+  return NextResponse.json(forSpendViewer(built.report, access));
 }

@@ -170,7 +170,7 @@ test("example audience data makes no outbound call", () => {
     assert.equal(/https?:\/\//.test(source), false, file);
     assert.equal(source.includes("prisma"), false, file);
   }
-  const route = readFileSync(path.join(ROOT, "app/api/marketing/audience-data/route.ts"), "utf8");
+  const route = readFileSync(path.join(ROOT, "lib/marketing/audience-data/for-viewer.ts"), "utf8");
   assert.match(route, /canOpenAudienceData/);
   assert.match(route, /audienceDataEnabled/);
 });

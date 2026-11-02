@@ -5,6 +5,7 @@ import { canUseAudienceLibrary, featureHttpStatus } from "@/lib/marketing/featur
 import { presentLibrary } from "@/lib/marketing/audiences/library";
 import { listLibraryAudiences } from "@/lib/marketing/audiences/store";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { forSpendViewer } from "@/lib/marketing/spend-access";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -14,5 +15,5 @@ export async function GET() {
   if (status !== 200) return NextResponse.json({ error: status === 404 ? "Not found" : "Not allowed" }, { status });
   const rows = await listLibraryAudiences(access.workspaceId);
   const reader = access.kind === "client_owner" || access.kind === "client_viewer" ? "client" : "staff";
-  return NextResponse.json(presentLibrary(rows, { reader, seesCost: access.seesCost }));
+  return NextResponse.json(forSpendViewer(presentLibrary(rows, { reader, seesCost: access.seesCost }), access));
 }

@@ -32,11 +32,11 @@ function segmentKey(row: { maidListId: string; vendorId: string; subSegmentKey: 
 }
 
 function recommendationNote(action: CtvRecommendation | null, label: string) {
-  if (action === "scale") return "Scale. Recommendation only. Budgets are not changed.";
-  if (action === "test") return "Test. Recommendation only. Budgets are not changed.";
-  if (action === "cut") return "Cut. Recommendation only. Budgets are not changed.";
+  if (action === "scale") return "Scale. Recommendation only. Nothing is changed automatically.";
+  if (action === "test") return "Test. Recommendation only. Nothing is changed automatically.";
+  if (action === "cut") return "Cut. Recommendation only. Nothing is changed automatically.";
   if (label === "attributed, not incremental") return "Attributed, not incremental. No scale, test, or cut.";
-  return "Recommendation only. Budgets are not changed.";
+  return "Recommendation only. Nothing is changed automatically.";
 }
 
 export type CtvSegmentView = {
@@ -413,11 +413,10 @@ export function ctvPayloadForViewer<T>(value: T, audience: CtvAudience): T {
   if (audience === "staff") return value;
   const stripIdentity = audience === "client" || audience === "share";
   const stripped = stripValue(value, stripIdentity) as T;
-  if (!stripIdentity || !stripped || typeof stripped !== "object") return stripped;
+  if (!stripped || typeof stripped !== "object") return stripped;
   const record = stripped as Record<string, unknown>;
-  if ("platformLabel" in record) record.platformLabel = CTV_CLIENT_LABEL;
-  if (audience === "client" || audience === "share") return projectWithoutSpend(record) as T;
-  return stripped;
+  if (stripIdentity && "platformLabel" in record) record.platformLabel = CTV_CLIENT_LABEL;
+  return projectWithoutSpend(record) as T;
 }
 
 function clientFacingText(value: string) {

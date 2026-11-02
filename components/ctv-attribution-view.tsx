@@ -24,7 +24,7 @@ export function CtvAttributionView({ view, showMoney }: { view: CtvView; showMon
         <span className="rounded border border-line px-2 py-1">{view.platformLabel}</span>
         <span className="text-muted">Verified-human rule: {view.verifiedHumanLabel}</span>
       </div>
-      <p className="text-sm text-muted">Unflagged conversions are excluded. No third-party vendor. Recommendations never change a budget.</p>
+      <p className="text-sm text-muted">{showMoney ? "Unflagged conversions are excluded. No third-party vendor. Recommendations never change a budget." : "Unflagged conversions are excluded. No third-party vendor. Recommendations are read only."}</p>
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile label="Exposed households" value={num(view.funnel.exposedHouseholds)} />
         <Tile label="Site visits" value={num(view.funnel.siteVisits)} />

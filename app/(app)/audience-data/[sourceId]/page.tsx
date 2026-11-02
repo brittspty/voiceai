@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { audienceSourceDetail, canOpenAudienceData, readClientAudienceData } from "@/lib/marketing/audience-data/present";
 import { audienceDataClientEnabled, audienceDataEnabled, resolutionDataEnabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { forSpendViewer } from "@/lib/marketing/spend-access";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function AudienceDataSourcePage({ params }: { params: Promi
   }
   if (!audienceDataEnabled()) return turnedOff();
   if (!canOpenAudienceData(access.kind)) return <NoAccess title="Audience Data" />;
-  const detail = audienceSourceDetail(sourceId, "staff");
+  const detail = forSpendViewer(audienceSourceDetail(sourceId, "staff"), access);
   if (!detail) {
     return (
       <main>
