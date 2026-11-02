@@ -10,6 +10,8 @@ import { BrandMark } from "@/components/brand-mark";
 import { AIS2L_NAME } from "@/lib/brand/names";
 import { roleLabel } from "@/lib/marketing/access";
 import { optionalStaffLinks } from "@/lib/shell-nav";
+import { Sensitive } from "@/components/sensitive-capture";
+import { SENSITIVE_CAPTURE_ATTRIBUTE, sensitiveCaptureClass } from "@/lib/analytics/capture";
 import { cn } from "@/lib/cn";
 
 const NAV = [
@@ -204,16 +206,16 @@ export function AppShell({
               <RefreshCw className="h-4 w-4" />
             </button>
             <Dropdown.Root>
-              <Dropdown.Trigger className="ml-1 grid h-8 w-8 place-items-center rounded-full border border-line bg-card text-xs font-medium" aria-label="Account menu">
+              <Dropdown.Trigger className={sensitiveCaptureClass("ml-1 grid h-8 w-8 place-items-center rounded-full border border-line bg-card text-xs font-medium")} {...{ [SENSITIVE_CAPTURE_ATTRIBUTE]: "" }} aria-label="Account menu">
                 {user.name.slice(0, 1)}
               </Dropdown.Trigger>
               <Dropdown.Portal>
                 <Dropdown.Content className="z-50 w-64 rounded-xl border border-line bg-card p-2 shadow-lg" align="end" sideOffset={8}>
-                  <div className="px-2 py-1.5">
+                  <Sensitive as="div" className="px-2 py-1.5">
                     <div className="text-sm font-medium">{user.name}</div>
                     <div className="text-xs text-muted">{user.email}</div>
                     <div className="mt-1 text-xs text-muted">{roleLabel(user.role)}</div>
-                  </div>
+                  </Sensitive>
                   {(user.role === "owner" || user.role === "super_admin") && (
                     <Dropdown.Item asChild>
                       <Link href="/settings/users" className="block rounded-md px-2 py-1.5 text-sm outline-none hover:bg-hover">Team & security</Link>

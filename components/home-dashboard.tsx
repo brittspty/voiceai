@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { Sensitive } from "@/components/sensitive-capture";
+import { SENSITIVE_CAPTURE_ATTRIBUTE, sensitiveCaptureClass } from "@/lib/analytics/capture";
 import { AIS2L_NAME } from "@/lib/brand/names";
 import { formatCount, formatMoney, homeKpiTotals, type HomeModel } from "@/lib/marketing/home-dashboard";
 
-function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Tile({ label, value, hint, sensitive = false }: { label: string; value: string; hint?: string; sensitive?: boolean }) {
   return (
-    <article className="rounded-[14px] border border-line bg-card px-3.5 py-3">
+    <article className={sensitive ? sensitiveCaptureClass("rounded-[14px] border border-line bg-card px-3.5 py-3") : "rounded-[14px] border border-line bg-card px-3.5 py-3"} {...(sensitive ? { [SENSITIVE_CAPTURE_ATTRIBUTE]: "" } : {})}>
       <div className="text-xs text-muted">{label}</div>
       <div className="mt-1 text-2xl font-semibold">{value}</div>
       {hint && <p className="mt-1 text-[11px] text-muted">{hint}</p>}
@@ -34,7 +36,7 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
             <label className="text-xs text-muted" htmlFor="client">
               Client
             </label>
-            <select id="client" name="client" defaultValue={model.selectedId ?? ""} className="min-h-11 rounded-[10px] border border-line bg-card px-2.5">
+            <select id="client" name="client" defaultValue={model.selectedId ?? ""} className={sensitiveCaptureClass("min-h-11 rounded-[10px] border border-line bg-card px-2.5")} {...{ [SENSITIVE_CAPTURE_ATTRIBUTE]: "" }}>
               <option value="">All clients</option>
               {choices.map((choice) => (
                 <option key={choice.id} value={choice.id}>
@@ -58,7 +60,7 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
         <Tile label="Views" value={formatCount(totals.views)} hint="Last 30 days" />
         <Tile label="Leads" value={formatCount(totals.leads)} hint="Last 30 days" />
         <Tile label="Calls" value={formatCount(totals.calls)} hint="From ad campaigns" />
-        {model.showMoney && <Tile label="Spend" value={formatMoney(totals.spend)} hint="Last 30 days" />}
+        {model.showMoney && <Tile label="Spend" value={formatMoney(totals.spend)} hint="Last 30 days" sensitive />}
       </div>
 
       <section className="mb-4 rounded-[14px] border border-line bg-card p-4">
@@ -80,19 +82,21 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
               {model.clients.map((client) => (
                 <tr key={client.id} className="hover:bg-warning-soft">
                   <td className="border-b border-line px-2 py-2.5">
-                    {model.aggregate ? (
-                      <Link className="font-semibold hover:underline" href={`/?client=${encodeURIComponent(client.id)}`}>
-                        {client.name}
-                      </Link>
-                    ) : (
-                      <span className="font-semibold">{client.name}</span>
-                    )}
+                    <Sensitive>
+                      {model.aggregate ? (
+                        <Link className="font-semibold hover:underline" href={`/?client=${encodeURIComponent(client.id)}`}>
+                          {client.name}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold">{client.name}</span>
+                      )}
+                    </Sensitive>
                   </td>
                   <td className="border-b border-line px-2 py-2.5">{client.platforms.length ? client.platforms.join(", ") : "—"}</td>
                   <td className="border-b border-line px-2 py-2.5">{formatCount(client.views)}</td>
                   <td className="border-b border-line px-2 py-2.5">{formatCount(client.leads)}</td>
                   <td className="border-b border-line px-2 py-2.5">{formatCount(client.calls)}</td>
-                  {model.showMoney && <td className="border-b border-line px-2 py-2.5">{formatMoney(client.spend ?? 0)}</td>}
+                  {model.showMoney && <Sensitive as="td" className="border-b border-line px-2 py-2.5">{formatMoney(client.spend ?? 0)}</Sensitive>}
                   <td className="border-b border-line px-2 py-2.5">{client.voiceEnabled ? "On" : "Not included"}</td>
                 </tr>
               ))}
@@ -101,7 +105,7 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
         </div>
         <div className="mt-3 grid gap-2 md:hidden">
           {model.clients.map((client) => (
-            <Link key={client.id} href={model.aggregate ? `/?client=${encodeURIComponent(client.id)}` : "/"} className="block rounded-xl border border-line p-3">
+            <Link key={client.id} href={model.aggregate ? `/?client=${encodeURIComponent(client.id)}` : "/"} className={sensitiveCaptureClass("block rounded-xl border border-line p-3")} {...{ [SENSITIVE_CAPTURE_ATTRIBUTE]: "" }}>
               <span className="font-semibold">{client.name}</span>
               <span className="mt-1 block text-sm text-muted">
                 {formatCount(client.leads)} leads · {formatCount(client.calls)} calls
