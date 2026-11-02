@@ -3,6 +3,7 @@ import { audit } from "./audit";
 import { clientConfig } from "./client-config";
 import { prisma } from "./db";
 import { finishCall } from "./dialer";
+import { voiceDecisionForContact } from "./consent/enforce";
 import { enqueue } from "./queue";
 import { SYSTEM_ACTOR } from "./types";
 import { buildTranscript } from "./transcript";
@@ -55,18 +56,25 @@ async function syncGhlContact(event: Extract<GhlEvent, { kind: "contact" }>) {
   }).catch((error) => console.error("[speed-to-lead] lead was not recorded", errorText(error)));
   const org = await prisma.org.findUnique({ where: { id: "org" } });
   if (org?.scheduleEnabled) {
-    const call = await prisma.call.create({
-      data: {
-        contactId: contact.id,
-        officeId: contact.officeId,
-        status: "queued",
-        consent: contact.consent,
-        isTest: false,
-        direction: "outbound",
-        timeline: [{ at: new Date().toISOString(), label: "Lead triggered a dial" }] as Prisma.InputJsonValue,
-      },
-    });
-    await enqueue({ type: "dial", callId: call.id, contactId: contact.id, payload: { callId: call.id } });
+    // Which recorded level unlocks voice is a legal decision for Jason. See lib/consent/voice-gate.ts.
+    // When VOICE_CONSENT_GATE is on, a resolved contact without a matching record is skipped and never queued.
+    const voiceConsent = await voiceDecisionForContact(contact);
+    if (voiceConsent.enabled && !voiceConsent.allow) {
+      await audit(SYSTEM_ACTOR, voiceConsent.reason, { type: "contact", id: contact.id, label: contact.name }).catch(() => undefined);
+    } else {
+      const call = await prisma.call.create({
+        data: {
+          contactId: contact.id,
+          officeId: contact.officeId,
+          status: "queued",
+          consent: contact.consent,
+          isTest: false,
+          direction: "outbound",
+          timeline: [{ at: new Date().toISOString(), label: "Lead triggered a dial" }] as Prisma.InputJsonValue,
+        },
+      });
+      await enqueue({ type: "dial", callId: call.id, contactId: contact.id, payload: { callId: call.id } });
+    }
   }
   await scoreFormLeadIfEnabled({
     contactId: contact.id,

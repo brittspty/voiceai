@@ -75,9 +75,23 @@ export function crmSummary(agentName: string, outcome: CallOutcomeName, duration
 }
 
 export async function placeIfAllowed(
-  ctx: Pick<DialContext, "gate" | "voice" | "voiceInput">,
+  ctx: Pick<DialContext, "gate" | "voice" | "voiceInput"> & {
+    voiceConsent?: { enabled: boolean; allow: boolean; reason: string };
+  },
   hooks?: { onStatus?: (status: "dialing" | "in_progress" | "wrap_up") => Promise<void> },
 ) {
+  if (ctx.voiceConsent?.enabled && !ctx.voiceConsent.allow) {
+    return {
+      kind: "blocked" as const,
+      checks: [{
+        id: "recorded_consent",
+        label: "Recorded consent",
+        passed: false,
+        detail: ctx.voiceConsent.reason,
+      }],
+      vendorCalled: false as const,
+    };
+  }
   const gate = evaluateGates(ctx.gate);
   if (!gate.passed) {
     return { kind: "blocked" as const, checks: gate.checks, vendorCalled: false as const };

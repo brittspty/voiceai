@@ -7,6 +7,7 @@ import { conversionAccess } from "@/lib/marketing/offline/access";
 
 export const SETTINGS_LINKS = [
   ["/settings/production", "Go-live checklist"],
+  ["/settings/consent", "Consent pop-up"],
   ["/settings/calling", "Call settings"],
   ["/settings/branding", "Branding"],
   ["/settings/agent", "Avery's script"],
@@ -26,7 +27,8 @@ const SUPPORT_LINKS = [
 
 function settingsLinks(role: string, email: string, userId: string, showRoles: boolean, showPeople: boolean) {
   const hidden = role === "owner" || role === "super_admin" ? new Set<string>() : new Set(["/settings/users", "/settings/integrations", "/settings/production"]);
-  const links = SETTINGS_LINKS.filter(([href]) => !hidden.has(href)).map(([href, label]) => [href, label] as [string, string]);
+  const clientFacing = role === "client_viewer" || role === "all_clients_viewer" || role === "demo_viewer";
+  const links = SETTINGS_LINKS.filter(([href]) => !hidden.has(href) && !(clientFacing && href === "/settings/consent")).map(([href, label]) => [href, label] as [string, string]);
   if (showRoles) links.push(["/settings/roles", "Roles"]);
   if (showPeople) links.push(["/settings/people", "People"]);
   if (conversionAccess({ id: userId, role, email }).ok) {

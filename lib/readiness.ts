@@ -19,12 +19,13 @@ export type ReadinessInput = {
   officeReady: boolean;
   anyTotp: boolean;
   webhookSecrets: boolean;
+  consentPopup?: { required: boolean; installed: boolean };
 };
 
 export type ReadinessItem = { id: string; label: string; ok: boolean; hint: string };
 
 export function readinessItems(input: ReadinessInput): ReadinessItem[] {
-  return [
+  const items: ReadinessItem[] = [
     {
       id: "test-mode",
       label: "Test mode is off",
@@ -122,4 +123,15 @@ export function readinessItems(input: ReadinessInput): ReadinessItem[] {
       hint: "Add the shared secrets for each webhook.",
     },
   ];
+  if (input.consentPopup?.required) {
+    items.push({
+      id: "consent-popup",
+      label: "Consent pop-up is on every client website",
+      ok: input.consentPopup.installed,
+      hint: input.consentPopup.installed
+        ? "The snippet has been detected or installed on every client website."
+        : "Paste the snippet on every client website. This step cannot be skipped.",
+    });
+  }
+  return items;
 }
