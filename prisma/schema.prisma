@@ -124,6 +124,7 @@ model User {
   totpSecret         String?
   totpPendingSecret  String?
   totpEnabled        Boolean   @default(false)
+  disabledAt         DateTime?
   createdAt          DateTime  @default(now())
   sessions           Session[]
   budgetsSet         Campaign[]            @relation("BudgetSetBy")
@@ -893,6 +894,18 @@ model Invite {
 
 /// One-time sign-in link. The raw token is never stored. Nothing is emailed until Jason approves a sender.
 model MagicLink {
+  id        String    @id @default(cuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+}
+
+/// One-time password reset. The raw token is never stored.
+model PasswordReset {
   id        String    @id @default(cuid())
   email     String
   tokenHash String    @unique

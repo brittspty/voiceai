@@ -11,7 +11,7 @@ import { goLiveBlockReason } from "./customer-copy";
 import { getSettingsBundle } from "./queries";
 import { TEST_STRIP_COOKIE } from "./ui-prefs";
 import { audit } from "./audit";
-import { canOpenOperatorSettings, canWrite, isOwner, isSuperAdmin, requireStaffUser, requireUser } from "./auth";
+import { canOpenOperatorSettings, canWrite, inviteRoleAllowed, isOwner, isSuperAdmin, requireStaffUser, requireUser } from "./auth";
 import { denyAccess } from "./deny";
 import { appUrl } from "./env";
 import { sendInviteEmail } from "./mail";
@@ -387,7 +387,7 @@ function hashInviteToken(token: string) {
 export async function inviteTeammate(input: { name: string; email: string; role: Role }) {
   const user = await requireStaffUser();
   if (!canOpenOperatorSettings(user.role)) denyAccess();
-  if (input.role !== "owner" && input.role !== "admin" && input.role !== "viewer") {
+  if (!inviteRoleAllowed(input.role)) {
     throw new Error("That role is assigned separately.");
   }
   const name = input.name.trim();

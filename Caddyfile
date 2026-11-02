@@ -1,6 +1,19 @@
-# SITE_ADDRESS is one hostname because production APP_URL is https://$SITE_ADDRESS.
-# voiceai.specificityinc.com and jarvis.specificityinc.com are both public hosts.
-# To serve both, list them in this site address and keep APP_URL on one of them.
+# SITE_ADDRESS is the hostname list Caddy serves. It is one name today:
+#   voiceai.specificityinc.com
+# APP_URL stays https://voiceai.specificityinc.com. Do not rename it here.
+# There is no NEXTAUTH_URL and no cookie Domain. The session cookie stays
+# host-only (voiceops_session).
+#
+# jarvis.specificityinc.com has no DNS record yet. Do not put that name in
+# the active site block until the A record exists, or certificate issuance
+# can take the working site down with it.
+#
+# Once the A record for jarvis.specificityinc.com points at this server,
+# set SITE_ADDRESS (in the server env, not in this repo) to both names:
+#   jarvis.specificityinc.com, voiceai.specificityinc.com
+# Canonical sign-in is https://jarvis.specificityinc.com/login.
+# The app redirects other public-host pages there. /api and webhooks stay
+# on the host that received them.
 {$SITE_ADDRESS} {
 	reverse_proxy app:43123
 }

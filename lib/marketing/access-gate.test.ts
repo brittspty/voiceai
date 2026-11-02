@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { canOpenOperatorSettings } from "../auth";
-import { readFileSync } from "node:fs";
+import { canInviteTeammate, canOpenOperatorSettings, inviteRoleAllowed, permissionStatus } from "../auth";
 import { passwordIssues, roleLabel } from "./access";
-import { permissionStatus } from "../auth";
 import { shownIntegrationStatus } from "../adapters";
 import { publicHttpsBase } from "../env";
 import { readinessItems, type ReadinessInput } from "../readiness";
@@ -100,6 +98,28 @@ test("a viewer write is refused as 403", () => {
   assert.equal(actions.includes("You have view-only access."), false);
   const settings = readFileSync(path.join(ROOT, "app/(app)/settings/[section]/page.tsx"), "utf8");
   assert.equal(settings.includes('{healthy ? check.detail : "Not connected"}'), false);
+});
+
+test("super admins see the same invite form and role limits as owners", () => {
+  assert.equal(canInviteTeammate("super_admin"), true);
+  assert.equal(canInviteTeammate("owner"), true);
+  assert.equal(canInviteTeammate("admin"), false);
+  assert.equal(canInviteTeammate("account_manager"), false);
+  assert.equal(inviteRoleAllowed("owner"), true);
+  assert.equal(inviteRoleAllowed("admin"), true);
+  assert.equal(inviteRoleAllowed("viewer"), true);
+  assert.equal(inviteRoleAllowed("super_admin"), false);
+  const settings = readFileSync(path.join(ROOT, "app/(app)/settings/[section]/page.tsx"), "utf8");
+  assert.match(settings, /canInviteTeammate\(user\.role\)/);
+  assert.match(settings, /canInvite && <InviteForm/);
+  const menu = readFileSync(path.join(ROOT, "components/shell.tsx"), "utf8");
+  const jarvis = readFileSync(path.join(ROOT, "components/jarvis/shell.tsx"), "utf8");
+  for (const source of [menu, jarvis]) {
+    assert.match(source, /Sign out/);
+    assert.match(source, /Team & security/);
+    assert.match(source, /Roles/);
+    assert.match(source, /\/api\/auth\/logout/);
+  }
 });
 
 test("operator settings stay with the owner and super admin", () => {

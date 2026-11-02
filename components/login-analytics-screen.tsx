@@ -20,6 +20,7 @@ export function LoginAnalyticsScreen({
   homeHref = "/",
   audience = "client",
   magicLink = false,
+  magicLinkDelivery = false,
   initial = null,
 }: {
   brand: LoginBrand;
@@ -27,6 +28,7 @@ export function LoginAnalyticsScreen({
   homeHref?: string;
   audience?: LoginTab;
   magicLink?: boolean;
+  magicLinkDelivery?: boolean;
   initial?: PublicLoginAnalytics | null;
 }) {
   const [failed, setFailed] = useState(!initial);
@@ -34,7 +36,7 @@ export function LoginAnalyticsScreen({
   return (
     <div className={`jarvis-dark ${loginFrameClass(failed)}`}>
       <style dangerouslySetInnerHTML={{ __html: analyticsThemeCss() }} />
-      <LoginColumn brand={brand} hint={hint} homeHref={homeHref} audience={audience} centered={failed} magicLink={magicLink} />
+      <LoginColumn brand={brand} hint={hint} homeHref={homeHref} audience={audience} centered={failed} magicLink={magicLink} magicLinkDelivery={magicLinkDelivery} />
       {!failed && (
         <div className="border-t border-line px-6 py-8 min-[701px]:border-t-0 min-[701px]:border-l min-[701px]:px-12 min-[701px]:py-12">
           <AnalyticsPanel onFail={fail} initial={initial} />
@@ -51,6 +53,7 @@ function LoginColumn({
   audience,
   centered,
   magicLink,
+  magicLinkDelivery,
 }: {
   brand: LoginBrand;
   hint: DemoHint | null;
@@ -58,6 +61,7 @@ function LoginColumn({
   audience: LoginTab;
   centered: boolean;
   magicLink: boolean;
+  magicLinkDelivery: boolean;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -246,7 +250,7 @@ function LoginColumn({
             </button>
           </form>
         )}
-        {magicLink && !ticket && (
+        {magicLink && magicLinkDelivery && !ticket && (
           <button
             type="button"
             className="mt-3 flex min-h-11 w-full items-center justify-center rounded border border-line text-sm font-semibold text-ink"
@@ -278,6 +282,9 @@ function LoginColumn({
             Email me a sign-in link instead
           </button>
         )}
+        {magicLink && !magicLinkDelivery && !ticket && (
+          <p className="mt-3 text-sm text-muted">Email sign-in links are not being sent yet. Use your password, or email support@specificityinc.com.</p>
+        )}
         {notice && <p className="mt-3 text-sm text-soft">{notice}</p>}
         <p className="mt-3 text-sm text-muted">
           <Link href="/forgot-password" className="inline-flex min-h-11 items-center underline">
@@ -291,9 +298,10 @@ function LoginColumn({
             {error}
           </p>
         )}
-        <a href="/api/auth/company" className="btn-brand flex min-h-11 w-full items-center justify-center rounded text-sm">
+        <button type="button" disabled className="btn-brand flex min-h-11 w-full items-center justify-center rounded text-sm">
           Continue with company sign-in
-        </a>
+        </button>
+        <p className="mt-3 text-sm text-muted">Company sign-in isn&apos;t connected. Use your email and password. Google Workspace sign-in needs an OIDC app for specificityinc.com. Those credentials are not on this server.</p>
       </div>
       <p className="text-sm text-muted">
         Need help signing in?{" "}

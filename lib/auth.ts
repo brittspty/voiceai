@@ -21,7 +21,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     where: { id: payload.sid },
     include: { user: true },
   });
-  if (!session || session.expiresAt.getTime() < Date.now()) return null;
+  if (!session || session.expiresAt.getTime() < Date.now() || session.user.disabledAt) return null;
   return {
     id: session.user.id,
     name: session.user.name,
@@ -53,6 +53,17 @@ export const OPERATOR_SETTINGS = ["users", "production", "integrations"] as cons
 
 export function canOpenOperatorSettings(role: string) {
   return role === "owner" || role === "super_admin";
+}
+
+/** Owners and super admins invite teammates. The roles they can invite are the same. */
+export function canInviteTeammate(role: string) {
+  return canOpenOperatorSettings(role);
+}
+
+export const INVITE_ROLES = ["owner", "admin", "viewer"] as const;
+
+export function inviteRoleAllowed(role: string) {
+  return (INVITE_ROLES as readonly string[]).includes(role);
 }
 
 /** Viewers cannot perform writes. Callers turn this into a 403 instead of an uncaught error. */

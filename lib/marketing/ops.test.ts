@@ -354,9 +354,15 @@ test("digests are stored and never sent", () => {
   assert.equal(text.includes("fetch("), false);
 });
 
-test("super admins are the placeholder names and can be replaced by email", () => {
-  const people = plannedSuperAdmins({});
-  assert.deepEqual(people.map((person) => person.name), ["Jason", "Brittany", "Chris"]);
+test("an unset super admin email list grants nobody", () => {
+  assert.deepEqual(superAdminEmails({}), []);
+  assert.deepEqual(plannedSuperAdmins({}), []);
+  const placeholder = accessFromUser({ id: "1", email: "jason@specificityinc.example", role: "owner" }, [], {});
+  assert.equal(placeholder.kind, "client_owner");
+  const dbRole = accessFromUser({ id: "2", email: "ada@example.com", role: "super_admin" }, [], {});
+  assert.equal(dbRole.kind, "super_admin");
+  const people = plannedSuperAdmins({ MARKETING_SUPER_ADMIN_EMAILS: "jason@specificityinc.example" });
+  assert.deepEqual(people.map((person) => person.name), ["Jason"]);
   const custom = superAdminEmails({ MARKETING_SUPER_ADMIN_EMAILS: "A@Example.com, B@Example.com" });
   assert.deepEqual(custom, ["a@example.com", "b@example.com"]);
   const admin = accessFromUser({ id: "1", email: "a@example.com", role: "viewer" }, [], { MARKETING_SUPER_ADMIN_EMAILS: "a@example.com" });

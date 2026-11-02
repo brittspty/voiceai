@@ -41,6 +41,7 @@ export function demoWorkspaceEnabled(env: Env = process.env) {
 export const LEGACY_PUBLIC_PREFIXES = [
   "/login",
   "/forgot-password",
+  "/reset-password",
   "/privacy",
   "/terms",
   "/contact",

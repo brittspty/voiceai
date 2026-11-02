@@ -1,4 +1,4 @@
-const COST_KEY = /(spend|budget|cpc|cpm|cpa|cpl|cpql|roas|cost|revenue|conversionvalue|currencyamount)/i;
+const COST_KEY = /(spend|budget|cpc|cpm|cpa|cpl|cpql|roas|cost|revenue|conversionvalue|currencyamount|bid)/i;
 
 export type CostAudience = "staff" | "client" | "share";
 

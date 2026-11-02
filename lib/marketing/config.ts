@@ -129,6 +129,16 @@ export function roleAdminEnabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_ROLE_ADMIN");
 }
 
+/** Off unless PASSWORD_RESET is explicitly on. While off, the forgot-password page stays the support instructions. */
+export function passwordResetEnabled(env: Env = process.env) {
+  return flagOn(env, "PASSWORD_RESET");
+}
+
+/** Off unless USER_ADMIN_V2 is explicitly on. */
+export function userAdminEnabled(env: Env = process.env) {
+  return flagOn(env, "USER_ADMIN_V2");
+}
+
 export function inboxEnabled(env: Env = process.env) {
   return digestSendEnabled(env) || amRealtimeEnabled(env) || skillApprovalFanoutEnabled(env);
 }

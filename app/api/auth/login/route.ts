@@ -3,24 +3,13 @@ import { NextResponse } from "next/server";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { loginNextField, postLoginPath } from "@/lib/public-routing";
-import { signToken, SESSION_COOKIE } from "@/lib/session-token";
+import { requestOrigin } from "@/lib/hosts";
+import { signToken, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session-token";
 
 const attempts = new Map<string, { n: number; at: number }>();
 
 function originOf(request: Request) {
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || new URL(request.url).host;
-  const proto = request.headers.get("x-forwarded-proto") || "http";
-  return `${proto}://${host}`;
-}
-
-function cookie(token: string) {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 12,
-  };
+  return requestOrigin(request);
 }
 
 async function credentials(request: Request) {
@@ -53,6 +42,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email or password is wrong." }, { status: 401 });
   }
   attempts.delete(email);
+  if (user.disabledAt) {
+    if (form) return NextResponse.redirect(new URL("/login?error=disabled", originOf(request)), 303);
+    return NextResponse.json({ error: "This account is turned off. Email support@specificityinc.com." }, { status: 403 });
+  }
   if (user.totpEnabled && user.totpSecret) {
     if (form) return NextResponse.redirect(new URL("/login?error=totp", originOf(request)), 303);
     const ticket = await signToken({ kind: "totp", uid: user.id, exp: Math.floor(Date.now() / 1000) + 300 });
@@ -65,6 +58,6 @@ export async function POST(request: Request) {
   await audit({ id: user.id, name: user.name }, "Signed in", { type: "session", id: session.id, label: user.email });
   const home = postLoginPath(user.role);
   const res = form ? NextResponse.redirect(new URL(home, originOf(request)), 303) : NextResponse.json({ ok: true, ...loginNextField(user.role) });
-  res.cookies.set(SESSION_COOKIE, token, cookie(token));
+  res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
   return res;
 }
