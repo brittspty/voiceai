@@ -2,7 +2,7 @@ import { AudienceDataSource } from "@/components/audience-data/screens";
 import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
 import { audienceSourceDetail, canOpenAudienceData, readClientAudienceData } from "@/lib/marketing/audience-data/present";
-import { audienceDataClientEnabled, audienceDataEnabled } from "@/lib/marketing/config";
+import { audienceDataClientEnabled, audienceDataEnabled, resolutionDataEnabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +32,7 @@ export default async function AudienceDataSourcePage({ params }: { params: Promi
         </main>
       );
     }
-    return <AudienceDataSource detail={result.body} mode="client" accountName={result.body.accountName || "Your"} />;
+    return <AudienceDataSource detail={result.body} mode="client" accountName={result.body.accountName || "Your"} showResolution={resolutionDataEnabled()} />;
   }
   if (!audienceDataEnabled()) return turnedOff();
   if (!canOpenAudienceData(access.kind)) return <NoAccess title="Audience Data" />;
@@ -45,5 +45,5 @@ export default async function AudienceDataSourcePage({ params }: { params: Promi
       </main>
     );
   }
-  return <AudienceDataSource detail={detail} mode="staff" />;
+  return <AudienceDataSource detail={detail} mode="staff" showResolution={resolutionDataEnabled()} />;
 }
