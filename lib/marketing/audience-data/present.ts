@@ -1,5 +1,6 @@
 import { stripForAudience, type CostAudience } from "../channels/cost-strip";
-import { audienceDataStaleMs, type Env } from "../config";
+import { audienceMoreChannels, type MoreMatch } from "../channels/video-channels";
+import { audienceDataStaleMs, jarvisUiV2Enabled, type Env } from "../config";
 import {
   AUDIENCE_DATA_NOW,
   CLIENT_SOURCES,
@@ -98,6 +99,8 @@ export type PresentedRow = {
   maids: number;
   maidsLabel: string;
   match: PresentedMatch[];
+  /** YouTube and CTV stay off this cell's columns. Present only when JARVIS_UI_V2 is on. */
+  moreChannels?: MoreMatch[];
   refreshed: string;
   stale: boolean;
   leads: number;
@@ -174,8 +177,9 @@ function presentSelection(row: RawSelection): PresentedSelection {
   };
 }
 
-function presentRow(source: RawSource, now: string, staleAfterMs: number): PresentedRow {
+function presentRow(source: RawSource, now: string, staleAfterMs: number, env?: Env): PresentedRow {
   const refresh = refreshLabel(source.refreshedAt, now, staleAfterMs);
+  const moreChannels = audienceMoreChannels(source.match.find((row) => row.platform === "google_ads")?.rate, source.match.find((row) => row.platform === "stackadapt")?.rate, jarvisUiV2Enabled(env), "staff");
   const row: PresentedRow = {
     id: source.id,
     vendor: source.vendor,
@@ -186,6 +190,7 @@ function presentRow(source: RawSource, now: string, staleAfterMs: number): Prese
     maids: source.maids,
     maidsLabel: formatMaids(source.maids),
     match: matchRows(source.match),
+    ...(moreChannels ? { moreChannels } : {}),
     refreshed: refresh.label,
     stale: refresh.stale,
     leads: source.leads,
@@ -235,9 +240,10 @@ export function listAudienceSources(input: {
   direction?: "asc" | "desc";
   sources?: RawSource[];
   staleAfterMs?: number;
+  env?: Env;
 }) {
   const now = input.now ?? AUDIENCE_DATA_NOW;
-  const staleAfterMs = input.staleAfterMs ?? audienceDataStaleMs();
+  const staleAfterMs = input.staleAfterMs ?? audienceDataStaleMs(input.env);
   const sources = input.sources ?? EXAMPLE_SOURCES;
   const campaignId = (input.campaignId || "all").trim();
   const search = (input.search || "").trim().toLowerCase();
@@ -249,7 +255,7 @@ export function listAudienceSources(input: {
   const sort = input.sort ?? "leads";
   const direction = input.direction ?? "desc";
   rows = [...rows].sort((a, b) => compareSources(a, b, sort, direction, now));
-  const presented = rows.map((source) => presentRow(source, now, staleAfterMs));
+  const presented = rows.map((source) => presentRow(source, now, staleAfterMs, input.env));
   const audiences = presented.reduce((sum, row) => sum + row.audiences, 0);
   const maids = presented.reduce((sum, row) => sum + row.maids, 0);
   const noun = input.reader === "staff" ? "sources" : presented.length === 1 ? "source type" : "source types";
@@ -291,10 +297,10 @@ function lowestMatch(source: RawSource) {
   return Math.min(...source.match.map((row) => row.rate));
 }
 
-export function audienceSourceDetail(id: string, reader: AudienceReader, now = AUDIENCE_DATA_NOW, sources: RawSource[] = EXAMPLE_SOURCES, staleAfterMs = audienceDataStaleMs()): PresentedDetail | null {
+export function audienceSourceDetail(id: string, reader: AudienceReader, now = AUDIENCE_DATA_NOW, sources: RawSource[] = EXAMPLE_SOURCES, staleAfterMs = audienceDataStaleMs(), env?: Env): PresentedDetail | null {
   const source = sources.find((row) => row.id === id);
   if (!source) return null;
-  const base = presentRow(source, now, staleAfterMs);
+  const base = presentRow(source, now, staleAfterMs, env);
   const groups = GROUP_ORDER.map((group) => {
     const selections = source.selections.filter((row) => row.group === group.id).map(presentSelection);
     return { id: group.id, title: group.title, count: selections.length, selections };
@@ -324,8 +330,9 @@ function formatClientMaids(value: number) {
   return formatMaids(value);
 }
 
-function presentClientRow(source: ClientSource, now: string, staleAfterMs: number) {
+function presentClientRow(source: ClientSource, now: string, staleAfterMs: number, env?: Env) {
   const refresh = refreshLabel(source.refreshedAt, now, staleAfterMs);
+  const moreChannels = audienceMoreChannels(source.match.find((row) => row.platform === "google_ads")?.rate, source.match.find((row) => row.platform === "stackadapt")?.rate, jarvisUiV2Enabled(env), "client");
   return {
     id: source.publicId,
     label: source.label,
@@ -336,6 +343,7 @@ function presentClientRow(source: ClientSource, now: string, staleAfterMs: numbe
     maids: source.maids,
     maidsLabel: formatClientMaids(source.maids),
     match: matchRows(source.match),
+    ...(moreChannels ? { moreChannels } : {}),
     refreshed: refresh.label,
     stale: refresh.stale,
     leads: source.leads,
@@ -365,7 +373,7 @@ export function listClientSources(input: {
   });
   const presented = rows
     .sort((a, b) => b.leads - a.leads)
-    .map((source) => presentClientRow(source, now, staleAfterMs));
+    .map((source) => presentClientRow(source, now, staleAfterMs, input.env));
   const audiences = presented.reduce((sum, row) => sum + row.audiences, 0);
   const maids = presented.reduce((sum, row) => sum + row.maids, 0);
   const accountName = clientRows(input.accountId)[0]?.accountName || "";
@@ -381,11 +389,11 @@ export function listClientSources(input: {
   return stripClient(body, input.reader ?? "client");
 }
 
-export function clientSourceDetail(accountId: string, publicId: string, reader: "client" | "share" = "client", now = AUDIENCE_DATA_NOW, staleAfterMs = audienceDataStaleMs()) {
+export function clientSourceDetail(accountId: string, publicId: string, reader: "client" | "share" = "client", now = AUDIENCE_DATA_NOW, staleAfterMs = audienceDataStaleMs(), env?: Env) {
   if (/vendor/i.test(publicId)) return null;
   const source = clientRows(accountId).find((row) => row.publicId === publicId);
   if (!source) return null;
-  const base = presentClientRow(source, now, staleAfterMs);
+  const base = presentClientRow(source, now, staleAfterMs, env);
   const groups = GROUP_ORDER.map((group) => {
     const selections = source.selections.filter((row) => row.group === group.id).map(presentSelection);
     return { id: group.id, title: group.title, count: selections.length, selections };
@@ -421,7 +429,7 @@ export function readClientAudienceData(input: {
   const reader = input.reader ?? "client";
   const sourceId = (input.sourceId || "").trim();
   if (sourceId) {
-    const detail = clientSourceDetail(own, sourceId, reader, input.now, audienceDataStaleMs(input.env));
+    const detail = clientSourceDetail(own, sourceId, reader, input.now, audienceDataStaleMs(input.env), input.env);
     if (!detail) return { ok: false as const, status: 404 as const, error: "Not found" as const };
     return { ok: true as const, body: detail };
   }

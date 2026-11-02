@@ -12,7 +12,8 @@ export default async function DrillPage({ params }: { params: Promise<{ slug: st
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
   const { slug } = await params;
-  if (!access.seesCost || slug[0] === "harbor") return <ClientChannel />;
+  const channel = slug[1] || "meta";
+  if (!access.seesCost || slug[0] === "harbor") return <ClientChannel channel={channel} />;
   if (slug.includes("retirees-fl")) return <Drill />;
-  return <ChannelDetail channel={slug[1] || "meta"} />;
+  return <ChannelDetail channel={channel} />;
 }

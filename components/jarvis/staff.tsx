@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_NAME } from "@/lib/brand";
 import { recommendAd, type AdSignal } from "@/lib/marketing/channels/recommend";
+import { presentedVideoChannels } from "@/lib/marketing/channels/video-channels";
 import { Crumbs, End, Flag, RecChip, Tile, Tip } from "./bits";
 import { ChannelTable } from "./channel-table";
+import { MoreChannels } from "./more-channels";
 
 const brand = { productName: PRODUCT_NAME, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
 
@@ -87,7 +89,7 @@ export function StaffHome({ surfaces = null }: { surfaces?: RegistrySurfaces | n
               </tbody>
             )}
           </table>
-          {surfaces && (
+          {surfaces ? (
             <>
               <section aria-label={surfaces.commandCenter.moreLabel}>
                 <h2>{surfaces.commandCenter.moreLabel}</h2>
@@ -133,6 +135,8 @@ export function StaffHome({ surfaces = null }: { surfaces?: RegistrySurfaces | n
                 </table>
               </section>
             </>
+          ) : (
+            <MoreChannels items={presentedVideoChannels("staff").map((row) => ({ id: row.id, href: row.href, label: row.label, detail: row.id === "youtube" && row.spend != null ? `${row.status} · $${row.spend.toLocaleString("en-US")} spend` : row.status }))} />
           )}
           <p className="sub">Attribution: last non-direct touch, 7-day click / 1-day view. A lead is counted once even if Meta and Google both claim it.</p>
         </section>
@@ -163,6 +167,65 @@ export function StaffHome({ surfaces = null }: { surfaces?: RegistrySurfaces | n
   );
 }
 
+function VideoChannelDetail({ id }: { id: "youtube" | "ctv" }) {
+  const row = presentedVideoChannels("staff").find((item) => item.id === id);
+  const youtube = id === "youtube";
+  const name = row?.label || (youtube ? "YouTube" : "CTV (StackAdapt)");
+  return (
+    <main>
+      <Crumbs items={[{ label: "All clients", href: "/" }, { label: "Overview", href: "/" }, { label: name }]} />
+      <div className="top">
+        <div>
+          <div className="sub">Channel · {name} · {row?.status || "Connected (read only)"} · Last 7 days · Updated 9:12 PM ET</div>
+          <h1>{youtube ? "YouTube is bought through Google Ads. Match rate follows Google." : "CTV (StackAdapt) is bought through StackAdapt. Its match rate is 27% and on hold."}</h1>
+        </div>
+        <div className="ctl"><span className="ex">EXAMPLE DATA</span><span className="sel">Last 7 days</span></div>
+      </div>
+      <section className="mt" aria-label="Channel results">
+        {(row?.metrics || []).map((metric) => (
+          <VideoTile key={metric.id} label={metric.label} value={metric.value} why={youtube ? "Counted on the Google Ads account. This is not a separate connector." : "Counted on the StackAdapt account. This is not a separate CTV connector."} />
+        ))}
+        <Tile hero glossaryId="leads" label="Leads" value={String(row?.leads ?? 0)} prior={youtube ? "▲ 2 vs prior 7 days" : "▲ 1 vs prior 7 days"} priorGood goal={youtube ? "over goal" : "under goal"} why={youtube ? "Normalized leads still count once per person." : "CTV match rate comes from StackAdapt. 27% is on hold."} />
+      </section>
+      {youtube && row?.spend != null ? <p className="sub">Spend ${row.spend.toLocaleString("en-US")} · CPL ${row.cpl} · staff only. {row.hierarchy}.</p> : <p className="sub">Connected (read only) through the StackAdapt account. {row?.hierarchy}. No separate connector and no outbound call.</p>}
+      <h2 style={{ margin: "28px 0 8px" }}>{row?.hierarchy || "Campaign"}</h2>
+      <table className="stack">
+        <thead>
+          <tr>
+            <th>{youtube ? "Video ad" : "Line item"}</th>
+            {youtube ? <th>Spend</th> : null}
+            <th>{youtube ? "Views" : "Completion rate"}</th>
+            <th>Leads</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {youtube ? (
+            <>
+              <tr><td>Harbor Implants Video › Smile Again 55+</td><td>$520</td><td>128K</td><td>12</td><td><span className="st ok">● Through Google Ads</span></td></tr>
+              <tr><td>Harbor Consult Video › Consult :15</td><td>$240</td><td>56K</td><td>6</td><td><span className="st ok">● Through Google Ads</span></td></tr>
+            </>
+          ) : (
+            <tr><td>Harbor CTV › Prime evenings</td><td>72%</td><td>4</td><td><span className="st w">▲ On hold: low match rate</span></td></tr>
+          )}
+        </tbody>
+      </table>
+      <End {...brand} />
+    </main>
+  );
+}
+
+function VideoTile({ label, value, why }: { label: string; value: string; why: string }) {
+  return (
+    <div className="m">
+      <div className="lab">{label}</div>
+      <div className="v">{value}</div>
+      <div className="sub">EXAMPLE DATA</div>
+      <p className="why">{why}</p>
+    </div>
+  );
+}
+
 function ChannelRow({ href, name, spend, leads, cpl, qualified, status, tone, colour, icon }: { href: string; name: string; spend: string; leads: string; cpl: string; qualified: string; status: string; tone: "ok" | "w" | "e"; colour?: string; icon?: boolean }) {
   const mark = tone === "e" ? "▼" : tone === "w" ? "▲" : "●";
   return (
@@ -178,6 +241,7 @@ function ChannelRow({ href, name, spend, leads, cpl, qualified, status, tone, co
 }
 
 export function ChannelDetail({ channel }: { channel: string }) {
+  if (channel === "youtube" || channel === "ctv") return <VideoChannelDetail id={channel} />;
   const meta = channel !== "google-ads";
   return (
     <main>
