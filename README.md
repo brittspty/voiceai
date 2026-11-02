@@ -180,7 +180,7 @@ Set the same variables on the app and the worker, then restart the worker. `npm 
 
 ### Google Ads
 
-The connector is off unless `MARKETING_GOOGLE_ADS` is `on`. With the switch on and credentials missing, the sync skips and does not raise. `MARKETING_SYNC_MODE=mock` loads labeled fixtures and does not call Google, so the marketing screen can be reviewed before a developer token exists.
+The connector is off unless `MARKETING_GOOGLE_ADS` is `on`. With the switch on and the OAuth client, client secret, refresh token, or login customer id missing, the sync skips and does not raise. A blank `GOOGLE_ADS_DEVELOPER_TOKEN` does not skip the sync. Google retired developer tokens on September 9, 2026. API access follows the Cloud project that owns the OAuth client ([developer token policy](https://developers.google.com/google-ads/api/docs/api-policy/developer-token)). The `developer-token` header is sent only when that variable is set, and the API ignores it. `login-customer-id` is sent when `GOOGLE_ADS_LOGIN_CUSTOMER_ID` is set. `MARKETING_SYNC_MODE=mock` loads labeled fixtures and does not call Google.
 
 Google's OAuth scope (`https://www.googleapis.com/auth/adwords`) can read and write. This connector does not use that write power. `googleAdsRequest` allows only `GoogleAdsService` `search` and `searchStream`. `googleAdsGuard(kind)` in `lib/marketing/connectors/google-ads-client.ts` is the shared allowlist: `read` (this connector), `page-status` (`adGroupAds:mutate` only), and `upload` (`uploadClickConversions` only). A URL on one list is still blocked on the others. Read calls reject every mutate and upload before `fetch`.
 
@@ -189,11 +189,11 @@ Google's OAuth scope (`https://www.googleapis.com/auth/adwords`) can read and wr
 | Variable | Use |
 | --- | --- |
 | `MARKETING_GOOGLE_ADS` | `off` (default). `on` allows a sync. Turning it off is the rollback: restart the app and the worker, and Google is not called. Rows already stored stay |
-| `GOOGLE_ADS_DEVELOPER_TOKEN` | Developer token from the Google Ads API center. Basic access is enough to read. Never written to the database |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Optional. Google retired developer tokens on 2026-09-09. Access follows the Cloud project that owns the OAuth client. Sent as `developer-token` only when set. A blank value does not skip the sync. Never written to the database |
 | `GOOGLE_ADS_CLIENT_ID` | OAuth client id |
 | `GOOGLE_ADS_CLIENT_SECRET` | OAuth client secret. Never written to the database |
 | `GOOGLE_ADS_REFRESH_TOKEN` | Refresh token for the Google account that can see the manager account. Stored only as the pointer `env:GOOGLE_ADS_REFRESH_TOKEN` |
-| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | 10-digit manager (MCC) id, with or without dashes. Sent as `login-customer-id` |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | 10-digit manager (MCC) id, with or without dashes. Sent as `login-customer-id` when set |
 | `GOOGLE_ADS_CUSTOMER_IDS` | Optional comma-separated 10-digit account ids for this deployment. Not `GOOGLE_ADS_CUSTOMER_ID`. When empty, the sync lists non-manager accounts under the login customer id |
 | `GOOGLE_ADS_API_VERSION` | Default `v26`. Sunset majors v18–v22 are ignored and replaced with `v26` |
 

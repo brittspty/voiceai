@@ -525,8 +525,12 @@ export function verticalBenchmarks(env: Env = process.env): Record<string, Bench
   }
 }
 
+/**
+ * Live sync skips when any of these are blank.
+ * GOOGLE_ADS_DEVELOPER_TOKEN is optional. Google retired developer tokens on
+ * 2026-09-09. Access follows the Cloud project that owns the OAuth client.
+ */
 export const GOOGLE_ADS_REQUIRED = [
-  "GOOGLE_ADS_DEVELOPER_TOKEN",
   "GOOGLE_ADS_CLIENT_ID",
   "GOOGLE_ADS_CLIENT_SECRET",
   "GOOGLE_ADS_REFRESH_TOKEN",
@@ -620,7 +624,8 @@ export type GoogleAdsDecision =
 
 /**
  * Google Ads sync does nothing unless MARKETING_GOOGLE_ADS is on.
- * Missing credentials skip. They do not throw.
+ * Missing OAuth credentials or a login customer id skip. They do not throw.
+ * A blank GOOGLE_ADS_DEVELOPER_TOKEN does not skip.
  */
 export function decideGoogleAdsSync(env: Env): GoogleAdsDecision {
   if (!googleAdsEnabled(env)) return { action: "skip", reason: "MARKETING_GOOGLE_ADS is off" };
