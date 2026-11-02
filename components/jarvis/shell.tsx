@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { SENSITIVE_CAPTURE_ATTRIBUTE, sensitiveCaptureClass } from "@/lib/analytics/capture";
 import { BRAND_TAGLINE, PRODUCT_WORDMARK } from "@/lib/brand";
 import { navActive, type NavItem } from "@/lib/marketing/channels/nav";
 import "./jarvis.css";
@@ -117,7 +118,7 @@ export function JarvisShell({
 
 function AccountMenu({ account, onNavigate }: { account: { name: string; email: string; showTeam: boolean; showRoles: boolean; showPeople: boolean }; onNavigate?: () => void }) {
   return (
-    <details className="acct">
+    <details className={sensitiveCaptureClass("acct")} {...{ [SENSITIVE_CAPTURE_ATTRIBUTE]: "" }}>
       <summary aria-label="Account menu">{account.name.slice(0, 1)} {account.name}</summary>
       <div className="panel">
         <p>{account.email}</p>
