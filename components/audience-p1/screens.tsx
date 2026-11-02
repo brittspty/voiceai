@@ -115,7 +115,15 @@ export function DrillScreen({ model }: { model: ReturnType<typeof presentDrill> 
   );
 }
 
-export function TestsScreen({ model, staff }: { model: ReturnType<typeof presentTests>; staff: boolean }) {
+export function TestsScreen({
+  model,
+  staff,
+  log = [],
+}: {
+  model: ReturnType<typeof presentTests>;
+  staff: boolean;
+  log?: { at: string; who: string; testId: string; action: string; message: string; manualSteps: string[] }[];
+}) {
   return (
     <main className="ap">
       <Nav />
@@ -154,6 +162,22 @@ export function TestsScreen({ model, staff }: { model: ReturnType<typeof present
           </article>
         ))}
       </div>
+      {staff && log.length > 0 && (
+        <section aria-label="Scale and cut log">
+          <h2>Scale and cut log</h2>
+          <span className="ap-banner">EXAMPLE DATA</span>
+          <ul>
+            {log.map((row) => (
+              <li key={`${row.at}-${row.testId}-${row.action}`}>
+                {row.who} chose {row.action} on {row.testId} at {row.at}. {row.message}. No write access approved.
+                <ol>
+                  {row.manualSteps.map((step) => <li key={step}>{step}</li>)}
+                </ol>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </main>
   );
 }
