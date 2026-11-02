@@ -5,6 +5,7 @@ import { canOpenAudienceData } from "@/lib/marketing/audience-data/present";
 import { readResolution } from "@/lib/marketing/audience-data/resolution";
 import { audienceDataClientEnabled, audienceDataEnabled, resolutionDataEnabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { forSpendViewer } from "@/lib/marketing/spend-access";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,7 @@ export default async function SourceResolutionPage({
   if (!audienceDataEnabled()) return turnedOff();
   if (!canOpenAudienceData(access.kind)) return <NoAccess title="Resolution Data" />;
   const result = readResolution({ reader: "staff", sourceId });
+  if (result.ok) result.body = forSpendViewer(result.body, access);
   if (!result.ok) return <NoAccess title="Resolution Data" />;
   return (
     <ResolutionScreen

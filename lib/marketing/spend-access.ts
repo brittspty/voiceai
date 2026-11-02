@@ -21,6 +21,16 @@ export function canSeeSpend(
   return false;
 }
 
+/** Staff receive the payload unchanged. Everyone else gets the safe-field allowlist. */
+export function forSpendViewer<T>(
+  value: T,
+  session: { role?: string | null; kind?: string | null } | null | undefined,
+  env: Env = process.env,
+): T {
+  if (canSeeSpend(session, env)) return value;
+  return projectWithoutSpend(value);
+}
+
 export function spendKey(key: string) {
   return key.toLowerCase().replace(/[_-]/g, "");
 }
@@ -132,6 +142,17 @@ const SAFE_KEYS = new Set(
     "tests", "checklist", "met", "text", "daylabel", "onhold", "holdlabel", "summary",
     "moneyincopy", "audience", "p1", "level", "levels", "filter", "filters",
     "children", "node", "nodes", "column", "columns",
+    "vendor", "vendorid", "summary", "decisions", "datacpm",
+    "delivery", "devices", "publishers", "segments", "warnings", "sensitivity",
+    "lag", "assists", "windows", "nativelabel", "verifiedhumanlabel",
+    "changesdefault", "view3days", "view7days", "exposedhouseholds", "sitevisits",
+    "leadsandconversions", "uniqueimpressions", "completion25", "completion50",
+    "completion75", "completion100", "reportedclickconversions", "reportedviewconversions",
+    "ipconversions", "cookieconversions", "maidlistid", "subsegmentkey",
+    "deterministicmatchrate", "verifiedclickconversions", "verifiedviewconversions",
+    "deterministicclickconversions", "deterministicviewconversions", "allmatchedconversions",
+    "liftcilow", "liftcihigh", "householdids", "iphashes", "identity",
+    "alerts", "recommendations", "notes", "user", "userid",
   ].map(spendKey),
 );
 

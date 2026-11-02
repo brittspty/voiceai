@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { canOpenAudienceData, listAudienceSources, listClientSources } from "@/lib/marketing/audience-data/present";
 import { audienceDataClientEnabled, audienceDataEnabled, resolutionDataEnabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { forSpendViewer } from "@/lib/marketing/spend-access";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,6 @@ export default async function AudienceDataPage() {
   }
   if (!audienceDataEnabled()) return turnedOff();
   if (!canOpenAudienceData(access.kind)) return <NoAccess title="Audience Data" />;
-  const list = listAudienceSources({ reader: "staff" });
+  const list = forSpendViewer(listAudienceSources({ reader: "staff" }), access);
   return <AudienceDataList mode="staff" rows={list.rows} campaigns={list.campaigns} resolutionHref={resolutionDataEnabled() ? "/audience-data/resolution" : ""} />;
 }

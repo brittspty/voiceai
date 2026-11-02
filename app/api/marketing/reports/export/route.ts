@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { buildReport } from "@/lib/marketing/reports/guard";
 import { buildReportPdf } from "@/lib/marketing/reports/pdf";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { forSpendViewer } from "@/lib/marketing/spend-access";
 import type { ClientReport, StaffReport } from "@/lib/marketing/reports/types";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +46,7 @@ export async function GET(request: Request) {
     if (!scoped.ok) return NextResponse.json({ error: scoped.error }, { status: scoped.status });
     report = scoped.body;
   }
+  report = forSpendViewer(report, access);
   const pdf = buildReportPdf(report);
   return new NextResponse(new Uint8Array(pdf), {
     headers: {

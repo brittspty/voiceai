@@ -13,6 +13,7 @@ import {
 } from "./config";
 import { listWaitingFatigueDecisions } from "./channels/query";
 import { buildManagerDigest, fatigueChoice, type DigestDecision } from "./digest";
+import { forSpendViewer } from "./spend-access";
 import { dispatchDigestDelivery } from "./digest-send";
 import { WORKSPACE_ID } from "./types";
 import { leadQualityDigestNote } from "./lead-score/summary";
@@ -244,7 +245,7 @@ export async function runStoredDigests(now = new Date()) {
         userId: draft.userId,
         periodStart: draft.periodStart,
         periodEnd: draft.periodEnd,
-        payload: draft.payload,
+        payload: forSpendViewer(draft.payload, access),
         delivery: draft.delivery,
       },
     });
@@ -254,7 +255,7 @@ export async function runStoredDigests(now = new Date()) {
         userId: manager.id,
         email: manager.email,
         name: manager.name,
-        payload: draft.payload,
+        payload: forSpendViewer(draft.payload, access),
         testMode,
       });
     }
@@ -280,7 +281,7 @@ export async function runStoredDigests(now = new Date()) {
           userId: draft.userId,
           periodStart: draft.periodStart,
           periodEnd: draft.periodEnd,
-          payload: draft.payload,
+          payload: forSpendViewer(draft.payload, { role: admin.role, kind: "super_admin" }),
           delivery: draft.delivery,
         },
       });
@@ -290,7 +291,7 @@ export async function runStoredDigests(now = new Date()) {
           userId: admin.id,
           email: admin.email,
           name: admin.name,
-          payload: draft.payload,
+          payload: forSpendViewer(draft.payload, { role: admin.role, kind: "super_admin" }),
           testMode,
         });
       }

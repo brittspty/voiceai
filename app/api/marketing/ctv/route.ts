@@ -4,6 +4,7 @@ import { ctvAttributionEnabled } from "@/lib/marketing/config";
 import { ctvHttpDecision, ctvPayloadForViewer } from "@/lib/marketing/ctv/report";
 import { loadCtvAttributionView } from "@/lib/marketing/ctv/sync";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { forSpendViewer } from "@/lib/marketing/spend-access";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,6 @@ export async function GET() {
   const decision = ctvHttpDecision({ enabled: ctvAttributionEnabled(), kind: access.kind, seesCost: access.seesCost });
   if (decision.status === 404) return NextResponse.json({ error: "CTV attribution is turned off." }, { status: 404 });
   if (decision.status === 403 || !decision.audience) return NextResponse.json({ error: "CTV attribution is staff only." }, { status: 403 });
-  const view = ctvPayloadForViewer(await loadCtvAttributionView(), decision.audience);
+  const view = forSpendViewer(ctvPayloadForViewer(await loadCtvAttributionView(), decision.audience), access);
   return NextResponse.json(view);
 }

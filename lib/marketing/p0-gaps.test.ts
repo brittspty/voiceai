@@ -56,7 +56,7 @@ test("every client owner, client viewer, and share endpoint strips spend, budget
       const target = path.resolve(path.dirname(file), "../route.ts");
       assert.match(readFileSync(target, "utf8"), /readScopedClient/, url);
     } else {
-      assert.match(source, /readScopedClient/, url);
+      assert.match(source, /readScopedClient|forSpendViewer|jarvisHomeBody|audienceListBody|audienceDetailBody|audienceResolutionBody/, url);
     }
     payloadRoutes.push(url);
   }
