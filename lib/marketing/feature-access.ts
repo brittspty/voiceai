@@ -28,6 +28,12 @@ export function canViewHoldouts(access: MarketingAccess) {
   return canWatchCompetitors(access);
 }
 
+/** Staff only. Client roles do not open CTV attribution. */
+export function canViewCtvAttribution(access: MarketingAccess) {
+  if (access.kind === "client_owner" || access.kind === "client_viewer" || access.kind === "none") return false;
+  return access.kind === "super_admin" || access.kind === "account_manager" || access.kind === "staff" || access.kind === "all_clients_viewer";
+}
+
 /** Staff only. Client roles do not open the audience library or the pixel page. */
 export function canUseAudienceLibrary(access: MarketingAccess) {
   if (!access.workspaceId) return false;

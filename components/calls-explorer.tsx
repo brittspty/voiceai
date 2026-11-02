@@ -42,6 +42,7 @@ export function CallsExplorer({ rows, total, page, perPage, offices, mode = "all
           { id: "time", header: "TIME", cell: (row) => <span className="text-muted">{formatDateTime(row.time)}</span> },
           { id: "contact", header: "CONTACT", cell: (row) => <ContactLines name={row.contactName} phone={row.phone} direction={row.direction} /> },
           { id: "outcome", header: "OUTCOME", cell: (row) => <OutcomePill outcome={row.outcome} /> },
+          { id: "ghl", header: "GOHIGHLEVEL", cell: (row) => row.ghlSync.label },
         ] : [
           { id: "time", header: "TIME", cell: (row) => <span className="whitespace-nowrap text-muted">{formatDateTime(row.time)}</span> },
           { id: "contact", header: "CONTACT", cell: (row) => <ContactLines name={row.contactName} phone={row.phone} direction={row.direction} /> },
@@ -51,12 +52,13 @@ export function CallsExplorer({ rows, total, page, perPage, offices, mode = "all
           { id: "consent", header: "CONSENT", cell: (row) => <ConsentPill consent={row.consent} /> },
           { id: "duration", header: "DURATION", cell: (row) => <Duration seconds={row.durationSec} /> },
           { id: "cost", header: "COST", cell: (row) => <Money cents={row.costCents} />, defaultHidden: true },
+          { id: "ghl", header: "GOHIGHLEVEL", cell: (row) => row.ghlSync.label },
         ]}
         stackOnMobile
         trailing={mode === "voice" ? (row) => (
           <div className="flex justify-end gap-3 text-sm text-muted">
-            {row.transcript.length > 0 && <button type="button" onClick={() => setOpen(row)} className="hover:text-ink">Transcript</button>}
-            {row.recordingUrl && <button type="button" onClick={() => setOpen(row)} className="hover:text-ink">Recording</button>}
+            <button type="button" onClick={() => setOpen(row)} className="inline-flex min-h-6 items-center hover:text-ink max-sm:min-h-11">Details</button>
+            {row.recordingUrl && <button type="button" onClick={() => setOpen(row)} className="inline-flex min-h-6 items-center hover:text-ink max-sm:min-h-11">Recording</button>}
           </div>
         ) : undefined}
       />
