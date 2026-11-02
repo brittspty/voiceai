@@ -23,6 +23,8 @@ export function jarvisNav(input: {
   showSegments?: boolean;
   showAudiences?: boolean;
   channelLinks?: NavItem[] | null;
+  showInsights?: boolean;
+  showNotifications?: boolean;
   showCtv?: boolean;
   showAudienceData?: boolean;
   showAudienceDataClient?: boolean;
@@ -53,7 +55,7 @@ export function jarvisNav(input: {
   ];
   if (input.showLive) items.push({ href: "/live", label: "Live", group: "Overview" });
   if (input.showAudienceData) items.push({ href: "/audience-data", label: "Audience Data", group: "Data" });
-if (input.channelLinks?.length) items.push(...input.channelLinks);
+  if (input.channelLinks?.length) items.push(...input.channelLinks);
   else {
     const channels: NavItem[] = [
       { href: "/c/all/meta", label: "Meta", group: "Channels" },
@@ -77,6 +79,8 @@ if (input.channelLinks?.length) items.push(...input.channelLinks);
   }
   if (input.showCtv) items.push({ href: "/marketing/ctv", label: "CTV (StackAdapt)", group: "Channels" });
   items.push({ href: "/reports", label: "Reports", group: "Share" });
+  if (input.showInsights) items.push({ href: "/insights", label: "Insights", group: "Share" });
+  if (input.showNotifications) items.push({ href: "/notifications", label: "Notifications", group: "Overview" });
   items.push({ href: "/settings", label: "Settings & connections", group: "Account" });
   return items;
 }

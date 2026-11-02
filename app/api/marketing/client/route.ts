@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { presentForAudience } from "@/lib/marketing/share-payload";
 import { getCurrentUser } from "@/lib/auth";
 import { readScopedClient } from "@/lib/marketing/client-contract";
 import { loadClientPerformance, loadMarketingAccess, recordClientView } from "@/lib/marketing/queries";
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
     payload: loaded,
   });
   if (!scoped.ok) return NextResponse.json({ error: scoped.error }, { status: scoped.status });
-  const payload = scoped.body;
+  const payload = presentForAudience(scoped.body, "client");
   const meta = requestClientMeta(request.headers);
   await recordClientView({ workspaceId: access.workspaceId, viewerUserId: user.id, page: "/api/marketing/client", ...meta });
   return NextResponse.json(payload);

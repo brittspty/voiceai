@@ -1,6 +1,7 @@
 import type { CallOutcome, Prisma } from "@prisma/client";
 import { getPorts } from "./adapters";
 import { ais2lComplianceV2Enabled, callReason } from "./ais2l/flag";
+import { testDialDecision } from "./ais2l/screen";
 import { planHumanHandoff, detectHumanHandoff } from "./ais2l/handoff";
 import { callingDecision } from "./ais2l/hours";
 import { buildOpener, firstCallControl } from "./ais2l/opener";
@@ -111,6 +112,24 @@ export async function processDialJob(job: { id: string; payload: unknown; callId
     await audit(SYSTEM_ACTOR, "Queued a call because the lead timezone is unknown", { type: "call", id: call.id, label: call.contact.name });
     return;
   }
+  const decision = testDialDecision({ orgTestMode: Boolean(org?.testMode), phone: call.contact.phone });
+  if (!decision.allowed) {
+    await prisma.call.update({
+      where: { id: call.id },
+      data: {
+        status: "failed",
+        outcome: "failed",
+        gatesPassed: false,
+        failureReason: decision.reason,
+        endedAt: new Date(),
+        gateChecks: [{ id: "test_number", label: "Test number", passed: false, detail: decision.reason }] as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await appendTimeline(call.id, { at: new Date().toISOString(), label: "Blocked before dial", detail: decision.reason });
+    await audit(SYSTEM_ACTOR, "Blocked a call because voice is in test mode", { type: "call", id: call.id, label: call.contact.name });
+    return;
+  }
+
   const ports = getPorts(Boolean(org?.testMode));
   const step = workerStepMs();
   const complianceOn = ais2lComplianceV2Enabled();
