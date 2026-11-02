@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
+import { BrandLogoThemed } from "@/components/brand-logo";
 import { loginHeading } from "@/lib/login-copy";
 import { sameOriginPath } from "@/lib/same-origin-path";
 
@@ -16,6 +17,7 @@ export type LoginBrand = {
   wordmark: string;
   tagline: string;
   productLine: string;
+  logoV2?: boolean;
 };
 
 export type DemoHint = {
@@ -47,8 +49,9 @@ function LoginForm({ brand, hint, homeHref, magicLink, magicLinkDelivery }: { br
     <div className="grid min-h-screen place-items-center bg-canvas px-4">
       <div className="w-full max-w-sm rounded-2xl border border-line bg-card p-6 shadow-[var(--shadow)]">
         <div className="mb-5">
+          {brand.logoV2 ? <BrandLogoThemed variant="lockup" className="mx-auto mb-4 h-auto w-[200px]" /> : null}
           <div className="flex items-center gap-2.5">
-            <BrandMark brandColor={brand.brandColor} logoUrl={brand.logoUrl} mark={brand.mark} letter alt={brand.wordmark} />
+            {brand.logoV2 ? null : <BrandMark brandColor={brand.brandColor} logoUrl={brand.logoUrl} mark={brand.mark} letter alt={brand.wordmark} />}
             <div>
               <h1 className="text-base font-semibold">{heading}</h1>
               <p className="text-xs italic text-zinc-600 dark:text-zinc-300">{brand.tagline}</p>

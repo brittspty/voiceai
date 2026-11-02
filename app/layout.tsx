@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, Poppins } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { BRAND_FONT, loadBrand, PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_TITLE, PRODUCT_WORDMARK } from "@/lib/brand";
+import { brandHeadIcons } from "@/lib/brand/logo";
 import { brandTokenCss } from "@/lib/brand/tokens";
 import "./globals.css";
 
@@ -11,14 +12,15 @@ const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600
 
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await loadBrand();
+  const v2 = brandHeadIcons();
   return {
     title: { default: PRODUCT_TITLE, template: `%s · ${PRODUCT_NAME}` },
     description: PRODUCT_TAGLINE,
     applicationName: PRODUCT_WORDMARK,
-    manifest: "/site.webmanifest",
+    manifest: v2 ? v2.manifest : "/site.webmanifest",
     openGraph: { title: PRODUCT_TITLE, description: PRODUCT_TAGLINE, siteName: PRODUCT_WORDMARK },
     twitter: { card: "summary", title: PRODUCT_TITLE, description: PRODUCT_TAGLINE },
-    icons: brand.logoUrl ? { icon: brand.logoUrl } : undefined,
+    icons: v2 ? v2.icons : brand.logoUrl ? { icon: brand.logoUrl } : undefined,
   };
 }
 

@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { BrandLogoThemed } from "@/components/brand-logo";
 import Link from "next/link";
 import { requestAccess } from "@/lib/actions";
 
-export function RequestAccessForm({ wordmark, tagline }: { wordmark: string; tagline: string }) {
+export function RequestAccessForm({ wordmark, tagline, logoV2 = false }: { wordmark: string; tagline: string; logoV2?: boolean }) {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
     <main className="mx-auto min-h-screen max-w-lg px-4 py-12">
+      {logoV2 ? <BrandLogoThemed variant="lockup" className="mx-auto mb-4 h-auto w-[200px]" /> : null}
       <p className="text-sm text-muted"><Link href="/login" className="underline">{wordmark}</Link></p>
       <h1 className="mt-3 text-3xl font-semibold">Request access</h1>
       <p className="mt-2 text-sm italic text-zinc-600">{tagline}</p>

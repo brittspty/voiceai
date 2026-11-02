@@ -3,6 +3,7 @@ import { brandTokens } from "./brand/tokens";
 import { BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { homepageDirection } from "./homepage-style";
 import { canonicalOrigin } from "./hosts";
+import { BRAND_OG_V2_PATH, brandLogoV2Enabled } from "./brand/logo";
 import { demoWorkspaceEnabled, postLoginPath, type Env } from "./public-routing";
 
 /**
@@ -62,6 +63,8 @@ export type HomepageModel = {
   brandColor: string;
   fonts: { sans: string; mono: string };
   logos: { reversed: string; alt: string };
+  /** BRAND_LOGO_V2: JAI vector logo instead of the Specificity mark. */
+  logoV2: boolean;
   signedIn: boolean;
   appHref: string;
   showTryDemo: boolean;
@@ -173,6 +176,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     brandColor: brandTokens.light.brand,
     fonts: { sans: brandTokens.font.stack, mono: brandTokens.font.monoStack },
     logos: { reversed: brandTokens.logo.reversed, alt: brandTokens.logo.alt },
+    logoV2: brandLogoV2Enabled(env),
     signedIn: session.signedIn,
     appHref: session.signedIn ? postLoginPath(session.role, env) : "/app",
     showTryDemo,
@@ -570,10 +574,11 @@ export function homepageJsonLd(origin: string | null) {
   };
 }
 
-export function homepageMetadata(origin: string | null) {
+export function homepageMetadata(origin: string | null, env: Env = process.env) {
   const title = `${PRODUCT_NAME} | ${BRAND_TAGLINE}`;
   const description = homepageDescription();
-  const image = origin ? `${origin}/brand/jai-og.png` : "/brand/jai-og.png";
+  const ogPath = brandLogoV2Enabled(env) ? BRAND_OG_V2_PATH : "/brand/jai-og.png";
+  const image = origin ? `${origin}${ogPath}` : ogPath;
   return {
     title: { absolute: title },
     description,
