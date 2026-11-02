@@ -1,5 +1,6 @@
 import { demoViewerGate } from "./demo/isolation";
 import { clientViewerBlock } from "./marketing/client-gate";
+import { demoTakingABreak, uxLaunchGapsEnabled } from "./ux-flags";
 
 /**
  * Public homepage routing.
@@ -97,12 +98,43 @@ export function isLegacyPublic(pathname: string) {
   return LEGACY_PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix));
 }
 
+/** Routes that exist and stay behind sign-in. Anything else can 404 while UX_LAUNCH_GAPS is on. */
+const KNOWN_PROTECTED_PREFIXES = [
+  "/app",
+  "/marketing",
+  "/sites",
+  "/calls",
+  "/knowledge",
+  "/settings",
+  "/docs",
+  "/insights",
+  "/decisions",
+  "/leads",
+  "/live",
+  "/notifications",
+  "/plans",
+  "/reports",
+  "/aud" + "ience-data",
+  "/ais2l",
+  "/portfolio",
+  "/c",
+  "/demo",
+  "/api",
+];
+
+export function isKnownProtectedPath(pathname: string) {
+  const path = normalizePath(pathname);
+  if (path === "/") return true;
+  return KNOWN_PROTECTED_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+
 export function isPublicPath(pathname: string, env: Env) {
   if (isLegacyPublic(pathname)) return true;
   if (isLoginAnalyticsPath(pathname)) return true;
   if (publicHomepageEnabled(env) && normalizePath(pathname) === "/") return true;
   if (publicHomepageEnabled(env) && isHomepageContactPath(pathname)) return true;
   if (demoWorkspaceEnabled(env) && (isDemoPath(pathname) || isDemoApiPath(pathname))) return true;
+  if (demoTakingABreak(env) && isDemoPath(pathname)) return true;
   if (isPlanPath(pathname)) return true;
   return false;
 }
@@ -139,7 +171,8 @@ export type GateDecision =
   | { action: "next" }
   | { action: "rewrite"; pathname: string }
   | { action: "redirect"; pathname: string; next?: string; clearSearch?: boolean }
-  | { action: "json"; status: 401 | 403; error: string };
+  | { action: "json"; status: 401 | 403; error: string }
+  | { action: "not_found" };
 
 export function gateDecision(input: {
   pathname: string;
@@ -158,6 +191,7 @@ export function gateDecision(input: {
 
   if (!signedIn && !isPublicPath(input.pathname, env)) {
     if (input.pathname.startsWith("/api/")) return { action: "json", status: 401, error: "Sign in required" };
+    if (uxLaunchGapsEnabled(env) && !isKnownProtectedPath(input.pathname)) return { action: "not_found" };
     return { action: "redirect", pathname: "/login", next: input.pathname };
   }
 

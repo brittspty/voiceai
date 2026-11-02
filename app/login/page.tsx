@@ -9,6 +9,7 @@ import { authEmailCanSend } from "@/lib/auth-mail";
 import { magicLinkEnabled } from "@/lib/magic-link";
 import { zonedISODate } from "@/lib/time";
 import { appHomePath } from "@/lib/public-routing";
+import { uxLaunchGapsEnabled } from "@/lib/ux-flags";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     homeHref: appHomePath(),
     magicLink,
     magicLinkDelivery,
+    launchGaps: uxLaunchGapsEnabled(),
   };
   if (!loginAnalyticsEnabled()) return <LoginScreen {...props} />;
   let initial = null;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AIS2L_NAME } from "@/lib/brand/names";
 import { formatCount, formatMoney, homeKpiTotals, type HomeModel } from "@/lib/marketing/home-dashboard";
+import { SPEND_TOTAL_NOTE, STAFF_MONEY_MISSING_TIP } from "@/lib/marketing/staff-money";
 
 function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -92,7 +93,11 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
                   <td className="border-b border-line px-2 py-2.5">{formatCount(client.views)}</td>
                   <td className="border-b border-line px-2 py-2.5">{formatCount(client.leads)}</td>
                   <td className="border-b border-line px-2 py-2.5">{formatCount(client.calls)}</td>
-                  {model.showMoney && <td className="border-b border-line px-2 py-2.5">{formatMoney(client.spend ?? 0)}</td>}
+                  {model.showMoney && (
+                    <td className="border-b border-line px-2 py-2.5" title={client.spend == null ? STAFF_MONEY_MISSING_TIP : undefined}>
+                      {formatMoney(client.spend)}
+                    </td>
+                  )}
                   <td className="border-b border-line px-2 py-2.5">{client.voiceEnabled ? "On" : "Not included"}</td>
                 </tr>
               ))}
@@ -105,12 +110,13 @@ export function HomeDashboard({ model, choices, homeHref = "/" }: { model: HomeM
               <span className="font-semibold">{client.name}</span>
               <span className="mt-1 block text-sm text-muted">
                 {formatCount(client.leads)} leads · {formatCount(client.calls)} calls
-                {model.showMoney ? ` · ${formatMoney(client.spend ?? 0)}` : ""}
+                {model.showMoney ? ` · ${formatMoney(client.spend)}` : ""}
               </span>
               <span className="mt-1 block text-xs text-muted">{client.voiceEnabled ? `${AIS2L_NAME} on` : `${AIS2L_NAME} not included`}</span>
             </Link>
           ))}
         </div>
+        {model.showMoney && model.clients.some((client) => client.spend == null) ? <p className="mt-3 text-xs text-muted">{SPEND_TOTAL_NOTE}</p> : null}
         {!model.clients.length && <p className="mt-3 text-sm text-muted">No clients in this view yet.</p>}
       </section>
 

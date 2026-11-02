@@ -3,11 +3,23 @@ import { ForgotPasswordForm } from "@/components/forgot-password-form";
 import { BRAND_WORDMARK } from "@/lib/brand";
 import { authEmailCanSend } from "@/lib/auth-mail";
 import { passwordResetEnabled } from "@/lib/marketing/config";
+import { uxLaunchGapsEnabled } from "@/lib/ux-flags";
 
 export const metadata = { title: "Reset your password" };
 
 export default function ForgotPasswordPage() {
   const enabled = passwordResetEnabled();
+  if (uxLaunchGapsEnabled() && !enabled) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-canvas px-4">
+        <div className="w-full max-w-sm rounded-2xl border border-line bg-card p-6">
+          <h1 className="text-lg font-semibold">Password reset is paused</h1>
+          <p className="mt-4 text-sm leading-6">We&apos;ve paused reset emails during launch. Ask your Specificity admin to reset your password.</p>
+          <p className="mt-4 text-sm"><Link href="/login" className="btn-brand inline-flex min-h-11 items-center rounded-full px-4">Back to sign in</Link></p>
+        </div>
+      </main>
+    );
+  }
   return (
     <main className="grid min-h-screen place-items-center bg-canvas px-4">
       <div className="w-full max-w-sm rounded-2xl border border-line bg-card p-6">

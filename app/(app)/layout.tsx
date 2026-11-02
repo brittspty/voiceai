@@ -5,7 +5,8 @@ import { AppShell } from "@/components/shell";
 import { requireUser } from "@/lib/auth";
 import { BRAND_TAGLINE, BRAND_WORDMARK, LOGO_ON_DARK, LOGO_ON_LIGHT, PRODUCT_NAME, resolveBrandColor, resolveLogoUrl } from "@/lib/brand";
 import { prisma } from "@/lib/db";
-import { exampleRegistryState, projectSurfaces } from "@/lib/marketing/channels/registry";
+import { exampleRegistryState, projectSurfaces, SEED_REGISTRY } from "@/lib/marketing/channels/registry";
+import { uxLaunchGapsEnabled } from "@/lib/ux-flags";
 import { jarvisNav } from "@/lib/marketing/channels/nav";
 import { clientViewerAllowed } from "@/lib/marketing/client-gate";
 import { loginAnalyticsEnabled } from "@/lib/login-analytics";
@@ -97,6 +98,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showInsights={insightsEnabled()}
       showNotifications={pushNotificationsEnabled()}
       showPeople={userAdminEnabled() && (user.role === "super_admin" || user.role === "account_manager")}
+      showYoutube={(uxLaunchGapsEnabled() || channelRegistryEnabled()) && SEED_REGISTRY.some((row) => row.key === "youtube")}
+      showLinkedin={(uxLaunchGapsEnabled() || channelRegistryEnabled()) && SEED_REGISTRY.some((row) => row.key === "linkedin")}
     >
       {children}
     </AppShell>

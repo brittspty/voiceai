@@ -21,6 +21,7 @@ export function LoginAnalyticsScreen({
   audience = "client",
   magicLink = false,
   magicLinkDelivery = false,
+  launchGaps = false,
   initial = null,
 }: {
   brand: LoginBrand;
@@ -29,6 +30,7 @@ export function LoginAnalyticsScreen({
   audience?: LoginTab;
   magicLink?: boolean;
   magicLinkDelivery?: boolean;
+  launchGaps?: boolean;
   initial?: PublicLoginAnalytics | null;
 }) {
   const [failed, setFailed] = useState(!initial);
@@ -36,7 +38,7 @@ export function LoginAnalyticsScreen({
   return (
     <div className={`jarvis-dark ${loginFrameClass(failed)}`}>
       <style dangerouslySetInnerHTML={{ __html: analyticsThemeCss() }} />
-      <LoginColumn brand={brand} hint={hint} homeHref={homeHref} audience={audience} centered={failed} magicLink={magicLink} magicLinkDelivery={magicLinkDelivery} />
+      <LoginColumn brand={brand} hint={hint} homeHref={homeHref} audience={audience} centered={failed} magicLink={magicLink} magicLinkDelivery={magicLinkDelivery} launchGaps={launchGaps} />
       {!failed && (
         <div className="border-t border-line px-6 py-8 min-[701px]:border-t-0 min-[701px]:border-l min-[701px]:px-12 min-[701px]:py-12">
           <AnalyticsPanel onFail={fail} initial={initial} />
@@ -54,6 +56,7 @@ function LoginColumn({
   centered,
   magicLink,
   magicLinkDelivery,
+  launchGaps,
 }: {
   brand: LoginBrand;
   hint: DemoHint | null;
@@ -62,6 +65,7 @@ function LoginColumn({
   centered: boolean;
   magicLink: boolean;
   magicLinkDelivery: boolean;
+  launchGaps: boolean;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -282,15 +286,27 @@ function LoginColumn({
             Email me a sign-in link instead
           </button>
         )}
-        {magicLink && !magicLinkDelivery && !ticket && (
+        {launchGaps && !magicLinkDelivery && !ticket && (
+          <div className="mt-3">
+            <button type="button" aria-disabled="true" aria-describedby="magic-link-reason" className="flex min-h-11 w-full items-center justify-center rounded border border-line text-sm font-semibold" onClick={(event) => event.preventDefault()}>
+              Email me a sign-in link
+            </button>
+            <p id="magic-link-reason" className="mt-2 text-sm text-muted">Email sign-in links are paused for launch. Sign in with your password, or ask your Specificity admin for help.</p>
+          </div>
+        )}
+        {!launchGaps && magicLink && !magicLinkDelivery && !ticket && (
           <p className="mt-3 text-sm text-muted">Email sign-in links are not being sent yet. Use your password, or email support@specificityinc.com.</p>
         )}
         {notice && <p className="mt-3 text-sm text-soft">{notice}</p>}
-        <p className="mt-3 text-sm text-muted">
-          <Link href="/forgot-password" className="inline-flex min-h-11 items-center underline">
-            Forgot password?
-          </Link>
-        </p>
+        {launchGaps ? (
+          <p className="mt-3 text-sm text-muted">Forgot your password? Ask your Specificity admin to reset it.</p>
+        ) : (
+          <p className="mt-3 text-sm text-muted">
+            <Link href="/forgot-password" className="inline-flex min-h-11 items-center underline">
+              Forgot password?
+            </Link>
+          </p>
+        )}
       </div>
       <div id="panel-team" role="tabpanel" aria-labelledby="tab-team" hidden={tab !== "team"}>
         {error && tab === "team" && (
@@ -298,10 +314,21 @@ function LoginColumn({
             {error}
           </p>
         )}
-        <button type="button" disabled className="btn-brand flex min-h-11 w-full items-center justify-center rounded text-sm">
-          Continue with company sign-in
-        </button>
-        <p className="mt-3 text-sm text-muted">Company sign-in isn&apos;t connected. Use your email and password. Google Workspace sign-in needs an OIDC app for specificityinc.com. Those credentials are not on this server.</p>
+        {launchGaps ? (
+          <>
+            <button type="button" aria-disabled="true" aria-describedby="team-login-reason" className="btn-brand flex min-h-11 w-full items-center justify-center rounded text-sm" onClick={(event) => event.preventDefault()}>
+              Team login
+            </button>
+            <p id="team-login-reason" className="mt-3 text-sm text-muted">Team login isn&apos;t available yet. Ask your Specificity admin to get you signed in.</p>
+          </>
+        ) : (
+          <>
+            <button type="button" disabled className="btn-brand flex min-h-11 w-full items-center justify-center rounded text-sm">
+              Continue with company sign-in
+            </button>
+            <p className="mt-3 text-sm text-muted">Company sign-in isn&apos;t connected. Use your email and password. Google Workspace sign-in needs an OIDC app for specificityinc.com. Those credentials are not on this server.</p>
+          </>
+        )}
       </div>
       <p className="text-sm text-muted">
         Need help signing in?{" "}

@@ -121,7 +121,7 @@ export function PortfolioDashboard({ initial }: { initial: PortfolioModel }) {
                 {model.showMoney && (
                   <>
                     <dt className="text-soft">Spend MTD (staff only)</dt>
-                    <dd className="num m-0">{formatPortfolioSpend(client.spend ?? 0)}</dd>
+                    <dd className="num m-0">{formatPortfolioSpend(client.spend)}</dd>
                   </>
                 )}
               </dl>
@@ -239,7 +239,7 @@ function PortfolioRow({ client, showMoney }: { client: PortfolioModel["clients"]
         {client.pixelLabel}
       </td>
       <td className={`num border-b border-line px-2.5 py-3 ${client.matchOnHold ? "text-danger" : ""}`}>{client.matchLabel}</td>
-      {showMoney && <td className="num border-b border-line px-2.5 py-3">{formatPortfolioSpend(client.spend ?? 0)}</td>}
+      {showMoney && <td className="num border-b border-line px-2.5 py-3">{formatPortfolioSpend(client.spend)}</td>}
     </tr>
   );
 }

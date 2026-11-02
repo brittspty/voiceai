@@ -1,4 +1,7 @@
+import Link from "next/link";
 import type { CtvView } from "@/lib/marketing/ctv/report";
+import { ctvRecommendationCopy, ctvVisibleNote } from "@/lib/marketing/ctv/wording";
+import { uxLaunchGapsEnabled } from "@/lib/ux-flags";
 
 function num(value: number | null | undefined, digits = 0) {
   if (value == null || !Number.isFinite(value)) return "n/a";
@@ -17,6 +20,16 @@ function money(value: number | null | undefined) {
 
 export function CtvAttributionView({ view, showMoney }: { view: CtvView; showMoney: boolean }) {
   const segment = view.segments[0];
+  const launch = uxLaunchGapsEnabled();
+  const noteFor = (note: string) => (launch ? ctvVisibleNote(note, showMoney) : note);
+  const pair = launch && view.segments.length >= 2
+    ? ctvRecommendationCopy({
+        staff: showMoney,
+        from: view.segments[1]?.subSegmentKey || "the other audience",
+        to: view.segments[0]?.subSegmentKey || "this audience",
+        daily: null,
+      })
+    : null;
   return (
     <div className="grid gap-6">
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -104,14 +117,20 @@ export function CtvAttributionView({ view, showMoney }: { view: CtvView; showMon
                 <td className="px-3 py-2">{num(row.deterministicClickConversions)} click / {num(row.deterministicViewConversions)} view</td>
                 <td className="px-3 py-2">{row.lift == null ? row.liftLabel : `${pct(row.lift)} (${row.liftLabel})`}</td>
                 {showMoney ? <td className="px-3 py-2">{money(row.costPerIncrementalVerified) || "n/a"}</td> : null}
-                <td className="px-3 py-2">{row.note}</td>
+                <td className="px-3 py-2">{noteFor(row.note)}</td>
               </tr>
             ))}
           </tbody>
         </table>
         {!view.segments.length ? <p className="p-4 text-sm text-muted">No CTV rows in this window.</p> : null}
       </section>
-      {segment ? <p className="text-sm text-muted">{segment.note}</p> : null}
+      {segment ? <p className="text-sm text-muted">{noteFor(segment.note)}</p> : null}
+      {pair ? (
+        <p className="text-sm">
+          {pair}{" "}
+          {showMoney ? <Link href="/decisions" className="underline">Review</Link> : null}
+        </p>
+      ) : null}
       {view.warnings.length ? (
         <ul className="grid gap-1 text-sm text-muted">
           {view.warnings.map((warning) => <li key={warning}>{warning}</li>)}

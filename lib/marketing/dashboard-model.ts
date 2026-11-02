@@ -295,7 +295,7 @@ export function assembleCampaigns(input: {
           l: counts.leads,
           k: counts.calls,
         };
-        if (input.showMoney) point.s = row?.spend ?? 0;
+        if (input.showMoney && row?.spend != null && Number.isFinite(row.spend)) point.s = row.spend;
         return point;
       });
       return {
@@ -393,7 +393,8 @@ export function formatCount(n: number) {
   return Math.round(n).toLocaleString("en-US");
 }
 
-export function formatMoney(n: number) {
+export function formatMoney(n: number | null | undefined) {
+  if (n == null || !Number.isFinite(n)) return "n/a";
   if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
   return `$${n.toFixed(2)}`;
 }

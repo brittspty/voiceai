@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { rewriteForDemoHost } from "@/lib/demo/routes";
 import { publicHostRedirect } from "@/lib/hosts";
 import { envForProxy, gateDecision } from "@/lib/public-routing";
+import { missingPageHtml } from "@/lib/ux/missing-page";
 import { readToken, SESSION_COOKIE } from "@/lib/session-token";
 
 function withPath(request: NextRequest, rewriteUrl?: URL) {
@@ -39,6 +40,12 @@ export async function proxy(request: NextRequest, envOverride?: unknown) {
     role: payload?.kind === "session" ? payload.role : null,
     env,
   });
+  if (decision.action === "not_found") {
+    return new NextResponse(missingPageHtml(false), {
+      status: 404,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
   if (decision.action === "json") return NextResponse.json({ error: decision.error }, { status: decision.status });
   if (decision.action === "redirect") {
     const url = request.nextUrl.clone();

@@ -45,6 +45,8 @@ export function AppShell({
   showAudienceData = false,
   showAudienceDataClient = false,
   showPeople = false,
+  showYoutube = false,
+  showLinkedin = false,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
@@ -65,6 +67,8 @@ export function AppShell({
   showAudienceData?: boolean;
   showAudienceDataClient?: boolean;
   showPeople?: boolean;
+  showYoutube?: boolean;
+  showLinkedin?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -107,6 +111,8 @@ export function AppShell({
     ...(showSegments ? [{ href: "/marketing/segments", label: "Audience Data", icon: Layers }] : []),
     ...(audienceLibrary ? [{ href: "/marketing/audiences", label: "Audiences", icon: Users }, { href: "/marketing/audiences/pixel", label: "Pixel tracking", icon: Activity }] : []),
     ...(showCtv ? [{ href: "/marketing/ctv", label: "CTV (StackAdapt)", icon: Tv }] : []),
+    ...(showYoutube ? [{ href: "/c/all/youtube", label: "YouTube", icon: Tv }] : []),
+    ...(showLinkedin ? [{ href: "/c/all/linkedin", label: "LinkedIn", icon: Users }] : []),
     ...(showAudienceData ? [{ href: "/audience-data", label: "Audience Data", icon: Database }] : []),
   ];
   const baseNav = [...NAV.slice(0, 2), ...extras, ...reportNav, ...NAV.slice(2)];

@@ -1,5 +1,6 @@
 import { AIS2L_NAME } from "../brand/names";
 import { formatCount, formatMoney } from "./dashboard-model";
+import { sumReportedMoney } from "./staff-money";
 import type { HomeScope } from "./isolation";
 import { scopeWorkspaceIds } from "./isolation";
 
@@ -185,7 +186,8 @@ export function assembleHome(input: {
         platforms,
       };
       if (input.showMoney) {
-        client.spend = rows.reduce((sum, row) => sum + (row.spend ?? 0), 0);
+        const summed = sumReportedMoney(rows.map((row) => row.spend));
+        if (summed.total != null) client.spend = summed.total;
         client.overPace = pace.get(workspace.id) ?? 0;
       }
       return client;
