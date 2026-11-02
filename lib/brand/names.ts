@@ -1,6 +1,6 @@
 /** Customer-facing product name. Avery is the caller inside AIS2L, not the product. */
-export const PRODUCT_NAME = "Diver AI by Specificity";
-export const PRODUCT_WORDMARK = "Diver AI";
+export const PRODUCT_NAME = "JAI by Specificity";
+export const PRODUCT_WORDMARK = "JAI";
 export const PRODUCT_TITLE = PRODUCT_NAME;
 
 /** Voice module: Avery, calls, and speed-to-lead. Not a hostname, cookie, or queue. */
