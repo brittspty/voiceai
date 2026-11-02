@@ -219,9 +219,13 @@ test("rendered public pages and email templates do not say Jarvis", async () => 
   const capital = wholeWordJarvis(scanned);
   const visible = visibleCopy(scanned);
   const lower = visible.match(/\bjarvis\b/gi) ?? [];
+  const diver = visible.match(/\bdiver ai\b/gi) ?? [];
   assert.deepEqual(capital, [], capital.join(","));
   assert.deepEqual(lower, [], `${lower.join(",")} near ${JSON.stringify(visible.slice(Math.max(0, visible.toLowerCase().indexOf("jarvis") - 60), visible.toLowerCase().indexOf("jarvis") + 60))}`);
-  assert.match(scanned, /Diver AI by Specificity/);
-  assert.match(scanned, /Diver AI home/);
-  assert.match(manifest, /"short_name": "Diver AI"/);
+  assert.deepEqual(diver, [], `${diver.join(",")} near ${JSON.stringify(visible.slice(Math.max(0, visible.toLowerCase().indexOf("diver ai") - 60), visible.toLowerCase().indexOf("diver ai") + 60))}`);
+  assert.equal(scanned.includes("Diver AI"), false);
+  assert.match(visible, /\bJAI\b/);
+  assert.match(scanned, /JAI by Specificity/);
+  assert.match(scanned, /JAI home/);
+  assert.match(manifest, /"short_name": "JAI"/);
 });

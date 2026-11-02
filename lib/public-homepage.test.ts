@@ -289,7 +289,7 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(prose, /The turn/);
   assert.match(prose, /After/);
   assert.match(prose, /Where is your ad budget leaking/);
-  assert.match(prose, /Diver AI vs a typical agency vs DIY ad platforms/);
+  assert.match(prose, /JAI vs a typical agency vs DIY ad platforms/);
   const privacy = model.faq.find((item) => item.question === "Is this private and compliant?");
   const pricing = model.faq.find((item) => item.question === "What does it cost?");
   const reply = model.faq.find((item) => item.question === "When will someone reply?");
@@ -332,10 +332,10 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(signedIn, /Go to app/);
   assert.match(signedIn, /href="\/marketing"/);
   const meta = homepageMetadata("https://jarvis.specificityinc.com");
-  assert.equal(meta.title.absolute, "Diver AI by Specificity | Identify. Engage. Convert.");
+  assert.equal(meta.title.absolute, "JAI by Specificity | Identify. Engage. Convert.");
   assert.match(meta.description, /verified real people in the data market/);
   assert.equal(meta.openGraph.title, meta.title.absolute);
-  assert.match(meta.openGraph.images[0].url, /\/brand\/diver-ai-og\.png$/);
+  assert.match(meta.openGraph.images[0].url, /\/brand\/jai-og\.png$/);
   const linked = homepageJsonLd("https://jarvis.specificityinc.com");
   assert.equal(linked["@graph"][0]["@type"], "Organization");
   assert.equal(linked["@graph"][1]["@type"], "SoftwareApplication");
@@ -390,6 +390,7 @@ test("public hosts serve until CANONICAL_HOST is set", async () => {
   assert.equal(publicHostRedirect("voiceai.specificityinc.com", "/login", "", {}), null);
   assert.equal(publicHostRedirect("jarvis.specificityinc.com", "/login", "", {}), null);
   assert.equal(publicHostRedirect("diverai.specificityinc.com", "/login", "", {}), null);
+  assert.equal(publicHostRedirect("jai.specificityinc.com", "/login", "", {}), null);
   assert.equal(publicHostRedirect("voiceai.specificityinc.com", "/login", "", { CANONICAL_HOST: "" }), null);
   assert.equal(publicHostRedirect("voiceai.specificityinc.com", "/login", "", { CANONICAL_HOST: "evil.example" }), null);
   assert.equal(authLinkOrigin({ APP_URL: "https://voiceai.specificityinc.com" }), "https://voiceai.specificityinc.com");
@@ -425,6 +426,22 @@ test("CANONICAL_HOST redirects browser pages and leaves APIs on the request host
   assert.equal(safeRequestOrigin("jarvis.specificityinc.com", { APP_URL: "https://voiceai.specificityinc.com" }), "https://jarvis.specificityinc.com");
 });
 
+test("jai stays on the request host when CANONICAL_HOST is unset", async () => {
+  const env = { APP_URL: "https://voiceai.specificityinc.com" };
+  assert.equal(safeRequestOrigin("jai.specificityinc.com", env), "https://jai.specificityinc.com");
+  assert.equal(safeRequestOrigin("jai.specificityinc.com:443", env), "https://jai.specificityinc.com");
+  assert.equal(
+    requestOrigin({ headers: { get: (name) => (name === "host" ? "jai.specificityinc.com" : null) } }, env),
+    "https://jai.specificityinc.com",
+  );
+  assert.equal(publicHostRedirect("jai.specificityinc.com", "/login", "", {}), null);
+  assert.equal(publicHostRedirect("jai.specificityinc.com", "/login", "", { CANONICAL_HOST: "" }), null);
+  assert.equal(publicHostRedirect("voiceai.specificityinc.com", "/login", "", {}), null);
+  assert.equal(canonicalOrigin("jai.specificityinc.com", env), "https://jai.specificityinc.com");
+  const stayed = await proxy(request("/login", undefined, { host: "jai.specificityinc.com" }), {});
+  assert.equal(stayed.headers.get("location"), null);
+});
+
 test("diverai stays on the request host when CANONICAL_HOST is unset", async () => {
   const env = { APP_URL: "https://voiceai.specificityinc.com" };
   assert.equal(safeRequestOrigin("diverai.specificityinc.com", env), "https://diverai.specificityinc.com");
@@ -441,10 +458,11 @@ test("diverai stays on the request host when CANONICAL_HOST is unset", async () 
   assert.equal(stayed.headers.get("location"), null);
 });
 
-test("voiceai, jarvis, and diverai are public hosts", () => {
+test("voiceai, jarvis, diverai, and jai are public hosts", () => {
   assert.equal(isSpecificityPublicHost("voiceai.specificityinc.com"), true);
   assert.equal(isSpecificityPublicHost("jarvis.specificityinc.com"), true);
   assert.equal(isSpecificityPublicHost("diverai.specificityinc.com"), true);
+  assert.equal(isSpecificityPublicHost("jai.specificityinc.com"), true);
   assert.equal(canonicalOrigin("jarvis.specificityinc.com", { APP_URL: "https://voiceai.specificityinc.com" }), "https://jarvis.specificityinc.com");
   assert.equal(canonicalOrigin("voiceai.specificityinc.com:443", {}), "https://voiceai.specificityinc.com");
   assert.equal(
