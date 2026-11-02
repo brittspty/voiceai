@@ -4,6 +4,24 @@ import { useEffect, useId, useRef, useState } from "react";
 import { REPORT_MOTION } from "@/lib/marketing/reports/motion";
 import { formatKpi, pointTitle } from "@/lib/marketing/reports/format";
 
+/** QA only: when the spend check sets window.__qaChartOptions, record each chart option so canvas or SVG labels can be read. */
+function qaTap<T extends { setOption: (...args: never[]) => unknown }>(chart: T): T {
+  if (typeof window === "undefined") return chart;
+  const sink = (window as unknown as { __qaChartOptions?: unknown[] }).__qaChartOptions;
+  if (!Array.isArray(sink)) return chart;
+  const original = chart.setOption.bind(chart) as (...args: unknown[]) => unknown;
+  (chart as unknown as { setOption: (...args: unknown[]) => unknown }).setOption = (...args: unknown[]) => {
+    try {
+      sink.push(JSON.parse(JSON.stringify(args[0], (_key, value) => (typeof value === "function" ? String(value) : value))));
+    } catch {
+      /* ignore */
+    }
+    return original(...args);
+  };
+  return chart;
+}
+
+
 export type ChartPoint = {
   date: string;
   label: string;
@@ -137,7 +155,7 @@ export function TrendChart({
     void import("echarts")
       .then((echarts) => {
       if (dead) return;
-      const chart = echarts.init(node, undefined, { renderer: "svg" });
+      const chart = qaTap(echarts.init(node, undefined, { renderer: "svg" }));
       chartRef.current = chart;
       const goal = active.goal;
       chart.setOption({
@@ -366,7 +384,7 @@ export function ChannelChart({ title, metric, bars, note }: { title: string; met
     const color = palette(node);
     void import("echarts").then((echarts) => {
       if (dead) return;
-      chart = echarts.init(node, undefined, { renderer: "svg" });
+      chart = qaTap(echarts.init(node, undefined, { renderer: "svg" }));
       const max = Math.max(...bars.map((bar) => bar.value), 1);
       chart.setOption({
         animationDuration: 0,
@@ -442,7 +460,7 @@ export function FunnelChart({ title, steps }: { title: string; steps: { label: s
     const color = palette(node);
     void import("echarts").then((echarts) => {
       if (dead) return;
-      const created = echarts.init(node, undefined, { renderer: "svg" });
+      const created = qaTap(echarts.init(node, undefined, { renderer: "svg" }));
       chart = created;
       created.setOption({
         animationDuration: 0,
@@ -529,7 +547,7 @@ export function CohortChart({ columns, rows, note }: { columns: string[]; rows: 
     });
     void import("echarts").then((echarts) => {
       if (dead) return;
-      const created = echarts.init(node, undefined, { renderer: "svg" });
+      const created = qaTap(echarts.init(node, undefined, { renderer: "svg" }));
       chart = created;
       created.setOption({
         animationDuration: 0,

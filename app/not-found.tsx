@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BRAND_WORDMARK } from "@/lib/brand";
+import { PRODUCT_WORDMARK } from "@/lib/brand";
 import { getCurrentUser } from "@/lib/auth";
 import { getOrg } from "@/lib/queries";
 import { MISSING_BODY, MISSING_TITLE } from "@/lib/ux/missing-page";
@@ -9,7 +9,7 @@ function MissingCard({ signedIn }: { signedIn: boolean }) {
   return (
     <div className="grid min-h-[70vh] place-items-center px-4">
       <div className="max-w-lg rounded-xl border border-line bg-card p-6">
-        <p className="text-sm text-muted">{BRAND_WORDMARK}</p>
+        <p className="text-sm text-muted">{PRODUCT_WORDMARK}</p>
         <h1 className="mt-2 text-2xl font-semibold">{MISSING_TITLE}</h1>
         <p className="mt-2 text-sm">{MISSING_BODY}</p>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -31,7 +31,7 @@ function LegacyNotFound() {
   return (
     <div className="grid min-h-screen place-items-center bg-canvas px-4 text-center">
       <div>
-        <p className="text-sm text-muted">{BRAND_WORDMARK}</p>
+        <p className="text-sm text-muted">{PRODUCT_WORDMARK}</p>
         <h1 className="mt-2 text-2xl font-semibold">That page is not here</h1>
         <Link href="/login" className="mt-3 inline-block text-sm underline">Back to sign in</Link>
       </div>
