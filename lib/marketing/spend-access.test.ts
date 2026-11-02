@@ -71,6 +71,7 @@ const CLIENT_SURFACES: { file: string; mark: RegExp }[] = [
   { file: "app/api/marketing/reports/p1/schedules/route.ts", mark: /forReader|presentSchedules/ },
   { file: "app/api/marketing/chatgpt-ads/route.ts", mark: /presentChatgptAdsReport/ },
   { file: "app/api/marketing/ctv/route.ts", mark: /ctvPayloadForViewer/ },
+  { file: "app/api/marketing/gbp/route.ts", mark: /readScopedClient|forSpendViewer|presentGbpClient/ },
   { file: "app/plan/[code]/page.tsx", mark: /showCost: false/ },
   { file: "app/(app)/plans/[id]/preview/page.tsx", mark: /showCost: false/ },
   { file: "lib/demo/present.ts", mark: /projectWithoutSpend/ },

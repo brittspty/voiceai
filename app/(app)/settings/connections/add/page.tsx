@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { denyAccess } from "@/lib/deny";
 import { EXAMPLE_ACCOUNTS, EXAMPLE_CLIENTS, canUseChannelRegistry, capabilityCheck, exampleRegistryState, presentCatalog } from "@/lib/marketing/channels/registry";
 import { channelRegistryEnabled, jarvisUiV2Enabled } from "@/lib/marketing/config";
+import { buildGbpSetup } from "@/lib/marketing/gbp-view";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { one, type SP } from "@/lib/params";
 
@@ -30,6 +31,7 @@ export default async function AddChannelPage({ searchParams }: { searchParams: P
       initialResult={one(query, "result")}
       showConnected={one(query, "connected") === "1"}
       capabilities={capabilities}
+      gbpSetup={buildGbpSetup()}
     />
   );
 }

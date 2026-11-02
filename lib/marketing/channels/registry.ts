@@ -218,7 +218,7 @@ export const SEED_REGISTRY: PlatformRegistryRow[] = [
     vendor: "Google",
     parentKey: null,
     auth: "oauth",
-    scopesRead: ["business.manage.readonly"],
+    scopesRead: ["https://www.googleapis.com/auth/business.manage"],
     writeCapable: false,
     writesEnabled: false,
     idUpload: NONE,

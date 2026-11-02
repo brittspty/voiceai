@@ -2,22 +2,30 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { decideGoogleBusinessProfile, googleBusinessProfileEnabled } from "./config";
+import { decideGoogleBusinessProfile, googleBusinessProfileAuditEnabled, googleBusinessProfileEnabled } from "./config";
 import {
   BusinessProfileWriteBlockedError,
   assertBusinessProfileReadOnly,
+  hashReviewerName,
+  mediaUrl,
   missingProfileFields,
+  parseKeywords,
   parsePerformanceMetrics,
+  parseReviewDetails,
   parseReviews,
+  postsUrl,
   recommendBusinessProfile,
   reviewsUrl,
 } from "./connectors/gbp-client";
+import { BUSINESS_PROFILE_SCOPE } from "./gbp-scope";
 import { runGoogleBusinessProfile } from "./gbp-sync";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
 test("business profile stays off until the switch is on", () => {
   assert.equal(googleBusinessProfileEnabled({}), false);
+  assert.equal(googleBusinessProfileAuditEnabled({}), false);
+  assert.equal(googleBusinessProfileAuditEnabled({ MARKETING_GBP_AUDIT: "on" }), true);
   assert.equal(decideGoogleBusinessProfile({}).action, "skip");
   const missing = decideGoogleBusinessProfile({ MARKETING_GBP: "on" });
   assert.equal(missing.action, "skip");
@@ -32,10 +40,19 @@ test("business profile stays off until the switch is on", () => {
   });
   assert.equal(live.action, "live");
   if (live.action === "live") {
-    assert.deepEqual(live.locationIds, ["55", "56"]);
-    assert.equal(live.accountId, "99");
     assert.equal(live.refreshToken, "refresh");
+    assert.equal("locationIds" in live, false);
+    assert.equal("accountId" in live, false);
   }
+  const mock = decideGoogleBusinessProfile({
+    MARKETING_GBP: "on",
+    INTEGRATIONS_MODE: "mock",
+    GOOGLE_ADS_CLIENT_ID: "client",
+    GOOGLE_ADS_CLIENT_SECRET: "secret",
+    GOOGLE_ADS_REFRESH_TOKEN: "refresh",
+    GOOGLE_BUSINESS_LOCATION_IDS: "55",
+  });
+  assert.equal(mock.action, "mock");
 });
 
 test("performance, reviews, and missing info become recommendations", () => {
@@ -134,11 +151,10 @@ test("writes are blocked and the live read reuses Google OAuth", async () => {
       GOOGLE_ADS_CLIENT_ID: "google-client",
       GOOGLE_ADS_CLIENT_SECRET: "google-secret",
       GOOGLE_ADS_REFRESH_TOKEN: "google-refresh",
-      GOOGLE_BUSINESS_ACCOUNT_ID: "99",
-      GOOGLE_BUSINESS_LOCATION_IDS: "55",
       MARKETING_LOOKBACK_DAYS: "7",
     },
     now: new Date("2026-10-20T15:00:00.000Z"),
+    locations: [{ accountId: "99", locationId: "55" }],
     fetchImpl,
   });
   assert.equal(result.status, "succeeded");
@@ -153,5 +169,53 @@ test("writes are blocked and the live read reuses Google OAuth", async () => {
   const source = readFileSync(path.join(ROOT, "lib/marketing/connectors/gbp-client.ts"), "utf8");
   assert.match(source, /refreshGoogleAdsAccessToken/);
   assert.equal(source.includes("reviews.reply"), false);
+  assert.equal(source.includes("/questions"), false);
+  assert.equal(source.includes("mybusinessqanda"), false);
   assert.match(source, /assertBusinessProfileReadOnly/);
+  const registry = readFileSync(path.join(ROOT, "lib/marketing/channels/registry.ts"), "utf8");
+  assert.match(registry, new RegExp(BUSINESS_PROFILE_SCOPE.replace(/[.]/g, "\\.")));
+  assert.equal(registry.includes("business.manage.readonly"), false);
+  for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+    assert.throws(() => assertBusinessProfileReadOnly(method, reviewsUrl("99", "55")), BusinessProfileWriteBlockedError);
+    assert.throws(() => assertBusinessProfileReadOnly(method, mediaUrl("99", "55")), BusinessProfileWriteBlockedError);
+    assert.throws(() => assertBusinessProfileReadOnly(method, postsUrl("99", "55")), BusinessProfileWriteBlockedError);
+  }
+  const plain = "Pat Example";
+  const parsed = parseReviewDetails({
+    reviews: [{ reviewId: "r1", reviewer: { displayName: plain }, starRating: "FIVE", comment: "Kind", createTime: "2026-10-01T00:00:00Z", reviewReply: { comment: "Thanks", updateTime: "2026-10-02T00:00:00Z" } }],
+  });
+  assert.equal(parsed.reviews[0]?.reviewerNameHash, hashReviewerName(plain));
+  assert.equal(JSON.stringify(parsed).includes(plain), false);
+  assert.equal(parsed.reviews[0]?.hasOwnerReply, true);
+  assert.equal(parsed.reviews[0]?.replyTime, "2026-10-02T00:00:00Z");
+  const keywords = parseKeywords({ searchKeywordsCounts: [{ searchKeyword: "dentist savannah", insightsValue: { value: "12" } }, { searchKeyword: "rare term", insightsValue: { threshold: "15" } }] });
+  assert.equal(keywords[0]?.impressions, 12);
+  assert.equal(keywords[1]?.impressions, null);
+  assert.equal(keywords[1]?.threshold, "15");
+});
+
+test("mock mode uses fictional listings and does not call Google", async () => {
+  let called = false;
+  const fetchImpl = async () => {
+    called = true;
+    return new Response("no", { status: 500 });
+  };
+  const result = await runGoogleBusinessProfile({
+    env: { MARKETING_GBP: "on", INTEGRATIONS_MODE: "mock", GOOGLE_BUSINESS_LOCATION_IDS: "55" },
+    now: new Date("2026-11-02T15:00:00.000Z"),
+    fetchImpl,
+  });
+  assert.equal(result.status, "succeeded");
+  if (result.status !== "succeeded") return;
+  assert.equal(result.mode, "mock");
+  assert.equal(called, false);
+  assert.equal(result.locations, 3);
+  const audited = await runGoogleBusinessProfile({
+    env: { MARKETING_GBP: "on", INTEGRATIONS_MODE: "mock", MARKETING_GBP_AUDIT: "on" },
+    now: new Date("2026-11-02T15:00:00.000Z"),
+  });
+  if (audited.status !== "succeeded") assert.fail("audit sync skipped");
+  assert.ok(audited.recommendations.length >= 1);
+  assert.match(audited.recommendations[0]?.title || "", /Nothing is changed on Google/);
+  assert.equal(audited.recommendations.every((item) => item.changesSpend === false && item.writesAds === false), true);
 });
