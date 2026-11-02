@@ -10,7 +10,7 @@ const NAV: Array<{ href: string; label: string; id: DemoScreenId }> = [
   { href: "/demo", label: "Overview", id: "problem" },
   { href: "/demo/audiences", label: "Audiences", id: "audiences" },
   { href: "/demo/serving", label: "Serving", id: "serving" },
-  { href: "/demo/segments", label: "Segments", id: "segments" },
+  { href: "/demo/segments", label: "Audience Data", id: "segments" },
   { href: "/demo/compare", label: "Compare", id: "compare" },
   { href: "/demo/explanations", label: "Explanations", id: "explanations" },
   { href: "/demo/decisions", label: "Decisions", id: "decisions" },

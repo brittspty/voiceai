@@ -1,12 +1,14 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { readScopedClient } from "@/lib/marketing/client-contract";
+import { clientShareCsv, reopenClientReport, type ClientShareView } from "@/lib/marketing/client-view";
 import { presentForAudience } from "@/lib/marketing/share-payload";
-import { clientShareCsv, reopenClientReport } from "@/lib/marketing/client-view";
 import { reportsV2Enabled } from "@/lib/marketing/config";
 import { buildReportPdf } from "@/lib/marketing/reports/pdf";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
+import { attachShareCtv } from "@/lib/marketing/ctv/sync";
 import { hashShareToken, SHARE_PASS_COOKIE, shareAccessDecision, shareHttpStatus, shareLinkState } from "@/lib/marketing/share-link";
 
 function shareResponse(response: NextResponse) {
@@ -48,7 +50,16 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   });
   if (reportsV2Enabled() && link.snapshot) {
     try {
-      const report = presentForAudience(reopenClientReport(link.snapshot), "share");
+      const opened = reopenClientReport(link.snapshot);
+      const scopedReport = readScopedClient({
+        kind: "share",
+        ownClientId: link.workspaceId,
+        assignedClientIds: [link.workspaceId],
+        requestedClientId: link.workspaceId,
+        payload: opened,
+      });
+      if (!scopedReport.ok) return shareResponse(NextResponse.json({ error: scopedReport.error }, { status: scopedReport.status }));
+      const report = presentForAudience(scopedReport.body, "share");
       if (isExport) {
         const pdf = buildReportPdf(report);
         return shareResponse(new NextResponse(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": "attachment; filename=\"report.pdf\"" } }));
@@ -59,9 +70,18 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
     }
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
-  const payload = presentForAudience(await loadClientPerformance(org?.name || "Performance", { workspaceId: link.workspaceId, adAccountIds: "all" }), "share");
+  const loaded = await loadClientPerformance(org?.name || "Performance", { workspaceId: link.workspaceId, adAccountIds: "all" });
+  const scoped = readScopedClient({
+    kind: "share",
+    ownClientId: link.workspaceId,
+    assignedClientIds: [link.workspaceId],
+    requestedClientId: link.workspaceId,
+    payload: loaded,
+  });
+  if (!scoped.ok) return shareResponse(NextResponse.json({ error: scoped.error }, { status: scoped.status }));
+  const payload = presentForAudience(scoped.body, "share") as ClientShareView;
   if (isExport) {
     return shareResponse(new NextResponse(clientShareCsv(payload), { headers: { "Content-Type": "text/csv; charset=utf-8" } }));
   }
-  return shareResponse(NextResponse.json(payload));
+  return shareResponse(NextResponse.json(await attachShareCtv(payload)));
 }

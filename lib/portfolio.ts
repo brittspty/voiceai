@@ -1,4 +1,6 @@
 import type { MarketingAccess } from "./marketing/access";
+import { jarvisUiV2Enabled } from "./marketing/config";
+import { portfolioMoreChannels } from "./marketing/channels/video-channels";
 import { median } from "./marketing/speed-to-lead";
 import { appHomePath, type Env } from "./public-routing";
 
@@ -61,6 +63,7 @@ export type PortfolioClient = {
   name: string;
   href: string;
   channels: number;
+  moreChannels?: { label: string; status: string }[];
   leads: number;
   conversions: number;
   quality: number | null;
@@ -164,11 +167,13 @@ export function assemblePortfolio(input: {
       const pixel = pixelHealth(row.pixelCheckedAt, now, row.pixelsMissing);
       const match = matchPresentation(row.matchMatched, row.matchTotal);
       const speed = median(row.speedSeconds);
+      const moreChannels = portfolioMoreChannels(jarvisUiV2Enabled(input.env));
       const client: PortfolioClient = {
         id: row.id,
         name: row.name,
         href: commandCenterHref(row.id, input.env),
         channels: row.channels,
+        ...(moreChannels ? { moreChannels } : {}),
         leads: row.leads,
         conversions: row.conversions,
         quality,

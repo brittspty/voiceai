@@ -147,6 +147,13 @@ export function DecisionQueue({
                   <form action={decideMarketingRecommendation}>
                     <input type="hidden" name="id" value={card.id} />
                     <input type="hidden" name="decision" value="accept" />
+                    {fatigue ? (
+                      <label className="flex w-full items-start gap-2 text-sm">
+                        <input type="checkbox" name="confirmPreview" value="dry-run" required className="mt-1" />
+                        <span>Dry run · confirm preview: queue “{fatigue.proposed}”. Nothing goes live and no budget is written.</span>
+                      </label>
+                    ) : null}
+                    {budget ? <p className="w-full text-sm font-semibold">RECOMMENDATION ONLY</p> : null}
                     <Button primary label={pacing || budget ? `Approve and get steps: ${card.title}` : fatigue ? `Approve new version: ${card.title}` : recommendOnly ? `Yes: ${card.title}` : `Approve: ${card.title}`}>{pacing || budget ? "Approve and get steps" : fatigue ? "Approve new version" : recommendOnly ? "Yes" : "Approve"}</Button>
                   </form>
                   <form action={decideMarketingRecommendation}>

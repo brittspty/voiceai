@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Ais2lCallView, TestPill } from "@/lib/ais2l/screen";
 import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_NAME } from "@/lib/brand";
 import { EXAMPLE_FEED } from "@/lib/marketing/channels/catalog";
-import { scopeLiveFeed, urgentEmail, type FeedViewer } from "@/lib/marketing/channels/feed";
+import { presentedVideoChannels } from "@/lib/marketing/channels/video-channels";
+import { scopeLiveFeed, snoozeUntil, urgentEmail, type FeedViewer, type SnoozeChoice } from "@/lib/marketing/channels/feed";
 import { measureSpeed } from "@/lib/marketing/channels/speed";
-import { Crumbs, End, Tile } from "./bits";
+import { logJarvisLeadMark, saveUrgentEmailOptIn, undoJarvisLeadMark } from "@/lib/marketing/human-actions";
+import { Crumbs, End, Tile, Tip } from "./bits";
+import { MoreChannels } from "./more-channels";
 
 const end = { productName: PRODUCT_NAME, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
 
@@ -50,6 +53,7 @@ export function ClientHome({ channels = null }: { channels?: { href?: string; la
               )}
             </tbody>
           </table>
+          <MoreChannels items={presentedVideoChannels("client").map((row) => ({ id: row.id, href: row.href, label: row.label, detail: `${row.status} · ${row.leads} leads` }))} />
           <p className="sub">Counted once per person. Last non-direct touch, 7-day click / 1-day view.</p>
         </section>
         <aside>
@@ -81,7 +85,9 @@ export function ClientHome({ channels = null }: { channels?: { href?: string; la
   );
 }
 
-export function ClientChannel() {
+export function ClientChannel({ channel = "facebook" }: { channel?: string }) {
+  if (channel === "youtube") return <ClientYouTube />;
+  if (channel === "ctv") return <ClientCtv />;
   return (
     <main>
       <Crumbs items={[{ label: "Home", href: "/" }, { label: "Facebook & Instagram ads" }]} />
@@ -101,10 +107,79 @@ export function ClientChannel() {
       <h2 style={{ margin: "28px 0 8px" }}>Your ads</h2>
       <p className="sub">Results only</p>
       <table className="stack">
-        <thead><tr><th>Ad</th><th>Leads</th><th>Qualified</th><th>Booked</th><th>Status</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Ad</th>
+            <th>Leads <Tip glossaryId="leads" /></th>
+            <th>Qualified <Tip glossaryId="qualified_leads" /></th>
+            <th>Booked <Tip glossaryId="booked" /></th>
+            <th>Status</th>
+          </tr>
+        </thead>
         <tbody>
           <tr><td>Free Consult carousel</td><td>31</td><td>11</td><td>5</td><td><span className="st ok">● Working well</span></td></tr>
           <tr><td>Smile Again 55+ video</td><td>24</td><td>6</td><td>2</td><td><span className="st w">▲ Getting tired, new version coming</span></td></tr>
+        </tbody>
+      </table>
+      <End {...end} />
+    </main>
+  );
+}
+
+function ClientYouTube() {
+  const row = presentedVideoChannels("client").find((item) => item.id === "youtube");
+  return (
+    <main>
+      <Crumbs items={[{ label: "Home", href: "/" }, { label: "YouTube video ads" }]} />
+      <div className="top">
+        <div>
+          <div className="sub">Harbor Dental · YouTube video ads · Through the Google Ads account · Last 30 days · Updated 9:12 PM ET</div>
+          <h1>Your YouTube ads brought {row?.leads ?? 0} leads; {row?.qualified ?? 0} were qualified.</h1>
+        </div>
+        <span className="ex">EXAMPLE DATA</span>
+      </div>
+      <section className="mt">
+        {(row?.metrics || []).map((metric) => (
+          <div className="m" key={metric.id}><div className="lab">{metric.label}</div><div className="v">{metric.value}</div><div className="sub">EXAMPLE DATA</div></div>
+        ))}
+        <Tile hero glossaryId="leads" label="Leads" value={String(row?.leads ?? 0)} prior="▲ 2 vs prior" priorGood goal="over goal" why="YouTube uses the same Google account. Match rate follows Google." />
+      </section>
+      <h2 style={{ margin: "28px 0 8px" }}>Campaign › Ad group › Video ad</h2>
+      <table className="stack">
+        <thead><tr><th>Video ad</th><th>Views</th><th>Completed views</th><th>Leads</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Smile Again 55+</td><td>128K</td><td>32.1K</td><td>12</td><td><span className="st ok">● Working well</span></td></tr>
+          <tr><td>Consult :15</td><td>56K</td><td>14.1K</td><td>6</td><td><span className="st ok">● Working well</span></td></tr>
+        </tbody>
+      </table>
+      <End {...end} />
+    </main>
+  );
+}
+
+function ClientCtv() {
+  const row = presentedVideoChannels("client").find((item) => item.id === "ctv");
+  return (
+    <main>
+      <Crumbs items={[{ label: "Home", href: "/" }, { label: "Connected TV ads" }]} />
+      <div className="top">
+        <div>
+          <div className="sub">Harbor Dental · Connected TV ads · Connected (read only) · Last 30 days · Updated 9:12 PM ET</div>
+          <h1>Your connected TV ads brought {row?.leads ?? 0} leads. Match rate is 27% and on hold.</h1>
+        </div>
+        <span className="ex">EXAMPLE DATA</span>
+      </div>
+      <section className="mt">
+        {(row?.metrics || []).map((metric) => (
+          <div className="m" key={metric.id}><div className="lab">{metric.label}</div><div className="v">{metric.value}</div><div className="sub">EXAMPLE DATA</div></div>
+        ))}
+        <Tile hero glossaryId="leads" label="Leads" value={String(row?.leads ?? 0)} prior="▲ 1 vs prior" priorGood goal="under goal" why="CTV is connected read only. Nothing here changes a budget." />
+      </section>
+      <h2 style={{ margin: "28px 0 8px" }}>Campaign › Line item › Ad</h2>
+      <table className="stack">
+        <thead><tr><th>Line item</th><th>Completion rate</th><th>Households reached</th><th>Leads</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Prime evenings</td><td>72%</td><td>41K</td><td>{row?.leads ?? 0}</td><td><span className="st w">▲ On hold: low match rate</span></td></tr>
         </tbody>
       </table>
       <End {...end} />
@@ -151,8 +226,8 @@ export function LeadsPage({ canMark }: { canMark: boolean }) {
                 <td>
                   {canMark ? (
                     <span className="acts">
-                      <button type="button" className="btn" onClick={() => { setUndo({ id: row.id, previous: row.qualified }); setRows((list) => list.map((item) => item.id === row.id ? { ...item, qualified: true } : item)); }}>Qualified</button>
-                      <button type="button" className="btn" onClick={() => { setUndo({ id: row.id, previous: row.qualified }); setRows((list) => list.map((item) => item.id === row.id ? { ...item, qualified: false } : item)); }}>Not qualified</button>
+                      <button type="button" className="btn" onClick={() => { const previous = row.qualified; void logJarvisLeadMark({ leadId: row.id, qualified: true, previous }); setUndo({ id: row.id, previous }); setRows((list) => list.map((item) => item.id === row.id ? { ...item, qualified: true } : item)); }}>Qualified</button>
+                      <button type="button" className="btn" onClick={() => { const previous = row.qualified; void logJarvisLeadMark({ leadId: row.id, qualified: false, previous }); setUndo({ id: row.id, previous }); setRows((list) => list.map((item) => item.id === row.id ? { ...item, qualified: false } : item)); }}>Not qualified</button>
                     </span>
                   ) : (
                     <span>{row.qualified == null ? "Not marked" : row.qualified ? "Qualified" : "Not qualified"}</span>
@@ -163,7 +238,7 @@ export function LeadsPage({ canMark }: { canMark: boolean }) {
           })}
         </tbody>
       </table>
-      {undo && <div className="toast" role="status">Mark saved. <button type="button" onClick={() => { setRows((list) => list.map((item) => item.id === undo.id ? { ...item, qualified: undo.previous } : item)); setUndo(null); }}>Undo</button></div>}
+      {undo && <div className="toast" role="status">Mark saved. <button type="button" onClick={() => { void undoJarvisLeadMark({ leadId: undo.id }); setRows((list) => list.map((item) => item.id === undo.id ? { ...item, qualified: undo.previous } : item)); setUndo(null); }}>Undo</button></div>}
       <End {...end} />
     </main>
   );
@@ -216,13 +291,22 @@ export function LandingPage() {
   );
 }
 
-export function LiveFeed({ viewer }: { viewer: FeedViewer }) {
+export function LiveFeed({ viewer, realtime = false }: { viewer: FeedViewer; realtime?: boolean }) {
   const items = useMemo(() => scopeLiveFeed(EXAMPLE_FEED, viewer), [viewer]);
   const [rows, setRows] = useState(items);
   const [undo, setUndo] = useState<string | null>(null);
   const [channel, setChannel] = useState("All");
   const [severity, setSeverity] = useState("All");
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [snoozed, setSnoozed] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!realtime || typeof EventSource === "undefined") return;
+    const source = new EventSource("/api/marketing/jarvis/feed?stream=1");
+    source.addEventListener("feed", () => {
+      setRows(scopeLiveFeed(EXAMPLE_FEED, viewer));
+    });
+    return () => source.close();
+  }, [realtime, viewer]);
   const shown = rows.filter((item) => (channel === "All" || item.channel === channel) && (severity === "All" || item.severity === severity) && (!unreadOnly || item.unread));
   return (
     <main>
@@ -255,7 +339,21 @@ export function LiveFeed({ viewer }: { viewer: FeedViewer }) {
                 {item.severity === "decision" && <button type="button" className="btn p" onClick={() => setUndo(item.id)}>Approve</button>}
                 {item.severity === "decision" && <button type="button" className="btn" onClick={() => setUndo(item.id)}>Decline</button>}
                 <button type="button" className="btn" onClick={() => setRows((list) => list.map((row) => row.id === item.id ? { ...row, unread: false } : row))}>Mark read</button>
-                <button type="button" className="btn" onClick={() => setRows((list) => list.map((row) => row.id === item.id ? { ...row, unread: false } : row))}>Snooze</button>
+                {(["1h", "tonight", "tomorrow_8am"] as SnoozeChoice[]).map((choice) => (
+                  <button
+                    key={choice}
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      const until = snoozeUntil(choice, new Date(), "America/New_York");
+                      setSnoozed((state) => ({ ...state, [item.id]: until.toISOString() }));
+                      setRows((list) => list.map((row) => row.id === item.id ? { ...row, unread: false } : row));
+                    }}
+                  >
+                    {choice === "1h" ? "Snooze 1h" : choice === "tonight" ? "Snooze tonight" : "Snooze tomorrow 8 AM"}
+                  </button>
+                ))}
+                {snoozed[item.id] ? <span className="sub">Snoozed until {snoozed[item.id]}</span> : null}
               </div>
             </div>
             <span className="sub">{item.createdAt.slice(11, 16)}</span>
@@ -270,7 +368,15 @@ export function LiveFeed({ viewer }: { viewer: FeedViewer }) {
             <li key={item.id}><Link href={item.decisionId ? `/decisions/${item.decisionId}` : "/live"}>{item.title}</Link></li>
           ))}
         </ol>
-        <p className="sub">Notes batch every 15 minutes. At most one toast per client every 10 minutes. Quiet hours hold decisions and notes until 7 AM. Urgent email still sends.</p>
+        <p className="sub">Notes batch every 15 minutes. At most one toast per client every 10 minutes. Quiet hours hold decisions and notes until 7 AM. Urgent email is opt-in and only logs “would send”.</p>
+        <form action={saveUrgentEmailOptIn} className="mt-3 flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="urgentEmail" value="on" />
+            Email me urgent alerts
+          </label>
+          <button type="submit" className="btn">Save opt-in</button>
+          <span className="sub">Off until you save it. Mock only ({urgentEmail(false)} until opted in).</span>
+        </form>
       </aside>
       {undo && <div className="toast" role="status">Saved. Nothing was paused and no budget changed. <button type="button" onClick={() => setUndo(null)}>Undo (30s)</button></div>}
       <End {...end} />
@@ -278,14 +384,14 @@ export function LiveFeed({ viewer }: { viewer: FeedViewer }) {
   );
 }
 
-export function SettingsConnections() {
+export function SettingsConnections({ staff = true }: { staff?: boolean }) {
   return (
     <main>
       <Crumbs items={[{ label: "Harbor Dental", href: "/" }, { label: "Settings & connections" }]} />
       <div className="top">
         <div>
           <div className="sub">Account · Settings & connections</div>
-          <h1>5 of 6 connections are healthy. Conversion feedback needs setup.</h1>
+          <h1>7 of 8 connections are healthy. Conversion feedback needs setup.</h1>
         </div>
         <span className="ex">EXAMPLE DATA</span>
       </div>
@@ -294,7 +400,9 @@ export function SettingsConnections() {
         <tbody>
           <tr><td>Meta</td><td><span className="st ok">● Connected</span></td><td>Read only</td><td><span className="pill t">PENDING JASON APPROVAL</span> <button type="button" className="btn" disabled>Request write access</button></td></tr>
           <tr><td>Google Ads</td><td><span className="st ok">● Connected</span></td><td>Read only</td><td><span className="pill t">PENDING JASON APPROVAL</span> <button type="button" className="btn" disabled>Request write access</button></td></tr>
+          <tr><td>YouTube</td><td><span className="st ok">● Through the Google Ads account</span></td><td>Read only</td><td>Same as Google Ads</td></tr>
           <tr><td>StackAdapt</td><td><span className="st ok">● Connected</span></td><td>Read only</td><td>Not needed</td></tr>
+          <tr><td>{staff ? "CTV (StackAdapt)" : "Connected TV ads"}</td><td><span className="st ok">● Connected (read only){staff ? " through the StackAdapt account" : ""}</span></td><td>Read only</td><td>{staff ? "Same as StackAdapt" : "—"}</td></tr>
           <tr><td>Google Business Profile</td><td><span className="st ok">● Connected</span></td><td>Read</td><td>—</td></tr>
           <tr><td>AIS2L / GoHighLevel</td><td><span className="st ok">● Synced</span></td><td>Leads</td><td>—</td></tr>
         </tbody>
