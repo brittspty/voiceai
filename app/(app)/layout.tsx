@@ -48,6 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       channelLinks: registry ? (staff ? registry.nav : registry.clientNav) : undefined,
       showAudienceData: audienceDataEnabled() && canOpenAudienceData(access.kind),
       showAudienceDataClient: audienceDataClientEnabled() && (access.kind === "client_owner" || access.kind === "client_viewer"),
+      showVideoChannels: !registry,
       showCtv: ctvAttributionEnabled() && canViewCtvAttribution(access),
     });
     return (
