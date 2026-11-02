@@ -2,9 +2,10 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { readScopedClient } from "@/lib/marketing/client-contract";
-import { clientShareCsv, reopenClientReport, type ClientShareView } from "@/lib/marketing/client-view";
+import { clientShareCsv, type ClientShareView } from "@/lib/marketing/client-view";
+import { reportsP1Enabled, reportsV2Enabled } from "@/lib/marketing/config";
+import { materializeShare } from "@/lib/marketing/reports/p1/share";
 import { presentForAudience } from "@/lib/marketing/share-payload";
-import { reportsV2Enabled } from "@/lib/marketing/config";
 import { buildReportPdf } from "@/lib/marketing/reports/pdf";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
@@ -50,7 +51,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   });
   if (reportsV2Enabled() && link.snapshot) {
     try {
-      const opened = reopenClientReport(link.snapshot);
+      const opened = await materializeShare(link.snapshot, reportsP1Enabled());
       const scopedReport = readScopedClient({
         kind: "share",
         ownClientId: link.workspaceId,
