@@ -354,7 +354,7 @@ export function ReportScreen({
           <div className="jr-ph"><h2>Chart notes</h2><span className="jr-ex">EXAMPLE DATA</span></div>
           <ul>
             {staff.annotations.map((note) => (
-              <li key={`${note.seriesId}-${note.date}-${note.label}`}>
+              <li key={`${note.seriesId}-${note.date}-${note.loggedAt ?? note.label}`}>
                 <b>{note.label}.</b> {note.body}
                 {note.authorName && note.loggedAt ? <span className="jr-sub"> Added by {note.authorName} at {note.loggedAt}.</span> : null}
               </li>

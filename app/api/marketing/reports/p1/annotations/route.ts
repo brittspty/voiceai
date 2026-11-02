@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { reportsP1Enabled } from "@/lib/marketing/config";
+import { p1LogStore } from "@/lib/marketing/p1-log-prisma";
 import { staffOnlyStatus } from "@/lib/marketing/p1-reader";
-import { addChartAnnotation } from "@/lib/marketing/reports/p1/annotations";
+import { saveChartAnnotation } from "@/lib/marketing/reports/p1/annotations";
+import { WORKSPACE_ID } from "@/lib/marketing/types";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +15,7 @@ export async function POST(request: Request) {
   const status = staffOnlyStatus(user.role);
   if (status !== 200) return NextResponse.json({ error: "Not allowed" }, { status });
   const body = (await request.json()) as { seriesId?: string; date?: string; body?: string };
-  const note = addChartAnnotation({
+  const note = await saveChartAnnotation(p1LogStore, WORKSPACE_ID, {
     seriesId: body.seriesId || "",
     date: body.date || "",
     body: body.body || "",
