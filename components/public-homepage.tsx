@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { BrandLogo } from "@/components/brand-logo";
 import { AfterArt, BeforeArt, CameraArt, PersonArt, TurnArt } from "@/components/homepage-art";
 import { TrackedLink } from "@/components/homepage-cta-link";
 import { ContactForm } from "@/components/homepage-contact-form";
@@ -15,6 +16,7 @@ import { homepageStyle } from "@/lib/homepage-style";
 const BEAT_ART = [BeforeArt, TurnArt, AfterArt];
 
 function Wordmark({ model, large = false }: { model: HomepageModel; large?: boolean }) {
+  if (model.logoV2) return large ? <BrandLogo variant="lockup" tone="dark" alt="" className="h-auto w-[200px]" /> : <BrandLogo variant="wordmark" tone="dark" alt="JAI home" className="h-6 w-auto md:h-7" />;
   return (
     <Image src={model.logos.reversed} alt={large ? "" : model.logos.alt} width={1427} height={498} priority={!large} className={large ? "wordmark-lg" : "wordmark"} style={{ width: "auto", height: large ? 44 : 30 }} />
   );
@@ -137,6 +139,7 @@ export function PublicHomepage({
               <span className="tag">{model.illustrative}</span>
             </p>
             <div className="w">
+              {model.logoV2 ? <BrandLogo variant="lockup" tone="dark" className="mb-6 h-auto w-[240px]" /> : null}
               <h1 id="h1">
                 {model.hero.title}<em>.</em>
               </h1>

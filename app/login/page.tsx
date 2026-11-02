@@ -1,3 +1,4 @@
+import { brandLogoV2Enabled } from "@/lib/brand/logo";
 import { Suspense } from "react";
 import { LoginAnalyticsScreen } from "@/components/login-analytics-screen";
 import { LoginScreen } from "@/components/login-form";
@@ -24,7 +25,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const magicLink = magicLinkEnabled();
   const magicLinkDelivery = magicLink && authEmailCanSend();
   const props = {
-    brand: { companyName: brand.companyName, brandColor: brand.brandColor, logoUrl: brand.logoUrl, mark: brand.mark, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE, productLine: PRODUCT_TAGLINE },
+    brand: { companyName: brand.companyName, brandColor: brand.brandColor, logoUrl: brand.logoUrl, mark: brand.mark, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE, productLine: PRODUCT_TAGLINE, logoV2: brandLogoV2Enabled() },
     hint,
     homeHref: appHomePath(),
     magicLink,

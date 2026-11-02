@@ -1,3 +1,4 @@
+import { brandLogoV2Enabled } from "@/lib/brand/logo";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { JarvisShell } from "@/components/jarvis/shell";
@@ -62,6 +63,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         wordmark={BRAND_WORDMARK}
         logoOnDark={LOGO_ON_DARK}
         logoOnLight={LOGO_ON_LIGHT}
+        logoV2={brandLogoV2Enabled()}
         items={items}
         unread={unread}
         moreChannels={registry?.commandCenter.moreLabel}
@@ -81,7 +83,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <AppShell
       org={{ name: org.name, subtitle: org.subtitle, brandColor: resolveBrandColor(org.brandColor), logoUrl: resolveLogoUrl(org.logoUrl), mark: org.mark }}
       user={user}
-      mode={{ testMode: org.testMode, agentName: org.agentName, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE }}
+      mode={{ testMode: org.testMode, agentName: org.agentName, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE, logoV2: brandLogoV2Enabled() }}
       showSpeedToLead={speedToLeadEnabled()}
       leadScoring={leadScoringEnabled()}
       showInbox={showInbox}

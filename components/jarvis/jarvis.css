@@ -5,6 +5,8 @@
 .jarvis .side { background: var(--j-ink); color: #fff; padding: 20px 12px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh; }
 .jarvis .side .logo { padding: 6px 10px 4px; }
 .jarvis .side .logo img { height: 34px; display: block; }
+.jarvis .side .logo-v2 { display: block; padding: 8px 10px 14px; }
+.jarvis img.jai-wordmark { height: 28px; width: auto; display: block; }
 .jarvis .prod { font-weight: 600; font-size: 15px; padding: 6px 10px 14px; letter-spacing: -0.01em; }
 .jarvis .prod span { color: #c9c3c0; font-weight: 400; font-size: 12px; display: block; }
 .jarvis .side h6 { font: 500 11px var(--mono); color: #a8a2a0; text-transform: uppercase; letter-spacing: 0.08em; padding: 14px 10px 4px; margin: 0; }
@@ -142,6 +144,7 @@
   .jarvis .acts .btn, .jarvis .tabbar a, .jarvis .tabbar button, .jarvis .exp, .jarvis .toast button { min-height: 44px; min-width: 44px; }
   .jarvis .mobile-logo { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--j-line); }
   .jarvis .mobile-logo img { height: 26px; }
+  .jarvis .mobile-logo img.jai-wordmark { height: 24px; }
   .jarvis .tabbar { display: flex; position: sticky; bottom: 0; z-index: 20; background: #fff; border-top: 1px solid var(--j-line); justify-content: space-around; padding: 6px 0 10px; }
   .jarvis .tabbar a, .jarvis .tabbar button { all: unset; min-width: 56px; text-align: center; font-size: 11px; padding-top: 6px; cursor: pointer; }
   .jarvis .tabbar .on { color: var(--brand-ink); font-weight: 600; }

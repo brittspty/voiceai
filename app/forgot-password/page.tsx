@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { brandLogoV2Enabled } from "@/lib/brand/logo";
+import { BrandLogoThemed } from "@/components/brand-logo";
 import { ForgotPasswordForm } from "@/components/forgot-password-form";
 import { BRAND_WORDMARK } from "@/lib/brand";
 import { authEmailCanSend } from "@/lib/auth-mail";
@@ -11,6 +13,7 @@ export default function ForgotPasswordPage() {
   return (
     <main className="grid min-h-screen place-items-center bg-canvas px-4">
       <div className="w-full max-w-sm rounded-2xl border border-line bg-card p-6">
+        {brandLogoV2Enabled() ? <BrandLogoThemed variant="lockup" className="mx-auto mb-4 h-auto w-[200px]" /> : null}
         <h1 className="text-lg font-semibold">Reset your password</h1>
         {enabled ? (
           <>

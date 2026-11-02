@@ -6,6 +6,7 @@ import { useState } from "react";
 import { BRAND_TAGLINE, PRODUCT_WORDMARK } from "@/lib/brand";
 import { navActive, type NavItem } from "@/lib/marketing/channels/nav";
 import "./jarvis.css";
+import { BrandLogo } from "@/components/brand-logo";
 
 export function JarvisShell({
   productName,
@@ -16,6 +17,7 @@ export function JarvisShell({
   unread,
   moreChannels,
   account,
+  logoV2 = false,
   children,
 }: {
   productName: string;
@@ -26,6 +28,7 @@ export function JarvisShell({
   unread: number;
   moreChannels?: string | null;
   account?: { name: string; email: string; showTeam: boolean; showRoles: boolean; showPeople: boolean };
+  logoV2?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -46,13 +49,21 @@ export function JarvisShell({
     <div className="jarvis">
       <div className="app">
         <nav className="side" aria-label="Main">
-          <div className="logo">
-            <img src={logoOnDark} alt="Specificity Inc" />
-          </div>
-          <div className="prod">
-            {productName}
-            <span>by {wordmark}</span>
-          </div>
+          {logoV2 ? (
+            <Link href="/" className="logo logo-v2">
+              <BrandLogo variant="wordmark" tone="dark" className="jai-wordmark" />
+            </Link>
+          ) : (
+            <>
+              <div className="logo">
+                <img src={logoOnDark} alt="Specificity Inc" />
+              </div>
+              <div className="prod">
+                {productName}
+                <span>by {wordmark}</span>
+              </div>
+            </>
+          )}
           {groups.map((group) => (
             <div key={group.name}>
               <h6>{group.name}</h6>
@@ -74,7 +85,13 @@ export function JarvisShell({
         </nav>
         <div className="maincol">
           <header className="mobile-logo">
-            <img src={logoOnLight} alt="Specificity Inc" />
+            {logoV2 ? (
+              <Link href="/" className="logo-v2">
+                <BrandLogo variant="wordmark" tone="light" className="jai-wordmark" />
+              </Link>
+            ) : (
+              <img src={logoOnLight} alt="Specificity Inc" />
+            )}
             <Link href="/live" className="bell" aria-label={`Notifications, ${unread} unread`}>
               <span aria-hidden="true">🔔</span>
               <b>{unread}</b>
@@ -94,7 +111,7 @@ export function JarvisShell({
           </nav>
           {more && (
             <div className="more">
-              <img src={logoOnLight} alt="Specificity Inc" style={{ height: 28 }} />
+              {logoV2 ? <BrandLogo variant="wordmark" tone="light" alt="JAI by Specificity" height={28} /> : <img src={logoOnLight} alt="Specificity Inc" style={{ height: 28 }} />}
               {moreChannels ? <p className="tag">{moreChannels}</p> : null}
               {items
                 .filter((item) => !mobile.some((row) => row.href === item.href))

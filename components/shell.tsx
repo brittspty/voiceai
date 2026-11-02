@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BrandLogoThemed } from "@/components/brand-logo";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Activity, BarChart3, Bell, BellRing, BookOpen, Database, FileText, Globe, Layers, LayoutDashboard, Lightbulb, LineChart, ListChecks, Moon, PanelLeft, Phone, RefreshCw, Settings, Sun, Timer, Tv, Users } from "lucide-react";
@@ -49,7 +50,7 @@ export function AppShell({
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
   user: { name: string; email: string; role: string };
-  mode: { testMode: boolean; agentName: string; wordmark: string; tagline: string };
+  mode: { testMode: boolean; agentName: string; wordmark: string; tagline: string; logoV2?: boolean };
   showSpeedToLead?: boolean;
   leadScoring?: boolean;
   showInbox?: boolean;
@@ -126,8 +127,16 @@ export function AppShell({
   const nav = (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2.5 px-3 py-4">
-        <BrandMark brandColor={org.brandColor} logoUrl={org.logoUrl} mark={org.mark} />
-        {!collapsed && <div className="text-sm font-semibold">{mode.wordmark}</div>}
+        {mode.logoV2 ? (
+          <Link href={homeHref} className="flex items-center">
+            {collapsed ? <BrandLogoThemed variant="mark" alt="JAI home" className="h-8 w-8" /> : <BrandLogoThemed variant="wordmark" className="h-6 w-auto md:h-7" />}
+          </Link>
+        ) : (
+          <>
+            <BrandMark brandColor={org.brandColor} logoUrl={org.logoUrl} mark={org.mark} />
+            {!collapsed && <div className="text-sm font-semibold">{mode.wordmark}</div>}
+          </>
+        )}
       </div>
       <nav className="flex flex-col gap-0.5 px-2">
         {(user.role === "client_viewer" ? clientNav : staffNav).map((item) => ({ ...item, href: item.href === "/" ? homeHref : item.href })).map((item) => {
