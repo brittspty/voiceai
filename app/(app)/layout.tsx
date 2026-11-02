@@ -19,6 +19,7 @@ import { listHomeWorkspaces } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { getOrg } from "@/lib/queries";
 import { appHomePath, publicHomepageEnabled } from "@/lib/public-routing";
+import { usesStaffNav } from "@/lib/shell-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </JarvisShell>
     );
   }
+  const connectedChannels = new Set<string>();
+  if (!usesStaffNav(user.role)) {
+    const access = await loadMarketingAccess(user);
+    if (access.workspaceId) {
+      const rows = await prisma.clientConnection.findMany({
+        where: { clientId: access.workspaceId, state: "connected", platformKey: { in: ["youtube", "linkedin"] } },
+        select: { platformKey: true },
+      });
+      for (const row of rows) connectedChannels.add(row.platformKey);
+    }
+  }
   return (
     <AppShell
       org={{ name: org.name, subtitle: org.subtitle, brandColor: resolveBrandColor(org.brandColor), logoUrl: resolveLogoUrl(org.logoUrl), mark: org.mark }}
@@ -98,8 +110,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       showInsights={insightsEnabled()}
       showNotifications={pushNotificationsEnabled()}
       showPeople={userAdminEnabled() && (user.role === "super_admin" || user.role === "account_manager")}
-      showYoutube={(uxLaunchGapsEnabled() || channelRegistryEnabled()) && SEED_REGISTRY.some((row) => row.key === "youtube")}
-      showLinkedin={(uxLaunchGapsEnabled() || channelRegistryEnabled()) && SEED_REGISTRY.some((row) => row.key === "linkedin")}
+      showYoutube={usesStaffNav(user.role) && (uxLaunchGapsEnabled() || channelRegistryEnabled()) && SEED_REGISTRY.some((row) => row.key === "youtube")}
+      showLinkedin={usesStaffNav(user.role) && (uxLaunchGapsEnabled() || channelRegistryEnabled()) && SEED_REGISTRY.some((row) => row.key === "linkedin")}
+      youtubeConnected={!usesStaffNav(user.role) && connectedChannels.has("youtube")}
+      linkedinConnected={!usesStaffNav(user.role) && connectedChannels.has("linkedin")}
     >
       {children}
     </AppShell>

@@ -18,5 +18,5 @@ export default async function PortfolioPage() {
   if (!portfolioAllowed(access.kind)) redirect(postLoginPath(user.role));
   const model = await loadPortfolioModel(access);
   if (!model) redirect(postLoginPath(user.role));
-  return <PortfolioDashboard initial={model} />;
+  return <PortfolioDashboard initial={model} viewerRole={user.role} costFlag={process.env.ALL_CLIENTS_VIEWER_SEES_COST || ""} />;
 }

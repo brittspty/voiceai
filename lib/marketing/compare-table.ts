@@ -1,3 +1,4 @@
+import { canSeeMoney } from "./spend-access";
 import { money } from "./staff-money";
 
 export type CompareSource = {
@@ -125,4 +126,28 @@ export function compareTable(sources: CompareSource[], query: CompareQuery = {})
   });
   const managers = [...new Set(sources.map((row) => row.managerName || "No manager"))].sort((a, b) => a.localeCompare(b));
   return { rows, sort, dir, managers, emptyWorkspace: sources.length === 0 };
+}
+
+/** Quote a cell and neutralize a spreadsheet formula prefix. */
+export function csvCell(value: string | number) {
+  const raw = String(value);
+  const guarded = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  if (/[",\n\r]/.test(guarded)) return `"${guarded.replaceAll('"', '""')}"`;
+  return guarded;
+}
+
+/** Spend and CPL stay off the file unless the role can see money. */
+export function compareCsvDocument(rows: CompareTableRow[], role: string | null | undefined) {
+  const showMoney = canSeeMoney(role);
+  const headers = showMoney
+    ? ["Client", "Account manager", "Spend", "Leads", "Booked", "CPL", "Junk-lead alert", "Open decisions"]
+    : ["Client", "Account manager", "Leads", "Booked", "Junk-lead alert", "Open decisions"];
+  const lines = [headers.map(csvCell).join(",")];
+  for (const row of rows) {
+    const cells = showMoney
+      ? [row.name, row.manager, row.spendLabel, row.leads, row.booked, row.cplLabel, row.junkLabel, row.openDecisions]
+      : [row.name, row.manager, row.leads, row.booked, row.junkLabel, row.openDecisions];
+    lines.push(cells.map(csvCell).join(","));
+  }
+  return lines.join("\n");
 }

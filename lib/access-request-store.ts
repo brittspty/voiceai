@@ -1,5 +1,6 @@
 import { ACCESS_REQUEST_WINDOW_MS, recordPageAccessRequest } from "./access-request";
 import { prisma } from "./db";
+import { userAdminEnabled } from "./marketing/config";
 
 const STAFF_ADMIN_ROLES = ["super_admin", "admin"] as const;
 
@@ -43,7 +44,7 @@ export async function savePageAccessRequest(input: { userId: string; userName: s
           kind: "page_access_request",
           title: "Access request",
           body: `${input.userName} asked for access to ${input.pageLabel}.`,
-          href: "/settings/people",
+          href: userAdminEnabled() ? "/settings/people" : "",
           payload: { pageKey: input.pageKey, pageLabel: input.pageLabel, requesterId: input.userId },
         })),
       });

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { compareTable, type CompareQuery, type CompareSource } from "@/lib/marketing/compare-table";
+import { canSeeMoney } from "@/lib/marketing/spend-access";
 import { SPEND_TOTAL_NOTE, STAFF_MONEY_MISSING_TIP } from "@/lib/marketing/staff-money";
 
 const COLUMNS = [
@@ -31,13 +32,17 @@ export function CompareBoard({
   sources,
   query,
   showAssign,
+  role,
 }: {
   sources: CompareSource[];
   query: CompareQuery;
   showAssign: boolean;
+  role: string;
 }) {
+  const showMoney = canSeeMoney(role);
+  const columns = COLUMNS.filter(([key]) => showMoney || (key !== "spend" && key !== "cpl"));
   const table = compareTable(sources, query);
-  const omitted = table.rows.some((row) => row.spend == null);
+  const omitted = showMoney && table.rows.some((row) => row.spend == null);
   return (
     <div>
       <h1 className="text-2xl font-semibold">All clients</h1>
@@ -75,8 +80,12 @@ export function CompareBoard({
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-line bg-canvas">
-                  {COLUMNS.map(([key, label]) => (
-                    <th key={key} className="px-3 py-2 font-medium">
+                  {columns.map(([key, label]) => (
+                    <th
+                      key={key}
+                      className="px-3 py-2 font-medium"
+                      aria-sort={table.sort === key ? (table.dir === "asc" ? "ascending" : "descending") : "none"}
+                    >
                       <Link href={hrefFor(query, { sort: key, dir: table.sort === key && table.dir === "desc" ? "asc" : "desc" })}>{label}</Link>
                     </th>
                   ))}
@@ -88,10 +97,10 @@ export function CompareBoard({
                   <tr key={row.id} className="border-b border-line">
                     <td className="px-3 py-2">{row.name}</td>
                     <td className={`px-3 py-2 ${row.managerMissing ? "text-warning" : ""}`}>{row.manager}</td>
-                    <td className="px-3 py-2" title={row.spend == null ? STAFF_MONEY_MISSING_TIP : undefined}>{row.spendLabel}</td>
+                    {showMoney ? <td className="px-3 py-2" title={row.spend == null ? STAFF_MONEY_MISSING_TIP : undefined}>{row.spendLabel}</td> : null}
                     <td className="px-3 py-2">{row.leads}</td>
                     <td className="px-3 py-2">{row.booked}</td>
-                    <td className="px-3 py-2" title={row.cpl == null ? STAFF_MONEY_MISSING_TIP : undefined}>{row.cplLabel}</td>
+                    {showMoney ? <td className="px-3 py-2" title={row.cpl == null ? STAFF_MONEY_MISSING_TIP : undefined}>{row.cplLabel}</td> : null}
                     <td className="px-3 py-2">{row.junkLabel}</td>
                     <td className="px-3 py-2">{row.openDecisions}</td>
                     {showAssign ? (
@@ -110,11 +119,12 @@ export function CompareBoard({
                 <h2 className="font-semibold">{row.name}</h2>
                 <p className={row.managerMissing ? "text-warning" : ""}>{row.manager}</p>
                 <p>{row.leads} leads</p>
-                <p title={row.spend == null ? STAFF_MONEY_MISSING_TIP : undefined}>{row.spendLabel}</p>
+                {showMoney ? <p title={row.spend == null ? STAFF_MONEY_MISSING_TIP : undefined}>{row.spendLabel}</p> : null}
               </article>
             ))}
           </div>
           {omitted ? <p className="mt-3 text-xs text-muted">{SPEND_TOTAL_NOTE}</p> : null}
+          <p className="mt-3 text-sm"><a className="text-brand-ink" href="/api/marketing/compare">Download CSV</a></p>
         </>
       )}
     </div>

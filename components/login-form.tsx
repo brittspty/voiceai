@@ -86,10 +86,10 @@ function LoginForm({ brand, hint, homeHref, magicLink, magicLinkDelivery, launch
             ) : (
               <p className="text-sm"><Link href="/forgot-password" className="underline">Forgot password?</Link></p>
             )}
-            {team && !launchGaps && <p className="text-sm text-muted">Company sign-in isn&apos;t connected. Use your email and password, or email support@specificityinc.com.</p>}
+            {team && !launchGaps && <p className="text-sm text-muted">Company sign-in isn&apos;t connected. Use your email and password, or ask your Specificity admin.</p>}
             {launchGaps && (
               <div>
-                <button type="button" aria-disabled="true" aria-describedby="team-login-reason" className="text-sm underline" onClick={(event) => event.preventDefault()}>
+                <button type="button" aria-disabled="true" aria-describedby="team-login-reason" className="cursor-not-allowed text-sm text-muted underline opacity-60" onClick={(event) => event.preventDefault()}>
                   Team login
                 </button>
                 <p id="team-login-reason" className="text-sm text-muted">Team login isn&apos;t available yet. Ask your Specificity admin to get you signed in.</p>
@@ -119,15 +119,15 @@ function LoginForm({ brand, hint, homeHref, magicLink, magicLinkDelivery, launch
                 Email me a sign-in link instead
               </button>
             )}
-            {launchGaps && !magicLinkDelivery && (
+            {launchGaps && magicLink && !magicLinkDelivery && (
               <div>
-                <button type="button" aria-disabled="true" aria-describedby="magic-link-reason" className="text-sm underline" onClick={(event) => event.preventDefault()}>
+                <button type="button" aria-disabled="true" aria-describedby="magic-link-reason" className="cursor-not-allowed text-sm text-muted underline opacity-60" onClick={(event) => event.preventDefault()}>
                   Email me a sign-in link
                 </button>
                 <p id="magic-link-reason" className="text-sm text-muted">Email sign-in links are paused for launch. Sign in with your password, or ask your Specificity admin for help.</p>
               </div>
             )}
-            {!launchGaps && magicLink && !magicLinkDelivery && <p className="text-sm text-muted">Email sign-in links are not being sent yet. Use your password, or email support@specificityinc.com.</p>}
+            {!launchGaps && magicLink && !magicLinkDelivery && <p className="text-sm text-muted">Email sign-in links are not being sent yet. Use your password, or ask your Specificity admin.</p>}
             {error && <p className="text-sm text-danger">{error}</p>}
             {notice && <p className="text-sm" role="status">{notice}</p>}
             <button disabled={pending} className="btn-brand h-10 w-full rounded-full text-sm">{pending ? "Signing in…" : "Sign in"}</button>

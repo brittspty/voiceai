@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { compareClients, compareCsv } from "@/lib/marketing/compare";
-import { assembleCompareSources, compareTable } from "@/lib/marketing/compare-table";
+import { assembleCompareSources, compareCsvDocument, compareTable } from "@/lib/marketing/compare-table";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { uxLaunchGapsEnabled } from "@/lib/ux-flags";
 
@@ -38,11 +38,7 @@ export async function GET() {
       alertWorkspaceIds: alerts.map((row) => row.workspaceId),
       decisionCounts: decisions.map((row) => ({ workspaceId: row.workspaceId, count: row._count._all })),
     }));
-    const lines = ["Client,Account manager,Spend,Leads,Booked,CPL,Junk-lead alert,Open decisions"];
-    for (const row of table.rows) {
-      lines.push([row.name, row.manager, row.spendLabel, row.leads, row.booked, row.cplLabel, row.junkLabel, row.openDecisions].join(","));
-    }
-    return new NextResponse(lines.join("\n"), { headers: { "Content-Type": "text/csv; charset=utf-8" } });
+    return new NextResponse(compareCsvDocument(table.rows, user.role), { headers: { "Content-Type": "text/csv; charset=utf-8" } });
   }
   const [org, metrics] = await Promise.all([
     prisma.org.findUnique({ where: { id: "org" }, select: { name: true } }),

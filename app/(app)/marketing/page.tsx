@@ -67,6 +67,7 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
           canEditBudget: access.canEditBudget && access.seesCost,
           canCreateShareLink: access.canCreateShareLink,
           seesCost: access.seesCost,
+          viewerRole: user.role,
           showGoogleConnection: access.kind === "super_admin" || access.kind === "account_manager",
           searchWaste: searchWasteEnabled() && canReviewSearchWaste(access),
           competitorWatch: competitorWatchEnabled() && canWatchCompetitors(access),

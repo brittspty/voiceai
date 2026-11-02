@@ -11,6 +11,7 @@ import { PageTitle } from "@/components/shell";
 import { BudgetEditor } from "@/components/budget-editor";
 import { DataChip } from "@/components/data-chip";
 import { formatDateTime } from "@/lib/format";
+import { canSeeMoney } from "@/lib/marketing/spend-access";
 import { money as staffMoney, SPEND_TOTAL_NOTE, STAFF_MONEY_MISSING_TIP } from "@/lib/marketing/staff-money";
 
 type AccountRow = {
@@ -225,14 +226,14 @@ export function MarketingView(props: {
   alerts?: AlertRow[];
   recommendations?: RecommendationRow[];
   digests?: DigestRow[];
-  flags?: { monitor: boolean; digest: boolean; digestSend?: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean; searchWaste?: boolean; competitorWatch?: boolean; holdouts?: boolean; creativeFatigue?: boolean; pacing?: boolean; adFatigue?: boolean; stackAdapt?: boolean; gbp?: boolean; userId?: string | null };
+  flags?: { monitor: boolean; digest: boolean; digestSend?: boolean; clientLinks: boolean; canEditBudget: boolean; canCreateShareLink: boolean; seesCost?: boolean; viewerRole?: string | null; isSuperAdmin?: boolean; budgetCap?: number; showGoogleConnection?: boolean; searchWaste?: boolean; competitorWatch?: boolean; holdouts?: boolean; creativeFatigue?: boolean; pacing?: boolean; adFatigue?: boolean; stackAdapt?: boolean; gbp?: boolean; userId?: string | null };
   speedToLead?: SpeedDashboardView | { error: true } | null;
   leadQuality?: { qualified: number; total: number; rateLabel: string; trend: string; costPerQualifiedLead?: string } | null;
   pacing?: { enabled: boolean; bars: { campaignId: string; name: string; status: string; chip: string; text: string; verification: string }[]; stale?: boolean };
   fatigue?: { enabled: boolean; ads: { campaignId: string; adName: string; headline: string; platform: string; chip: string }[] };
   demoData?: boolean;
 }) {
-  const seesCost = Boolean(props.flags?.seesCost);
+  const seesCost = props.flags?.viewerRole !== undefined ? canSeeMoney(props.flags.viewerRole) : Boolean(props.flags?.seesCost);
   const searchTerms = props.searchTerms ?? [];
   const showSearchTerms = searchTerms.length > 0 || props.accounts.some((account) => account.platform === "google_ads");
   const tiredCampaigns = new Set((props.fatigue?.ads ?? []).map((ad) => ad.campaignId));

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CtvView } from "@/lib/marketing/ctv/report";
 import { ctvRecommendationCopy, ctvVisibleNote } from "@/lib/marketing/ctv/wording";
+import { canSeeMoney } from "@/lib/marketing/spend-access";
 import { uxLaunchGapsEnabled } from "@/lib/ux-flags";
 
 function num(value: number | null | undefined, digits = 0) {
@@ -18,15 +19,17 @@ function money(value: number | null | undefined) {
   return value.toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
-export function CtvAttributionView({ view, showMoney }: { view: CtvView; showMoney: boolean }) {
+export function CtvAttributionView({ view, role }: { view: CtvView; role: string }) {
+  const showMoney = canSeeMoney(role);
   const segment = view.segments[0];
   const launch = uxLaunchGapsEnabled();
   const noteFor = (note: string) => (launch ? ctvVisibleNote(note, showMoney) : note);
+  const segmentName = (key: string | null | undefined) => (showMoney ? key || "n/a" : "Audience");
   const pair = launch && view.segments.length >= 2
     ? ctvRecommendationCopy({
         staff: showMoney,
-        from: view.segments[1]?.subSegmentKey || "the other audience",
-        to: view.segments[0]?.subSegmentKey || "this audience",
+        from: showMoney ? view.segments[1]?.subSegmentKey || "the other audience" : "Audience",
+        to: showMoney ? view.segments[0]?.subSegmentKey || "this audience" : "Audience",
         daily: null,
       })
     : null;
@@ -108,7 +111,7 @@ export function CtvAttributionView({ view, showMoney }: { view: CtvView; showMon
             {view.segments.map((row) => (
               <tr key={`${row.maidListId}-${row.subSegmentKey}`} className="border-b border-line">
                 <td className="px-3 py-2">{row.maidListId || "n/a"}</td>
-                <td className="px-3 py-2">{row.subSegmentKey || "n/a"}</td>
+                <td className="px-3 py-2">{segmentName(row.subSegmentKey)}</td>
                 {showMoney ? <td className="px-3 py-2">{row.vendorId || "n/a"}</td> : null}
                 <td className="px-3 py-2">{num(row.householdsReached)}</td>
                 <td className="px-3 py-2">{pct(row.deterministicMatchRate)}</td>

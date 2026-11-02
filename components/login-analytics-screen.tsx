@@ -286,16 +286,16 @@ function LoginColumn({
             Email me a sign-in link instead
           </button>
         )}
-        {launchGaps && !magicLinkDelivery && !ticket && (
+        {launchGaps && magicLink && !magicLinkDelivery && !ticket && (
           <div className="mt-3">
-            <button type="button" aria-disabled="true" aria-describedby="magic-link-reason" className="flex min-h-11 w-full items-center justify-center rounded border border-line text-sm font-semibold" onClick={(event) => event.preventDefault()}>
+            <button type="button" aria-disabled="true" aria-describedby="magic-link-reason" className="flex min-h-11 w-full cursor-not-allowed items-center justify-center rounded border border-line text-sm font-semibold text-muted opacity-60" onClick={(event) => event.preventDefault()}>
               Email me a sign-in link
             </button>
             <p id="magic-link-reason" className="mt-2 text-sm text-muted">Email sign-in links are paused for launch. Sign in with your password, or ask your Specificity admin for help.</p>
           </div>
         )}
         {!launchGaps && magicLink && !magicLinkDelivery && !ticket && (
-          <p className="mt-3 text-sm text-muted">Email sign-in links are not being sent yet. Use your password, or email support@specificityinc.com.</p>
+          <p className="mt-3 text-sm text-muted">Email sign-in links are not being sent yet. Use your password, or ask your Specificity admin.</p>
         )}
         {notice && <p className="mt-3 text-sm text-soft">{notice}</p>}
         {launchGaps ? (
@@ -316,7 +316,7 @@ function LoginColumn({
         )}
         {launchGaps ? (
           <>
-            <button type="button" aria-disabled="true" aria-describedby="team-login-reason" className="btn-brand flex min-h-11 w-full items-center justify-center rounded text-sm" onClick={(event) => event.preventDefault()}>
+            <button type="button" aria-disabled="true" aria-describedby="team-login-reason" className="btn-brand flex min-h-11 w-full cursor-not-allowed items-center justify-center rounded text-sm opacity-60" onClick={(event) => event.preventDefault()}>
               Team login
             </button>
             <p id="team-login-reason" className="mt-3 text-sm text-muted">Team login isn&apos;t available yet. Ask your Specificity admin to get you signed in.</p>

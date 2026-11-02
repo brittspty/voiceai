@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { accessPageKey, canRequestPageAccess } from "@/lib/access-request";
 import { requestPageAccess } from "@/lib/access-request-actions";
 import { pageAccessAlreadySent } from "@/lib/access-request-store";
 import { getCurrentUser } from "@/lib/auth";
@@ -28,36 +29,40 @@ export async function NoAccess({ title }: { title: string }) {
     );
   }
   const user = await getCurrentUser();
-  const pageKey = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "page";
-  const sent = user ? await pageAccessAlreadySent(user.id, pageKey) : false;
-  const role = accessRoleLabel(user?.role || "");
+  const pageKey = accessPageKey(title);
+  const role = user?.role || "";
+  const mayRequest = Boolean(pageKey) && canRequestPageAccess(role);
+  const sent = user && pageKey && mayRequest ? await pageAccessAlreadySent(user.id, pageKey) : false;
   return (
     <section className="max-w-xl rounded-xl border border-line bg-card p-6" aria-labelledby="no-access-title">
       <h1 id="no-access-title" className="text-2xl font-semibold">You don&apos;t have access to {title} yet</h1>
-      <p className="mt-2 text-sm">Your role, <strong>{role}</strong>, doesn&apos;t include this page. An admin can add it.</p>
+      <p className="mt-2 text-sm">Your role, <strong>{accessRoleLabel(role)}</strong>, doesn&apos;t include this page. An admin can add it.</p>
       <div className="mt-4 flex flex-wrap gap-2">
-        {sent ? (
+        {mayRequest && sent ? (
           <button type="button" className="btn-brand inline-flex min-h-11 items-center rounded-full px-4 text-sm" disabled>
             Request sent
           </button>
-        ) : (
+        ) : null}
+        {mayRequest && !sent ? (
           <form action={requestPageAccess}>
-            <input type="hidden" name="pageKey" value={pageKey} />
-            <input type="hidden" name="pageLabel" value={title} />
+            <input type="hidden" name="pageKey" value={pageKey || ""} />
             <button className="btn-brand inline-flex min-h-11 items-center rounded-full px-4 text-sm" type="submit">
               Request access
             </button>
           </form>
-        )}
+        ) : null}
+        {!mayRequest ? <p className="text-sm">Ask your Specificity team.</p> : null}
         <Link href="/" className="inline-flex min-h-11 items-center rounded-full border border-line px-4 text-sm">
           Back to home
         </Link>
       </div>
-      <p className="mt-3 text-sm text-muted">
-        {sent
-          ? "We let your Specificity admins know. You’ll see a note here when access changes."
-          : "After you request, we let your Specificity admins know. You’ll see a note here when access changes."}
-      </p>
+      {mayRequest ? (
+        <p className="mt-3 text-sm text-muted">
+          {sent
+            ? "We let your Specificity admins know. You’ll see a note here when access changes."
+            : "After you request, we let your Specificity admins know. You’ll see a note here when access changes."}
+        </p>
+      ) : null}
     </section>
   );
 }

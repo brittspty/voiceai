@@ -117,6 +117,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   return (
     <CompareBoard
       sources={sources}
+      role={user.role}
       showAssign={userAdminEnabled()}
       query={{
         q: query.q,

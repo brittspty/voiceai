@@ -9,7 +9,7 @@ import * as Dropdown from "@radix-ui/react-dropdown-menu";
 import { BrandMark } from "@/components/brand-mark";
 import { AIS2L_NAME } from "@/lib/brand/names";
 import { roleLabel } from "@/lib/marketing/access";
-import { optionalStaffLinks } from "@/lib/shell-nav";
+import { clientChannelNav, optionalStaffLinks, usesStaffNav } from "@/lib/shell-nav";
 import { cn } from "@/lib/cn";
 
 const NAV = [
@@ -47,6 +47,8 @@ export function AppShell({
   showPeople = false,
   showYoutube = false,
   showLinkedin = false,
+  youtubeConnected = false,
+  linkedinConnected = false,
   children,
 }: {
   org: { name: string; subtitle: string; brandColor: string; logoUrl: string; mark: string };
@@ -69,6 +71,8 @@ export function AppShell({
   showPeople?: boolean;
   showYoutube?: boolean;
   showLinkedin?: boolean;
+  youtubeConnected?: boolean;
+  linkedinConnected?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -127,6 +131,10 @@ export function AppShell({
     ...CLIENT_NAV.slice(1),
     ...(showAudienceDataClient ? [{ href: "/audience-data", label: "Audience Data", icon: Database }] : []),
     ...(showSegments ? [{ href: "/marketing/segments", label: "Audience Data", icon: Layers }] : []),
+    ...clientChannelNav({ youtubeConnected, linkedinConnected }).map((item) => ({
+      ...item,
+      icon: item.href.endsWith("/youtube") ? Tv : Users,
+    })),
   ];
 
   const nav = (
@@ -136,7 +144,7 @@ export function AppShell({
         {!collapsed && <div className="text-sm font-semibold">{mode.wordmark}</div>}
       </div>
       <nav className="flex flex-col gap-0.5 px-2">
-        {(user.role === "client_viewer" ? clientNav : staffNav).map((item) => ({ ...item, href: item.href === "/" ? homeHref : item.href })).map((item) => {
+        {(usesStaffNav(user.role) ? staffNav : clientNav).map((item) => ({ ...item, href: item.href === "/" ? homeHref : item.href })).map((item) => {
           const Icon = item.icon;
           const active = itemActive(item.href);
           return (

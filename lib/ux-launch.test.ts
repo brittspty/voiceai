@@ -1,14 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { NextRequest } from "next/server";
 import { PublicHomepage } from "../components/public-homepage";
 import { proxy } from "../proxy";
 import { decideAccessRequest, recordPageAccessRequest } from "./access-request";
 import { homepageModel } from "./homepage-content";
 import { assembleCompareSources, compareTable } from "./marketing/compare-table";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { CompareBoard } from "../components/compare-board";
+import { accessPageLabel, canRequestPageAccess } from "./access-request";
+import { compareCsvDocument, csvCell } from "./marketing/compare-table";
+import { canSeeMoney } from "./marketing/spend-access";
 import { money } from "./marketing/staff-money";
+import { clientChannelNav, usesStaffNav } from "./shell-nav";
+import { ctvRecommendationCopy } from "./marketing/ctv/wording";
 import { homeLogosEnabled, homePricingEnabled, homeQuotesEnabled, uxLaunchGapsEnabled } from "./ux-flags";
 
 const ORIGIN = "http://voiceops.test";
@@ -42,7 +48,9 @@ test("homepage flags default off and the rendered page has no placeholder copy",
   assert.match(html, /href="\/request-access"/);
   assert.match(html, /Request a demo/);
   const revealed = homepageHtml({ PUBLIC_HOMEPAGE: "on", HOME_LOGOS: "on", HOME_QUOTES: "on", HOME_PRICING: "on" });
-  assert.match(revealed, /TODO/);
+  assert.equal(/TODO/i.test(revealed), false);
+  assert.equal(/jason/i.test(revealed), false);
+  assert.equal(/sign-off/i.test(revealed), false);
 });
 
 test("UX_LAUNCH_GAPS 404s unknown urls and still sends known protected routes to login", async () => {
@@ -126,4 +134,54 @@ test("compare builds one row per client and labels a missing manager", () => {
   assert.deepEqual(onlyMissing.rows.map((row) => row.id), ["south"]);
   const searched = compareTable(sources, { q: "north", sort: "leads", dir: "asc" });
   assert.deepEqual(searched.rows.map((row) => row.name), ["North Example"]);
+});
+
+const MONEY_WORDS = /spend|bid|\bcpa\b|\bcpl\b|\broas\b|budget|\$/i;
+
+test("client, client viewer, and share link see no money on compare surfaces", () => {
+  for (const role of ["owner", "client_viewer", "share"]) {
+    assert.equal(canSeeMoney(role), false, role);
+  }
+  assert.equal(canSeeMoney("super_admin"), true);
+  assert.equal(canSeeMoney("account_manager"), true);
+  const sources = assembleCompareSources({
+    workspaces: [{ id: "north", name: "=North Example" }],
+    managers: [],
+    metrics: [{ workspaceId: "north", spend: 80, leads: 4, booked: 1 }],
+    alertWorkspaceIds: [],
+    decisionCounts: [],
+  });
+  const table = compareTable(sources);
+  for (const role of ["owner", "client_viewer", "share"]) {
+    const html = renderToStaticMarkup(createElement(CompareBoard, { sources, query: {}, showAssign: false, role }));
+    assert.equal(MONEY_WORDS.test(html), false, role);
+    const csv = compareCsvDocument(table.rows, role);
+    assert.equal(MONEY_WORDS.test(csv), false, role);
+    assert.equal(csv.includes("Spend"), false);
+    assert.equal(csv.includes("CPL"), false);
+  }
+  const staff = compareCsvDocument(table.rows, "super_admin");
+  assert.match(staff, /Spend/);
+  assert.match(staff, /\$80\.00/);
+  assert.equal(csvCell("=North Example").startsWith("'"), true);
+  assert.match(compareCsvDocument(table.rows, "super_admin"), /'=North Example/);
+});
+
+test("access requests accept only known pages and hide the button for client roles", () => {
+  assert.equal(accessPageLabel("insights"), "Insights");
+  assert.equal(accessPageLabel("not-a-page"), null);
+  assert.equal(canRequestPageAccess("account_manager"), true);
+  assert.equal(canRequestPageAccess("owner"), false);
+  assert.equal(canRequestPageAccess("client_viewer"), false);
+  assert.equal(canRequestPageAccess("demo_viewer"), false);
+});
+
+test("client owners use the client nav and only see a connected channel", () => {
+  assert.equal(usesStaffNav("owner"), false);
+  assert.equal(usesStaffNav("client_viewer"), false);
+  assert.equal(usesStaffNav("super_admin"), true);
+  assert.deepEqual(clientChannelNav({ youtubeConnected: false, linkedinConnected: false }), []);
+  assert.deepEqual(clientChannelNav({ youtubeConnected: true, linkedinConnected: false }), [{ href: "/c/all/youtube", label: "YouTube" }]);
+  assert.equal(ctvRecommendationCopy({ staff: true, from: "A", to: "B", daily: null }).includes("null"), false);
+  assert.equal(ctvRecommendationCopy({ staff: true, from: "A", to: "B", daily: null }).includes("$"), false);
 });

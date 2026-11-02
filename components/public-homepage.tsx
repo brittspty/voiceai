@@ -47,13 +47,17 @@ function TryLink({ model, className, cta, first = false }: { model: HomepageMode
   );
 }
 
-function Photo({ caption, wide = false, person = false, team = false, reveal = true }: { caption: string; wide?: boolean; person?: boolean; team?: boolean; reveal?: boolean }) {
+function approvedCopy(value: string) {
+  return value.trim().length > 0 && !placeholderCopy(value);
+}
+
+function Photo({ caption, wide = false, person = false, team = false }: { caption: string; wide?: boolean; person?: boolean; team?: boolean }) {
+  if (!approvedCopy(caption)) return null;
   const shape = wide ? "photo photo-wide" : team ? "photo photo-team" : "photo";
-  const showCaption = reveal || !placeholderCopy(caption);
   return (
     <figure className={shape}>
       {person ? <PersonArt /> : <CameraArt />}
-      {showCaption ? <figcaption>{caption}</figcaption> : null}
+      <figcaption>{caption}</figcaption>
     </figure>
   );
 }
@@ -202,7 +206,7 @@ export function PublicHomepage({
                   );
                 })}
               </div>
-              <Photo caption={model.story.photo} wide reveal={model.showQuotes} />
+              {model.showQuotes ? <Photo caption={model.story.photo} wide /> : null}
             </div>
           </section>
 
@@ -212,9 +216,9 @@ export function PublicHomepage({
                 <h2>{model.proof.title}</h2>
                 <p className="lead">{model.proof.lead}</p>
               </div>
-              {model.showLogos ? (
+              {model.showLogos && model.proof.logos.some((logo) => approvedCopy(logo)) ? (
                 <div className="logo-row" aria-label="Client logos">
-                  {model.proof.logos.map((logo, index) => (
+                  {model.proof.logos.filter((logo) => approvedCopy(logo)).map((logo, index) => (
                     <div className="slot logo-slot" key={`${logo}-${index}`}>
                       <span className="mono lab">LOGO</span>
                       <b>{logo}</b>
@@ -245,7 +249,7 @@ export function PublicHomepage({
                   <TryLink model={model} className="btn sec" cta="try-demo-tour" />
                 </div>
                 {model.proof.slots
-                  .filter((slot) => model.showLogos || !placeholderCopy(`${slot.kicker} ${slot.title} ${slot.note}`))
+                  .filter((slot) => model.showLogos && approvedCopy(`${slot.kicker} ${slot.title} ${slot.note}`))
                   .map((slot) => (
                     <div className="slot" key={slot.kicker}>
                       <span className="mono lab">{slot.kicker}</span>
@@ -254,19 +258,16 @@ export function PublicHomepage({
                     </div>
                   ))}
               </div>
-              {model.showQuotes ? (
+              {model.showQuotes && (model.proof.quotes.some((quote) => approvedCopy(`${quote.kicker} ${quote.body} ${quote.note}`)) || approvedCopy(model.proof.quotePhoto)) ? (
                 <div className="voices">
-                  <div className="quote">
-                    <span className="mono lab">{model.proof.quotes[0]?.kicker}</span>
-                    <p>{model.proof.quotes[0]?.body}</p>
-                    <span className="lab">{model.proof.quotes[0]?.note}</span>
-                  </div>
-                  <Photo caption={model.proof.quotePhoto} person reveal />
-                  <div className="quote">
-                    <span className="mono lab">{model.proof.quotes[1]?.kicker}</span>
-                    <p>{model.proof.quotes[1]?.body}</p>
-                    <span className="lab">{model.proof.quotes[1]?.note}</span>
-                  </div>
+                  {model.proof.quotes.filter((quote) => approvedCopy(`${quote.kicker} ${quote.body} ${quote.note}`)).map((quote) => (
+                    <div className="quote" key={quote.body}>
+                      <span className="mono lab">{quote.kicker}</span>
+                      <p>{quote.body}</p>
+                      <span className="lab">{quote.note}</span>
+                    </div>
+                  ))}
+                  <Photo caption={model.proof.quotePhoto} person />
                 </div>
               ) : null}
             </div>
@@ -337,11 +338,13 @@ export function PublicHomepage({
                     <li key={point}>{point}</li>
                   ))}
                 </ul>
-                <div className="team">
-                  {[0, 1, 2].map((index) => (
-                    <Photo key={index} caption={model.platform.photos} person team reveal={model.showLogos} />
-                  ))}
-                </div>
+                {model.showLogos && approvedCopy(model.platform.photos) ? (
+                  <div className="team">
+                    {[0, 1, 2].map((index) => (
+                      <Photo key={index} caption={model.platform.photos} person team />
+                    ))}
+                  </div>
+                ) : null}
                 <p className="lab">{model.platform.note}</p>
               </div>
               <RecommendationSlip illustrative={model.illustrative} title={model.slip.title} body={model.slip.body} why={model.slip.why} />
@@ -395,22 +398,22 @@ export function PublicHomepage({
             </div>
           </section>
 
+          {model.showPricing && model.faq.some((item) => item.question === "What does it cost?" && approvedCopy(item.answer)) ? null : (
+            <section className="faq" aria-labelledby="pricing-title">
+              <div className="w">
+                <h2 id="pricing-title">Talk to us about pricing</h2>
+                <p>Pricing depends on your channels and audiences. Tell us what you run today and we&apos;ll walk you through it.</p>
+                <Link className="btn" href="/request-access">Request a demo</Link>
+              </div>
+            </section>
+          )}
+
           <section className="faq" id="faq">
             <div className="w faq-grid">
               <h2>{model.faqTitle}</h2>
-              {!model.showPricing ? (
-                <div>
-                  <h2>Talk to us about pricing</h2>
-                  <p>Pricing depends on your channels and audiences. Tell us what you run today and we&apos;ll walk you through it.</p>
-                  <Link className="btn" href="/request-access">Request a demo</Link>
-                </div>
-              ) : null}
               <div>
                 {model.faq
-                  .filter((item) => {
-                    if (!placeholderCopy(item.answer)) return true;
-                    return item.question === "What does it cost?" && model.showPricing;
-                  })
+                  .filter((item) => approvedCopy(item.answer) && (item.question !== "What does it cost?" || model.showPricing))
                   .map((item, index) => (
                     <details key={item.question} open={index === 0}>
                       <summary>{item.question}</summary>

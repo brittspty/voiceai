@@ -21,6 +21,14 @@ export function canSeeSpend(
   return false;
 }
 
+/**
+ * UI gate for spend, bid, CPA, CPL, ROAS, and budget.
+ * Same rule as canSeeSpend. A share link has no staff role and does not pass.
+ */
+export function canSeeMoney(role: string | null | undefined, env: Env = process.env) {
+  return canSeeSpend({ role, kind: role }, env);
+}
+
 /** Staff receive the payload unchanged. Everyone else gets the safe-field allowlist. */
 export function forSpendViewer<T>(
   value: T,
