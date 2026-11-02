@@ -1,11 +1,8 @@
 import Link from "next/link";
-import { AppShell } from "@/components/shell";
-import { BRAND_TAGLINE, BRAND_WORDMARK, resolveBrandColor, resolveLogoUrl } from "@/lib/brand";
+import { SignedInShell } from "@/components/signed-in-shell";
+import { BRAND_WORDMARK } from "@/lib/brand";
 import { getCurrentUser } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { getOrg } from "@/lib/queries";
-import { usesStaffNav } from "@/lib/shell-nav";
 import { MISSING_BODY, MISSING_TITLE } from "@/lib/ux/missing-page";
 import { uxLaunchGapsEnabled } from "@/lib/ux-flags";
 
@@ -46,30 +43,9 @@ export default async function NotFound() {
   const user = await getCurrentUser();
   if (!user) return <MissingCard signedIn={false} />;
   const org = await getOrg();
-  const connected = new Set<string>();
-  if (!usesStaffNav(user.role)) {
-    const access = await loadMarketingAccess(user);
-    if (access.workspaceId) {
-      const rows = await prisma.clientConnection.findMany({
-        where: {
-          state: "connected",
-          platformKey: { in: ["youtube", "linkedin"] },
-          OR: [{ clientId: access.workspaceId }, { workspaceId: access.workspaceId }],
-        },
-        select: { platformKey: true },
-      });
-      for (const row of rows) connected.add(row.platformKey);
-    }
-  }
   return (
-    <AppShell
-      org={{ name: org.name, subtitle: org.subtitle, brandColor: resolveBrandColor(org.brandColor), logoUrl: resolveLogoUrl(org.logoUrl), mark: org.mark }}
-      user={user}
-      mode={{ testMode: org.testMode, agentName: org.agentName, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE }}
-      youtubeConnected={connected.has("youtube")}
-      linkedinConnected={connected.has("linkedin")}
-    >
+    <SignedInShell user={user} org={org} path="">
       <MissingCard signedIn />
-    </AppShell>
+    </SignedInShell>
   );
 }

@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { forbidden, redirect } from "next/navigation";
 import { PortfolioDashboard } from "@/components/portfolio-dashboard";
 import { getCurrentUser } from "@/lib/auth";
 import { loginAnalyticsEnabled } from "@/lib/login-analytics";
@@ -15,7 +15,7 @@ export default async function PortfolioPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const access = await loadMarketingAccess(user);
-  if (!portfolioAllowed(access.kind)) redirect(postLoginPath(user.role));
+  if (!portfolioAllowed(access.kind)) forbidden();
   const model = await loadPortfolioModel(access);
   if (!model) redirect(postLoginPath(user.role));
   return <PortfolioDashboard initial={model} viewerRole={user.role} costFlag={process.env.ALL_CLIENTS_VIEWER_SEES_COST || ""} />;

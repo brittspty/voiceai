@@ -21,7 +21,7 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
         <main className="grid min-h-screen place-items-center bg-canvas px-4">
           <div className="max-w-lg text-center">
             <h1 className="text-3xl font-semibold">The demo is taking a break</h1>
-            <p className="mt-3 text-sm">The demo isn&apos;t available right now. You can still talk to us and see Diver AI live.</p>
+            <p className="mt-3 text-sm">The demo isn&apos;t available right now. You can still talk to us and see JAI live.</p>
             <div className="mt-6 flex flex-wrap justify-center gap-2">
               <Link href="/request-access" className="btn-brand inline-flex min-h-11 items-center rounded-full px-5 text-sm">Request a demo</Link>
               <Link href="/" className="inline-flex min-h-11 items-center rounded-full border border-line px-5 text-sm">Go to homepage</Link>

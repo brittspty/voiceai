@@ -9,7 +9,7 @@ import { assembleCompareSources, compareTable } from "./marketing/compare-table"
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CompareBoard } from "../components/compare-board";
-import { accessPageLabel, canRequestPageAccess } from "./access-request";
+import { accessPageLabel, accessTitleForPath, canRequestPageAccess } from "./access-request";
 import { compareCsvDocument, csvCell } from "./marketing/compare-table";
 import { canSeeMoney } from "./marketing/spend-access";
 import { money } from "./marketing/staff-money";
@@ -174,6 +174,10 @@ test("access requests accept only known pages and hide the button for client rol
   assert.equal(canRequestPageAccess("owner"), false);
   assert.equal(canRequestPageAccess("client_viewer"), false);
   assert.equal(canRequestPageAccess("demo_viewer"), false);
+  assert.equal(accessTitleForPath("/marketing/chatgpt-ads"), "ChatGPT Ads");
+  assert.equal(accessTitleForPath("/portfolio"), "Portfolio");
+  assert.equal(accessPageLabel("chatgpt-ads"), "ChatGPT Ads");
+  assert.equal(accessPageLabel("portfolio"), "Portfolio");
 });
 
 test("client owners use the client nav and only see a connected channel", () => {

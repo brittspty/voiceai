@@ -25,7 +25,17 @@ export const ACCESS_PAGE_LABELS: Record<string, string> = {
   "segment-tests": "Segment tests",
   "this-page": "This page",
   "competitor-ads": "Competitor ads",
+  "chatgpt-ads": "ChatGPT Ads",
+  portfolio: "Portfolio",
 };
+
+/** Title for a 403. ChatGPT Ads and Portfolio keep their names. */
+export function accessTitleForPath(path: string) {
+  const normalized = path.split("?")[0].replace(/\/$/, "") || "/";
+  if (normalized === "/marketing/chatgpt-ads" || normalized.startsWith("/marketing/chatgpt-ads/")) return "ChatGPT Ads";
+  if (normalized === "/portfolio" || normalized.startsWith("/portfolio/")) return "Portfolio";
+  return "This page";
+}
 
 const ASK_TEAM_ROLES = new Set(["owner", "client_viewer", "demo_viewer"]);
 

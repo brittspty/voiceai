@@ -110,7 +110,7 @@ export function CtvAttributionView({ view, role }: { view: CtvView; role: string
           <tbody>
             {view.segments.map((row) => (
               <tr key={`${row.maidListId}-${row.subSegmentKey}`} className="border-b border-line">
-                <td className="px-3 py-2">{row.maidListId || "n/a"}</td>
+                <td className="px-3 py-2">{showMoney ? row.maidListId || "n/a" : "Audience list"}</td>
                 <td className="px-3 py-2">{segmentName(row.subSegmentKey)}</td>
                 {showMoney ? <td className="px-3 py-2">{row.vendorId || "n/a"}</td> : null}
                 <td className="px-3 py-2">{num(row.householdsReached)}</td>

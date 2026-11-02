@@ -44,7 +44,7 @@ export async function savePageAccessRequest(input: { userId: string; userName: s
           kind: "page_access_request",
           title: "Access request",
           body: `${input.userName} asked for access to ${input.pageLabel}.`,
-          href: userAdminEnabled() ? "/settings/people" : "",
+          href: userAdminEnabled() ? "/settings/people" : "/notifications",
           payload: { pageKey: input.pageKey, pageLabel: input.pageLabel, requesterId: input.userId },
         })),
       });

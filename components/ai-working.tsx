@@ -12,8 +12,8 @@ export function InsightsLoadingSkeleton() {
     return () => window.clearInterval(tick);
   }, []);
   return (
-    <div aria-busy="true" role="status">
-      <p className="mb-3 font-mono text-xs text-muted">{seconds}s</p>
+    <div aria-busy="true">
+      <p className="mb-3 font-mono text-xs text-muted" aria-live="off">{seconds}s</p>
       <DashboardSkeleton />
     </div>
   );

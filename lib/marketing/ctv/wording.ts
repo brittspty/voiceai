@@ -6,7 +6,7 @@ export function ctvRecommendationCopy(input: { staff: boolean; from: string; to:
   const move = input.daily != null && Number.isFinite(input.daily)
     ? `Recommend: move $${input.daily}/day from ${input.from} to ${input.to}.`
     : `Recommend: move from ${input.from} to ${input.to}.`;
-  return `${move} This needs your approval; Diver AI won't change budgets.`;
+  return `${move} This needs your approval; JAI won't change budgets.`;
 }
 
 const CLIENT_MONEY = /budget|spend|cost|\$|\bbid\b/i;
