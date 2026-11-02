@@ -414,9 +414,10 @@ test("chart notes, schedules, and scale/cut logs survive a restart", async () =>
 test("the persistence migration only adds tables", () => {
   const schema = readFileSync(path.join(ROOT, "prisma/schema.prisma"), "utf8");
   const user = schema.slice(schema.indexOf("model User {"), schema.indexOf("model Session {"));
-  for (const name of ["ReportChartNote", "ReportSchedule", "ReportScheduleDelivery", "AudienceScaleCutLog", "PushPreference"]) {
+  for (const name of ["ReportChartNote", "ReportSchedule", "ReportScheduleDelivery", "AudienceScaleCutLog"]) {
     assert.equal(user.includes(name), false, name);
   }
+  // PushPreference belongs on User from the push migration. This migration does not add it.
   for (const name of ["model ReportChartNote {", "model ReportSchedule {", "model ReportScheduleDelivery {", "model AudienceScaleCutLog {"]) {
     assert.equal(schema.includes(name), true, name);
   }
