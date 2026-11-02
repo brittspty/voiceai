@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { REPORT_LOGO_ALT, REPORT_LOGO_REVERSED, REPORT_PRODUCT } from "@/lib/marketing/reports/brand";
+import { REPORT_DOWNLOAD_NAME, REPORT_LOGO_ALT, REPORT_LOGO_REVERSED, REPORT_PRODUCT } from "@/lib/marketing/reports/brand";
 import { formatKpi, formatUpdatedEt } from "@/lib/marketing/reports/format";
 import { easeOutCubic, REPORT_MOTION, shouldAnimate } from "@/lib/marketing/reports/motion";
 import { reportHref } from "@/lib/marketing/reports/query";
@@ -398,7 +398,7 @@ async function downloadNow(query: string, view: "staff" | "client", setToast: (m
   const href = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = href;
-  anchor.download = "jarvis-report.pdf";
+  anchor.download = REPORT_DOWNLOAD_NAME;
   anchor.click();
   URL.revokeObjectURL(href);
   setToast("Report ready");

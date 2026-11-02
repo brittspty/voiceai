@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { PRODUCT_NAME } from "@/lib/brand";
 import type { PresentedDetail, PresentedMatch, PresentedRow, SortKey } from "@/lib/marketing/audience-data/present";
 import type { MoreMatch } from "@/lib/marketing/channels/video-channels";
 import { SourceTabs } from "./resolution-panel";
@@ -77,7 +78,7 @@ function States({ notice, mode, accountName }: { notice: string; mode: "staff" |
           <span className="ad-prov">These buttons do not call the data market.</span>
         </div>
       ) : null}
-      <p className="ad-prov" style={{ marginTop: 20 }}>{mode === "client" ? `Jarvis by Specificity · ${accountName} workspace · All figures are EXAMPLE DATA` : "Jarvis by Specificity · All figures are EXAMPLE DATA · Vendor names are placeholders"}</p>
+      <p className="ad-prov" style={{ marginTop: 20 }}>{mode === "client" ? `${PRODUCT_NAME} · ${accountName} workspace · All figures are EXAMPLE DATA` : `${PRODUCT_NAME} · All figures are EXAMPLE DATA · Vendor names are placeholders`}</p>
     </section>
   );
 }
@@ -350,7 +351,7 @@ export function AudienceDataSource({ detail, mode = "staff", accountName = "", s
           <button type="button" className="ad-btn" onClick={() => setNotice("Still the last example sync. Nothing was requested.")}>Try again</button>
         </div>
         {notice ? <p className="ad-prov" role="status">{notice}</p> : null}
-        <p className="ad-prov" style={{ marginTop: 20 }}>{mode === "client" ? `Jarvis by Specificity · ${accountName} workspace · All figures are EXAMPLE DATA` : "Jarvis by Specificity · All figures are EXAMPLE DATA · Vendor names are placeholders"}</p>
+        <p className="ad-prov" style={{ marginTop: 20 }}>{mode === "client" ? `${PRODUCT_NAME} · ${accountName} workspace · All figures are EXAMPLE DATA` : `${PRODUCT_NAME} · All figures are EXAMPLE DATA · Vendor names are placeholders`}</p>
       </section>
     </main>
   );

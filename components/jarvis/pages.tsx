@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Ais2lCallView, TestPill } from "@/lib/ais2l/screen";
-import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_NAME } from "@/lib/brand";
+import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_WORDMARK } from "@/lib/brand";
 import { EXAMPLE_FEED } from "@/lib/marketing/channels/catalog";
 import { presentedVideoChannels } from "@/lib/marketing/channels/video-channels";
 import { scopeLiveFeed, snoozeUntil, urgentEmail, type FeedViewer, type SnoozeChoice } from "@/lib/marketing/channels/feed";
@@ -12,7 +12,7 @@ import { logJarvisLeadMark, saveUrgentEmailOptIn, undoJarvisLeadMark } from "@/l
 import { Crumbs, End, Tile, Tip } from "./bits";
 import { MoreChannels } from "./more-channels";
 
-const end = { productName: PRODUCT_NAME, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
+const end = { productName: PRODUCT_WORDMARK, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE };
 
 export function ClientHome({ channels = null }: { channels?: { href?: string; label: string; leads: string; qualified: string; booked: string }[] | null } = {}) {
   return (

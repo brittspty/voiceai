@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { JarvisShell } from "@/components/jarvis/shell";
 import { AppShell } from "@/components/shell";
 import { requireUser } from "@/lib/auth";
-import { BRAND_TAGLINE, BRAND_WORDMARK, LOGO_ON_DARK, LOGO_ON_LIGHT, PRODUCT_NAME, resolveBrandColor, resolveLogoUrl } from "@/lib/brand";
+import { BRAND_TAGLINE, BRAND_WORDMARK, LOGO_ON_DARK, LOGO_ON_LIGHT, PRODUCT_WORDMARK, resolveBrandColor, resolveLogoUrl } from "@/lib/brand";
 import { prisma } from "@/lib/db";
 import { exampleRegistryState, projectSurfaces } from "@/lib/marketing/channels/registry";
 import { jarvisNav } from "@/lib/marketing/channels/nav";
@@ -58,7 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     const showPeople = userAdminEnabled() && (access.kind === "super_admin" || access.kind === "account_manager");
     return (
       <JarvisShell
-        productName={PRODUCT_NAME}
+        productName={PRODUCT_WORDMARK}
         wordmark={BRAND_WORDMARK}
         logoOnDark={LOGO_ON_DARK}
         logoOnLight={LOGO_ON_LIGHT}

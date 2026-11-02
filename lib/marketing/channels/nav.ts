@@ -1,3 +1,5 @@
+import { PRODUCT_WORDMARK } from "../../brand/names";
+
 export type NavItem = {
   href: string;
   label: string;
@@ -33,7 +35,7 @@ export function jarvisNav(input: {
   const decisions: NavItem = { href: "/decisions", label: "Decisions", group: "Overview", count: input.decisionCount };
   if (input.audience === "client") {
     const items: NavItem[] = [
-      { href: "/", label: "Home", group: "Overview" },
+      { href: "/", label: `${PRODUCT_WORDMARK} home`, group: "Overview" },
       decisions,
     ];
     if (input.channelLinks?.length) items.push(...input.channelLinks);
@@ -50,7 +52,7 @@ export function jarvisNav(input: {
     return items;
   }
   const items: NavItem[] = [
-    { href: "/", label: "Home", group: "Overview" },
+    { href: "/", label: `${PRODUCT_WORDMARK} home`, group: "Overview" },
     decisions,
   ];
   if (input.showLive) items.push({ href: "/live", label: "Live", group: "Overview" });

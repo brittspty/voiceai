@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { PRODUCT_NAME } from "@/lib/brand";
 import type { ResolutionReport, ResolutionWindow } from "@/lib/marketing/audience-data/resolution";
 import "./audience-data.css";
 
@@ -287,7 +288,7 @@ export function ResolutionScreen({
         </div>
         {notice ? <p className="ad-prov" role="status">{notice}</p> : null}
       </section>
-      <p className="ad-prov">{mode === "client" ? `Jarvis by Specificity · ${accountName || report.accountName} workspace · All figures are EXAMPLE DATA` : "Jarvis by Specificity · All figures are EXAMPLE DATA · Vendor names are placeholders"}</p>
+      <p className="ad-prov">{mode === "client" ? `${PRODUCT_NAME} · ${accountName || report.accountName} workspace · All figures are EXAMPLE DATA` : `${PRODUCT_NAME} · All figures are EXAMPLE DATA · Vendor names are placeholders`}</p>
     </main>
   );
 }
