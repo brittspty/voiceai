@@ -359,9 +359,9 @@ test("pacing and fatigue stay off client roles and share links", () => {
   assert.equal(clientFn.includes("spend"), false);
   assert.equal(clientFn.includes("cpa"), false);
   assert.equal(clientFn.includes("budgetAmount"), false);
-  assert.match(clientFn, /clientMetricWhere\(/);
-  assert.match(clientFn, /queuedTestingWhere\(/);
-  assert.ok(clientFn.indexOf("clientMetricWhere") < clientFn.indexOf("take: 200"));
+  assert.match(clientFn, /clientSurfaceMetricWhere\(/);
+  assert.match(clientFn, /clientSurfaceTestingWhere\(/);
+  assert.ok(clientFn.indexOf("clientSurfaceMetricWhere") < clientFn.indexOf("take: 200"));
   assert.equal(isCostContent({ type: "pacing", metric: "pacing", title: "Pace" }), true);
   assert.ok(alertWhere(false).code && "notIn" in alertWhere(false).code && alertWhere(false).code.notIn?.includes("pacing_over"));
   const cards = visibleDecisionCards(

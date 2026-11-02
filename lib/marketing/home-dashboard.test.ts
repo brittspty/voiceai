@@ -137,7 +137,7 @@ test("home queries scope every client read with isolatedWhere", () => {
   assert.match(query, /isolatedWhere\(workspaceId\)/);
   assert.match(query, /workspaceReads\(ids\)/);
   assert.match(query, /requireWorkspaceId\(access\.workspaceId\)/);
-  assert.match(client, /clientMetricWhere\(meta\.workspaceId/);
+  assert.match(client, /clientSurfaceMetricWhere\(meta\.workspaceId/);
   assert.match(scope, /isolatedWhere\(/);
   assert.equal(isolation.includes("export function isolatedWhere"), false);
   assert.equal(query.includes("workspaceId: { in"), false);

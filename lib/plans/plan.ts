@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { clientScopeWhere } from "../marketing/client-read-scope";
 import { isolatedWhere } from "../marketing/workspace";
 import { DEMO_WORKSPACE_ID } from "../demo/isolation";
 
@@ -188,7 +189,7 @@ export function metricsWhereForPlan(plan: Pick<PlanRecord, "dashboardSource" | "
   const id = plan.baselineWorkspaceId.trim();
   if (!id) throw new Error("baseline workspace required");
   if (id === DEMO_WORKSPACE_ID) throw new Error("baseline cannot be the demo workspace");
-  return isolatedWhere(id);
+  return clientScopeWhere(id);
 }
 
 export function assertOwnBaseline(planWorkspaceId: string, requestedWorkspaceId: string) {

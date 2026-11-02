@@ -4,6 +4,7 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PlanClosed } from "../../components/plan-closed";
 import { PlanDocument } from "../../components/plan-document";
+import { campaignVisibleToClient } from "../marketing/client-read-scope";
 import { clientPlansEnabled } from "./flags";
 import { sanitizeLogo } from "./logo";
 import {
@@ -130,7 +131,11 @@ test("cost is stripped unless the plan opts in", () => {
 
 test("baseline metrics stay on that client's workspace", () => {
   const plan = { ...blankPlan("p1", "Gulf"), dashboardSource: "baseline" as const, baselineWorkspaceId: "gulf" };
-  assert.deepEqual(metricsWhereForPlan(plan), { workspaceId: "gulf" });
+  const where = metricsWhereForPlan(plan);
+  assert.equal(JSON.stringify(where).includes("gulf"), true);
+  assert.equal(JSON.stringify(where).includes("demo"), false);
+  assert.equal(campaignVisibleToClient({ workspaceId: "gulf", clientId: null, accountClientId: null }, "gulf"), true);
+  assert.equal(campaignVisibleToClient({ workspaceId: "gulf", clientId: "fixture_south", accountClientId: null }, "gulf"), false);
   assert.deepEqual(assertOwnBaseline("gulf", "gulf"), { workspaceId: "gulf" });
   assert.throws(() => assertOwnBaseline("gulf", "org"), /mismatch/);
   assert.throws(() => metricsWhereForPlan({ dashboardSource: "baseline", baselineWorkspaceId: "demo" }), /demo/);
