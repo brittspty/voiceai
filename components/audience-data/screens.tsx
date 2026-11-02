@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { PresentedDetail, PresentedMatch, PresentedRow, SortKey } from "@/lib/marketing/audience-data/present";
+import { SourceTabs } from "./resolution-panel";
 import "./audience-data.css";
 
 const SORTS: { key: SortKey; label: string }[] = [
@@ -78,11 +79,13 @@ export function AudienceDataList({
   rows,
   campaigns,
   accountName = "",
+  resolutionHref = "",
 }: {
   mode: "staff" | "client";
   rows: PresentedRow[];
   campaigns: { id: string; name: string }[];
   accountName?: string;
+  resolutionHref?: string;
 }) {
   const [campaignId, setCampaignId] = useState("all");
   const [search, setSearch] = useState("");
@@ -143,6 +146,7 @@ export function AudienceDataList({
         <span className="ex">EXAMPLE DATA</span>
       </div>
       <p>{mode === "client" ? "Every audience is built from mobile ad IDs (MAIDs) in the data market. Sources are shown by type. Pick one to see every selection used to build it." : "All audiences are MAID audiences built in the data market. Pick a source to see every selection used to build it. Recommendations only. Nothing here changes a campaign amount."}</p>
+      {resolutionHref ? <p><Link href={resolutionHref}>Resolution Data across {mode === "client" ? "your" : "all"} audiences</Link></p> : null}
       <div className="ad-bar">
         <label htmlFor="ad-campaign">Campaign</label>
         <select id="ad-campaign" value={campaignId} onChange={(event) => setCampaignId(event.target.value)}>
@@ -229,7 +233,7 @@ export function AudienceDataList({
   );
 }
 
-export function AudienceDataSource({ detail, mode = "staff", accountName = "" }: { detail: PresentedDetail; mode?: "staff" | "client"; accountName?: string }) {
+export function AudienceDataSource({ detail, mode = "staff", accountName = "", showResolution = false }: { detail: PresentedDetail; mode?: "staff" | "client"; accountName?: string; showResolution?: boolean }) {
   const [worked, setWorked] = useState(false);
   const [notice, setNotice] = useState("");
   const cost = mode === "staff" ? detail.dataCostCpm : undefined;
@@ -243,6 +247,7 @@ export function AudienceDataSource({ detail, mode = "staff", accountName = "" }:
         <h1>{name} · {detail.type}</h1>
         <span className="ex">EXAMPLE DATA</span>
       </div>
+      {showResolution ? <SourceTabs id={detail.id} current="selections" /> : null}
       <div className="ad-bar">
         <label htmlFor="ad-audience">Audience</label>
         <select id="ad-audience" defaultValue={detail.audienceId}>

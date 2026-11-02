@@ -29,7 +29,28 @@
 .ad-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin: 6px 0; }
 .ad-card dt { color: #5c5558; font-size: 12px; }
 .ad-card dd { margin: 0; font-weight: 600; }
+.ad-tabs { display: flex; gap: 4px; border-bottom: 2px solid #231f20; margin: 14px 0; }
+.ad-tabs a { padding: 12px 16px; min-height: 44px; box-sizing: border-box; font-weight: 600; color: #231f20; text-decoration: none; border-radius: 8px 8px 0 0; display: inline-flex; align-items: center; }
+.ad-tabs a[aria-current="page"] { background: #231f20; color: #fff; }
+.ad-rate { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 44px; }
+.ad-rate-fill { display: inline-block; height: 8px; min-width: 8px; max-width: 140px; background: #231f20; border-radius: 99px; }
+.ad-rate-fill.hold { background: repeating-linear-gradient(135deg, #b33e00, #b33e00 4px, #fff4ec 4px, #fff4ec 8px); }
+.ad-chart { display: flex; align-items: flex-end; gap: 12px; height: 120px; border-bottom: 1px solid #231f20; margin: 12px 0; }
+.ad-chart span { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; flex: 1; font-size: 12px; }
+.ad-chart i { display: block; width: 2px; background: #231f20; margin-top: 4px; }
+.ad-res-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+.ad-res-tiles article { border: 1px solid #ddd; border-radius: 10px; padding: 10px 12px; }
+.ad-res-tiles span { display: block; font-size: 12px; color: #5c5558; }
+.ad-res-tiles b { font-size: 18px; }
+.ad-res-split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ad-trend { list-style: none; padding: 0; margin: 8px 0 0; }
+.ad-trend li { display: grid; grid-template-columns: 72px 1fr auto; gap: 8px; align-items: center; min-height: 44px; font-size: 13px; }
+.ad-trend-bar { display: block; height: 8px; background: #f4f1ef; border-radius: 99px; overflow: hidden; }
+.ad-trend-bar i { display: block; height: 100%; background: #b33e00; }
 @media (max-width: 639px) {
+  .ad-res-tiles, .ad-res-split { grid-template-columns: 1fr 1fr; }
+  .ad-trend li { grid-template-columns: 64px 1fr; }
+  .ad-trend li .ad-mono { grid-column: 1 / -1; }
   .ad-table { display: none; }
   .ad-cards { display: block; }
   .ad-bar select, .ad-bar input, .ad-btn, .ad-table th button { width: 100%; min-height: 44px; }
