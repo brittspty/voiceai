@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { REPORT_DOWNLOAD_NAME } from "@/lib/marketing/reports/brand";
 import { REPORT_MOTION } from "@/lib/marketing/reports/motion";
 
 type LinkRow = { id: string; label: string; views: number; expires: string; passcode: boolean };
@@ -154,7 +155,7 @@ function ShareDialogBody({
     const href = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = href;
-    anchor.download = "jarvis-report.pdf";
+    anchor.download = REPORT_DOWNLOAD_NAME;
     anchor.click();
     URL.revokeObjectURL(href);
     onToast("Report ready");

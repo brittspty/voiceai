@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PRODUCT_WORDMARK } from "@/lib/brand";
 import { DemoEntry } from "@/components/demo-entry";
 import { BASED_ON_LABEL, HUMANS_CONTROL_BUDGETS, ILLUSTRATIVE_BADGE } from "@/lib/demo/tour";
 import type { presentDemo } from "@/lib/demo/present";
@@ -171,7 +172,7 @@ function Compare({ data }: { data: Presentation }) {
 function Explanations({ data }: { data: Presentation }) {
   return (
     <section data-tour-anchor="bots">
-      <h1 className="text-3xl font-semibold tracking-tight">What Jarvis would say</h1>
+      <h1 className="text-3xl font-semibold tracking-tight">What {PRODUCT_WORDMARK} would say</h1>
       <ul className="mt-4 space-y-3">
         {data.bots.map((note) => (
           <li key={note.id} className="rounded-xl border border-line bg-card p-4">

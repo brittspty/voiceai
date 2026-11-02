@@ -1,3 +1,5 @@
+import { PRODUCT_WORDMARK } from "../brand/names";
+
 /**
  * DRAFT talking points. PLACEHOLDER COPY pending Jason's approval.
  * Edit the words in this file only. Do not add industry statistics.
@@ -77,7 +79,7 @@ const TEMPLATES: Array<Omit<TourStep, "body"> & { body: string }> = [
     anchor: "bots",
     title: "Plain-English explanations",
     showsFigures: false,
-    body: "Jarvis explains each demo optimization in plain English. Every note ends with a Based on line that names the seeded row it used.",
+    body: `${PRODUCT_WORDMARK} explains each demo optimization in plain English. Every note ends with a Based on line that names the seeded row it used.`,
   },
   {
     id: "feed",

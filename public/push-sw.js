@@ -9,5 +9,5 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("push", (event) => {
   const title = "Urgent alert";
-  event.waitUntil(self.registration.showNotification(title, { body: "Open Jarvis for the detail." }));
+  event.waitUntil(self.registration.showNotification(title, { body: "Open Diver AI for the detail." }));
 });

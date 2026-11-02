@@ -1,0 +1,10 @@
+{
+  "name": "Diver AI by Specificity",
+  "short_name": "Diver AI",
+  "description": "Identify. Engage. Convert.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#231F20",
+  "theme_color": "#FF5800",
+  "icons": [{ "src": "/brand/specificity-mark.png", "sizes": "any", "type": "image/png", "purpose": "any" }]
+}

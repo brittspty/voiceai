@@ -1,4 +1,4 @@
-import { BRAND_TAGLINE, BRAND_WORDMARK } from "./brand";
+import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_NAME, PRODUCT_WORDMARK } from "./brand";
 import { brandTokens } from "./brand/tokens";
 import { BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { homepageDirection } from "./homepage-style";
@@ -55,7 +55,7 @@ export type FeedItem = { title: string; body: string };
 
 export type HomepageModel = {
   direction: "A" | "B";
-  product: "Jarvis";
+  product: "Diver AI";
   byline: string;
   wordmark: string;
   tagline: string;
@@ -126,7 +126,7 @@ const SEGMENTS: DemoSegment[] = [
     bar: 78,
     channel: "TikTok",
     headline: "Segment C: keep it running, and consider giving it more room",
-    body: "People in this segment are watching your videos longer and booking more often than the others this week. Jarvis suggests moving some of your TikTok budget here.",
+    body: "People in this segment are watching your videos longer and booking more often than the others this week. Diver AI suggests moving some of your TikTok budget here.",
     note: "Budget change: recommended to your team, not made.",
   },
   {
@@ -136,7 +136,7 @@ const SEGMENTS: DemoSegment[] = [
     bar: 52,
     channel: "Meta",
     headline: "Segment A: still learning, give it a few more days",
-    body: "Not enough people have seen these ads yet to call it. Jarvis will keep testing and tell you when it knows.",
+    body: "Not enough people have seen these ads yet to call it. Diver AI will keep testing and tell you when it knows.",
     note: "No change needed.",
   },
   {
@@ -146,7 +146,7 @@ const SEGMENTS: DemoSegment[] = [
     bar: 30,
     channel: "TikTok",
     headline: "Segment B: consider pausing it",
-    body: "Cost per lead has been rising for 3 days and fewer people are clicking through. Jarvis suggests pausing it and trying a new creative.",
+    body: "Cost per lead has been rising for 3 days and fewer people are clicking through. Diver AI suggests pausing it and trying a new creative.",
     note: "Pause: recommended to your team, not changed.",
   },
 ];
@@ -166,7 +166,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
   const tagline = BRAND_TAGLINE;
   return {
     direction: homepageDirection(env),
-    product: "Jarvis",
+    product: PRODUCT_WORDMARK,
     byline: `by ${wordmark}`,
     wordmark,
     tagline,
@@ -201,7 +201,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     jasonFacts: JASON_FACTS,
     hero: {
       title: "Stop renting the platform's guess. Own the audience",
-      before: "Jarvis builds your audience from ",
+      before: "Diver AI builds your audience from ",
       emphasis: "verified real people in the data market",
       after: ", not from Meta's or Google's targeting. Then it tests every segment and optimizes every metric on every channel.",
       legend: ["Anonymous IDs", "Verified humans", "Winning segment"],
@@ -209,7 +209,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     pillars: [
       { title: "Identify", body: "Build the audience from verified people in the data market, before a dollar is spent." },
       { title: "Engage", body: "Reach those same people on every channel, and let the segments compete." },
-      { title: "Convert", body: "Jarvis explains every change in plain English. A person still sets the budget." },
+      { title: "Convert", body: "Diver AI explains every change in plain English. A person still sets the budget." },
     ],
     story: {
       title: "You've been paying for the platform's guess.",
@@ -223,7 +223,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         {
           label: "The turn",
           title: "Start with real people instead",
-          body: "Jarvis builds your audience in the data market first, checks that every ID is a real human, and only then serves your ads. You can see where every person came from.",
+          body: "Diver AI builds your audience in the data market first, checks that every ID is a real human, and only then serves your ads. You can see where every person came from.",
         },
         {
           label: "After",
@@ -242,9 +242,9 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         { label: "Source", body: "Which data market vendor supplied the mobile ad IDs" },
         { label: "Verify", body: "Bots and duplicates removed before anything is served" },
         { label: "Test", body: "Segments compared against each other, not against a guess" },
-        { label: "Decide", body: "Jarvis recommends, your team approves" },
+        { label: "Decide", body: "Diver AI recommends, your team approves" },
       ],
-      tourTitle: "Walk through Jarvis with sample data.",
+      tourTitle: "Walk through Diver AI with sample data.",
       tourBody: "See the command center, the audience library, a segment test, reports, and the decisions inbox. No login needed.",
       logos: [`TODO(jason) ${JASON_FACTS} Logo`, `TODO(jason) ${JASON_FACTS} Logo`, `TODO(jason) ${JASON_FACTS} Logo`, `TODO(jason) ${JASON_FACTS} Logo`],
       slots: [
@@ -282,34 +282,34 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         lines: [{ text: "segment A  learning" }, { text: "segment B  learning" }, { text: "segment C  leading", accent: true }],
       },
       {
-        kicker: "Jarvis optimization",
+        kicker: "Diver AI optimization",
         title: "Improve every metric",
-        body: "Jarvis tunes creative, timing and placement, and tells you why in plain English.",
+        body: "Diver AI tunes creative, timing and placement, and tells you why in plain English.",
         lines: [{ text: "scale C" }, { text: "rest A" }, { text: "budget: ask a person", accent: true }],
       },
     ],
     stepsNote: "Examples above are illustrative.",
     bands: [
-      { id: "cta-1", title: "Want to see your own market through Jarvis?", body: "Bring a campaign you are already running. We will walk the audience, the test, and the decision." },
+      { id: "cta-1", title: "Want to see your own market through Diver AI?", body: "Bring a campaign you are already running. We will walk the audience, the test, and the decision." },
       {
         id: "cta-2",
         title: `${BOOK_DEMO_LABEL}.`,
-        body: "Tell us what you're running today. We'll show you what Jarvis would do with it, on a call, with no pressure.",
+        body: "Tell us what you're running today. We'll show you what Diver AI would do with it, on a call, with no pressure.",
       },
     ],
     demo: {
       kicker: "Command center",
       title: "See it work. Tap a segment.",
-      lead: "This is the kind of thing you'd see every morning. The audience library, segment tests, reports, and the decisions inbox live here. Pick a segment and Jarvis tells you what it thinks, and why.",
+      lead: "This is the kind of thing you'd see every morning. The audience library, segment tests, reports, and the decisions inbox live here. Pick a segment and Diver AI tells you what it thinks, and why.",
       group: "SEGMENTS: HOMEOWNERS, GULF COAST",
       barNote: "Bars are illustrative, not measurements.",
-      feedNote: "Jarvis never changes a budget. It asks you.",
+      feedNote: "Diver AI never changes a budget. It asks you.",
     },
     segments: SEGMENTS,
     feed: FEED,
     platform: {
       quote: "Your team sets every budget.",
-      accent: "Jarvis never touches it.",
+      accent: "Diver AI never touches it.",
       points: [
         "Audiences are built in the data market from mobile ad ID lists you can trace.",
         "Bots and duplicates are filtered out, so spend goes to verified humans.",
@@ -322,10 +322,10 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     },
     slip: {
       title: "Shift part of the Meta budget to segment C on TikTok",
-      body: "Jarvis will not make this change on its own.",
+      body: "Diver AI will not make this change on its own.",
       why: "Why: segment C is engaging more often on TikTok this week and costs less to reach there.",
     },
-    modulesTitle: "Inside Jarvis",
+    modulesTitle: "Inside Diver AI",
     modules: [
       { title: "Audiences", body: "Data market sourcing, verification and segment tests.", meta: "core" },
       { title: "Pixels and retargeting", body: "The same people, followed across every platform.", meta: "core" },
@@ -334,9 +334,9 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       { title: "AIS2L voice", body: "An AI voice agent that answers and follows up with leads.", meta: "add-on" },
     ],
     compare: {
-      title: "Jarvis vs a typical agency vs DIY ad platforms.",
+      title: "Diver AI vs a typical agency vs DIY ad platforms.",
       lead: "A qualitative look. No scores, no prices, and no results we have not published.",
-      columns: ["Jarvis", "A typical agency", "DIY ad platforms"],
+      columns: ["Diver AI", "A typical agency", "DIY ad platforms"],
       rows: [
         {
           label: "Audience",
@@ -365,7 +365,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         {
           label: "Budget",
           cells: [
-            "Your team sets every budget. Jarvis never moves it.",
+            "Your team sets every budget. Diver AI never moves it.",
             "The agency often moves spend for you.",
             "You move it, without a shared paper trail.",
           ],
@@ -429,7 +429,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       {
         question: "How is this different from platform targeting?",
         answer:
-          "Platform targeting asks Meta or Google to guess who your buyer is, inside their walls. Jarvis builds the audience first from the data market, verifies the people are real, then uses pixels to reach that same audience on every platform. You own the list and can see where it came from.",
+          "Platform targeting asks Meta or Google to guess who your buyer is, inside their walls. Diver AI builds the audience first from the data market, verifies the people are real, then uses pixels to reach that same audience on every platform. You own the list and can see where it came from.",
       },
       {
         question: "Is this private and compliant?",
@@ -438,7 +438,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       {
         question: "Who controls the budget?",
         answer:
-          "You do. People set every budget. Jarvis can recommend a budget change with its reasoning, and a person on your team approves or declines it. Jarvis never changes a budget on its own.",
+          "You do. People set every budget. Diver AI can recommend a budget change with its reasoning, and a person on your team approves or declines it. Diver AI never changes a budget on its own.",
       },
       {
         question: "What will I see as a client?",
@@ -459,13 +459,13 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     ],
     contact: {
       title: `${BOOK_DEMO_LABEL}.`,
-      body: "Tell us what you're running today. We'll show you what Jarvis would do with it, on a call, with no pressure.",
+      body: "Tell us what you're running today. We'll show you what Diver AI would do with it, on a call, with no pressure.",
       saved: "Saved on this server. Nothing was sent.",
       invalid: "Enter your name, email, and a message.",
       running: "What are you running today?",
     },
     footer: {
-      blurb: `Jarvis by ${wordmark}. Audiences built from the data market.`,
+      blurb: `${PRODUCT_NAME}. Audiences built from the data market.`,
       product: "Product",
       account: "Account",
       legal: "Legal",
@@ -540,7 +540,7 @@ export function homepageProse(model: HomepageModel) {
 }
 
 export function homepageDescription() {
-  return "Jarvis builds your audience from verified real people in the data market, not from the ad platform's guess. Then it tests every segment and explains every change in plain English.";
+  return `${PRODUCT_WORDMARK} builds your audience from verified real people in the data market, not from the ad platform's guess. Then it tests every segment and explains every change in plain English.`;
 }
 
 export function homepageJsonLd(origin: string | null) {
@@ -559,7 +559,7 @@ export function homepageJsonLd(origin: string | null) {
       },
       {
         "@type": "SoftwareApplication",
-        name: "Jarvis",
+        name: PRODUCT_WORDMARK,
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web",
         url,
@@ -571,9 +571,9 @@ export function homepageJsonLd(origin: string | null) {
 }
 
 export function homepageMetadata(origin: string | null) {
-  const title = `Jarvis by ${BRAND_WORDMARK} | ${BRAND_TAGLINE}`;
+  const title = `${PRODUCT_NAME} | ${BRAND_TAGLINE}`;
   const description = homepageDescription();
-  const image = origin ? `${origin}/brand/jarvis-og.png` : "/brand/jarvis-og.png";
+  const image = origin ? `${origin}/brand/diver-ai-og.png` : "/brand/diver-ai-og.png";
   return {
     title: { absolute: title },
     description,
@@ -582,7 +582,7 @@ export function homepageMetadata(origin: string | null) {
       title,
       description,
       type: "website" as const,
-      siteName: "Jarvis",
+      siteName: PRODUCT_WORDMARK,
       url: origin ? `${origin}/` : undefined,
       images: [{ url: image, width: 1200, height: 630, alt: `${BRAND_WORDMARK}. ${BRAND_TAGLINE}` }],
     },

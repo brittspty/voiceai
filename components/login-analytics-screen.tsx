@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useState, type KeyboardEvent } from "react";
+import { PRODUCT_WORDMARK } from "@/lib/brand";
 import { analyticsThemeCss } from "@/lib/brand/tokens";
 import { countUpValue, loginFrameClass, nextLoginTab, type LoginTab, type PublicFigure, type PublicLoginAnalytics } from "@/lib/login-analytics";
 import { MAGIC_LINK_READY, WORK_EMAIL_ERROR, workEmailError } from "@/lib/magic-link";
@@ -99,10 +100,10 @@ function LoginColumn({
   return (
     <main className={`flex flex-col gap-6 px-6 py-8 min-[701px]:px-12 min-[701px]:py-12 ${centered ? "w-full max-w-[440px]" : "min-[701px]:border-r min-[701px]:border-line"}`}>
       <div className="text-xl font-bold">
-        spec<span className="text-brand">i</span>ficity · Jarvis
+        spec<span className="text-brand">i</span>ficity · {PRODUCT_WORDMARK}
       </div>
       <div>
-        <h1 className="text-[32px] leading-tight font-semibold tracking-tight">Sign in to Jarvis</h1>
+        <h1 className="text-[32px] leading-tight font-semibold tracking-tight">Sign in to {PRODUCT_WORDMARK}</h1>
         <p className="mt-2 text-sm text-soft">{brand.tagline}</p>
       </div>
       <div role="tablist" aria-label="Who is signing in" className="flex overflow-hidden rounded border border-line" onKeyDown={onTabKey}>
@@ -358,7 +359,7 @@ export function AnalyticsPanel({ onFail, initial = null }: { onFail: () => void;
   return (
     <section aria-labelledby="login-analytics-title" className="flex flex-col gap-6">
       <h2 id="login-analytics-title" className="text-xl font-semibold tracking-tight">
-        Across every Jarvis client, this month
+        Across every {PRODUCT_WORDMARK} client, this month
       </h2>
       <p className="text-sm text-muted">
         Combined totals from all clients. No client names or individual results are shown.

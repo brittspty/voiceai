@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "../brand/names";
 import { prisma } from "../db";
 import { sendDigestEmail } from "../mail";
 import { digestSendEnabled, type Env } from "./config";
@@ -38,6 +39,7 @@ export function digestEmail(input: { name: string; payload: DigestPayload }) {
     lines("Waiting for yes or no", decisions),
     (input.payload.notes ?? []).length ? ["Notes", ...(input.payload.notes ?? []).map((note) => `- ${note}`)].join("\n") : "",
     "Open Marketing to answer.",
+    PRODUCT_NAME,
   ].filter((part) => part && part.trim());
   return {
     subject: "Your hourly summary",

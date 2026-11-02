@@ -1,3 +1,5 @@
+import { PRODUCT_WORDMARK } from "./brand/names";
+
 export type QuizAnswers = {
   q1?: string;
   q2?: string;
@@ -31,7 +33,7 @@ export function quizRead(answers: QuizAnswers): string[] | null {
     lines.push("You lose people between channels. Retargeting the same audience everywhere keeps you in front of them.");
   }
   if (!lines.length) {
-    lines.push("You are ahead of most. Jarvis can still help you test segments against each other and explain every move.");
+    lines.push(`You are ahead of most. ${PRODUCT_WORDMARK} can still help you test segments against each other and explain every move.`);
   }
   return lines;
 }

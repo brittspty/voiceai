@@ -6,7 +6,7 @@ import { forSpendViewer } from "./spend-access";
 
 export type SpendViewer = { kind: string; role?: string | null; workspaceId?: string | null };
 
-/** Jarvis home JSON. Non-staff, including the all-clients viewer, never receive spend fields. */
+/** Home JSON. Non-staff, including the all-clients viewer, never receive spend fields. */
 export function jarvisHomeBody(input: { access: SpendViewer; requested?: string; env?: Env }) {
   const access = input.access;
   const requested = input.requested || "";

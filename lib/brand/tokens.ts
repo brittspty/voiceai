@@ -133,7 +133,7 @@ export function brandTokenCss() {
 }
 
 /**
- * Dark Jarvis surfaces for the public login panel and the staff portfolio.
+ * Dark surfaces for the public login panel and the staff portfolio.
  * Values live here so components keep reading CSS variables.
  */
 export const analyticsTheme = {

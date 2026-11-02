@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_NAME } from "@/lib/brand";
+import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_WORDMARK } from "@/lib/brand";
 import { answerDecision, seesInboxCard, type DecisionViewer, type InboxCard } from "@/lib/marketing/channels/decisions";
 import { autoPauseState } from "@/lib/marketing/channels/decisions";
 import { EXAMPLE_DECISIONS } from "@/lib/marketing/channels/catalog";
@@ -120,7 +120,7 @@ export function DecisionsInbox({ selectedId, viewer }: { selectedId?: string; vi
           Saved. <button type="button" onClick={() => { setCards((rows) => rows.map((row) => (row.id === undo.id ? undo.previous : row))); setUndo(null); }}>Undo ({undo.left}s)</button>
         </div>
       )}
-      <End productName={PRODUCT_NAME} wordmark={BRAND_WORDMARK} tagline={BRAND_TAGLINE} />
+      <End productName={PRODUCT_WORDMARK} wordmark={BRAND_WORDMARK} tagline={BRAND_TAGLINE} />
     </main>
   );
 }

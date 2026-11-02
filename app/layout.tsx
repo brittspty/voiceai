@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Poppins } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
-import { BRAND_FONT, loadBrand, PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_TITLE } from "@/lib/brand";
+import { BRAND_FONT, loadBrand, PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_TITLE, PRODUCT_WORDMARK } from "@/lib/brand";
 import { brandTokenCss } from "@/lib/brand/tokens";
 import "./globals.css";
 
@@ -14,6 +14,10 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { default: PRODUCT_TITLE, template: `%s · ${PRODUCT_NAME}` },
     description: PRODUCT_TAGLINE,
+    applicationName: PRODUCT_WORDMARK,
+    manifest: "/site.webmanifest",
+    openGraph: { title: PRODUCT_TITLE, description: PRODUCT_TAGLINE, siteName: PRODUCT_WORDMARK },
+    twitter: { card: "summary", title: PRODUCT_TITLE, description: PRODUCT_TAGLINE },
     icons: brand.logoUrl ? { icon: brand.logoUrl } : undefined,
   };
 }

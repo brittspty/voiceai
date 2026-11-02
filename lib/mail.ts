@@ -25,19 +25,27 @@ export async function sendDigestEmail(input: {
   return { sent: res.ok };
 }
 
+export function inviteEmailCopy(input: { name: string; link: string }) {
+  return {
+    subject: `You're invited to ${PRODUCT_NAME}`,
+    text: `Hi ${input.name},\n\nSet your password to join the workspace:\n${input.link}\n\nThis link works for 7 days.\n`,
+  };
+}
+
 export async function sendInviteEmail(input: { to: string; name: string; link: string }) {
   assertOutboundOpen("resend");
   const key = process.env.RESEND_API_KEY?.trim();
   const from = process.env.MAIL_FROM?.trim();
   if (!key || !from) return { sent: false as const };
+  const message = inviteEmailCopy(input);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       from,
       to: [input.to],
-      subject: `You're invited to ${PRODUCT_NAME}`,
-      text: `Hi ${input.name},\n\nSet your password to join the workspace:\n${input.link}\n\nThis link works for 7 days.\n`,
+      subject: message.subject,
+      text: message.text,
     }),
   });
   return { sent: res.ok };
