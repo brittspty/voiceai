@@ -459,7 +459,7 @@ test("connection status hides secrets and blocks client roles", () => {
   assert.match(JSON.stringify(mock), /EXAMPLE DATA|fixtures|Example data/);
 
   const scope = [{ workspaceId: "org", scopeKind: "client" as const, adAccountId: null, campaignId: null }];
-  for (const role of ["owner", "admin", "viewer", "client_viewer"]) {
+  for (const role of ["owner", "viewer", "client_viewer"]) {
     const access = accessFromUser({ id: role, email: `${role}@example.com`, role }, role === "client_viewer" ? scope : [], {});
     assert.equal(access.seesCost, false, role);
     assert.equal(googleAdsConnectionDenial(access)?.status, 403, role);
@@ -469,6 +469,7 @@ test("connection status hides secrets and blocks client roles", () => {
     assert.equal(access.seesCost, true, role);
     assert.equal(googleAdsConnectionDenial(access), null, role);
   }
+  assert.equal(accessFromUser({ id: "admin", email: "admin@example.com", role: "admin" }, [], {}).seesCost, true);
 });
 
 test("connection screen meets the shared UI rules", () => {

@@ -14,7 +14,7 @@ export default async function PlanPreviewPage({ params }: { params: Promise<{ id
   const row = await prisma.clientPlan.findUnique({ where: { id: (await params).id } });
   if (!row) notFound();
   const plan = planRecord(row);
-  const dashboard = await loadPlanDashboard(plan);
+  const dashboard = await loadPlanDashboard({ ...plan, showCost: false });
   const logoSrc = row.logoMime && row.logoData ? `data:${row.logoMime};base64,${Buffer.from(row.logoData).toString("base64")}` : null;
   return (
     <PlanDocument
@@ -30,7 +30,7 @@ export default async function PlanPreviewPage({ params }: { params: Promise<{ id
         ctaLabel: plan.ctaLabel,
         ctaHref: plan.ctaHref,
         dashboard,
-        showCost: plan.showCost,
+        showCost: false,
         preview: true,
       }}
     />

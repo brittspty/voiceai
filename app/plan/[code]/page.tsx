@@ -18,7 +18,7 @@ export default async function PublicPlanPage({ params }: { params: Promise<{ cod
   if (access === "unknown") notFound();
   if (access === "expired" || access === "revoked") return <PlanClosed state={access} />;
   await recordPlanView(row.id, (await headers()).get("user-agent") || "");
-  const dashboard = await loadPlanDashboard(plan);
+  const dashboard = await loadPlanDashboard({ ...plan, showCost: false });
   const logoSrc = row.logoMime && row.logoData ? `data:${row.logoMime};base64,${Buffer.from(row.logoData).toString("base64")}` : null;
   return (
     <PlanDocument
@@ -34,7 +34,7 @@ export default async function PublicPlanPage({ params }: { params: Promise<{ cod
         ctaLabel: plan.ctaLabel,
         ctaHref: plan.ctaHref,
         dashboard,
-        showCost: plan.showCost,
+        showCost: false,
       }}
     />
   );

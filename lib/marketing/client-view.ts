@@ -3,7 +3,7 @@ import { formatKpi } from "./reports/format";
 import { reportFooterLine } from "./reports/brand";
 import type { ClientChannel, ClientKpi, ClientReport, ReportChannel, ReportFlag, StaffReport } from "./reports/types";
 
-const FORBIDDEN_KEY = /spend|budget|cpc|cpm|cpa|roas|cost|cpl|currency|amount|revenue|leadvalue|callvalue|externalid/i;
+const FORBIDDEN_KEY = /spend|budget|cpc|cpm|cpa|roas|cost|cpl|bid|currency|amount|revenue|leadvalue|callvalue|externalid/i;
 const FORBIDDEN_TEXT = /spend|cost|cpc|cpm|cpa|budget|roas|revenue|\$/i;
 
 export type ClientCampaign = {
@@ -177,7 +177,7 @@ export function forbiddenClientKeys(value: unknown) {
   return collectKeys(value).filter((key) => FORBIDDEN_KEY.test(key));
 }
 
-/** Drop spend, cost, and the other client-forbidden keys. Client payloads must not contain them at all. */
+/** Drop spend, bid, and the other client-forbidden keys. The allowlist in projectWithoutSpend is what hides a new money field. */
 export function omitForbiddenClientFields<T>(value: T): T {
   if (Array.isArray(value)) return value.map((item) => omitForbiddenClientFields(item)) as T;
   if (value instanceof Date) return value;
