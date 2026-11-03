@@ -1,20 +1,12 @@
 import { planAdFatigue, type AdFatigueAd, type AdFatigueRecommendationDraft } from "../ad-fatigue";
 import { conceptKey, creativeFingerprint } from "../creative";
 import { decimalString, intString } from "../money";
-import { ALL_SEGMENT, emptySnapshot, type EntityStatus, type NormalizedSnapshot } from "../types";
+import { ALL_SEGMENT, emptySnapshot, type NormalizedSnapshot } from "../types";
 import type { StackAdaptBundle, StackAdaptCampaign, StackAdaptLineItem } from "./stackadapt-client";
+import { mapStackAdaptStatus } from "./stackadapt-status";
 
 export const STACKADAPT_ACCOUNT_ID = "stackadapt";
 const PLATFORM = "stackadapt" as const;
-
-function mapStatus(raw: string): EntityStatus {
-  const key = raw.trim().toUpperCase();
-  if (key === "ACTIVE" || key === "ENABLED" || key === "LIVE" || key === "RUNNING") return "active";
-  if (key === "PAUSED" || key === "PAUSED_CAMPAIGN") return "paused";
-  if (key === "ARCHIVED") return "archived";
-  if (key === "DELETED" || key === "REMOVED") return "deleted";
-  return "unknown";
-}
 
 function creativeFor(line: StackAdaptLineItem, creative: { id: string; name: string }) {
   const headline = creative.name || line.name || "StackAdapt creative";
@@ -75,7 +67,7 @@ export function stackAdaptToSnapshot(bundle: StackAdaptBundle): NormalizedSnapsh
       name: campaign.name || campaign.id,
       objective: "other",
       objectiveRaw: "",
-      status: mapStatus(campaign.status),
+      status: mapStackAdaptStatus(campaign.status),
       statusRaw: campaign.status,
       budgetType: "none",
       budgetAmount: null,
@@ -95,7 +87,7 @@ function addLineItem(snapshot: NormalizedSnapshot, campaign: StackAdaptCampaign,
     campaignExternalId: campaign.id,
     externalId: line.id,
     name: line.name || line.id,
-    status: mapStatus(line.status),
+    status: mapStackAdaptStatus(line.status),
     statusRaw: line.status,
     optimizationGoal: "",
     bidStrategy: "",
@@ -112,7 +104,7 @@ function addLineItem(snapshot: NormalizedSnapshot, campaign: StackAdaptCampaign,
     adGroupExternalId: line.id,
     externalId: adExternalId,
     name: line.name || line.id,
-    status: mapStatus(line.status),
+    status: mapStackAdaptStatus(line.status),
     statusRaw: line.status,
     fingerprint: primary.fingerprint,
     destinationUrl: "",

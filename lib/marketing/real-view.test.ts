@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { forbiddenClientKeys } from "./client-view";
 import { marketingClientSwitcherEnabled } from "./config";
-import { emptyAudiencePayload, realChannelLinks, realHomeFromRows } from "./real-view";
+import { emptyAudiencePayload, parseRealViewQuery, realChannelLinks, realHomeFromRows, realViewSearch } from "./real-view";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const MONEY = ["spend", "cost", "cpa", "cpl", "cpx", "roas", "budget", "bid"];
@@ -133,4 +133,81 @@ test("production jarvis pages consult the switch before example clients", () => 
   assert.match(channel, /marketingClientSwitcherEnabled/);
   assert.match(audience, /No data yet/);
   assert.match(home, /RealHome/);
+  assert.match(home, /parseRealViewQuery/);
+  assert.match(channel, /parseRealViewQuery/);
+  assert.match(channel, /searchParams/);
+  const route = readFileSync(path.join(ROOT, "app/api/marketing/jarvis/home/route.ts"), "utf8");
+  assert.match(route, /parseRealViewQuery/);
+  const marketing = readFileSync(path.join(ROOT, "app/(app)/marketing/page.tsx"), "utf8");
+  assert.match(marketing, /staffStatusSelection/);
+});
+
+test("the selected range changes home results and the active filter drops paused campaigns", () => {
+  const campaigns = [
+    { id: "camp-live", name: "Cedar live", platform: "stackadapt", status: "active", clientId: "client_cedar" },
+    { id: "camp-old", name: "Cedar older", platform: "stackadapt", status: "active", clientId: "client_cedar" },
+    { id: "camp-paused", name: "Cedar paused", platform: "stackadapt", status: "paused", clientId: "client_cedar" },
+  ];
+  const metrics = [
+    { campaignId: "camp-live", date: "2026-11-01", impressions: 10, clicks: 1, leads: 1, calls: 0, spend: 5 },
+    { campaignId: "camp-old", date: "2026-10-01", impressions: 100, clicks: 10, leads: 9, calls: 0, spend: 40 },
+    { campaignId: "camp-paused", date: "2026-11-01", impressions: 50, clicks: 5, leads: 7, calls: 0, spend: 20 },
+  ];
+  const shared = {
+    enabled: true,
+    staff: true,
+    showMoney: true,
+    requestedId: "client_cedar",
+    clients,
+    campaigns,
+    metrics,
+    endDate: "2026-11-03",
+  };
+  const week = realHomeFromRows({ ...shared, days: 7, status: "active" });
+  const quarter = realHomeFromRows({ ...shared, days: 90, status: "active" });
+  assert.ok(week && quarter);
+  const weekStack = week.channels.find((row) => row.platform === "stackadapt");
+  const quarterStack = quarter.channels.find((row) => row.platform === "stackadapt");
+  assert.equal(weekStack?.leads, 1);
+  assert.equal(quarterStack?.leads, 10);
+  assert.equal(weekStack?.inRange, 1);
+  assert.equal(quarterStack?.inRange, 2);
+  assert.equal(week.series.length, 7);
+  assert.equal(quarter.series.length, 90);
+  assert.equal(week.series.reduce((sum, point) => sum + point.leads, 0), 1);
+  assert.equal(quarter.series.reduce((sum, point) => sum + point.leads, 0), 10);
+  assert.equal(weekStack?.campaigns.some((row) => row.name === "Cedar paused"), false);
+  assert.equal(weekStack?.spend, 5);
+  assert.equal(quarterStack?.spend, 45);
+  const all = realHomeFromRows({ ...shared, days: 7, status: "" });
+  assert.equal(all?.channels.find((row) => row.platform === "stackadapt")?.leads, 8);
+  const client = realHomeFromRows({ ...shared, staff: false, showMoney: false, days: 90, status: "active" });
+  assert.ok(client);
+  assert.equal(client.showMoney, false);
+  const printed = JSON.stringify(client).toLowerCase();
+  for (const word of MONEY) assert.equal(printed.includes(word), false, word);
+  assert.equal(printed.includes("40"), false);
+  assert.equal(client.channels.find((row) => row.platform === "stackadapt")?.leads, 10);
+});
+
+test("home range and status stay in the url with the client", () => {
+  const staffDays = parseRealViewQuery(new URLSearchParams("client=client_cedar&days=90"), true);
+  assert.equal(staffDays.days, 90);
+  assert.equal(staffDays.status, "active");
+  const explicit = parseRealViewQuery(new URLSearchParams("d=14&st=all"), true);
+  assert.equal(explicit.days, 14);
+  assert.equal(explicit.status, "");
+  const paused = parseRealViewQuery(new URLSearchParams("range=30&st=paused"), false);
+  assert.equal(paused.days, 30);
+  assert.equal(paused.status, "paused");
+  assert.equal(parseRealViewQuery(new URLSearchParams("days=60"), false).days, 7);
+  assert.equal(parseRealViewQuery(new URLSearchParams("days=60"), false).status, "");
+  const href = realViewSearch({ days: 30, status: "active", staff: true, clientId: "client_cedar", path: "/app" });
+  assert.match(href, /^\/app\?/);
+  assert.match(href, /client=client_cedar/);
+  assert.match(href, /d=30/);
+  assert.match(href, /st=active/);
+  const allClients = realViewSearch({ days: 7, status: "", staff: true, clientId: null, path: "/c/all/stackadapt" });
+  assert.match(allClients, /st=all/);
+  assert.equal(allClients.includes("client="), false);
 });

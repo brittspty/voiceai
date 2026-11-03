@@ -198,6 +198,11 @@ export function parseDashQuery(input: Record<string, string | string[] | undefin
   return { days, status, goal, metric, campaignId: camp || null, clientId, editLead: one("edit") === "lv" };
 }
 
+/** Staff views default to Active. An explicit All (`st=all`) stays unfiltered. */
+export function staffStatusSelection(raw: string, status: DashQuery["status"]): DashQuery["status"] {
+  return raw.trim() ? status : "active";
+}
+
 export function dashSearch(query: DashQuery, patch: Partial<DashQuery> = {}) {
   const next = { ...query, ...patch };
   const params = new URLSearchParams();
@@ -205,6 +210,7 @@ export function dashSearch(query: DashQuery, patch: Partial<DashQuery> = {}) {
   if (next.clientId) params.set("client", next.clientId);
   if (next.days !== 30) params.set("d", String(next.days));
   if (next.status) params.set("st", next.status);
+  else params.set("st", "all");
   if (next.goal) params.set("g", next.goal);
   if (next.metric !== "l") params.set("m", next.metric);
   if (next.editLead) params.set("edit", "lv");

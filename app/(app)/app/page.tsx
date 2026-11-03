@@ -5,7 +5,9 @@ import { HomeDashboard } from "@/components/home-dashboard";
 import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
 import { exampleRegistryState, presentClientChannels, projectSurfaces } from "@/lib/marketing/channels/registry";
+import { canSwitchMarketingClient } from "@/lib/marketing/access";
 import { channelRegistryEnabled, jarvisUiV2Enabled, marketingClientSwitcherEnabled } from "@/lib/marketing/config";
+import { parseRealViewQuery } from "@/lib/marketing/real-view";
 import { loadRealHome } from "@/lib/marketing/real-view-query";
 import { listHomeWorkspaces, loadHome } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
@@ -20,9 +22,11 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   if (jarvisUiV2Enabled()) {
     if (access.kind === "none") return <NoAccess title="Home" />;
     if (marketingClientSwitcherEnabled()) {
-      const requested = one(await searchParams, "client") || null;
-      const model = await loadRealHome({ access, requestedClientId: requested });
-      if (model) return <RealHome model={model} />;
+      const sp = await searchParams;
+      const requested = one(sp, "client") || null;
+      const view = parseRealViewQuery(sp, canSwitchMarketingClient(access));
+      const model = await loadRealHome({ access, requestedClientId: requested, days: view.days, status: view.status });
+      if (model) return <RealHome model={model} basePath={appHomePath()} />;
     }
     if (channelRegistryEnabled()) {
       const state = exampleRegistryState();

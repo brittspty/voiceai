@@ -9,12 +9,14 @@ import {
   STACKADAPT_DELIVERY_QUERY,
   STACKADAPT_ENDPOINT,
   StackAdaptWriteBlockedError,
+  parseStackAdaptCampaignNode,
   pullStackAdaptBundle,
   stackAdaptGraphql,
   stackAdaptProbeSummary,
   type StackAdaptBundle,
 } from "./connectors/stackadapt-client";
 import { recommendStackAdapt, stackAdaptToSnapshot } from "./connectors/stackadapt-map";
+import { mapStackAdaptStatus, presentedCampaignStatus, stackAdaptRawStatus } from "./connectors/stackadapt-status";
 import { liveStackAdaptAdvertiserIds, planStackAdaptClients } from "./client-campaign-scope";
 import { getConnector } from "./connectors/registry";
 import { runStackAdaptSync } from "./stackadapt-sync";
@@ -139,6 +141,75 @@ test("the graphql client refuses mutations and any unscoped advertiser read", as
   assert.match(STACKADAPT_DELIVERY_QUERY, /filterBy: \{ advertiserIds: \$advertiserIds \}/);
   assert.equal(/budget|bid/i.test(STACKADAPT_CAMPAIGNS_QUERY), false);
   assert.equal(/budget|bid/i.test(STACKADAPT_DELIVERY_QUERY), false);
+  assert.match(STACKADAPT_CAMPAIGNS_QUERY, /campaignStatus \{ state status \}/);
+  assert.match(STACKADAPT_CAMPAIGNS_QUERY, /isDraft/);
+});
+
+test("stackadapt campaign states map into active, paused, and archived", () => {
+  assert.equal(mapStackAdaptStatus("LIVE"), "active");
+  assert.equal(mapStackAdaptStatus("active"), "active");
+  assert.equal(mapStackAdaptStatus("DAILY_BUDGET_REACHED"), "active");
+  assert.equal(mapStackAdaptStatus("PAUSED"), "paused");
+  assert.equal(mapStackAdaptStatus("CAMPAIGN_GROUP_PAUSED"), "paused");
+  assert.equal(mapStackAdaptStatus("CREATIVES_PAUSED"), "paused");
+  assert.equal(mapStackAdaptStatus("ENDED"), "archived");
+  assert.equal(mapStackAdaptStatus("END_DATE_REACHED"), "archived");
+  assert.equal(mapStackAdaptStatus("BUDGET_REACHED"), "archived");
+  assert.equal(mapStackAdaptStatus("ARCHIVED"), "archived");
+  assert.equal(mapStackAdaptStatus("DRAFT"), "paused");
+  assert.equal(mapStackAdaptStatus("APPROVED"), "paused");
+  assert.equal(mapStackAdaptStatus("REJECTED"), "paused");
+  assert.equal(mapStackAdaptStatus("ERROR"), "paused");
+  assert.notEqual(mapStackAdaptStatus("ENDED"), "unknown");
+  assert.notEqual(mapStackAdaptStatus("DRAFT"), "unknown");
+  assert.equal(presentedCampaignStatus("stackadapt", "unknown", "ENDED"), "archived");
+  assert.equal(presentedCampaignStatus("stackadapt", "unknown", "LIVE"), "active");
+  assert.equal(presentedCampaignStatus("stackadapt", "active", "ENDED"), "active");
+  assert.equal(presentedCampaignStatus("meta", "unknown", "ENDED"), "unknown");
+  assert.equal(
+    stackAdaptRawStatus({ isArchived: false, state: "", detail: ["END_DATE_REACHED", "CREATIVES_PAUSED"] }),
+    "END_DATE_REACHED",
+  );
+  const ended = parseStackAdaptCampaignNode(
+    {
+      id: "camp-ended",
+      name: "Ended flight",
+      isArchived: false,
+      isDraft: false,
+      advertiser: { id: ADVERTISER },
+      campaignStatus: { state: "ENDED", status: ["END_DATE_REACHED"] },
+      ads: { nodes: [] },
+    },
+    ADVERTISER,
+  );
+  assert.equal(ended?.status, "ENDED");
+  assert.equal(stackAdaptToSnapshot({ campaigns: ended ? [ended] : [], warnings: [] }).campaigns[0]?.status, "archived");
+  const paused = parseStackAdaptCampaignNode(
+    {
+      id: "camp-paused",
+      name: "Paused flight",
+      isArchived: false,
+      advertiser: { id: ADVERTISER },
+      campaignStatus: { status: ["CAMPAIGN_GROUP_PAUSED"] },
+      ads: { nodes: [] },
+    },
+    ADVERTISER,
+  );
+  assert.equal(paused?.status, "CAMPAIGN_GROUP_PAUSED");
+  assert.equal(stackAdaptToSnapshot({ campaigns: paused ? [paused] : [], warnings: [] }).campaigns[0]?.status, "paused");
+  const live = parseStackAdaptCampaignNode(
+    {
+      id: "camp-live",
+      name: "Live flight",
+      isDraft: true,
+      advertiser: { id: ADVERTISER },
+      campaignStatus: { state: "LIVE", status: ["DAILY_BUDGET_REACHED"] },
+      ads: { nodes: [] },
+    },
+    ADVERTISER,
+  );
+  assert.equal(live?.status, "LIVE");
+  assert.equal(stackAdaptToSnapshot({ campaigns: live ? [live] : [], warnings: [] }).campaigns[0]?.status, "active");
 });
 
 test("a mocked graphql response keeps one advertiser and drops every other", async () => {
