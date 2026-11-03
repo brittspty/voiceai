@@ -1,10 +1,12 @@
 import { ClientHome } from "@/components/jarvis/pages";
+import { RealHome } from "@/components/jarvis/real-home";
 import { StaffHome } from "@/components/jarvis/staff";
 import { HomeDashboard } from "@/components/home-dashboard";
 import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
 import { exampleRegistryState, presentClientChannels, projectSurfaces } from "@/lib/marketing/channels/registry";
-import { channelRegistryEnabled, jarvisUiV2Enabled } from "@/lib/marketing/config";
+import { channelRegistryEnabled, jarvisUiV2Enabled, marketingClientSwitcherEnabled } from "@/lib/marketing/config";
+import { loadRealHome } from "@/lib/marketing/real-view-query";
 import { listHomeWorkspaces, loadHome } from "@/lib/marketing/home-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { one, type SP } from "@/lib/params";
@@ -17,6 +19,11 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const access = await loadMarketingAccess(user);
   if (jarvisUiV2Enabled()) {
     if (access.kind === "none") return <NoAccess title="Home" />;
+    if (marketingClientSwitcherEnabled()) {
+      const requested = one(await searchParams, "client") || null;
+      const model = await loadRealHome({ access, requestedClientId: requested });
+      if (model) return <RealHome model={model} />;
+    }
     if (channelRegistryEnabled()) {
       const state = exampleRegistryState();
       if (access.seesCost) return <StaffHome surfaces={projectSurfaces(state, { audience: "staff", clientId: "harbor" })} />;

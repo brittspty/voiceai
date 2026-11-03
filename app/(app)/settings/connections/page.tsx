@@ -3,7 +3,8 @@ import { SettingsConnections } from "@/components/jarvis/pages";
 import { ClientConnectionList, RegistrySettings } from "@/components/jarvis/registry-settings";
 import { requireUser } from "@/lib/auth";
 import { canUseChannelRegistry, exampleRegistryState, presentClientChannels, projectSurfaces } from "@/lib/marketing/channels/registry";
-import { channelRegistryEnabled, jarvisUiV2Enabled } from "@/lib/marketing/config";
+import { channelRegistryEnabled, jarvisUiV2Enabled, marketingClientSwitcherEnabled } from "@/lib/marketing/config";
+import { loadRealHome } from "@/lib/marketing/real-view-query";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { one, type SP } from "@/lib/params";
 
@@ -14,6 +15,21 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
   if (!channelRegistryEnabled()) return <SettingsConnections staff={access.seesCost} />;
+  if (marketingClientSwitcherEnabled()) {
+    const model = await loadRealHome({ access, requestedClientId: one(await searchParams, "client") || null });
+    if (model) {
+      return (
+        <main>
+          <h1>Settings & connections</h1>
+          <ul>
+            {model.channels.map((row) => (
+              <li key={row.platform}>{row.label}: {row.connected ? "Connected" : "Not connected yet"}</li>
+            ))}
+          </ul>
+        </main>
+      );
+    }
+  }
   const query = await searchParams;
   if (!canUseChannelRegistry(access)) {
     return <ClientConnectionList channels={presentClientChannels(exampleRegistryState(), "harbor").channels} />;

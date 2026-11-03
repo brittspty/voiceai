@@ -170,7 +170,7 @@ A live sync needs a Meta system user token and the app that issued it:
 | `MARKETING_HOLDOUTS` | `off` (default). `on` stores a holdout design, assignment, and lift readout. It does not change ads or budgets |
 | `META_AD_LIBRARY_COUNTRIES` | Countries for Ad Library search. Default `US` |
 | `MARKETING_DASHBOARDS_V2` | `off` (default). `on` shows the campaign dashboards (staff overview, drill-down, client view, share links, and onboarding lead value). Spend, budget, and estimated ROAS stay limited to super admins and account managers. The screens only read synced rows |
-| `MARKETING_CLIENT_SWITCHER` | `off` (default). `on` adds a client dropdown on the staff `/marketing` dashboard. It lists `MarketingClient` rows plus All clients, keeps the choice in `?client=`, and limits campaigns, metrics, and the ad-platform card to that client. Clients, client viewers, and share links ignore the param. Spend stays off those views |
+| `MARKETING_CLIENT_SWITCHER` | `off` (default). `on` adds the staff client dropdown and replaces sample Jarvis home, channel, nav, and audience screens with real `MarketingClient` rows and synced Meta, Google Ads, and StackAdapt metrics. Empty channels say Not connected yet or No data yet. Clients, client viewers, and share links ignore `?client=` and still never see spend |
 | `MARKETING_GOOGLE_ADS` | `off` (default). When on, Google Ads sync runs and the dashboards include `google_ads` rows. Meta rows show either way |
 | `MARKETING_SUPER_ADMIN_EMAILS` | Comma-separated emails treated as super admins. Unset means nobody. A database role of `super_admin` still counts. |
 | `DATABASE_URL` | Postgres URL the CLI writes to. Required for `npm run meta:sync` unless you pass `--dry-run` |

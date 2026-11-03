@@ -2,7 +2,8 @@ import { AudienceDataSource } from "@/components/audience-data/screens";
 import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
 import { audienceSourceDetail, canOpenAudienceData, readClientAudienceData } from "@/lib/marketing/audience-data/present";
-import { audienceDataClientEnabled, audienceDataEnabled, resolutionDataEnabled } from "@/lib/marketing/config";
+import { RealEmpty } from "@/components/jarvis/real-home";
+import { audienceDataClientEnabled, audienceDataEnabled, marketingClientSwitcherEnabled, resolutionDataEnabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { forSpendViewer } from "@/lib/marketing/spend-access";
 
@@ -20,6 +21,7 @@ function turnedOff() {
 export default async function AudienceDataSourcePage({ params }: { params: Promise<{ sourceId: string }> }) {
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
+  if (marketingClientSwitcherEnabled()) return <RealEmpty title="Audience Data" detail="No data yet." />;
   const { sourceId } = await params;
   const client = access.kind === "client_owner" || access.kind === "client_viewer";
   if (client) {

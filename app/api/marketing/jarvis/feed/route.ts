@@ -5,7 +5,7 @@ import { EXAMPLE_ASSIGNMENTS, EXAMPLE_FEED } from "@/lib/marketing/channels/cata
 import { readScopedClient } from "@/lib/marketing/client-contract";
 import { deliverUrgentEmail, scopeLiveFeed, urgentEmailOptIn } from "@/lib/marketing/channels/feed";
 import { feedSseChunk } from "@/lib/marketing/feed";
-import { amRealtimeEnabled, jarvisUiV2Enabled } from "@/lib/marketing/config";
+import { amRealtimeEnabled, jarvisUiV2Enabled, marketingClientSwitcherEnabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { notifyAccountManager, pushNotificationsEnabled } from "@/lib/push/notify";
 
@@ -19,6 +19,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Not allowed" }, { status: 403 });
   }
   const url = new URL(request.url);
+  if (marketingClientSwitcherEnabled()) {
+    if (url.searchParams.get("stream") === "1") {
+      if (!amRealtimeEnabled()) return NextResponse.json({ error: "Off" }, { status: 404 });
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("retry: 15000\n\n: ping\n\n"));
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive" },
+      });
+    }
+    return NextResponse.json({ items: [] });
+  }
   const requested = url.searchParams.get("client") || "";
   const assigned = access.kind === "super_admin" ? EXAMPLE_FEED.map((item) => item.clientId) : EXAMPLE_ASSIGNMENTS.dana;
   if (access.kind === "account_manager" && requested) {
