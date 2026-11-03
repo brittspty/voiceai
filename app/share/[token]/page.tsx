@@ -107,7 +107,7 @@ export default async function SharePage({ params, searchParams }: { params: Prom
     ]);
     return (
       <ShareChrome>
-        <MarketingDashboard model={data} query={parseDashQuery(query)} basePath={`/share/${token}`} features={features} />
+        <MarketingDashboard model={data} query={{ ...parseDashQuery(query), clientId: null }} basePath={`/share/${token}`} features={features} />
       </ShareChrome>
     );
   }

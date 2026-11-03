@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { assembleHome, homeCostKeys, homeFeatures, homeHasForeignClient, homeKpiTotals } from "./home-dashboard";
+import { adPlatformsDetail, assembleHome, homeCostKeys, homeFeatures, homeHasForeignClient, homeKpiTotals } from "./home-dashboard";
 import { homeScope, scopeWorkspaceIds, workspaceReads } from "./isolation";
 import { isolatedWhere } from "./workspace";
 
@@ -123,6 +123,16 @@ test("staff aggregate keeps every client and puts voice beside the ad totals", (
   assert.equal(model.features.some((feature) => feature.id === "pacing"), true);
   assert.match(model.features.find((feature) => feature.id === "speed")?.detail || "", /off/i);
   assert.match(model.features.find((feature) => feature.id === "platforms")?.detail || "", /Google is off/);
+  assert.equal(adPlatformsDetail({ googleOn: true, hasGoogleRows: false }), "Meta is in this view. Google is on, with no rows yet.");
+  assert.equal(adPlatformsDetail({ googleOn: true, hasGoogleRows: true }), "Meta and Google are in this view.");
+  assert.equal(adPlatformsDetail({ googleOn: true, hasGoogleRows: true }).includes("no rows yet"), false);
+  const both = adPlatformsDetail({ googleOn: true, hasGoogleRows: true, stackAdaptOn: true, hasStackAdaptRows: true });
+  assert.match(both, /Meta, Google, and StackAdapt are in this view/);
+  assert.equal(both.includes("no rows yet"), false);
+  const stackOnly = adPlatformsDetail({ googleOn: true, hasGoogleRows: false, stackAdaptOn: true, hasStackAdaptRows: true });
+  assert.match(stackOnly, /StackAdapt is in this view|Meta and StackAdapt are in this view/);
+  assert.match(stackOnly, /Google is on, with no rows yet/);
+  assert.equal(adPlatformsDetail({ googleOn: false, hasGoogleRows: false, stackAdaptOn: true, hasStackAdaptRows: false }).includes("StackAdapt is on, with no rows yet"), true);
   for (const id of ["landing", "fatigue", "search", "competitors", "holdouts"] as const) {
     assert.match(model.features.find((feature) => feature.id === id)?.detail || "", /off/i);
   }
