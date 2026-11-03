@@ -3,7 +3,9 @@ import { addDaysISO, zonedISODate } from "../time";
 import { canSwitchMarketingClient, type MarketingAccess } from "./access";
 import { marketingClientSwitcherEnabled, type Env } from "./config";
 import { resultCounts } from "./dashboard-model";
-import { realHomeFromRows, type RealCampaignInput, type RealMetricInput } from "./real-view";
+import { presentedCampaignStatus } from "./connectors/stackadapt-status";
+import { REAL_DEFAULT_DAYS, realHomeFromRows, type RealCampaignInput, type RealMetricInput, type RealStatus } from "./real-view";
+import type { DashWindow } from "./dashboard-model";
 import { isolatedWhere } from "./workspace";
 
 const PLATFORMS: ("meta" | "google_ads" | "stackadapt")[] = ["meta", "google_ads", "stackadapt"];
@@ -32,17 +34,26 @@ export async function loadRealClientChoices(access: MarketingAccess, env: Env = 
 }
 
 /**
- * Real campaigns and the last 7 days of metrics.
+ * Real campaigns and metrics for the selected day window.
  * The client param is ignored unless the switch is on and the viewer is staff.
- * Spend is selected only when this viewer may see cost.
+ * A missing status defaults to active for staff. Spend is selected only when this viewer may see cost.
  */
-export async function loadRealHome(input: { access: MarketingAccess; requestedClientId?: string | null; now?: Date; env?: Env }) {
+export async function loadRealHome(input: {
+  access: MarketingAccess;
+  requestedClientId?: string | null;
+  now?: Date;
+  env?: Env;
+  days?: DashWindow;
+  status?: RealStatus;
+}) {
   const env = input.env ?? process.env;
   const enabled = marketingClientSwitcherEnabled(env);
   if (!enabled) return null;
   const access = input.access;
   const staff = canSwitchMarketingClient(access);
   const showMoney = Boolean(access.seesCost);
+  const days = input.days ?? REAL_DEFAULT_DAYS;
+  const status = input.status ?? (staff ? "active" : "");
   const workspaceId = access.workspaceId.trim();
   if (!workspaceId || access.kind === "none") {
     return realHomeFromRows({
@@ -54,6 +65,8 @@ export async function loadRealHome(input: { access: MarketingAccess; requestedCl
       campaigns: [],
       metrics: [],
       updatedLabel: "not yet",
+      days,
+      status,
     });
   }
   const clients = staff
@@ -89,16 +102,25 @@ export async function loadRealHome(input: { access: MarketingAccess; requestedCl
       campaigns: [],
       metrics: [],
       updatedLabel: "not yet",
+      days,
+      status,
     });
   }
   const campaigns = await prisma.campaign.findMany({
     where: isolatedWhere(workspaceId, where),
     orderBy: { name: "asc" },
-    select: { id: true, name: true, platform: true, status: true, objective: true, clientId: true },
+    select: { id: true, name: true, platform: true, status: true, statusRaw: true, objective: true, clientId: true },
   });
+  const visible = campaigns
+    .filter((row) => row.platform === "meta" || row.platform === "google_ads" || row.platform === "stackadapt")
+    .map((row) => ({
+      ...row,
+      status: presentedCampaignStatus(row.platform, row.status, row.statusRaw),
+    }))
+    .filter((row) => row.status !== "archived" && row.status !== "deleted");
   const end = zonedISODate(input.now ?? new Date(), "America/New_York");
-  const start = addDaysISO(end, -6);
-  const ids = campaigns.map((row) => row.id);
+  const start = addDaysISO(end, -(days - 1));
+  const ids = visible.map((row) => row.id);
   const metricRows = ids.length
     ? await prisma.dailyMetric.findMany({
         where: isolatedWhere(workspaceId, {
@@ -109,6 +131,7 @@ export async function loadRealHome(input: { access: MarketingAccess; requestedCl
         }),
         select: {
           campaignId: true,
+          date: true,
           impressions: true,
           clicks: true,
           platformLeads: true,
@@ -117,20 +140,19 @@ export async function loadRealHome(input: { access: MarketingAccess; requestedCl
         },
       })
     : [];
-  const objectives = new Map(campaigns.map((row) => [row.id, row.objective]));
-  const rawCampaigns: RealCampaignInput[] = campaigns
-    .filter((row) => row.platform === "meta" || row.platform === "google_ads" || row.platform === "stackadapt")
-    .map((row) => ({
-      id: row.id,
-      name: row.name,
-      platform: row.platform,
-      status: row.status,
-      clientId: row.clientId,
-    }));
+  const objectives = new Map(visible.map((row) => [row.id, row.objective]));
+  const rawCampaigns: RealCampaignInput[] = visible.map((row) => ({
+    id: row.id,
+    name: row.name,
+    platform: row.platform,
+    status: row.status,
+    clientId: row.clientId,
+  }));
   const metrics: RealMetricInput[] = metricRows.map((row) => {
     const counts = resultCounts(objectives.get(row.campaignId || "") || "leads", dec(row.platformLeads), dec(row.platformConversions));
     const metric: RealMetricInput = {
       campaignId: row.campaignId || "",
+      date: row.date.toISOString().slice(0, 10),
       impressions: num(row.impressions),
       clicks: num(row.clicks),
       leads: counts.leads,
@@ -148,5 +170,8 @@ export async function loadRealHome(input: { access: MarketingAccess; requestedCl
     campaigns: rawCampaigns,
     metrics,
     updatedLabel: metricRows.length ? end : "not yet",
+    days,
+    endDate: end,
+    status,
   });
 }

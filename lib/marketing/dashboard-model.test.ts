@@ -26,6 +26,8 @@ import {
   funnelCaption,
   parseDashQuery,
   platformLabel,
+  staffStatusSelection,
+  visibleCampaigns,
   projectDashboard,
   resultCounts,
   sourceLine,
@@ -227,6 +229,25 @@ test("chart controls and call campaigns pick a sensible metric", () => {
   assert.match(dashSearch(parseDashQuery({ d: "90", client: "client_cedar" })), /d=90/);
   assert.match(dashSearch(parseDashQuery({ d: "90", client: "client_cedar" })), /client=client_cedar/);
   assert.equal(dashSearch(parseDashQuery({})).includes("client="), false);
+  assert.equal(parseDashQuery({ st: "all" }).status, "");
+  assert.equal(parseDashQuery({ st: "active" }).status, "active");
+  assert.equal(staffStatusSelection("", ""), "active");
+  assert.equal(staffStatusSelection("all", ""), "");
+  assert.equal(staffStatusSelection("paused", "paused"), "paused");
+  const staffUrl = dashSearch({ ...parseDashQuery({ d: "7", client: "client_cedar", st: "active" }) });
+  assert.match(staffUrl, /d=7/);
+  assert.match(staffUrl, /client=client_cedar/);
+  assert.match(staffUrl, /st=active/);
+  assert.match(dashSearch(parseDashQuery({})), /st=all/);
+  const filtered = visibleCampaigns(
+    [
+      { id: "a", name: "Live", goal: "leads", status: "active", platform: "stackadapt", ads: [] },
+      { id: "b", name: "Paused", goal: "leads", status: "paused", platform: "stackadapt", ads: [] },
+      { id: "c", name: "Ended", goal: "leads", status: "other", platform: "stackadapt", ads: [] },
+    ],
+    { status: "active", goal: "" },
+  );
+  assert.deepEqual(filtered.map((row) => row.id), ["a"]);
   assert.equal(effectiveMetric({ metric: "s", goal: null, showMoney: false }), "l");
   assert.equal(effectiveMetric({ metric: "l", goal: "calls", showMoney: true }), "k");
   assert.equal(effectiveMetric({ metric: "c", goal: "awareness", showMoney: true }), "c");

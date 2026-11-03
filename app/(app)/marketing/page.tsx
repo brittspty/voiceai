@@ -21,13 +21,14 @@ import {
   stackAdaptEnabled,
   adFatigueEnabled,
 } from "@/lib/marketing/config";
-import { parseDashQuery } from "@/lib/marketing/dashboard-model";
+import { parseDashQuery, staffStatusSelection } from "@/lib/marketing/dashboard-model";
 import { loadDashboardForAccess, resolveDashboardClient } from "@/lib/marketing/dashboard-query";
 import { loadFatigueBoard } from "@/lib/marketing/fatigue-job";
 import { canReviewSearchWaste, canViewHoldouts, canWatchCompetitors } from "@/lib/marketing/feature-access";
 import { loadPacingBoard } from "@/lib/marketing/pacing-job";
 import { loadFeatureCards } from "@/lib/marketing/home-query";
 import { getMarketingPage, loadMarketingAccess } from "@/lib/marketing/queries";
+import { one } from "@/lib/params";
 import { appHomePath } from "@/lib/public-routing";
 import { loadSpeedPage } from "@/lib/marketing/speed-to-lead-store";
 
@@ -83,6 +84,7 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
   const parsed = parseDashQuery(query);
+  const status = staffStatusSelection(one(query, "st"), parsed.status);
   const scope = await resolveDashboardClient({
     workspaceId: access.workspaceId,
     requestedId: parsed.clientId,
@@ -93,5 +95,5 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
     loadDashboardForAccess(access, "staff", org?.name || "Campaigns", undefined, scope),
     loadFeatureCards({ workspaceIds: [access.workspaceId], showMoney: access.seesCost, clientId: scope.clientId }),
   ]);
-  return <MarketingDashboard model={data} query={{ ...parsed, clientId: scope.clientId }} basePath="/marketing" features={features} />;
+  return <MarketingDashboard model={data} query={{ ...parsed, status, clientId: scope.clientId }} basePath="/marketing" features={features} />;
 }

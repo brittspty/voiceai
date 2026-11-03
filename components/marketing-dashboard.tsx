@@ -372,8 +372,8 @@ export function MarketingDashboard({
               ))}
             </select>
           )}
-          <select name="st" aria-label="Status" defaultValue={query.status} className="min-h-11 rounded-[10px] border border-line bg-card px-2.5" onChange={(event) => router.push(href(basePath, query, { status: event.target.value as DashQuery["status"], campaignId: null }))}>
-            <option value="">Status: All</option>
+          <select name="st" aria-label="Status" value={query.status || "all"} className="min-h-11 rounded-[10px] border border-line bg-card px-2.5" onChange={(event) => router.push(href(basePath, query, { status: event.target.value === "all" ? "" : event.target.value as DashQuery["status"], campaignId: null }))}>
+            <option value="all">Status: All</option>
             <option value="active">Status: Active</option>
             <option value="paused">Status: Paused</option>
           </select>

@@ -7,6 +7,7 @@
 
 import { addDaysISO } from "../../time";
 import { assertNoAdBudgetWrite } from "./budget-lock";
+import { stackAdaptRawStatus } from "./stackadapt-status";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -22,8 +23,9 @@ query StackAdaptAdvertiserCampaigns($advertiserIds: [ID!]!, $after: String) {
       id
       name
       isArchived
+      isDraft
       advertiser { id }
-      campaignStatus { state }
+      campaignStatus { state status }
       ads(first: 50) {
         pageInfo { hasNextPage }
         nodes { id name paused isArchived }
@@ -246,9 +248,14 @@ function adStatus(row: Record<string, unknown>) {
 }
 
 function campaignStatus(row: Record<string, unknown>) {
-  if (row.isArchived === true) return "ARCHIVED";
   const status = record(row.campaignStatus);
-  return text(status?.state) || text(row.status) || "unknown";
+  return stackAdaptRawStatus({
+    isArchived: row.isArchived === true,
+    isDraft: row.isDraft === true,
+    state: status?.state,
+    detail: status?.status,
+    fallback: row.status,
+  });
 }
 
 /** Keeps a campaign only when its advertiser id is the one that was requested. */

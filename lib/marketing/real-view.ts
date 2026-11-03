@@ -1,6 +1,8 @@
 import { presentWithoutCost } from "./client-view";
-import { dashboardClientFilter } from "./dashboard-model";
+import { DASH_DAY_OPTIONS, dashboardClientFilter, type DashWindow } from "./dashboard-model";
 import type { NavItem } from "./channels/nav";
+import { addDaysISO } from "../time";
+import type { SP } from "../params";
 
 export const REAL_CHANNELS = [
   { platform: "meta", slug: "meta", staff: "Meta", client: "Facebook & Instagram ads" },
@@ -22,6 +24,19 @@ export type RealCampaignRow = {
   spend?: number;
 };
 
+/** Home defaults to the window it already showed. Marketing keeps its own 30-day default. */
+export const REAL_DEFAULT_DAYS: DashWindow = 7;
+
+export type RealStatus = "" | "active" | "paused";
+
+export type RealPoint = {
+  date: string;
+  leads: number;
+  clicks: number;
+  impressions: number;
+  spend?: number;
+};
+
 export type RealChannelRow = {
   platform: RealPlatform;
   slug: string;
@@ -29,12 +44,15 @@ export type RealChannelRow = {
   href: string;
   connected: boolean;
   hasMetrics: boolean;
-  status: "Not connected yet" | "No data yet" | "Active";
+  status: "Not connected yet" | "No data yet" | "No active campaigns" | "Active";
   impressions: number;
   clicks: number;
   leads: number;
   calls: number;
+  /** Campaigns with delivery inside the selected dates. */
+  inRange: number;
   campaigns: RealCampaignRow[];
+  series: RealPoint[];
   spend?: number;
 };
 
@@ -46,6 +64,9 @@ export type RealHomeModel = {
   clientId: string | null;
   clientName: string;
   updatedLabel: string;
+  days: DashWindow;
+  status: RealStatus;
+  series: RealPoint[];
   channels: RealChannelRow[];
 };
 
@@ -64,7 +85,54 @@ export type RealMetricInput = {
   leads: number;
   calls: number;
   spend?: number;
+  /** Set when the caller wants the date window applied. Undated rows count only when no end date is set. */
+  date?: string;
 };
+
+function readParam(source: URLSearchParams | SP, key: string) {
+  if (source instanceof URLSearchParams) return source.get(key) || "";
+  const value = source[key];
+  return (Array.isArray(value) ? value[0] : value) || "";
+}
+
+/** Accepts the marketing `d` param and the `days` / `range` names used against the home API. */
+export function parseRealViewQuery(source: URLSearchParams | SP, staff: boolean): { days: DashWindow; status: RealStatus } {
+  const daysRaw = readParam(source, "d") || readParam(source, "days") || readParam(source, "range");
+  const days = DASH_DAY_OPTIONS.find((value) => String(value) === daysRaw.trim()) ?? REAL_DEFAULT_DAYS;
+  const statusRaw = readParam(source, "st").trim().toLowerCase();
+  if (statusRaw === "active" || statusRaw === "paused") return { days, status: statusRaw };
+  if (statusRaw === "all" || statusRaw === "any") return { days, status: "" };
+  return { days, status: staff ? "active" : "" };
+}
+
+/** Staff with no status filter must keep `st=all`, because a missing status means Active. */
+export function realViewSearch(input: {
+  days: DashWindow;
+  status: RealStatus;
+  staff: boolean;
+  clientId?: string | null;
+  path?: string;
+}) {
+  const params = new URLSearchParams();
+  if (input.clientId) params.set("client", input.clientId);
+  params.set("d", String(input.days));
+  if (input.status) params.set("st", input.status);
+  else if (input.staff) params.set("st", "all");
+  const query = params.toString();
+  const path = input.path || "";
+  return query ? `${path}?${query}` : path;
+}
+
+export function realDateWindow(end: string, days: number) {
+  const dates: string[] = [];
+  const start = addDaysISO(end, -(days - 1));
+  let cursor = start;
+  while (dates.length < days) {
+    dates.push(cursor);
+    cursor = addDaysISO(cursor, 1);
+  }
+  return dates;
+}
 
 export function realChannelSlug(platform: string) {
   return REAL_CHANNELS.find((row) => row.platform === platform)?.slug ?? null;
@@ -94,6 +162,19 @@ export function realClientId(input: { enabled: boolean; staff: boolean; requeste
   return dashboardClientFilter(input);
 }
 
+function blankPoint(date: string, showMoney: boolean): RealPoint {
+  const point: RealPoint = { date, leads: 0, clicks: 0, impressions: 0 };
+  if (showMoney) point.spend = 0;
+  return point;
+}
+
+function addPoint(point: RealPoint, metric: RealMetricInput) {
+  point.impressions += metric.impressions;
+  point.clicks += metric.clicks;
+  point.leads += metric.leads;
+  if (point.spend != null) point.spend += metric.spend ?? 0;
+}
+
 export function realHomeFromRows(input: {
   enabled: boolean;
   staff: boolean;
@@ -103,9 +184,17 @@ export function realHomeFromRows(input: {
   campaigns: readonly RealCampaignInput[];
   metrics: readonly RealMetricInput[];
   updatedLabel?: string;
+  days?: DashWindow;
+  /** Inclusive end date. When set, only metrics on these dates are counted. */
+  endDate?: string;
+  status?: RealStatus;
 }): RealHomeModel | null {
   if (!input.enabled) return null;
   const showMoney = input.staff && input.showMoney;
+  const days = input.days ?? REAL_DEFAULT_DAYS;
+  const status = input.status ?? "";
+  const dates = input.endDate ? realDateWindow(input.endDate, days) : [];
+  const window = dates.length ? new Set(dates) : null;
   const clientId = realClientId({
     enabled: true,
     staff: input.staff,
@@ -113,10 +202,10 @@ export function realHomeFromRows(input: {
     knownIds: input.clients.map((row) => row.id),
   });
   const campaigns = input.campaigns.filter((row) => !clientId || row.clientId === clientId);
-  const allowed = new Set(campaigns.map((row) => row.id));
   const totals = new Map<string, { impressions: number; clicks: number; leads: number; calls: number; spend: number; rows: number }>();
+  const byDate = new Map<string, RealMetricInput[]>();
   for (const metric of input.metrics) {
-    if (!allowed.has(metric.campaignId)) continue;
+    if (window && (!metric.date || !window.has(metric.date))) continue;
     const current = totals.get(metric.campaignId) ?? { impressions: 0, clicks: 0, leads: 0, calls: 0, spend: 0, rows: 0 };
     current.impressions += metric.impressions;
     current.clicks += metric.clicks;
@@ -125,11 +214,25 @@ export function realHomeFromRows(input: {
     current.spend += metric.spend ?? 0;
     current.rows += 1;
     totals.set(metric.campaignId, current);
+    if (metric.date) {
+      const list = byDate.get(metric.date) ?? [];
+      list.push(metric);
+      byDate.set(metric.date, list);
+    }
   }
   const segment = clientId || "all";
   const channels: RealChannelRow[] = REAL_CHANNELS.map((spec) => {
     const rows = campaigns.filter((row) => row.platform === spec.platform);
-    const campaignRows: RealCampaignRow[] = rows.map((row) => {
+    const visible = rows.filter((row) => !status || row.status === status);
+    const allowed = new Set(visible.map((row) => row.id));
+    const series = dates.map((date) => {
+      const point = blankPoint(date, showMoney);
+      for (const metric of byDate.get(date) ?? []) {
+        if (allowed.has(metric.campaignId)) addPoint(point, metric);
+      }
+      return point;
+    });
+    const campaignRows: RealCampaignRow[] = visible.map((row) => {
       const metric = totals.get(row.id);
       const next: RealCampaignRow = {
         id: row.id,
@@ -142,7 +245,7 @@ export function realHomeFromRows(input: {
       if (showMoney) next.spend = metric?.spend ?? 0;
       return next;
     });
-    const hasMetrics = rows.some((row) => (totals.get(row.id)?.rows ?? 0) > 0);
+    const hasMetrics = visible.some((row) => (totals.get(row.id)?.rows ?? 0) > 0);
     const connected = rows.length > 0;
     const channel: RealChannelRow = {
       platform: spec.platform,
@@ -151,15 +254,25 @@ export function realHomeFromRows(input: {
       href: `/c/${segment}/${spec.slug}`,
       connected,
       hasMetrics,
-      status: !connected ? "Not connected yet" : hasMetrics ? "Active" : "No data yet",
+      status: !connected ? "Not connected yet" : !visible.length && status === "active" ? "No active campaigns" : hasMetrics ? "Active" : "No data yet",
       impressions: campaignRows.reduce((sum, row) => sum + row.impressions, 0),
       clicks: campaignRows.reduce((sum, row) => sum + row.clicks, 0),
       leads: campaignRows.reduce((sum, row) => sum + row.leads, 0),
-      calls: rows.reduce((sum, row) => sum + (totals.get(row.id)?.calls ?? 0), 0),
+      calls: visible.reduce((sum, row) => sum + (totals.get(row.id)?.calls ?? 0), 0),
+      inRange: visible.filter((row) => {
+        const metric = totals.get(row.id);
+        return Boolean(metric && metric.impressions + metric.clicks + metric.leads + metric.calls > 0);
+      }).length,
       campaigns: campaignRows,
+      series,
     };
     if (showMoney) channel.spend = campaignRows.reduce((sum, row) => sum + (row.spend ?? 0), 0);
     return channel;
+  });
+  const series = dates.map((date, index) => {
+    const point = blankPoint(date, showMoney);
+    for (const channel of channels) addPoint(point, { campaignId: "", impressions: channel.series[index]?.impressions ?? 0, clicks: channel.series[index]?.clicks ?? 0, leads: channel.series[index]?.leads ?? 0, calls: 0, spend: channel.series[index]?.spend });
+    return point;
   });
   const selected = clientId ? input.clients.find((row) => row.id === clientId) : null;
   const model: RealHomeModel = {
@@ -170,6 +283,9 @@ export function realHomeFromRows(input: {
     clientId,
     clientName: selected?.name || (input.staff ? "All clients" : "Your campaigns"),
     updatedLabel: input.updatedLabel || "not yet",
+    days,
+    status,
+    series,
     channels,
   };
   return presentWithoutCost(model, showMoney);

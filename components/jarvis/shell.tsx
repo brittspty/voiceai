@@ -37,7 +37,17 @@ export function JarvisShell({
   const pathClient = pathname.startsWith("/c/") ? pathname.split("/")[2] || "" : "";
   const rawClient = pathClient && pathClient !== "all" ? pathClient : params.get("client") || "";
   const selectedClient = realClients?.some((client) => client.id === rawClient) ? rawClient : "";
-  const hrefFor = (href: string) => (realClients ? href.replace(/^\/c\/all(?=\/)/, `/c/${selectedClient || "all"}`) : href);
+  const hrefFor = (href: string) => {
+    const nextPath = (realClients ? href.replace(/^\/c\/all(?=\/)/, `/c/${selectedClient || "all"}`) : href).split("?")[0];
+    const query = new URLSearchParams();
+    const days = params.get("d") || params.get("days") || params.get("range");
+    const status = params.get("st");
+    if (days) query.set("d", days);
+    if (status) query.set("st", status);
+    if (selectedClient && !nextPath.startsWith("/c/")) query.set("client", selectedClient);
+    const text = query.toString();
+    return text ? `${nextPath}?${text}` : nextPath;
+  };
   const [more, setMore] = useState(false);
   const groups: { name: string; items: NavItem[] }[] = [];
   for (const item of items) {
@@ -103,7 +113,10 @@ export function JarvisShell({
                   if (pathname.startsWith("/c/")) {
                     const parts = pathname.split("/");
                     parts[2] = next || "all";
-                    router.push(parts.join("/"));
+                    const query = new URLSearchParams(params.toString());
+                    query.delete("client");
+                    const text = query.toString();
+                    router.push(text ? `${parts.join("/")}?${text}` : parts.join("/"));
                     return;
                   }
                   const query = new URLSearchParams(params.toString());

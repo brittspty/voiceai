@@ -23,6 +23,7 @@ import {
 } from "./dashboard-model";
 import { canEditLeadValue } from "./lead-value";
 import { withClientDashboardMetrics } from "./metric-visibility-store";
+import { presentedCampaignStatus } from "./connectors/stackadapt-status";
 import { isolatedWhere } from "./workspace";
 
 const WINDOW_DAYS = DASHBOARD_HISTORY_DAYS;
@@ -181,6 +182,7 @@ export async function loadDashboard(input: {
     name: true,
     objective: true,
     status: true,
+    statusRaw: true,
     platform: true,
     adGroups: {
       select: {
@@ -272,8 +274,14 @@ export async function loadDashboard(input: {
   ]);
 
   const allowedPlatforms = new Set<string>(platforms);
-  const rawCampaigns: RawCampaign[] = campaigns
+  const visibleCampaignRows = campaigns
     .filter((campaign) => allowedPlatforms.has(campaign.platform))
+    .map((campaign) => ({
+      ...campaign,
+      status: presentedCampaignStatus(campaign.platform, campaign.status, campaign.statusRaw),
+    }))
+    .filter((campaign) => campaign.status !== "archived" && campaign.status !== "deleted");
+  const rawCampaigns: RawCampaign[] = visibleCampaignRows
     .map((campaign) => {
       const money = showMoney && "budgetAmount" in campaign ? campaign : null;
       const daily = money && money.budgetType === "daily" && money.budgetAmount != null ? dec(money.budgetAmount) : null;
