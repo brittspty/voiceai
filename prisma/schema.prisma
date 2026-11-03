@@ -1585,10 +1585,14 @@ model MarketingClient {
   metaCampaignIds          String[]   @default([])
   /// Case-insensitive name-contains rule, used only when metaCampaignIds is empty.
   metaCampaignNameContains String     @default("")
+  /// Meta ad account ids (act_...) this client owns outright. Empty links nothing extra. act_532471207924121 is never matched here.
+  metaAdAccountIds         String[]   @default([])
   /// Off by default. Campaigns are linked to this client only while it is on.
   metaLiveRead             Boolean    @default(false)
   /// StackAdapt advertiser ids this client owns. The sync requests only these.
   stackadaptAdvertiserIds  String[]   @default([])
+  /// Optional case-insensitive campaign-name substring. Checked before the plain advertiser match. Empty keeps advertiser-only linking.
+  stackadaptCampaignNameContains String @default("")
   /// Off by default. StackAdapt campaigns are linked to this client only while it is on.
   stackadaptLiveRead       Boolean    @default(false)
   /// Google Ads customer ids this client owns. 10 digits, no dashes. The sync requests only these.

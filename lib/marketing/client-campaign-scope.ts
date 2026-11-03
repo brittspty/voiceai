@@ -1,29 +1,77 @@
 /**
- * Per-client campaign scoping inside a shared Meta ad account.
- * A client owns a campaign when its id is in metaCampaignIds. The name rule is used only when the id list is empty.
- * Clients with metaLiveRead off own nothing. A campaign never matches two clients: ambiguous matches stay unassigned.
+ * Per-client campaign linking for Meta, StackAdapt, and Google Ads.
+ * Meta: a campaign id list wins over the name rule. An optional ad-account list links every campaign on those accounts, including ones created later.
+ * The shared account act_532471207924121 is never linked as a whole. Campaign ids and the name rule still apply there.
+ * StackAdapt: an optional campaign-name substring is checked before the plain advertiser match.
+ * Clients with live read off own nothing. A campaign never matches two clients: ambiguous matches stay unassigned.
+ * Empty metaAdAccountIds and stackadaptCampaignNameContains change nothing.
  */
+export const SHARED_META_AD_ACCOUNT_ID = "act_532471207924121";
+
 export type ClientCampaignRule = {
   id: string;
   metaCampaignIds: string[];
   metaCampaignNameContains: string;
   metaLiveRead: boolean;
+  /** act_... ids. Empty or omitted links nothing extra. The shared account is ignored. */
+  metaAdAccountIds?: string[];
 };
 
-export type ScopedCampaign = { externalId: string; name: string };
+export type ScopedCampaign = { externalId: string; name: string; accountExternalId?: string };
+
+/** Canonical act_ form, or "" when the value is not a numeric Meta ad account id. */
+export function normalizeMetaAdAccountId(raw: string) {
+  const numeric = raw.trim().replace(/^act_/i, "");
+  if (!/^\d+$/.test(numeric)) return "";
+  return `act_${numeric}`;
+}
+
+/** Ids safe to store for whole-account linking. The shared account is refused. */
+export function linkableMetaAdAccountIds(rawIds: string[]) {
+  const ids: string[] = [];
+  for (const raw of rawIds) {
+    const id = normalizeMetaAdAccountId(raw);
+    if (!id) throw new Error(`Meta ad account ids must look like act_123: ${raw}`);
+    if (id === SHARED_META_AD_ACCOUNT_ID) {
+      throw new Error(`${SHARED_META_AD_ACCOUNT_ID} is the shared account and cannot be linked as a whole`);
+    }
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+/** Case-insensitive substring, same 3-character floor as the Meta name rule. */
+function nameContains(needleRaw: string | undefined, name: string) {
+  const needle = (needleRaw || "").trim().toLowerCase();
+  if (needle.length < 3) return false;
+  return name.toLowerCase().includes(needle);
+}
 
 export function clientMatches(rule: ClientCampaignRule, campaign: ScopedCampaign) {
   if (!rule.metaLiveRead) return false;
   const ids = rule.metaCampaignIds.map((id) => id.trim()).filter(Boolean);
-  if (ids.length) return ids.includes(campaign.externalId.trim());
-  const needle = rule.metaCampaignNameContains.trim().toLowerCase();
-  if (needle.length < 3) return false;
-  return campaign.name.toLowerCase().includes(needle);
+  if (ids.length) {
+    if (ids.includes(campaign.externalId.trim())) return true;
+  } else if (nameContains(rule.metaCampaignNameContains, campaign.name)) {
+    return true;
+  }
+  return metaAdAccountMatches(rule, campaign);
+}
+
+function metaAdAccountMatches(rule: ClientCampaignRule, campaign: ScopedCampaign) {
+  const account = normalizeMetaAdAccountId(campaign.accountExternalId || "");
+  if (!account || account === SHARED_META_AD_ACCOUNT_ID) return false;
+  return (rule.metaAdAccountIds || []).some((id) => normalizeMetaAdAccountId(id) === account);
 }
 
 /** Returns the one client that owns the campaign, or null when none or more than one match. */
 export function clientForCampaign(rules: ClientCampaignRule[], campaign: ScopedCampaign) {
   const hits = rules.filter((rule) => clientMatches(rule, campaign));
+  if (hits.length > 1) {
+    console.warn(
+      `Meta campaign ${campaign.externalId} (${campaign.name}) matches clients ${hits.map((hit) => hit.id).join(", ")}; leaving it unassigned.`,
+    );
+  }
   return hits.length === 1 ? hits[0].id : null;
 }
 
@@ -43,10 +91,16 @@ export function planCampaignClients(
   return changes;
 }
 
+type MetaScopeCampaign = ScopedCampaign & {
+  id: string;
+  clientId: string | null;
+  adAccount?: { externalId: string } | null;
+};
+
 type ScopeDb = {
   marketingClient: { findMany(args: unknown): Promise<ClientCampaignRule[]> };
   campaign: {
-    findMany(args: unknown): Promise<(ScopedCampaign & { id: string; clientId: string | null })[]>;
+    findMany(args: unknown): Promise<MetaScopeCampaign[]>;
     update(args: { where: { id: string }; data: { clientId: string | null } }): Promise<unknown>;
   };
 };
@@ -55,12 +109,19 @@ type ScopeDb = {
 export async function applyClientCampaignScopes(db: ScopeDb, workspaceId: string) {
   const rules = await db.marketingClient.findMany({
     where: { workspaceId },
-    select: { id: true, metaCampaignIds: true, metaCampaignNameContains: true, metaLiveRead: true },
+    select: { id: true, metaCampaignIds: true, metaCampaignNameContains: true, metaLiveRead: true, metaAdAccountIds: true },
   });
-  const campaigns = await db.campaign.findMany({
+  const rows = await db.campaign.findMany({
     where: { workspaceId, platform: "meta" },
-    select: { id: true, externalId: true, name: true, clientId: true },
+    select: { id: true, externalId: true, name: true, clientId: true, adAccount: { select: { externalId: true } } },
   });
+  const campaigns = rows.map((row) => ({
+    id: row.id,
+    externalId: row.externalId,
+    name: row.name,
+    clientId: row.clientId,
+    accountExternalId: row.adAccount?.externalId || row.accountExternalId || "",
+  }));
   const changes = planCampaignClients(rules, campaigns);
   for (const change of changes) await db.campaign.update({ where: { id: change.id }, data: { clientId: change.clientId } });
   return { linked: changes.filter((change) => change.clientId).length, cleared: changes.filter((change) => !change.clientId).length };
@@ -70,7 +131,16 @@ export type StackAdaptClientRule = {
   id: string;
   stackadaptAdvertiserIds: string[];
   stackadaptLiveRead: boolean;
+  /** Case-insensitive substring. Empty, omitted, or shorter than 3 characters keeps advertiser-only linking. */
+  stackadaptCampaignNameContains?: string;
 };
+
+export type StackAdaptScopedCampaign = { namingParsed: unknown; name?: string };
+
+function stackAdaptNameFilter(rule: StackAdaptClientRule) {
+  const needle = (rule.stackadaptCampaignNameContains || "").trim().toLowerCase();
+  return needle.length >= 3 ? needle : "";
+}
 
 /** Advertiser ids the live sync may request. Live read must be on. Ids are numeric and unique. */
 export function liveStackAdaptAdvertiserIds(rules: StackAdaptClientRule[]) {
@@ -95,18 +165,31 @@ export function stackAdaptAdvertiserIdFromCampaign(campaign: { namingParsed: unk
   return typeof id === "string" ? id.trim() : "";
 }
 
-/** The one client that owns this advertiser, or null when none or more than one match. Live read off owns nothing. */
-export function clientForStackAdaptCampaign(rules: StackAdaptClientRule[], campaign: { namingParsed: unknown }) {
+/**
+ * The one client that owns this campaign, or null when none or more than one match.
+ * A name filter is checked before the plain advertiser match. Live read off owns nothing.
+ */
+export function clientForStackAdaptCampaign(rules: StackAdaptClientRule[], campaign: StackAdaptScopedCampaign) {
   const advertiserId = stackAdaptAdvertiserIdFromCampaign(campaign);
   if (!/^\d+$/.test(advertiserId)) return null;
-  const hits = rules.filter((rule) => rule.stackadaptLiveRead && rule.stackadaptAdvertiserIds.some((id) => id.trim() === advertiserId));
-  return hits.length === 1 ? hits[0].id : null;
+  const owners = rules.filter(
+    (rule) => rule.stackadaptLiveRead && rule.stackadaptAdvertiserIds.some((id) => id.trim() === advertiserId),
+  );
+  const name = campaign.name || "";
+  const named = owners.filter((rule) => {
+    const needle = stackAdaptNameFilter(rule);
+    return Boolean(needle) && name.toLowerCase().includes(needle);
+  });
+  if (named.length === 1) return named[0].id;
+  if (named.length > 1) return null;
+  const plain = owners.filter((rule) => !stackAdaptNameFilter(rule));
+  return plain.length === 1 ? plain[0].id : null;
 }
 
 /** Plans Campaign.clientId for StackAdapt rows. A campaign linked to a scoped client is cleared when it no longer matches. */
 export function planStackAdaptClients(
   rules: StackAdaptClientRule[],
-  campaigns: { id: string; clientId: string | null; namingParsed: unknown }[],
+  campaigns: (StackAdaptScopedCampaign & { id: string; clientId: string | null })[],
 ) {
   const scoped = new Set(rules.map((rule) => rule.id));
   const changes: { id: string; clientId: string | null }[] = [];
@@ -122,7 +205,7 @@ export function planStackAdaptClients(
 type StackAdaptScopeDb = {
   marketingClient: { findMany(args: unknown): Promise<StackAdaptClientRule[]> };
   campaign: {
-    findMany(args: unknown): Promise<{ id: string; clientId: string | null; namingParsed: unknown }[]>;
+    findMany(args: unknown): Promise<(StackAdaptScopedCampaign & { id: string; clientId: string | null })[]>;
     update(args: { where: { id: string }; data: { clientId: string | null } }): Promise<unknown>;
   };
 };
@@ -131,11 +214,11 @@ type StackAdaptScopeDb = {
 export async function applyStackAdaptClientScopes(db: StackAdaptScopeDb, workspaceId: string) {
   const rules = await db.marketingClient.findMany({
     where: { workspaceId },
-    select: { id: true, stackadaptAdvertiserIds: true, stackadaptLiveRead: true },
+    select: { id: true, stackadaptAdvertiserIds: true, stackadaptLiveRead: true, stackadaptCampaignNameContains: true },
   });
   const campaigns = await db.campaign.findMany({
     where: { workspaceId, platform: "stackadapt" },
-    select: { id: true, clientId: true, namingParsed: true },
+    select: { id: true, clientId: true, name: true, namingParsed: true },
   });
   const changes = planStackAdaptClients(rules, campaigns);
   for (const change of changes) await db.campaign.update({ where: { id: change.id }, data: { clientId: change.clientId } });
