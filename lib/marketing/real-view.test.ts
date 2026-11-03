@@ -211,3 +211,16 @@ test("home range and status stay in the url with the client", () => {
   assert.match(allClients, /st=all/);
   assert.equal(allClients.includes("client="), false);
 });
+
+test("home and channel filter buttons wrap in their own box above the subtitle", () => {
+  const home = readFileSync(path.join(ROOT, "components/jarvis/real-home.tsx"), "utf8");
+  const css = readFileSync(path.join(ROOT, "components/jarvis/jarvis.css"), "utf8");
+  assert.match(home, /<nav className="ctl" aria-label="Filters">/);
+  assert.match(home, /aria-label="Date range"/);
+  assert.match(home, /aria-label="Status"/);
+  assert.match(css, /\.jarvis nav\.ctl \{[^}]*margin-bottom: 16px/);
+  assert.match(css, /\.jarvis nav\.ctl > \[role="group"\] \{[^}]*display: flex;[^}]*flex-wrap: wrap/);
+  assert.match(css, /\.jarvis nav\.ctl \.btn \{[^}]*width: 92px/);
+  assert.match(css, /\.jarvis nav\.ctl \.btn \{[^}]*display: inline-flex/);
+  assert.match(css, /--brand: #ff5800/);
+});

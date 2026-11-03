@@ -30,6 +30,10 @@
 .jarvis .sel, .jarvis .btn { border: 1px solid var(--j-line); border-radius: 8px; background: #fff; color: var(--j-ink); min-height: 40px; }
 .jarvis .sel { padding: 8px 12px; font-size: 13px; }
 .jarvis .btn { font: 600 13px var(--font-brand), Poppins, sans-serif; padding: 10px 16px; cursor: pointer; }
+.jarvis .clientbar { padding: 16px 40px 0; }
+.jarvis nav.ctl { align-items: flex-start; margin-bottom: 16px; }
+.jarvis nav.ctl > [role="group"] { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 8px; width: max-content; max-width: 100%; }
+.jarvis nav.ctl .btn { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; flex: 0 0 92px; width: 92px; line-height: 1.2; text-align: center; text-decoration: none; white-space: nowrap; }
 .jarvis .btn.p { background: var(--brand); border-color: var(--brand); color: var(--j-ink); }
 .jarvis .btn.d { background: var(--j-ink); color: #fff; border-color: var(--j-ink); }
 .jarvis .btn:disabled { color: var(--n3); background: var(--soft); cursor: not-allowed; }
@@ -140,6 +144,7 @@
   .jarvis .kpis .kpi, .jarvis .mt .m { border-left: 0; border-top: 1px solid var(--j-line); }
   .jarvis h1 { font-size: 21px; }
   .jarvis .acts .btn, .jarvis .tabbar a, .jarvis .tabbar button, .jarvis .exp, .jarvis .toast button { min-height: 44px; min-width: 44px; }
+  .jarvis .clientbar { padding: 12px 16px 0; }
   .jarvis .mobile-logo { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--j-line); }
   .jarvis .mobile-logo img { height: 26px; }
   .jarvis .tabbar { display: flex; position: sticky; bottom: 0; z-index: 20; background: #fff; border-top: 1px solid var(--j-line); justify-content: space-around; padding: 6px 0 10px; }
