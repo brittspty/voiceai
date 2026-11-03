@@ -101,7 +101,7 @@ export function JarvisShell({
             </Link>
           </header>
           {realClients ? (
-            <div className="ctl" style={{ padding: "16px 40px 0" }}>
+            <div className="ctl clientbar">
               <label htmlFor="jarvis-client">Client</label>
               <select
                 id="jarvis-client"
