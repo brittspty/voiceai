@@ -9,6 +9,7 @@ import {
   anomalyReason,
   awarenessText,
   buildKpis,
+  DASH_DAY_OPTIONS,
   dashSearch,
   effectiveMetric,
   formatCount,
@@ -17,6 +18,7 @@ import {
   funnelCaption,
   goalLabel,
   METRIC_NAMES,
+  platformLabel,
   rangeTotal,
   rollupCampaigns,
   series,
@@ -25,6 +27,7 @@ import {
   visibleCampaigns,
   type DashCampaign,
   type DashQuery,
+  type DashWindow,
   type DashboardModel,
   type MetricKey,
 } from "@/lib/marketing/dashboard-model";
@@ -68,7 +71,19 @@ function shown(model: DashboardModel, id: string) {
   return metricShown(model.metricVisibility, id);
 }
 
-function Kpis({ model, campaigns, days, basePath }: { model: DashboardModel; campaigns: DashCampaign[]; days: number; basePath: string }) {
+function Kpis({
+  model,
+  campaigns,
+  days,
+  basePath,
+  clientId = null,
+}: {
+  model: DashboardModel;
+  campaigns: DashCampaign[];
+  days: number;
+  basePath: string;
+  clientId?: string | null;
+}) {
   const tiles = buildKpis({ campaigns, days, showMoney: model.showMoney, leadValue: model.leadValue ?? null }).filter((tile) => kpiTileShown(model.metricVisibility, tile.label));
   return (
     <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
@@ -84,7 +99,7 @@ function Kpis({ model, campaigns, days, basePath }: { model: DashboardModel; cam
           </div>
           {tile.prompt ? (
             model.canEditLeadValue ? (
-            <a className="inline-flex min-h-11 items-center text-left text-xs font-medium text-info underline" href={href(basePath, { days: days as 7 | 14 | 30, status: "", goal: "", metric: "l", campaignId: null, editLead: true })}>
+            <a className="inline-flex min-h-11 items-center text-left text-xs font-medium text-info underline" href={href(basePath, { days: days as DashWindow, status: "", goal: "", metric: "l", campaignId: null, clientId, editLead: true })}>
               Set lead value to see estimated ROAS
             </a>
             ) : (
@@ -210,7 +225,12 @@ function CampaignTable({ model, rows, query, basePath }: { model: DashboardModel
             {rows.map((row) => (
               <tr key={row.campaign.id} className="hover:bg-warning-soft dark:hover:bg-hover">
                 <td className="border-b border-line px-2 py-2.5">
-                  <Link className="font-semibold hover:underline" href={linkFor(row.campaign.id)}>{row.campaign.name}</Link>
+                  <Link className="font-semibold hover:underline" href={linkFor(row.campaign.id)}>
+                    {row.campaign.name}
+                    {row.campaign.platform !== "meta" && (
+                      <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-wide text-muted">{platformLabel(row.campaign.platform)}</span>
+                    )}
+                  </Link>
                 </td>
                 {status && (
                   <td className="border-b border-line px-2 py-2.5">
@@ -255,7 +275,12 @@ function CampaignTable({ model, rows, query, basePath }: { model: DashboardModel
             return (
               <Link key={row.campaign.id} href={linkFor(row.campaign.id)} className="block rounded-xl border border-line p-3">
                 <span className="flex items-start justify-between gap-2 font-semibold">
-                  <span>{row.campaign.name}</span>
+                  <span>
+                    {row.campaign.name}
+                    {row.campaign.platform !== "meta" && (
+                      <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-wide text-muted">{platformLabel(row.campaign.platform)}</span>
+                    )}
+                  </span>
                   {status && <span className={`rounded-full px-2 py-0.5 text-[11px] ${row.campaign.status === "active" ? "bg-success-soft text-success" : "bg-chip text-muted"}`}>{statusLabel(row.campaign.status)}</span>}
                 </span>
                 {results && (
@@ -324,7 +349,7 @@ export function MarketingDashboard({
       )}
       <div className="mb-4 flex flex-wrap gap-2" role="toolbar" aria-label="Filters">
         <div className="flex overflow-hidden rounded-[10px] border border-line bg-card" role="group" aria-label="Date range">
-          {([7, 14, 30] as const).map((days) => (
+          {DASH_DAY_OPTIONS.map((days) => (
             <Link key={days} href={href(basePath, query, { days })} aria-current={query.days === days ? "page" : undefined} className={`inline-flex min-h-11 items-center px-4 ${query.days === days ? "bg-ink text-on-ink" : ""}`}>
               {days} days
             </Link>
@@ -333,6 +358,20 @@ export function MarketingDashboard({
         <form action={basePath} method="get" className="flex flex-wrap gap-2">
           {query.days !== 30 && <input type="hidden" name="d" value={query.days} />}
           {metric !== "l" && <input type="hidden" name="m" value={metric} />}
+          {model.clientChoices && (
+            <select
+              name="client"
+              aria-label="Client"
+              value={query.clientId || ""}
+              className="min-h-11 max-w-full rounded-[10px] border border-line bg-card px-2.5"
+              onChange={(event) => router.push(href(basePath, query, { clientId: event.target.value || null, campaignId: null }))}
+            >
+              <option value="">All clients</option>
+              {model.clientChoices.map((client) => (
+                <option key={client.id} value={client.id}>{client.name}</option>
+              ))}
+            </select>
+          )}
           <select name="st" aria-label="Status" defaultValue={query.status} className="min-h-11 rounded-[10px] border border-line bg-card px-2.5" onChange={(event) => router.push(href(basePath, query, { status: event.target.value as DashQuery["status"], campaignId: null }))}>
             <option value="">Status: All</option>
             <option value="active">Status: Active</option>
@@ -438,9 +477,11 @@ function Overview({
     <>
       <div className="order-first">
         <h1 className="text-[22px] font-semibold">All campaigns</h1>
-        <p className="mb-3 text-[13px] text-muted">Last {query.days} days · {list.length} campaigns · open any campaign to see inside it</p>
+        <p className="mb-3 text-[13px] text-muted">
+          {`Last ${query.days} days${query.clientId ? ` · ${model.clientChoices?.find((client) => client.id === query.clientId)?.name || "This client"}` : ""} · ${list.length} campaigns · open any campaign to see inside it`}
+        </p>
       </div>
-      <Kpis model={model} campaigns={list} days={query.days} basePath={basePath} />
+      <Kpis model={model} campaigns={list} days={query.days} basePath={basePath} clientId={query.clientId} />
       <Notes model={model} notes={notes} />
       <LeadCard model={model} basePath={basePath} />
       {shown(model, "chart.trend") && (
@@ -492,7 +533,13 @@ function Overview({
         </div>
       </More>
       )}
-      {!list.length && <p className="mb-4 text-sm text-muted">No campaigns in this workspace for these filters. Numbers show up after a sync.</p>}
+      {!list.length && (
+        <p className="mb-4 text-sm text-muted">
+          {query.clientId
+            ? "No campaigns for this client with these filters. Numbers show up after a sync."
+            : "No campaigns in this workspace for these filters. Numbers show up after a sync."}
+        </p>
+      )}
       <CampaignTable model={model} rows={rows} query={query} basePath={basePath} />
     </>
   );
@@ -561,10 +608,11 @@ function Drill({
         <h1 className="text-[22px] font-semibold">{campaign.name}</h1>
         <p className="mb-3 text-[13px] text-muted">
           <span className={`mr-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${campaign.status === "active" ? "bg-success-soft text-success" : "bg-chip text-muted"}`}>{statusLabel(campaign.status)}</span>
+          {campaign.platform !== "meta" ? ` · ${platformLabel(campaign.platform)}` : ""}
           · Goal: {goalLabel(campaign.goal)} · {new Set(campaign.ads.map((ad) => ad.audience)).size} audience{new Set(campaign.ads.map((ad) => ad.audience)).size === 1 ? "" : "s"} · {ads.length} ads · last {query.days} days
         </p>
       </div>
-      <Kpis model={model} campaigns={[campaign]} days={query.days} basePath={basePath} />
+      <Kpis model={model} campaigns={[campaign]} days={query.days} basePath={basePath} clientId={query.clientId} />
       <Notes model={model} notes={notes} />
       {(shown(model, "chart.funnel") || shown(model, "chart.trend")) && (
       <div className="mb-4 grid gap-4 md:grid-cols-[2fr_1fr]">

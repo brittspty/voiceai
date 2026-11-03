@@ -11,6 +11,8 @@ import {
   pacingRecsEnabled,
   searchWasteEnabled,
   speedToLeadEnabled,
+  stackAdaptEnabled,
+  stackAdaptSyncEnabled,
   type Env,
 } from "./config";
 import { presentWithoutCost } from "./client-view";
@@ -58,14 +60,45 @@ export async function listHomeWorkspaces(access: MarketingAccess): Promise<HomeW
   return prisma.workspace.findMany({ where: { id }, orderBy: { name: "asc" } });
 }
 
+async function anyWorkspace(ids: string[], read: (workspaceId: string) => Promise<boolean>) {
+  const flags = await Promise.all(workspaceReads(ids).map((where) => read(where.workspaceId)));
+  return flags.some(Boolean);
+}
+
+async function platformHasRows(ids: string[], platform: "google_ads" | "stackadapt", clientId: string | null) {
+  if (!ids.length) return false;
+  const campaign = await anyWorkspace(ids, async (workspaceId) => {
+    const row = await prisma.campaign.findFirst({
+      where: isolatedWhere(workspaceId, { platform, ...(clientId ? { clientId } : {}) }),
+      select: { id: true },
+    });
+    return Boolean(row);
+  });
+  if (campaign) return true;
+  return anyWorkspace(ids, async (workspaceId) => {
+    const row = await prisma.dailyMetric.findFirst({
+      where: isolatedWhere(workspaceId, {
+        platform,
+        ...(clientId ? { campaign: { clientId } } : {}),
+      }),
+      select: { id: true },
+    });
+    return Boolean(row);
+  });
+}
+
 export async function loadFeatureCards(input: {
   workspaceIds: string[];
   showMoney: boolean;
   hasGoogleRows?: boolean;
+  hasStackAdaptRows?: boolean;
+  /** MarketingClient id. Null keeps every card on the workspace, which is the default. */
+  clientId?: string | null;
   env?: Env;
 }): Promise<HomeFeature[]> {
   const env = input.env ?? process.env;
   const ids = input.workspaceIds.map((id) => id.trim()).filter(Boolean);
+  const clientId = (input.clientId || "").trim() || null;
   const speedOn = speedToLeadEnabled(env);
   const qualityOn = leadScoringEnabled(env);
   const landingOn = pageMonitorEnabled(env);
@@ -74,25 +107,35 @@ export async function loadFeatureCards(input: {
   const searchOn = searchWasteEnabled(env);
   const competitorsOn = competitorWatchEnabled(env);
   const holdoutsOn = holdoutsEnabled(env);
+  const stackOn = stackAdaptSyncEnabled(env) || stackAdaptEnabled(env);
+  const campaignScope = clientId ? { campaign: { clientId } } : {};
 
-  const [speedRows, scoreRows, pages, openPages, tired, paceRows, proposed, competitors, holdouts] = await Promise.all([
+  const [speedRows, scoreRows, pages, openPages, tired, paceRows, proposed, competitors, holdouts, hasGoogleRows, hasStackAdaptRows] = await Promise.all([
     speedOn && ids.length
       ? eachWorkspace(ids, (workspaceId) => prisma.leadResponse.findMany({ where: isolatedWhere(workspaceId), select: { seconds: true } }))
       : Promise.resolve(null),
     qualityOn && ids.length
       ? eachWorkspace(ids, (workspaceId) => prisma.leadScore.findMany({ where: isolatedWhere(workspaceId), select: { label: true, overrideLabel: true } }))
       : Promise.resolve(null),
-    landingOn && ids.length ? countEach(ids, (workspaceId) => prisma.landingPage.count({ where: isolatedWhere(workspaceId) })) : Promise.resolve(null),
     landingOn && ids.length
-      ? countEach(ids, (workspaceId) => prisma.pageMonitorAlert.count({ where: { ...isolatedWhere(workspaceId), resolvedAt: null } }))
+      ? countEach(ids, (workspaceId) => prisma.landingPage.count({ where: isolatedWhere(workspaceId, clientId ? { clientKey: clientId } : {}) }))
+      : Promise.resolve(null),
+    landingOn && ids.length
+      ? countEach(ids, (workspaceId) =>
+          prisma.pageMonitorAlert.count({
+            where: clientId
+              ? { ...isolatedWhere(workspaceId), resolvedAt: null, landingPage: { clientKey: clientId } }
+              : { ...isolatedWhere(workspaceId), resolvedAt: null },
+          }),
+        )
       : Promise.resolve(null),
     fatigueOn && ids.length
-      ? countEach(ids, (workspaceId) => prisma.fatigueSignal.count({ where: { ...isolatedWhere(workspaceId), fatigued: true } }))
+      ? countEach(ids, (workspaceId) => prisma.fatigueSignal.count({ where: { ...isolatedWhere(workspaceId, campaignScope), fatigued: true } }))
       : Promise.resolve(null),
     pacingOn && input.showMoney && ids.length
       ? eachWorkspace(ids, (workspaceId) =>
           prisma.pacingSnapshot.findMany({
-            where: isolatedWhere(workspaceId),
+            where: isolatedWhere(workspaceId, campaignScope),
             orderBy: { detectedAt: "desc" },
             take: 200,
             select: { campaignId: true, status: true },
@@ -100,10 +143,14 @@ export async function loadFeatureCards(input: {
         )
       : Promise.resolve(null),
     searchOn && ids.length
-      ? countEach(ids, (workspaceId) => prisma.negativeProposal.count({ where: { ...isolatedWhere(workspaceId), status: "proposed" } }))
+      ? countEach(ids, (workspaceId) =>
+          prisma.negativeProposal.count({ where: { ...isolatedWhere(workspaceId, campaignScope), status: "proposed" } }),
+        )
       : Promise.resolve(null),
     competitorsOn && ids.length ? countEach(ids, (workspaceId) => prisma.competitor.count({ where: isolatedWhere(workspaceId) })) : Promise.resolve(null),
-    holdoutsOn && ids.length ? countEach(ids, (workspaceId) => prisma.liftTest.count({ where: isolatedWhere(workspaceId) })) : Promise.resolve(null),
+    holdoutsOn && ids.length ? countEach(ids, (workspaceId) => prisma.liftTest.count({ where: isolatedWhere(workspaceId, campaignScope) })) : Promise.resolve(null),
+    input.hasGoogleRows == null ? platformHasRows(ids, "google_ads", clientId) : Promise.resolve(input.hasGoogleRows),
+    input.hasStackAdaptRows == null ? platformHasRows(ids, "stackadapt", clientId) : Promise.resolve(input.hasStackAdaptRows),
   ]);
 
   const speedMedian = speedRows ? median(speedRows.map((row) => row.seconds).filter((value): value is number => value != null)) : null;
@@ -118,7 +165,9 @@ export async function loadFeatureCards(input: {
 
   return homeFeatures({
     googleOn: googleAdsEnabled(env),
-    hasGoogleRows: Boolean(input.hasGoogleRows),
+    hasGoogleRows: Boolean(hasGoogleRows),
+    stackAdaptOn: stackOn,
+    hasStackAdaptRows: Boolean(hasStackAdaptRows),
     speedOn,
     speedDetail: speedRows ? (speedMedian == null ? null : `${speedMedian}s median first response`) : null,
     qualityOn,

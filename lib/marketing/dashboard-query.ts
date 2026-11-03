@@ -1,17 +1,22 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { addDaysISO, zonedISODate } from "../time";
-import { roleLabel, type MarketingAccess } from "./access";
+import { canSwitchMarketingClient, roleLabel, type MarketingAccess } from "./access";
 import { presentWithoutCost } from "./client-view";
+import { marketingClientSwitcherEnabled, type Env } from "./config";
 import { isCostContent } from "./cost-visibility";
 import {
   assembleCampaigns,
+  DASHBOARD_HISTORY_DAYS,
   dashboardCampaignWhere,
+  dashboardClientChoices,
+  dashboardClientFilter,
   dashboardMetricWhere,
   dashboardPlatforms,
   projectDashboard,
   sourceLine,
   type DashboardModel,
+  type DashClientChoice,
   type DashPlatform,
   type RawCampaign,
   type RawMetric,
@@ -20,7 +25,12 @@ import { canEditLeadValue } from "./lead-value";
 import { withClientDashboardMetrics } from "./metric-visibility-store";
 import { isolatedWhere } from "./workspace";
 
-const WINDOW_DAYS = 60;
+const WINDOW_DAYS = DASHBOARD_HISTORY_DAYS;
+
+export type DashboardClientScope = {
+  clientId: string | null;
+  clientChoices?: DashClientChoice[];
+};
 
 function num(value: bigint | number | null | undefined) {
   if (value == null) return 0;
@@ -77,9 +87,45 @@ function scopeFilter(access: MarketingAccess) {
 }
 
 /**
+ * Marketing clients for the staff switcher.
+ * The requested id is ignored when the switch is off or the viewer is not staff.
+ * Share links and client mode never receive the list.
+ */
+export async function resolveDashboardClient(input: {
+  workspaceId: string;
+  requestedId?: string | null;
+  access?: MarketingAccess | null;
+  mode?: "staff" | "client";
+  env?: Env;
+}): Promise<DashboardClientScope> {
+  const env = input.env ?? process.env;
+  const enabled = marketingClientSwitcherEnabled(env);
+  const staff = input.mode !== "client" && canSwitchMarketingClient(input.access);
+  if (!enabled || !staff) return { clientId: null };
+  const workspaceId = input.workspaceId.trim();
+  if (!workspaceId) return { clientId: null, clientChoices: [] };
+  const rows = await prisma.marketingClient.findMany({
+    where: isolatedWhere(workspaceId),
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+  const clientChoices = rows.map((row) => ({ id: row.id, name: row.name }));
+  return {
+    clientId: dashboardClientFilter({
+      enabled: true,
+      staff: true,
+      requestedId: input.requestedId ?? null,
+      knownIds: clientChoices.map((row) => row.id),
+    }),
+    clientChoices,
+  };
+}
+
+/**
  * Read-only dashboard load. Every query includes workspaceId.
  * Spend, budgets, and lead value are selected only for staff who may see cost.
  * This function does not write budgets or call an ad platform.
+ * A client id is applied only for staff while MARKETING_CLIENT_SWITCHER is on.
  */
 export async function loadDashboard(input: {
   workspaceId: string;
@@ -89,27 +135,46 @@ export async function loadDashboard(input: {
   now?: Date;
   /** Staff preview loads the full client-safe model and applies unsaved toggles in the browser. */
   applyVisibility?: boolean;
+  /** Already resolved against this workspace. A raw query param is not accepted here. */
+  clientScope?: DashboardClientScope;
+  env?: Env;
 }): Promise<DashboardModel> {
   const workspaceId = input.workspaceId.trim();
   const dates = dashboardDateAxis(input.now);
   const mode = input.mode;
   const finish = (model: DashboardModel) => withClientDashboardMetrics(model, workspaceId, input.applyVisibility !== false);
-  if (!workspaceId) return finish(emptyModel({ mode, workspaceName: input.workspaceName, dates }));
+  const env = input.env ?? process.env;
+  const enabled = marketingClientSwitcherEnabled(env);
+  const staff = mode === "staff" && canSwitchMarketingClient(input.access);
+  const clientId = dashboardClientFilter({
+    enabled,
+    staff,
+    requestedId: input.clientScope?.clientId ?? null,
+    knownIds: input.clientScope?.clientChoices?.map((row) => row.id) ?? [],
+  });
+  const clientChoices = dashboardClientChoices({
+    enabled,
+    staff,
+    choices: input.clientScope?.clientChoices,
+  });
+  const withChoices = (model: DashboardModel) => finish(clientChoices ? { ...model, clientChoices } : model);
+  if (!workspaceId) return withChoices(emptyModel({ mode, workspaceName: input.workspaceName, dates }));
   const access = input.access;
   const showMoney = mode === "staff" && Boolean(access?.seesCost);
   const editable = mode === "staff" && access ? canEditLeadValue(access) : false;
   const scope = access ? scopeFilter(access) : { blocked: false as const, campaignIds: "all" as const, adAccountIds: "all" as const };
-  if (access && access.workspaceId !== workspaceId) return finish(emptyModel({ mode, workspaceName: input.workspaceName, dates }));
-  if (scope.blocked) return finish(emptyModel({ mode, workspaceName: input.workspaceName, dates }));
+  if (access && access.workspaceId !== workspaceId) return withChoices(emptyModel({ mode, workspaceName: input.workspaceName, dates }));
+  if (scope.blocked) return withChoices(emptyModel({ mode, workspaceName: input.workspaceName, dates }));
 
-  const platforms = dashboardPlatforms();
+  const platforms = dashboardPlatforms(env);
   const where = dashboardCampaignWhere({
     workspaceId,
     platforms,
     campaignIds: scope.campaignIds,
     adAccountIds: scope.adAccountIds,
+    clientId,
   });
-  if (where.id && where.id.in.length === 0) return finish(emptyModel({ mode, workspaceName: input.workspaceName, dates }));
+  if (where.id && where.id.in.length === 0) return withChoices(emptyModel({ mode, workspaceName: input.workspaceName, dates }));
 
   const campaignSelect = {
     id: true,
@@ -197,14 +262,18 @@ export async function loadDashboard(input: {
       : Promise.resolve(null),
     mode === "staff"
       ? prisma.adAccount.findMany({
-          where: isolatedWhere(workspaceId, { platform: { in: platforms } }),
+          where: isolatedWhere(workspaceId, {
+            platform: { in: platforms },
+            ...(clientId ? { campaigns: { some: { clientId } } } : {}),
+          }),
           select: { externalId: true, platform: true },
         })
       : Promise.resolve([]),
   ]);
 
+  const allowedPlatforms = new Set<string>(platforms);
   const rawCampaigns: RawCampaign[] = campaigns
-    .filter((campaign) => campaign.platform === "meta" || campaign.platform === "google_ads")
+    .filter((campaign) => allowedPlatforms.has(campaign.platform))
     .map((campaign) => {
       const money = showMoney && "budgetAmount" in campaign ? campaign : null;
       const daily = money && money.budgetType === "daily" && money.budgetAmount != null ? dec(money.budgetAmount) : null;
@@ -249,8 +318,11 @@ export async function loadDashboard(input: {
   });
 
   const present = new Set<DashPlatform>(platforms.includes("meta") ? ["meta"] : []);
-  if (rawCampaigns.some((campaign) => campaign.platform === "google_ads") || runs.some((run) => run.platform === "google_ads")) {
-    present.add("google_ads");
+  for (const platform of platforms) {
+    if (platform === "meta") continue;
+    if (rawCampaigns.some((campaign) => campaign.platform === platform) || runs.some((run) => run.platform === platform)) {
+      present.add(platform);
+    }
   }
   const latest = runs.find((run) => run.finishedAt);
   const accountIds =
@@ -288,11 +360,17 @@ export async function loadDashboard(input: {
     workspaceName: input.workspaceName,
     mock: latest?.mode === "mock",
   };
-  return finish(presentWithoutCost(projectDashboard(model, { mode, showMoney, canEditLeadValue: editable }), showMoney));
+  return withChoices(presentWithoutCost(projectDashboard(model, { mode, showMoney, canEditLeadValue: editable }), showMoney));
 }
 
-export async function loadDashboardForAccess(access: MarketingAccess, mode: "staff" | "client", workspaceName: string, now?: Date) {
-  return loadDashboard({ workspaceId: access.workspaceId, workspaceName, mode, access, now });
+export async function loadDashboardForAccess(
+  access: MarketingAccess,
+  mode: "staff" | "client",
+  workspaceName: string,
+  now?: Date,
+  clientScope?: DashboardClientScope,
+) {
+  return loadDashboard({ workspaceId: access.workspaceId, workspaceName, mode, access, now, clientScope });
 }
 
 export async function loadClientDashboard(workspaceId: string, workspaceName: string, now?: Date) {

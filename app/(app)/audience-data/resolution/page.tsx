@@ -3,7 +3,8 @@ import { NoAccess } from "@/components/no-access";
 import { requireUser } from "@/lib/auth";
 import { canOpenAudienceData } from "@/lib/marketing/audience-data/present";
 import { readResolution } from "@/lib/marketing/audience-data/resolution";
-import { audienceDataClientEnabled, audienceDataEnabled, resolutionDataEnabled } from "@/lib/marketing/config";
+import { RealEmpty } from "@/components/jarvis/real-home";
+import { audienceDataClientEnabled, audienceDataEnabled, marketingClientSwitcherEnabled, resolutionDataEnabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { forSpendViewer } from "@/lib/marketing/spend-access";
 
@@ -20,6 +21,7 @@ function turnedOff() {
 
 export default async function ResolutionSummaryPage({ searchParams }: { searchParams: Promise<{ account?: string; campaign?: string }> }) {
   if (!resolutionDataEnabled()) return turnedOff();
+  if (marketingClientSwitcherEnabled()) return <RealEmpty title="Resolution Data" detail="No data yet." />;
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
   const query = await searchParams;

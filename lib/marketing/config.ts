@@ -372,6 +372,14 @@ export function dashboardsV2Enabled(env: Env = process.env) {
   return flagOn(env, "MARKETING_DASHBOARDS_V2");
 }
 
+/**
+ * Off unless MARKETING_CLIENT_SWITCHER is explicitly on.
+ * While off, the staff marketing dashboard stays workspace-wide.
+ */
+export function marketingClientSwitcherEnabled(env: Env = process.env) {
+  return flagOn(env, "MARKETING_CLIENT_SWITCHER");
+}
+
 /** Off unless JARVIS_UI_V2 is explicitly on. The current UI stays in place. */
 export function jarvisUiV2Enabled(env: Env = process.env) {
   return flagOn(env, "JARVIS_UI_V2");

@@ -25,9 +25,10 @@ export default async function ClientMarketingPage({ searchParams }: { searchPara
     const payload = await loadClientPerformance(org?.name || "Performance", { workspaceId: access.workspaceId, adAccountIds: access.accounts });
     return <ClientPerformance data={payload} />;
   }
+  const parsed = parseDashQuery(await searchParams);
   const [data, features] = await Promise.all([
     loadDashboardForAccess(access, "client", org?.name || "Campaigns"),
     loadFeatureCards({ workspaceIds: [access.workspaceId], showMoney: false }),
   ]);
-  return <MarketingDashboard model={data} query={parseDashQuery(await searchParams)} basePath="/marketing/client" features={features} />;
+  return <MarketingDashboard model={data} query={{ ...parsed, clientId: null }} basePath="/marketing/client" features={features} />;
 }

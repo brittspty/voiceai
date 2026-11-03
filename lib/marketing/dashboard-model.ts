@@ -1,12 +1,18 @@
 import { forbiddenClientKeys } from "./client-view";
-import { googleAdsEnabled, type Env } from "./config";
+import { googleAdsEnabled, stackAdaptEnabled, stackAdaptSyncEnabled, type Env } from "./config";
 import { estimatedRoas, formatCents } from "./lead-value";
 import { isolatedWhere } from "./workspace";
 
 export type DashGoal = "leads" | "calls" | "awareness";
 export type DashStatus = "active" | "paused" | "other";
 export type MetricKey = "i" | "r" | "c" | "l" | "k" | "s";
-export type DashPlatform = "meta" | "google_ads";
+export type DashPlatform = "meta" | "google_ads" | "stackadapt";
+
+/** Enough history for a 90-day window and the 90 days before it. */
+export const DASHBOARD_HISTORY_DAYS = 180;
+
+export const DASH_DAY_OPTIONS = [7, 14, 30, 90] as const;
+export type DashWindow = (typeof DASH_DAY_OPTIONS)[number];
 
 export const METRIC_NAMES: Record<MetricKey, string> = {
   i: "Views",
@@ -73,19 +79,39 @@ export type DashboardModel = {
   mock: boolean;
   /** Set only when CLIENT_METRIC_VISIBILITY is on and this is the client view. */
   metricVisibility?: Record<string, boolean>;
+  /** Staff client switcher. Absent when the switch is off or the viewer is not staff. */
+  clientChoices?: DashClientChoice[];
 };
 
+export type DashClientChoice = { id: string; name: string };
+
 export type DashQuery = {
-  days: 7 | 14 | 30;
+  days: DashWindow;
   status: "" | "active" | "paused";
   goal: "" | DashGoal;
   metric: MetricKey;
   campaignId: string | null;
+  /** MarketingClient id. Empty means every client in the workspace. */
+  clientId: string | null;
   editLead: boolean;
 };
 
 export function dashboardPlatforms(env: Env = process.env): DashPlatform[] {
-  return googleAdsEnabled(env) ? ["meta", "google_ads"] : ["meta"];
+  const platforms: DashPlatform[] = ["meta"];
+  if (googleAdsEnabled(env)) platforms.push("google_ads");
+  if (stackAdaptSyncEnabled(env) || stackAdaptEnabled(env)) platforms.push("stackadapt");
+  return platforms;
+}
+
+export function platformLabel(platform: DashPlatform) {
+  if (platform === "google_ads") return "Google Ads";
+  if (platform === "stackadapt") return "StackAdapt";
+  return "Meta";
+}
+
+export function parseDashWindow(raw: string): DashWindow {
+  const match = DASH_DAY_OPTIONS.find((days) => String(days) === raw);
+  return match ?? 30;
 }
 
 export function dashboardCampaignWhere(input: {
@@ -93,6 +119,8 @@ export function dashboardCampaignWhere(input: {
   platforms: DashPlatform[];
   adAccountIds?: "all" | string[];
   campaignIds?: "all" | string[];
+  /** Set only after the staff client switcher accepts the id. Null keeps the workspace-wide read. */
+  clientId?: string | null;
 }) {
   if (!input.platforms.length) throw new Error("A platform is required.");
   const extra: {
@@ -100,13 +128,41 @@ export function dashboardCampaignWhere(input: {
     status: { notIn: ("archived" | "deleted")[] };
     id?: { in: string[] };
     adAccountId?: { in: string[] };
+    clientId?: string;
   } = {
     platform: { in: input.platforms },
     status: { notIn: ["archived", "deleted"] },
   };
   if (input.campaignIds && input.campaignIds !== "all") extra.id = { in: input.campaignIds };
   else if (input.adAccountIds && input.adAccountIds !== "all") extra.adAccountId = { in: input.adAccountIds };
+  if (input.clientId) extra.clientId = input.clientId;
   return isolatedWhere(input.workspaceId, extra);
+}
+
+/**
+ * The client param narrows the dashboard only when the switch is on, the viewer is staff,
+ * and the id is one of this workspace's marketing clients. Everyone else stays on their own scope.
+ */
+export function dashboardClientFilter(input: {
+  enabled: boolean;
+  staff: boolean;
+  requestedId: string | null;
+  knownIds: readonly string[];
+}): string | null {
+  if (!input.enabled || !input.staff) return null;
+  const id = (input.requestedId || "").trim();
+  if (!id || id === "all") return null;
+  return input.knownIds.includes(id) ? id : null;
+}
+
+/** The client dropdown is staff-only. A missing list stays off the payload. */
+export function dashboardClientChoices<T>(input: {
+  enabled: boolean;
+  staff: boolean;
+  choices: readonly T[] | undefined;
+}): T[] | undefined {
+  if (!input.enabled || !input.staff || !input.choices) return undefined;
+  return [...input.choices];
 }
 
 export function dashboardMetricWhere(input: {
@@ -129,8 +185,7 @@ export function parseDashQuery(input: Record<string, string | string[] | undefin
     const value = input[key];
     return Array.isArray(value) ? value[0] || "" : value || "";
   };
-  const daysRaw = one("d");
-  const days: 7 | 14 | 30 = daysRaw === "7" || daysRaw === "14" ? (Number(daysRaw) as 7 | 14) : 30;
+  const days = parseDashWindow(one("d"));
   const statusRaw = one("st");
   const status = statusRaw === "active" || statusRaw === "paused" ? statusRaw : "";
   const goalRaw = one("g");
@@ -138,13 +193,16 @@ export function parseDashQuery(input: Record<string, string | string[] | undefin
   const metricRaw = one("m");
   const metric = (["i", "r", "c", "l", "k", "s"] as const).find((key) => key === metricRaw) || "l";
   const camp = one("camp");
-  return { days, status, goal, metric, campaignId: camp || null, editLead: one("edit") === "lv" };
+  const clientRaw = one("client").trim();
+  const clientId = clientRaw && clientRaw !== "all" ? clientRaw : null;
+  return { days, status, goal, metric, campaignId: camp || null, clientId, editLead: one("edit") === "lv" };
 }
 
 export function dashSearch(query: DashQuery, patch: Partial<DashQuery> = {}) {
   const next = { ...query, ...patch };
   const params = new URLSearchParams();
   if (next.campaignId) params.set("camp", next.campaignId);
+  if (next.clientId) params.set("client", next.clientId);
   if (next.days !== 30) params.set("d", String(next.days));
   if (next.status) params.set("st", next.status);
   if (next.goal) params.set("g", next.goal);
@@ -654,11 +712,18 @@ export function funnelCaption(input: { awareness: boolean; views: number; clicks
   return `${oneIn(input.clicks, input.views)} viewers clicked; ${oneIn(input.results, input.clicks)} clickers became a lead or call`;
 }
 
+function listedPlatforms(names: string[]) {
+  if (names.length <= 1) return names[0] || "Meta";
+  if (names.length === 2) return names.join(" and ");
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+
 export function sourceLine(input: { platforms: DashPlatform[]; updatedLabel: string; accountIds: string[] | null }) {
   const names: string[] = [];
   if (input.platforms.includes("meta") || input.platforms.length === 0) names.push("Meta");
   if (input.platforms.includes("google_ads")) names.push("Google");
-  const source = names.length === 1 ? `your ${names[0]} ads` : `your ${names.join(" and ")} ads`;
+  if (input.platforms.includes("stackadapt")) names.push("StackAdapt");
+  const source = `your ${listedPlatforms(names)} ads`;
   const accounts = input.accountIds && input.accountIds.length ? ` · account ${input.accountIds.join(", ")}` : "";
   return `Source: ${source} · updated ${input.updatedLabel}${accounts}`;
 }

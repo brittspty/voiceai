@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { forbiddenClientKeys } from "./client-view";
-import { dashboardsV2Enabled, googleAdsEnabled } from "./config";
+import { canSwitchMarketingClient } from "./access";
+import { forbiddenClientKeys, presentWithoutCost } from "./client-view";
+import { dashboardsV2Enabled, googleAdsEnabled, marketingClientSwitcherEnabled } from "./config";
 import {
   anomalies,
   anomalyReason,
@@ -12,13 +13,19 @@ import {
   awarenessText,
   buildKpis,
   collapseMetrics,
+  DASHBOARD_HISTORY_DAYS,
+  DASH_DAY_OPTIONS,
   dashboardCampaignWhere,
+  dashboardClientChoices,
+  dashboardClientFilter,
   dashboardGoal,
   dashboardMetricWhere,
   dashboardPlatforms,
+  dashSearch,
   effectiveMetric,
   funnelCaption,
   parseDashQuery,
+  platformLabel,
   projectDashboard,
   resultCounts,
   sourceLine,
@@ -34,8 +41,17 @@ test("dashboard flags default off and Google stays out until its flag is on", ()
   assert.equal(dashboardsV2Enabled({}), false);
   assert.equal(dashboardsV2Enabled({ MARKETING_DASHBOARDS_V2: "on" }), true);
   assert.equal(googleAdsEnabled({}), false);
+  assert.equal(marketingClientSwitcherEnabled({}), false);
+  assert.equal(marketingClientSwitcherEnabled({ MARKETING_CLIENT_SWITCHER: "on" }), true);
   assert.deepEqual(dashboardPlatforms({}), ["meta"]);
   assert.deepEqual(dashboardPlatforms({ MARKETING_GOOGLE_ADS: "on" }), ["meta", "google_ads"]);
+  assert.deepEqual(dashboardPlatforms({ STACKADAPT_SYNC: "on" }), ["meta", "stackadapt"]);
+  assert.deepEqual(dashboardPlatforms({ MARKETING_STACKADAPT: "on" }), ["meta", "stackadapt"]);
+  assert.deepEqual(dashboardPlatforms({ MARKETING_GOOGLE_ADS: "on", STACKADAPT_SYNC: "on" }), ["meta", "google_ads", "stackadapt"]);
+  assert.equal(platformLabel("stackadapt"), "StackAdapt");
+  assert.equal(platformLabel("google_ads"), "Google Ads");
+  assert.equal(DASHBOARD_HISTORY_DAYS >= 90 * 2, true);
+  assert.deepEqual(DASH_DAY_OPTIONS, [7, 14, 30, 90]);
 });
 
 test("dashboard queries always name a workspace and a platform", () => {
@@ -200,12 +216,171 @@ test("duplicate attribution windows are not added together", () => {
 });
 
 test("chart controls and call campaigns pick a sensible metric", () => {
-  assert.equal(parseDashQuery({ d: "14", st: "paused", g: "calls", m: "s", camp: "c9", edit: "lv" }).days, 14);
+  const parsed = parseDashQuery({ d: "14", st: "paused", g: "calls", m: "s", camp: "c9", edit: "lv", client: "client_cedar" });
+  assert.equal(parsed.days, 14);
+  assert.equal(parsed.clientId, "client_cedar");
   assert.equal(parseDashQuery({}).metric, "l");
+  assert.equal(parseDashQuery({}).days, 30);
+  assert.equal(parseDashQuery({ d: "90" }).days, 90);
+  assert.equal(parseDashQuery({ d: "60" }).days, 30);
+  assert.equal(parseDashQuery({ client: "all" }).clientId, null);
+  assert.match(dashSearch(parseDashQuery({ d: "90", client: "client_cedar" })), /d=90/);
+  assert.match(dashSearch(parseDashQuery({ d: "90", client: "client_cedar" })), /client=client_cedar/);
+  assert.equal(dashSearch(parseDashQuery({})).includes("client="), false);
   assert.equal(effectiveMetric({ metric: "s", goal: null, showMoney: false }), "l");
   assert.equal(effectiveMetric({ metric: "l", goal: "calls", showMoney: true }), "k");
   assert.equal(effectiveMetric({ metric: "c", goal: "awareness", showMoney: true }), "c");
   assert.equal(effectiveMetric({ metric: "l", goal: "awareness", showMoney: true }), "r");
+  assert.match(sourceLine({ platforms: ["meta", "google_ads", "stackadapt"], updatedLabel: "Nov 1", accountIds: null }), /Meta, Google, and StackAdapt/);
+});
+
+const MONEY_WORDS = ["spend", "cost", "cpa", "cpl", "cpx", "roas", "budget", "bid"];
+
+function stackAdaptClientModel() {
+  const dates = ["2026-10-20"];
+  const assembled = assembleCampaigns({
+    dates,
+    campaigns: [
+      {
+        id: "camp-stack",
+        name: "Cedar prospecting",
+        objective: "leads",
+        status: "active",
+        platform: "stackadapt",
+        dailyBudget: 40,
+        budgetSetBy: "Avery",
+        budgetSetAt: "2026-10-01",
+        ads: [
+          {
+            id: "ad-stack",
+            name: "Roof photo",
+            status: "active",
+            format: "video",
+            audienceNames: ["Homeowners"],
+            thumbnailUrl: null,
+          },
+        ],
+      },
+    ],
+    metrics: [
+      {
+        date: "2026-10-20",
+        adId: "ad-stack",
+        campaignId: "camp-stack",
+        attributionWindow: "7d_click",
+        impressions: 1000,
+        clicks: 25,
+        reach: 800,
+        platformLeads: 2,
+        platformConversions: 1,
+        spend: 12.5,
+      },
+    ],
+    clientLabels: true,
+    showMoney: true,
+  });
+  const full: DashboardModel = {
+    mode: "staff",
+    showMoney: true,
+    canEditLeadValue: true,
+    dates,
+    campaigns: assembled,
+    notes: [
+      { campaignId: "camp-stack", campaignName: "Cedar prospecting", text: "The new video is earning more leads." },
+      { campaignId: "camp-stack", campaignName: "Cedar prospecting", text: "CPL is $6 and the bid should rise. ROAS is 2." },
+    ],
+    leadValue: { leadCents: 8500, callCents: 14000, by: "Avery", at: "Oct 15" },
+    sourceLine: sourceLine({ platforms: ["stackadapt"], updatedLabel: "Oct 20, 5:00 PM ET", accountIds: ["act_532471207924121"] }),
+    workspaceName: "Demo workspace",
+    mock: true,
+  };
+  return presentWithoutCost(projectDashboard(full, { mode: "client", showMoney: true, canEditLeadValue: true }), false);
+}
+
+test("a client-mode StackAdapt row keeps results and leaks no money", () => {
+  const client = stackAdaptClientModel();
+  assert.equal(client.mode, "client");
+  assert.equal(client.showMoney, false);
+  assert.equal(client.campaigns.length, 1);
+  assert.equal(client.campaigns[0].platform, "stackadapt");
+  assert.equal(client.campaigns[0].ads[0].days[0].i, 1000);
+  assert.equal(client.campaigns[0].ads[0].days[0].c, 25);
+  assert.equal(client.campaigns[0].ads[0].days[0].l, 2);
+  assert.equal(client.campaigns[0].ads[0].days[0].s, undefined);
+  assert.equal(client.campaigns[0].dailyBudget, undefined);
+  assert.equal("leadValue" in client, false);
+  assert.equal(client.notes.length, 1);
+  assert.match(client.notes[0].text, /more leads/);
+  assert.match(client.sourceLine, /StackAdapt/);
+  const printed = JSON.stringify(client).toLowerCase();
+  for (const word of MONEY_WORDS) assert.equal(printed.includes(word), false, word);
+  assert.equal(printed.includes("$"), false);
+  assert.equal(printed.includes("12.5"), false);
+  assert.deepEqual(forbiddenClientKeys(client), []);
+  const tiles = buildKpis({ campaigns: client.campaigns, days: 7, showMoney: client.showMoney, leadValue: null });
+  assert.equal(tiles.some((tile) => /spend|cpa|cpc|cpm|roas|cpl/i.test(tile.label)), false);
+});
+
+test("a client param from a non-staff user does not select another client or reveal money", () => {
+  const otherId = "client_north";
+  const otherName = "Northwind Studio";
+  const known = [otherId, "client_cedar"];
+  for (const kind of ["client_owner", "client_viewer", "none"] as const) {
+    assert.equal(canSwitchMarketingClient({ kind }), false);
+    const picked = dashboardClientFilter({
+      enabled: true,
+      staff: canSwitchMarketingClient({ kind }),
+      requestedId: otherId,
+      knownIds: known,
+    });
+    assert.equal(picked, null);
+    const where = dashboardCampaignWhere({
+      workspaceId: "org",
+      platforms: dashboardPlatforms({ STACKADAPT_SYNC: "on" }),
+      clientId: picked,
+    });
+    assert.equal(Object.hasOwn(where, "clientId"), false);
+    assert.equal(JSON.stringify(where).includes(otherId), false);
+    assert.equal(
+      dashboardClientChoices({
+        enabled: true,
+        staff: canSwitchMarketingClient({ kind }),
+        choices: [{ id: otherId, name: otherName }],
+      }),
+      undefined,
+    );
+  }
+  assert.equal(canSwitchMarketingClient(null), false);
+  assert.equal(dashboardClientFilter({ enabled: true, staff: false, requestedId: otherId, knownIds: known }), null);
+  assert.equal(dashboardClientFilter({ enabled: false, staff: true, requestedId: otherId, knownIds: known }), null);
+  assert.equal(dashboardClientFilter({ enabled: true, staff: true, requestedId: "missing", knownIds: known }), null);
+  assert.equal(dashboardClientFilter({ enabled: true, staff: true, requestedId: "all", knownIds: known }), null);
+  const staffWhere = dashboardCampaignWhere({
+    workspaceId: "org",
+    platforms: ["meta", "stackadapt"],
+    clientId: dashboardClientFilter({ enabled: true, staff: true, requestedId: "client_cedar", knownIds: known }),
+  });
+  assert.equal(staffWhere.clientId, "client_cedar");
+  for (const kind of ["super_admin", "account_manager", "all_clients_viewer", "staff"] as const) {
+    assert.equal(canSwitchMarketingClient({ kind }), true);
+  }
+  const client = stackAdaptClientModel();
+  const printed = JSON.stringify(client);
+  assert.equal(printed.includes(otherId), false);
+  assert.equal(printed.includes(otherName), false);
+  assert.equal(printed.toLowerCase().includes("88.5"), false);
+  for (const word of MONEY_WORDS) assert.equal(printed.toLowerCase().includes(word), false, word);
+  const query = readFileSync(path.join(ROOT, "lib/marketing/dashboard-query.ts"), "utf8");
+  const page = readFileSync(path.join(ROOT, "app/(app)/marketing/page.tsx"), "utf8");
+  const clientPage = readFileSync(path.join(ROOT, "app/(app)/marketing/client/page.tsx"), "utf8");
+  const sharePage = readFileSync(path.join(ROOT, "app/share/[token]/page.tsx"), "utf8");
+  assert.match(query, /dashboardClientFilter/);
+  assert.match(query, /canSwitchMarketingClient/);
+  assert.match(page, /resolveDashboardClient/);
+  assert.match(clientPage, /clientId: null/);
+  assert.match(sharePage, /clientId: null/);
+  assert.equal(clientPage.includes("resolveDashboardClient"), false);
+  assert.equal(sharePage.includes("resolveDashboardClient"), false);
 });
 
 test("dashboard reads do not write budgets or ad accounts", () => {

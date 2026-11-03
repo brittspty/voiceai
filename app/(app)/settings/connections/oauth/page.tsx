@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { denyAccess } from "@/lib/deny";
 import { canUseChannelRegistry, exampleRegistryState, platformByKey } from "@/lib/marketing/channels/registry";
-import { channelRegistryEnabled, jarvisUiV2Enabled } from "@/lib/marketing/config";
+import { RealEmpty } from "@/components/jarvis/real-home";
+import { channelRegistryEnabled, jarvisUiV2Enabled, marketingClientSwitcherEnabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { one, type SP } from "@/lib/params";
 
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 /** Mock provider window. Read-only scopes only. No outbound call. */
 export default async function OauthMockPage({ searchParams }: { searchParams: Promise<SP> }) {
   if (!jarvisUiV2Enabled() || !channelRegistryEnabled()) redirect("/settings/connections");
+  if (marketingClientSwitcherEnabled()) return <RealEmpty title="Connect" detail="Not connected yet." />;
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
   if (!canUseChannelRegistry(access)) denyAccess();

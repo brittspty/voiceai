@@ -201,6 +201,16 @@ export function canApproveMarketing(access: MarketingAccess) {
   return access.kind === "super_admin" || access.kind === "account_manager";
 }
 
+const CLIENT_SWITCH_KINDS = new Set(["super_admin", "account_manager", "all_clients_viewer", "staff"]);
+
+/**
+ * Staff who may pick a marketing client on the campaign dashboard.
+ * Client owners, client viewers, and share links are not in this set.
+ */
+export function canSwitchMarketingClient(access: { kind: string } | null | undefined) {
+  return Boolean(access && CLIENT_SWITCH_KINDS.has(access.kind));
+}
+
 export function canEditCampaignBudget(access: MarketingAccess, input: { adAccountId: string; campaignId: string }) {
   if (!access.canEditBudget) return false;
   return coversCampaign(access, input);

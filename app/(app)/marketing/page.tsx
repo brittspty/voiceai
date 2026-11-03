@@ -22,7 +22,7 @@ import {
   adFatigueEnabled,
 } from "@/lib/marketing/config";
 import { parseDashQuery } from "@/lib/marketing/dashboard-model";
-import { loadDashboardForAccess } from "@/lib/marketing/dashboard-query";
+import { loadDashboardForAccess, resolveDashboardClient } from "@/lib/marketing/dashboard-query";
 import { loadFatigueBoard } from "@/lib/marketing/fatigue-job";
 import { canReviewSearchWaste, canViewHoldouts, canWatchCompetitors } from "@/lib/marketing/feature-access";
 import { loadPacingBoard } from "@/lib/marketing/pacing-job";
@@ -82,9 +82,16 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
     );
   }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { name: true } });
+  const parsed = parseDashQuery(query);
+  const scope = await resolveDashboardClient({
+    workspaceId: access.workspaceId,
+    requestedId: parsed.clientId,
+    access,
+    mode: "staff",
+  });
   const [data, features] = await Promise.all([
-    loadDashboardForAccess(access, "staff", org?.name || "Campaigns"),
-    loadFeatureCards({ workspaceIds: [access.workspaceId], showMoney: access.seesCost }),
+    loadDashboardForAccess(access, "staff", org?.name || "Campaigns", undefined, scope),
+    loadFeatureCards({ workspaceIds: [access.workspaceId], showMoney: access.seesCost, clientId: scope.clientId }),
   ]);
-  return <MarketingDashboard model={data} query={parseDashQuery(query)} basePath="/marketing" features={features} />;
+  return <MarketingDashboard model={data} query={{ ...parsed, clientId: scope.clientId }} basePath="/marketing" features={features} />;
 }

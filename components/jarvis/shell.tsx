@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { SENSITIVE_CAPTURE_ATTRIBUTE, sensitiveCaptureClass } from "@/lib/analytics/capture";
 import { BRAND_TAGLINE, PRODUCT_WORDMARK } from "@/lib/brand";
@@ -17,6 +17,7 @@ export function JarvisShell({
   unread,
   moreChannels,
   account,
+  realClients,
   children,
 }: {
   productName: string;
@@ -27,9 +28,16 @@ export function JarvisShell({
   unread: number;
   moreChannels?: string | null;
   account?: { name: string; email: string; showTeam: boolean; showRoles: boolean; showPeople: boolean };
+  realClients?: { id: string; name: string }[];
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathClient = pathname.startsWith("/c/") ? pathname.split("/")[2] || "" : "";
+  const rawClient = pathClient && pathClient !== "all" ? pathClient : params.get("client") || "";
+  const selectedClient = realClients?.some((client) => client.id === rawClient) ? rawClient : "";
+  const hrefFor = (href: string) => (realClients ? href.replace(/^\/c\/all(?=\/)/, `/c/${selectedClient || "all"}`) : href);
   const [more, setMore] = useState(false);
   const groups: { name: string; items: NavItem[] }[] = [];
   for (const item of items) {
@@ -58,9 +66,10 @@ export function JarvisShell({
             <div key={group.name}>
               <h6>{group.name}</h6>
               {group.items.map((item) => {
-                const on = navActive(pathname, item.href);
+                const href = hrefFor(item.href);
+                const on = navActive(pathname, href);
                 return (
-                  <Link key={item.href} href={item.href} className={on ? "on" : undefined} aria-current={on ? "page" : undefined}>
+                  <Link key={item.href} href={href} className={on ? "on" : undefined} aria-current={on ? "page" : undefined}>
                     {item.label}
                     {item.count ? <span className="ct">{item.count}</span> : null}
                   </Link>
@@ -81,10 +90,40 @@ export function JarvisShell({
               <b>{unread}</b>
             </Link>
           </header>
+          {realClients ? (
+            <div className="ctl" style={{ padding: "16px 40px 0" }}>
+              <label htmlFor="jarvis-client">Client</label>
+              <select
+                id="jarvis-client"
+                aria-label="Client"
+                className="sel"
+                value={selectedClient}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  if (pathname.startsWith("/c/")) {
+                    const parts = pathname.split("/");
+                    parts[2] = next || "all";
+                    router.push(parts.join("/"));
+                    return;
+                  }
+                  const query = new URLSearchParams(params.toString());
+                  if (next) query.set("client", next);
+                  else query.delete("client");
+                  const text = query.toString();
+                  router.push(text ? `${pathname}?${text}` : pathname);
+                }}
+              >
+                <option value="">All clients</option>
+                {realClients.map((client) => (
+                  <option key={client.id} value={client.id}>{client.name}</option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           {children}
           <nav className="tabbar" aria-label="Main">
             {mobile.map((item) => (
-              <Link key={item.href} href={item.href} className={navActive(pathname, item.href) ? "on" : undefined}>
+              <Link key={item.href} href={hrefFor(item.href)} className={navActive(pathname, hrefFor(item.href)) ? "on" : undefined}>
                 {item.label}
                 {item.href === "/decisions" ? ` ${items.find((row) => row.href === "/decisions")?.count ?? ""}` : ""}
               </Link>
@@ -100,7 +139,7 @@ export function JarvisShell({
               {items
                 .filter((item) => !mobile.some((row) => row.href === item.href))
                 .map((item) => (
-                  <Link key={item.href} href={item.href} onClick={() => setMore(false)}>
+                  <Link key={item.href} href={hrefFor(item.href)} onClick={() => setMore(false)}>
                     {item.label}
                   </Link>
                 ))}

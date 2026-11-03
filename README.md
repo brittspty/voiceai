@@ -170,6 +170,7 @@ A live sync needs a Meta system user token and the app that issued it:
 | `MARKETING_HOLDOUTS` | `off` (default). `on` stores a holdout design, assignment, and lift readout. It does not change ads or budgets |
 | `META_AD_LIBRARY_COUNTRIES` | Countries for Ad Library search. Default `US` |
 | `MARKETING_DASHBOARDS_V2` | `off` (default). `on` shows the campaign dashboards (staff overview, drill-down, client view, share links, and onboarding lead value). Spend, budget, and estimated ROAS stay limited to super admins and account managers. The screens only read synced rows |
+| `MARKETING_CLIENT_SWITCHER` | `off` (default). `on` adds the staff client dropdown and replaces sample Jarvis home, channel, nav, and audience screens with real `MarketingClient` rows and synced Meta, Google Ads, and StackAdapt metrics. Empty channels say Not connected yet or No data yet. Clients, client viewers, and share links ignore `?client=` and still never see spend |
 | `MARKETING_GOOGLE_ADS` | `off` (default). When on, Google Ads sync runs and the dashboards include `google_ads` rows. Meta rows show either way |
 | `MARKETING_SUPER_ADMIN_EMAILS` | Comma-separated emails treated as super admins. Unset means nobody. A database role of `super_admin` still counts. |
 | `DATABASE_URL` | Postgres URL the CLI writes to. Required for `npm run meta:sync` unless you pass `--dry-run` |
@@ -180,7 +181,7 @@ Set the same variables on the app and the worker, then restart the worker. `npm 
 
 ### StackAdapt
 
-Read-only GraphQL. `INTEGRATIONS_MODE` stays `mock` and does not gate this connector. A live request needs `STACKADAPT_SYNC=on`, `STACKADAPT_API_KEY`, and `MARKETING_SYNC_MODE=live` or `auto` (the default) once that key is set. `MARKETING_SYNC_MODE=mock` loads fixtures and makes no request. `off` skips. The sync, backfill, and probe request only advertisers mapped on a client with StackAdapt live read on. The client refuses mutations. Clients, client viewers, and share links do not see spend, cost, CPA, CPL, CPx, ROAS, budget, or bid.
+Read-only GraphQL. `INTEGRATIONS_MODE` stays `mock` and does not gate this connector. A live request needs `STACKADAPT_SYNC=on`, `STACKADAPT_API_KEY`, and `MARKETING_SYNC_MODE=live` or `auto` (the default) once that key is set. `MARKETING_SYNC_MODE=mock` loads fixtures and makes no request. `off` skips. The sync, backfill, and probe request only advertisers mapped on a client with StackAdapt live read on. The client refuses mutations. Clients, client viewers, and share links do not see spend, cost, CPA, CPL, CPx, ROAS, budget, or bid. When `STACKADAPT_SYNC` or `MARKETING_STACKADAPT` is on, the campaign dashboard includes StackAdapt next to Meta and Google Ads.
 
 `tsx scripts/stackadapt-client-scope.ts --name "Client" --advertisers 1001` links a client. `tsx scripts/stackadapt-backfill.ts --days 30` backfills up to 90 days. `tsx scripts/stackadapt-probe.ts --advertiser 1001` prints campaign count, the date range, and impression, click, and conversion totals. It does not print the key.
 

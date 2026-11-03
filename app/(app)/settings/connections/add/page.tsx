@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { ChannelCatalog } from "@/components/jarvis/channel-catalog";
+import { RealEmpty } from "@/components/jarvis/real-home";
 import { requireUser } from "@/lib/auth";
 import { denyAccess } from "@/lib/deny";
 import { EXAMPLE_ACCOUNTS, EXAMPLE_CLIENTS, canUseChannelRegistry, capabilityCheck, exampleRegistryState, presentCatalog } from "@/lib/marketing/channels/registry";
-import { channelRegistryEnabled, jarvisUiV2Enabled } from "@/lib/marketing/config";
+import { channelRegistryEnabled, jarvisUiV2Enabled, marketingClientSwitcherEnabled } from "@/lib/marketing/config";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { one, type SP } from "@/lib/params";
 
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AddChannelPage({ searchParams }: { searchParams: Promise<SP> }) {
   if (!jarvisUiV2Enabled() || !channelRegistryEnabled()) redirect("/settings/connections");
+  if (marketingClientSwitcherEnabled()) return <RealEmpty title="Add a channel" detail="Not connected yet." />;
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
   if (!canUseChannelRegistry(access)) denyAccess();

@@ -1,5 +1,6 @@
 import type { Env } from "../config";
-import { audienceDataClientEnabled, audienceDataEnabled, resolutionDataEnabled } from "../config";
+import { audienceDataClientEnabled, audienceDataEnabled, marketingClientSwitcherEnabled, resolutionDataEnabled } from "../config";
+import { emptyAudiencePayload } from "../real-view";
 import { forSpendViewer } from "../spend-access";
 import { canOpenAudienceData, audienceSourceDetail, listAudienceSources, readClientAudienceData } from "./present";
 import { readResolution } from "./resolution";
@@ -18,7 +19,8 @@ export function audienceListBody(input: {
   env?: Env;
 }) {
   const access = input.access;
-  const env = input.env;
+  const env = input.env ?? process.env;
+  if (marketingClientSwitcherEnabled(env)) return { status: 200, body: forSpendViewer(emptyAudiencePayload(), access, env) };
   if (clientKind(access.kind)) {
     if (!audienceDataClientEnabled(env)) return { status: 404, body: { error: "Off" } };
     const result = readClientAudienceData({
@@ -50,7 +52,8 @@ export function audienceDetailBody(input: {
   env?: Env;
 }) {
   const access = input.access;
-  const env = input.env;
+  const env = input.env ?? process.env;
+  if (marketingClientSwitcherEnabled(env)) return { status: 200, body: forSpendViewer(emptyAudiencePayload(), access, env) };
   if (clientKind(access.kind)) {
     if (!audienceDataClientEnabled(env)) return { status: 404, body: { error: "Off" } };
     const result = readClientAudienceData({
@@ -79,7 +82,8 @@ export function audienceResolutionBody(input: {
   env?: Env;
 }) {
   const access = input.access;
-  const env = input.env;
+  const env = input.env ?? process.env;
+  if (marketingClientSwitcherEnabled(env)) return { status: 200, body: forSpendViewer(emptyAudiencePayload(), access, env) };
   if (!resolutionDataEnabled(env)) return { status: 404, body: { error: "Off" } };
   if (clientKind(access.kind)) {
     if (!audienceDataClientEnabled(env)) return { status: 404, body: { error: "Off" } };

@@ -65,6 +65,33 @@ function onOrOff(on: boolean, off: string, detail: string | null, empty: string)
   return detail || empty;
 }
 
+/** Legacy sentences stay put when StackAdapt is off and has no rows. */
+export function adPlatformsDetail(input: {
+  googleOn: boolean;
+  hasGoogleRows: boolean;
+  stackAdaptOn?: boolean;
+  hasStackAdaptRows?: boolean;
+}) {
+  const stackOn = Boolean(input.stackAdaptOn);
+  const stackRows = Boolean(input.hasStackAdaptRows);
+  if (!stackOn && !stackRows) {
+    if (!input.googleOn) return "Meta is in this view. Google is off.";
+    if (!input.hasGoogleRows) return "Meta is in this view. Google is on, with no rows yet.";
+    return "Meta and Google are in this view.";
+  }
+  const present = ["Meta"];
+  if (input.hasGoogleRows) present.push("Google");
+  if (stackRows) present.push("StackAdapt");
+  const sentences: string[] = [];
+  if (present.length === 1) sentences.push("Meta is in this view.");
+  else if (present.length === 2) sentences.push(`${present[0]} and ${present[1]} are in this view.`);
+  else sentences.push(`${present.slice(0, -1).join(", ")}, and ${present[present.length - 1]} are in this view.`);
+  if (input.googleOn && !input.hasGoogleRows) sentences.push("Google is on, with no rows yet.");
+  else if (!input.googleOn && !input.hasGoogleRows) sentences.push("Google is off.");
+  if (stackOn && !stackRows) sentences.push("StackAdapt is on, with no rows yet.");
+  return sentences.join(" ");
+}
+
 export function homeFeatures(input: {
   googleOn: boolean;
   hasGoogleRows: boolean;
@@ -85,16 +112,14 @@ export function homeFeatures(input: {
   competitorsDetail: string | null;
   holdoutsOn: boolean;
   holdoutsDetail: string | null;
+  stackAdaptOn?: boolean;
+  hasStackAdaptRows?: boolean;
 }): HomeFeature[] {
   const features: HomeFeature[] = [
     {
       id: "platforms",
       title: "Ad platforms",
-      detail: input.googleOn
-        ? input.hasGoogleRows
-          ? "Meta and Google are in this view."
-          : "Meta is in this view. Google is on, with no rows yet."
-        : "Meta is in this view. Google is off.",
+      detail: adPlatformsDetail(input),
     },
     {
       id: "speed",
