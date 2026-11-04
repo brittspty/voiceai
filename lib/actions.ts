@@ -14,6 +14,7 @@ import { audit } from "./audit";
 import { canOpenOperatorSettings, canWrite, inviteRoleAllowed, isOwner, isSuperAdmin, requireStaffUser, requireUser } from "./auth";
 import { denyAccess } from "./deny";
 import { appUrl } from "./env";
+import { decideAcceptInvite, type AcceptInviteResult } from "./invite-accept";
 import { sendInviteEmail } from "./mail";
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "./db";
@@ -412,15 +413,20 @@ export async function inviteTeammate(input: { name: string; email: string; role:
   return { emailed: mailed.sent, link: mailed.sent ? "" : link };
 }
 
-export async function acceptInvite(input: { token: string; password: string }) {
-  const password = input.password;
-  if (password.length < 10) throw new Error("Use at least 10 characters.");
+export async function acceptInvite(input: { token: string; password: string }): Promise<AcceptInviteResult> {
   const invite = await prisma.invite.findUnique({ where: { tokenHash: hashInviteToken(input.token.trim()) } });
-  if (!invite || invite.expiresAt.getTime() < Date.now()) throw new Error("This invite link is no longer valid. Ask for a new one.");
-  if (await prisma.user.findUnique({ where: { email: invite.email } })) throw new Error("That person already has an account.");
-  const passwordHash = await bcrypt.hash(password, 10);
+  const existing = invite ? await prisma.user.findUnique({ where: { email: invite.email } }) : null;
+  const decision = decideAcceptInvite({
+    password: input.password,
+    invite: invite ? { expiresAt: invite.expiresAt.getTime() } : null,
+    userExists: Boolean(existing),
+    now: Date.now(),
+  });
+  if (decision.status !== "done" || !invite) return decision;
+  const passwordHash = await bcrypt.hash(input.password, 10);
   await prisma.user.create({ data: { name: invite.name, email: invite.email, role: invite.role, passwordHash } });
   await prisma.invite.delete({ where: { id: invite.id } });
+  return decision;
 }
 
 export async function requestAccess(input: { name: string; email: string; business: string }) {
