@@ -3,7 +3,7 @@ import { demoWorkspaceEnabled } from "../lib/demo/flags";
 import { reseedDue } from "../lib/demo/reseed";
 import { applyDemoDataset } from "../lib/demo/seed-apply";
 import { runJob } from "../lib/dialer";
-import { adFatigueEnabled, amRealtimeEnabled, creativeFatigueEnabled, ctvAttributionEnabled, digestEnabled, googleBusinessProfileEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, skillApprovalFanoutEnabled, speedToLeadEnabled, stackAdaptCtvLiveEnabled, stackAdaptSyncEnabled } from "../lib/marketing/config";
+import { adFatigueEnabled, amRealtimeEnabled, creativeFatigueEnabled, ctvAttributionEnabled, decisionsV1Enabled, digestEnabled, googleBusinessProfileEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, skillApprovalFanoutEnabled, speedToLeadEnabled, stackAdaptCtvLiveEnabled, stackAdaptSyncEnabled } from "../lib/marketing/config";
 import { runAdFatigue } from "../lib/marketing/ad-fatigue-job";
 import { runAmRealtimeFeed } from "../lib/marketing/feed-job";
 import { ensureSkillOfferInbox } from "../lib/marketing/skill-approval-job";
@@ -12,6 +12,7 @@ import { runGoogleBusinessProfile } from "../lib/marketing/gbp-sync";
 import { runPacingRecs } from "../lib/marketing/pacing-job";
 import { runStoredOfflineCycle } from "../lib/marketing/offline/persist";
 import { runPageMonitor } from "../lib/marketing/pages/store";
+import { runStoredDecisionRules } from "../lib/marketing/decisions/run";
 import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
 import { runStackAdaptSync } from "../lib/marketing/stackadapt-sync";
 import { runStackAdaptCtvAttribution } from "../lib/marketing/ctv/attribution-sync";
@@ -119,6 +120,9 @@ function startMarketingSync() {
       if (monitorEnabled() && result.status === "succeeded") {
         const monitored = await runStoredMonitor();
         if (monitored.status === "ran") console.log(`[worker] marketing monitor alerts ${monitored.alerts}`);
+      } else if (decisionsV1Enabled()) {
+        const decided = await runStoredDecisionRules();
+        if (decided.status === "ran") console.log(`[worker] decisions ${decided.written}`);
       }
       try {
         const google = await runGoogleAdsSync();

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { buildReport } from "@/lib/marketing/reports/guard";
 import { buildReportPdf } from "@/lib/marketing/reports/pdf";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
+import { decisionsRequestStatus, rejectsDecisionsRequest } from "@/lib/marketing/decisions/access";
 import { forSpendViewer } from "@/lib/marketing/spend-access";
 import type { ClientReport, StaffReport } from "@/lib/marketing/reports/types";
 
@@ -16,6 +17,9 @@ export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   const url = new URL(request.url);
+  if (rejectsDecisionsRequest(url)) {
+    return NextResponse.json({ error: "Not allowed" }, { status: decisionsRequestStatus({ surface: "export", enabled: true, signedIn: true, kind: null }) });
+  }
   const query = Object.fromEntries(url.searchParams.entries());
   const built = await buildReport(user, query);
   if (!built) return NextResponse.json({ error: "Reports are turned off" }, { status: 404 });

@@ -14,6 +14,7 @@ import { requestClientMeta } from "@/lib/marketing/request-meta";
 import { ctvAttributionCsv, type CtvAttributionPage } from "@/lib/marketing/ctv/attribution";
 import { ctvExportCsv, type CtvChannelPage } from "@/lib/marketing/ctv/channel";
 import { attachShareCtv } from "@/lib/marketing/ctv/sync";
+import { decisionsRequestStatus, rejectsDecisionsRequest } from "@/lib/marketing/decisions/access";
 import { hashShareToken, SHARE_PASS_COOKIE, shareAccessDecision, shareHttpStatus, shareLinkState } from "@/lib/marketing/share-link";
 
 async function releaseShare<T>(workspaceId: string, payload: T): Promise<T> {
@@ -51,6 +52,10 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   if (decision !== "ok" || !link) return shareResponse(NextResponse.json({ error: "Link not found" }, { status: 404 }));
   const meta = requestClientMeta(request.headers);
   const url = new URL(request.url);
+  if (rejectsDecisionsRequest(url)) {
+    const surface = url.pathname.endsWith("/export") ? "export" : "share";
+    return shareResponse(NextResponse.json({ error: "Not allowed" }, { status: decisionsRequestStatus({ surface, enabled: true, signedIn: true, kind: null }) }));
+  }
   const isExport = url.pathname.endsWith("/export");
   await recordClientView({
     workspaceId: link.workspaceId,

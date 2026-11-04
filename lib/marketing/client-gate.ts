@@ -1,7 +1,10 @@
-import { audienceDataClientEnabled, audienceDataP1Enabled, jarvisUiV2Enabled, reportsP1Enabled, type Env } from "./config";
+import { audienceDataClientEnabled, audienceDataP1Enabled, decisionsV1Enabled, jarvisUiV2Enabled, reportsP1Enabled, type Env } from "./config";
 
 /** Paths a signed-in client viewer may open. Everything else is blocked. */
 export function clientViewerAllowed(pathname: string, env: Env = process.env) {
+  if (decisionsV1Enabled(env) && (pathname === "/decisions" || pathname.startsWith("/decisions/") || pathname === "/api/marketing/decisions" || pathname.startsWith("/api/marketing/decisions/"))) {
+    return false;
+  }
   if (pathname === "/") return true;
   if (pathname === "/marketing/client") return true;
   if (pathname === "/marketing/segments" || pathname === "/marketing/segments/lineage" || pathname === "/marketing/segments/drill" || pathname === "/marketing/segments/tests") return true;

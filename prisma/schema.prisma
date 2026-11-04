@@ -135,6 +135,7 @@ model User {
   clientViews        ClientViewAudit[]
   digests            ManagerDigest[]
   recommendationDecisions Recommendation[] @relation("RecommendationDecision")
+  decisionAudits         DecisionAudit[]
   leadScoreOverrides     LeadScore[]       @relation("LeadScoreOverride")
   negativeDecisions  NegativeProposal[] @relation("NegativeDecision")
   competitorsCreated Competitor[]       @relation("CompetitorCreatedBy")
@@ -981,6 +982,13 @@ enum RecommendationType {
   ad_fatigue
   stackadapt
   business_profile
+  ctr_drift
+  conversion_drift
+  conversion_gap
+  stale_campaign
+  ctv_frequency
+  ctv_outlier
+  ad_underperformance
 }
 
 enum CreativeVersionStatus {
@@ -1133,11 +1141,19 @@ model AdAlert {
   syncRunId     String?
   dataLandedAt  DateTime
   detectedAt    DateTime
+  /// Marketing client copied from the campaign. Empty on older rows.
+  clientId      String        @default("")
+  /// ad id + alert code. Empty until a write or the collapse script fills it.
+  dedupeKey     String        @default("")
+  lastSeenAt    DateTime?
+  archivedAt    DateTime?
   createdAt     DateTime      @default(now())
 
   @@index([adAccountId, createdAt])
   @@index([campaignId])
   @@index([detectedAt])
+  @@index([adId, code])
+  @@index([archivedAt])
 }
 
 model Recommendation {
@@ -1151,6 +1167,15 @@ model Recommendation {
   campaign              Campaign?            @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   adAccountId           String?
   adAccount             AdAccount?           @relation(fields: [adAccountId], references: [id], onDelete: SetNull)
+  clientId              String?
+  client                MarketingClient?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  /// type + client + campaign/ad + rule. Empty on rows written before dedupe.
+  dedupeKey             String               @default("")
+  rule                  String               @default("")
+  severity              String               @default("")
+  lastSeenAt            DateTime?
+  snoozedUntil          DateTime?
+  archivedAt            DateTime?
   title                 String
   summary               String
   rationale             String
@@ -1174,10 +1199,32 @@ model Recommendation {
   decidedAt             DateTime?
   decisionNote          String               @default("")
   createdAt             DateTime             @default(now())
+  audits                DecisionAudit[]
 
   @@index([status, createdAt])
   @@index([adAccountId])
   @@index([campaignId])
+  @@index([dedupeKey])
+  @@index([clientId, status])
+  @@index([archivedAt])
+}
+
+/// Who approved, dismissed, or snoozed a recommendation, and the note they left.
+model DecisionAudit {
+  id               String         @id @default(cuid())
+  workspaceId      String         @default("org")
+  recommendationId String
+  recommendation   Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  action           String
+  reason           String         @default("")
+  note             String         @default("")
+  snoozeUntil      DateTime?      @db.Date
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  createdAt        DateTime       @default(now())
+
+  @@index([recommendationId, createdAt])
+  @@index([userId])
 }
 
 model ManagerDigest {
@@ -1605,9 +1652,10 @@ model MarketingClient {
   updatedAt    DateTime              @updatedAt
   accounts     AdAccount[]
   campaigns    Campaign[]
-  pages        LandingPage[]
-  settings     ClientPageSetting[]
-  credentials  PageWriteCredential[]
+  pages           LandingPage[]
+  settings        ClientPageSetting[]
+  credentials     PageWriteCredential[]
+  recommendations Recommendation[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
