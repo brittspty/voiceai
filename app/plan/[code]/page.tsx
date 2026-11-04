@@ -1,5 +1,7 @@
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
+import { forbidden, notFound } from "next/navigation";
+import type { SP } from "@/lib/params";
+import { decisionsRequestStatus } from "@/lib/marketing/decisions/access";
 import { PlanClosed } from "@/components/plan-closed";
 import { PlanDocument } from "@/components/plan-document";
 import { prisma } from "@/lib/db";
@@ -12,7 +14,10 @@ import { loadPlanAttribution } from "@/lib/marketing/ctv/attribution-query";
 import { loadPlanCtv } from "@/lib/marketing/ctv/channel-query";
 import { loadPlanDashboard, planRecord, recordPlanView } from "@/lib/plans/store";
 
-export default async function PublicPlanPage({ params }: { params: Promise<{ code: string }> }) {
+export default async function PublicPlanPage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<SP> }) {
+  const query = await searchParams;
+  const asked = Array.isArray(query.decisions) ? query.decisions[0] : query.decisions;
+  if (asked && decisionsRequestStatus({ surface: "plan", enabled: true, signedIn: false, kind: null }) === 403) forbidden();
   if (!clientPlansEnabled()) notFound();
   const parsed = parsePlanCode((await params).code);
   if (!parsed) notFound();

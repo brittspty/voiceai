@@ -1,4 +1,7 @@
 .jarvis { --brand: #ff5800; --brand-ink: #b33e00; --j-ink: #231f20; --n2: #3f3f3f; --n3: #6b6b6b; --j-line: #e6e6e6; --soft: #f7f7f7; --ok: #15803d; --warn: #b45309; --err: #b91c1c; --mono: var(--font-label), "IBM Plex Mono", ui-monospace, Menlo, monospace; color: var(--j-ink); background: #fff; font-feature-settings: "tnum"; }
+.jarvis .decisions-v1 :focus-visible { outline: 3px solid #ff5800; outline-offset: 2px; }
+.jarvis .decisions-v1 a { color: #231f20; }
+.jarvis .decisions-v1 a:hover { color: #b33e00; }
 .jarvis a { color: var(--brand-ink); }
 .jarvis :focus-visible { outline: 3px solid #2b7bb9; outline-offset: 2px; }
 .jarvis .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }

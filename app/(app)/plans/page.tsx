@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import type { SP } from "@/lib/params";
+import { decisionsRequestStatus } from "@/lib/marketing/decisions/access";
 import { PageTitle } from "@/components/shell";
 import { requireUser } from "@/lib/auth";
 import { denyAccess } from "@/lib/deny";
@@ -7,7 +9,13 @@ import { createPlan } from "@/lib/plans/actions";
 import { clientPlansEnabled } from "@/lib/plans/flags";
 import { canEditPlans } from "@/lib/plans/plan";
 
-export default async function PlansPage() {
+export default async function PlansPage({ searchParams }: { searchParams: Promise<SP> }) {
+  const query = await searchParams;
+  const asked = Array.isArray(query.decisions) ? query.decisions[0] : query.decisions;
+  if (asked) {
+    const status = decisionsRequestStatus({ surface: "plan", enabled: true, signedIn: true, kind: null });
+    if (status === 403) denyAccess();
+  }
   if (!clientPlansEnabled()) notFound();
   const user = await requireUser();
   if (!canEditPlans(user.role)) denyAccess();

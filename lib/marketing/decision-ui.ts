@@ -200,6 +200,17 @@ export function visibleDecisionCards<T extends { type: string; metric: string; a
   },
 ) {
   return cards.filter((card) => {
+    if (
+      card.type === "ctr_drift" ||
+      card.type === "conversion_drift" ||
+      card.type === "conversion_gap" ||
+      card.type === "stale_campaign" ||
+      card.type === "ctv_frequency" ||
+      card.type === "ctv_outlier" ||
+      card.type === "ad_underperformance"
+    ) {
+      return false;
+    }
     if (RECOMMEND_ONLY.has(card.type)) {
       const enabled =
         (card.type === "ad_fatigue" && input.adFatigue) ||

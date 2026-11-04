@@ -3,9 +3,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { readScopedClient } from "@/lib/marketing/client-contract";
 import { clientShareCsv, type ClientShareView } from "@/lib/marketing/client-view";
 import { loadClientPerformance, loadMarketingAccess, recordClientView } from "@/lib/marketing/queries";
+import { rejectsDecisionsRequest } from "@/lib/marketing/decisions/access";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
 
 export async function GET(request: Request) {
+  const url = new URL(request.url);
+  if (rejectsDecisionsRequest(url)) return NextResponse.json({ error: "Not allowed" }, { status: 403 });
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   const access = await loadMarketingAccess(user);

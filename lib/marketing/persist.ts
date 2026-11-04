@@ -3,6 +3,7 @@ import { accessFromUser } from "./access";
 import {
   alertMinImpressions,
   baselineDays,
+  decisionsV1Enabled,
   digestEnabled,
   leadScoringEnabled,
   monitorEnabled,
@@ -20,6 +21,10 @@ import { leadQualityDigestNote } from "./lead-score/summary";
 import { waitingForMarkCount } from "./lead-score/store";
 import { evaluateAds, type HourPoint, type HumanBudget, type MetricPoint } from "./monitor";
 import { verifyRecommendation } from "./recommendations";
+import { recommendationDedupeKey } from "./decisions/key";
+import { budgetSteps } from "./decisions/rules";
+import { runStoredDecisionRules } from "./decisions/run";
+import { budgetPeriod, upsertOpenAlert, upsertOpenRecommendation } from "./decisions/store";
 import { speedDigestItems } from "./speed-to-lead-store";
 import { addDaysISO, zonedISODate } from "../time";
 
@@ -90,12 +95,21 @@ export async function runStoredMonitor(now = new Date()) {
     alertMinImpressions: alertMinImpressions(),
     benchmarks: verticalBenchmarks(),
   });
+  const campaignIds = [...new Set([...evaluated.alerts, ...evaluated.drafts].map((row) => row.campaignId))];
+  const campaigns = campaignIds.length
+    ? await prisma.campaign.findMany({
+        where: { id: { in: campaignIds } },
+        select: { id: true, clientId: true, adAccount: { select: { clientId: true } } },
+      })
+    : [];
+  const clientOf = new Map(campaigns.map((campaign) => [campaign.id, campaign.clientId || campaign.adAccount.clientId || ""]));
   for (const alert of evaluated.alerts) {
-    await prisma.adAlert.create({
-      data: {
+    await upsertOpenAlert(
+      {
         adId: alert.adId,
         adAccountId: alert.adAccountId,
         campaignId: alert.campaignId,
+        clientId: clientOf.get(alert.campaignId) || "",
         severity: alert.severity,
         code: alert.code,
         title: alert.title,
@@ -103,36 +117,54 @@ export async function runStoredMonitor(now = new Date()) {
         metric: alert.metric,
         observed: alert.observed,
         baseline: alert.baseline,
-        windowStart: new Date(`${alert.windowStart}T00:00:00.000Z`),
-        windowEnd: new Date(`${alert.windowEnd}T00:00:00.000Z`),
+        windowStart: alert.windowStart,
+        windowEnd: alert.windowEnd,
         sampleSize: alert.sampleSize,
-        evidence: { metric: alert.metric, baseline: alert.baseline, observed: alert.observed, sampleSize: alert.sampleSize, sourceMetricIds: alert.sourceMetricIds },
+        evidence: { metric: alert.metric, baseline: alert.baseline, observed: alert.observed, sampleSize: alert.sampleSize, sourceMetricIds: alert.sourceMetricIds, code: alert.code },
         sourceMetricIds: alert.sourceMetricIds,
         dataLandedAt: new Date(alert.dataLandedAt),
-        detectedAt: now,
       },
-    });
+      now,
+    );
   }
   const thresholds = { minImpressions: recommendationMinImpressions(), minClicks: recommendationMinClicks(), today, yesterday };
   for (const draft of evaluated.drafts) {
     const check = verifyRecommendation(draft, rows, thresholds);
-    await prisma.recommendation.create({
-      data: {
+    const clientId = clientOf.get(draft.campaignId) || "";
+    const steps = draft.type === "budget_change" || draft.type === "roi" ? budgetSteps() : [
+      "Review the evidence, then make the change in the ad platform.",
+      "Nothing on this screen changes the campaign.",
+    ];
+    await upsertOpenRecommendation(
+      {
         type: draft.type,
-        status: check.status,
-        adId: draft.adId,
+        rule: draft.code,
+        severity: draft.severity === "critical" ? "critical" : draft.severity === "info" ? "info" : "warning",
+        clientId,
+        clientName: "",
         campaignId: draft.campaignId,
-        adAccountId: draft.adAccountId,
+        adId: draft.adId,
         title: draft.title,
         summary: draft.summary,
         rationale: draft.rationale,
         metric: draft.metric,
         baseline: draft.baseline,
         observed: draft.observed,
-        windowStart: new Date(`${draft.windowStart}T00:00:00.000Z`),
-        windowEnd: new Date(`${draft.windowEnd}T00:00:00.000Z`),
+        windowStart: draft.windowStart,
+        windowEnd: draft.windowEnd,
         sampleSize: check.sampleSize,
         sourceMetricIds: draft.sourceMetricIds,
+        steps,
+        writesAds: false,
+        changesSpend: false,
+        budgetWrite: "none",
+        dedupeKey: recommendationDedupeKey({
+          type: draft.type,
+          clientId,
+          campaignId: draft.campaignId,
+          adId: draft.adId,
+          rule: draft.code,
+        }),
         evidence: {
           metric: draft.metric,
           baseline: draft.baseline,
@@ -141,18 +173,33 @@ export async function runStoredMonitor(now = new Date()) {
           windowEnd: draft.windowEnd,
           sampleSize: check.sampleSize,
           sourceMetricIds: draft.sourceMetricIds,
+          code: draft.code,
+          rule: draft.code,
+          steps,
+          writesAds: false,
+          changesSpend: false,
+          budgetWrite: "none",
         },
-        currentBudgetAmount: draft.currentBudgetAmount,
-        currentBudgetPeriod: draft.currentBudgetPeriod,
-        proposedBudgetAmount: draft.proposedBudgetAmount,
-        proposedBudgetPeriod: draft.proposedBudgetPeriod,
-        proposedCurrency: draft.proposedCurrency,
-        verifiedAt: check.status === "verified" ? now : null,
-        verifierNote: check.note,
       },
-    });
+      now,
+      {
+        status: check.status,
+        verifierNote: check.note,
+        adAccountId: draft.adAccountId,
+        currentBudgetAmount: draft.currentBudgetAmount,
+        currentBudgetPeriod: budgetPeriod(draft.currentBudgetPeriod),
+        proposedBudgetAmount: draft.proposedBudgetAmount,
+        proposedBudgetPeriod: budgetPeriod(draft.proposedBudgetPeriod),
+        proposedCurrency: draft.proposedCurrency,
+      },
+    );
   }
-  return { status: "ran" as const, alerts: evaluated.alerts.length, drafts: evaluated.drafts.length };
+  let decisionRules = 0;
+  if (decisionsV1Enabled()) {
+    const ruled = await runStoredDecisionRules(now);
+    decisionRules = ruled.status === "ran" ? ruled.written : 0;
+  }
+  return { status: "ran" as const, alerts: evaluated.alerts.length, drafts: evaluated.drafts.length, decisionRules };
 }
 
 function evidenceReasons(evidence: unknown) {

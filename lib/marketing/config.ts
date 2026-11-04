@@ -411,6 +411,20 @@ export function jarvisUiV2Enabled(env: Env = process.env) {
   return flagOn(env, "JARVIS_UI_V2");
 }
 
+/** Off unless DECISIONS_V1 is explicitly on. /decisions keeps its current screen. */
+export function decisionsV1Enabled(env: Env = process.env) {
+  return flagOn(env, "DECISIONS_V1");
+}
+
+/** Impressions per unique impression before a CTV frequency decision. Default 5. */
+export function ctvFrequencyCap(env: Env = process.env) {
+  const raw = (env.CTV_FREQUENCY_CAP || "").trim();
+  if (!raw) return 5;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 5;
+  return parsed;
+}
+
 /** Off unless CHANNEL_REGISTRY is explicitly on. Existing channel screens stay as they are. */
 export function channelRegistryEnabled(env: Env = process.env) {
   return flagOn(env, "CHANNEL_REGISTRY");
