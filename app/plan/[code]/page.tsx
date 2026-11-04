@@ -8,6 +8,7 @@ import { filterPlanChannels, filterPlanNumbers } from "@/lib/marketing/metric-vi
 import { loadResolvedVisibility } from "@/lib/marketing/metric-visibility-store";
 import { clientPlansEnabled } from "@/lib/plans/flags";
 import { hashToken, parsePlanCode, resolvePublicPlan } from "@/lib/plans/plan";
+import { loadPlanAttribution } from "@/lib/marketing/ctv/attribution-query";
 import { loadPlanCtv } from "@/lib/marketing/ctv/channel-query";
 import { loadPlanDashboard, planRecord, recordPlanView } from "@/lib/plans/store";
 
@@ -29,6 +30,7 @@ export default async function PublicPlanPage({ params }: { params: Promise<{ cod
   const channels = visibility ? filterPlanChannels(plan.channels, visibility) : plan.channels;
   const logoSrc = row.logoMime && row.logoData ? `data:${row.logoMime};base64,${Buffer.from(row.logoData).toString("base64")}` : null;
   const ctv = await loadPlanCtv(plan.clientName);
+  const attribution = await loadPlanAttribution(plan.clientName);
   return (
     <PlanDocument
       plan={{
@@ -45,6 +47,14 @@ export default async function PublicPlanPage({ params }: { params: Promise<{ cod
         dashboard,
         showCost: false,
         ctv,
+        ctvAttribution: attribution
+          ? {
+              label: attribution.viewThroughLabel,
+              viewThrough: attribution.totals.viewConversions,
+              clickThrough: attribution.totals.clickConversions,
+              note: attribution.breakdownNote || attribution.pixelNote || attribution.ipSplitNote,
+            }
+          : null,
       }}
     />
   );

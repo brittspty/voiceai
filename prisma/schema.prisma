@@ -3145,6 +3145,51 @@ model CtvSegmentRead {
   @@index([workspaceId, readAt])
 }
 
+/// Daily StackAdapt conversion attribution for one CTV campaign, pixel, or breakdown.
+/// Spend stays on the row for staff. Client, share, plan, and export responses strip it.
+model CtvAttributionDay {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  clientId          String   @default("")
+  date              DateTime @db.Date
+  platform          String   @default("stackadapt")
+  identityKey       String
+  campaignId        String   @default("")
+  campaignName      String   @default("")
+  /// campaign, pixel, or breakdown. Totals use campaign rows only.
+  grain             String   @default("campaign")
+  pixelId           String   @default("")
+  pixelName         String   @default("")
+  /// publisher, app, device, geo, or empty.
+  breakdown         String   @default("")
+  breakdownName     String   @default("")
+  impressions       BigInt   @default(0)
+  clickConversions  Decimal  @default(0) @db.Decimal(18, 4)
+  viewConversions   Decimal  @default(0) @db.Decimal(18, 4)
+  ipConversions     Decimal  @default(0) @db.Decimal(18, 4)
+  cookieConversions Decimal  @default(0) @db.Decimal(18, 4)
+  spend             Decimal  @default(0) @db.Decimal(18, 4)
+  exampleData       Boolean  @default(false)
+  ingestedAt        DateTime @default(now())
+
+  @@unique([workspaceId, identityKey], map: "CtvAttributionDay_workspace_identity_key")
+  @@index([workspaceId, clientId, date])
+}
+
+/// Whether the last successful read had the IP split, pixel names, and insight breakdowns.
+model CtvAttributionMeta {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  clientId         String
+  ipSplitAvailable Boolean  @default(false)
+  pixelAvailable   Boolean  @default(false)
+  pixelNote        String   @default("")
+  breakdownNote    String   @default("")
+  updatedAt        DateTime @default(now())
+
+  @@unique([workspaceId, clientId], map: "CtvAttributionMeta_workspace_client_key")
+}
+
 model CtvWindowSetting {
   id          String   @id @default(cuid())
   workspaceId String

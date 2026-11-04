@@ -18,6 +18,7 @@ export type PlanDocumentModel = {
   showCost: boolean;
   preview?: boolean;
   ctv?: { note: string; rows: { id: string; name: string; impressions: number; status: string }[] } | null;
+  ctvAttribution?: { label: string; viewThrough: number; clickThrough: number; note: string } | null;
 };
 
 export function PlanDocument({ plan }: { plan: PlanDocumentModel }) {
@@ -54,6 +55,14 @@ export function PlanDocument({ plan }: { plan: PlanDocumentModel }) {
                 ))}
               </ul>
             ) : null}
+          </section>
+        ) : null}
+        {plan.ctvAttribution ? (
+          <section className="mt-8 rounded-2xl border p-5" style={{ borderColor: tone.line, background: tone.card }}>
+            <h2 className="text-lg font-semibold">Site visits after a TV ad</h2>
+            <p className="mt-2 text-sm leading-6">{plan.ctvAttribution.label}</p>
+            <p className="mt-2 text-sm">{plan.ctvAttribution.viewThrough.toLocaleString("en-US")} view-through · {plan.ctvAttribution.clickThrough.toLocaleString("en-US")} click-through</p>
+            {plan.ctvAttribution.note ? <p className="mt-2 text-sm leading-6">{plan.ctvAttribution.note}</p> : null}
           </section>
         ) : null}
         {plan.timeline ? <Block title="Timeline" body={plan.timeline} /> : null}

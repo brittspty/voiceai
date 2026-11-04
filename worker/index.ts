@@ -14,6 +14,7 @@ import { runStoredOfflineCycle } from "../lib/marketing/offline/persist";
 import { runPageMonitor } from "../lib/marketing/pages/store";
 import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
 import { runStackAdaptSync } from "../lib/marketing/stackadapt-sync";
+import { runStackAdaptCtvAttribution } from "../lib/marketing/ctv/attribution-sync";
 import { runStackAdaptCtvSync } from "../lib/marketing/ctv/live-sync";
 import { runCtvAttributionSync } from "../lib/marketing/ctv/sync";
 import { runGoogleAdsSync } from "../lib/marketing/google-sync";
@@ -159,6 +160,12 @@ function startMarketingSync() {
         if (stackAdaptCtvLiveEnabled()) {
           const ctv = await runStackAdaptCtvSync();
           if (ctv.status !== "skipped") console.log(`[worker] ctv delivery ${ctv.status}`);
+          try {
+            const attribution = await runStackAdaptCtvAttribution();
+            if (attribution.status !== "skipped") console.log(`[worker] ctv pixel attribution ${attribution.status}`);
+          } catch (error) {
+            console.error("[worker] ctv pixel attribution failed", error);
+          }
         }
       } catch (error) {
         console.error("[worker] ctv attribution failed", error);
