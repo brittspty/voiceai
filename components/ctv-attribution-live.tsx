@@ -108,7 +108,7 @@ export function CtvAttributionLive({ model }: { model: CtvAttributionPage }) {
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-muted">{model.pixelNote || "No pixel conversions in this range."}</p>
+          <p className="mt-3 text-sm text-muted">{model.pixelNote || "No conversions in this range."}</p>
         )}
       </section>
       <section className="rounded-xl border border-line bg-card p-4">

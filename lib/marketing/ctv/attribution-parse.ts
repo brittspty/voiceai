@@ -56,10 +56,11 @@ function text(value: unknown) {
   return typeof value === "string" ? value.trim() : typeof value === "number" && Number.isFinite(value) ? String(value) : "";
 }
 
+/** Keeps fractional conversion counts. cookieConversions is a decimal on the live API. */
 function num(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value.replace(/,/g, ""));
+    const parsed = Number(value.trim().replace(/,/g, ""));
     return Number.isFinite(parsed) ? parsed : 0;
   }
   const row = record(value);

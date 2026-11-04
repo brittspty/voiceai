@@ -288,7 +288,7 @@ export async function runStackAdaptCtvAttribution(options: {
         const list = byClient.get(clientId) ?? [];
         list.push(blank({
           clientId,
-          date: record.date,
+          date: record.date || until,
           campaignId: record.campaignId,
           campaignName: record.campaignName,
           grain: "breakdown",

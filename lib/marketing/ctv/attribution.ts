@@ -137,7 +137,7 @@ export function buildCtvAttributionPage(input: {
   for (const campaign of campaigns) {
     byCampaign.set(campaign.externalId, { impressions: 0, clickConversions: 0, viewConversions: 0, spend: 0 });
   }
-  const byPixel = new Map<string, { id: string; name: string; impressions: number; clickConversions: number; viewConversions: number; spend: number }>();
+  const byPixel = new Map<string, { id: string; name: string; clickConversions: number; viewConversions: number; spend: number; campaignIds: Set<string> }>();
   const byBreakdown = new Map<string, { kind: CtvBreakdownKind; name: string; impressions: number; clickConversions: number; viewConversions: number }>();
   for (const row of input.rows) {
     if (row.exampleData) continue;
@@ -165,12 +165,13 @@ export function buildCtvAttributionPage(input: {
         current.spend += row.spend;
       }
     } else if (row.grain === "pixel" && input.pixelAvailable) {
+      if (row.clickConversions + row.viewConversions <= 0) continue;
       const key = row.pixelId || row.pixelName;
-      const current = byPixel.get(key) ?? { id: key, name: row.pixelName || row.pixelId, impressions: 0, clickConversions: 0, viewConversions: 0, spend: 0 };
-      current.impressions += row.impressions;
+      const current = byPixel.get(key) ?? { id: key, name: row.pixelName || row.pixelId, clickConversions: 0, viewConversions: 0, spend: 0, campaignIds: new Set<string>() };
       current.clickConversions += row.clickConversions;
       current.viewConversions += row.viewConversions;
       current.spend += row.spend;
+      current.campaignIds.add(row.campaignId);
       byPixel.set(key, current);
     } else if (row.grain === "breakdown" && !input.breakdownNote && row.breakdown) {
       const key = `${row.breakdown}\0${row.breakdownName}`;
@@ -211,13 +212,14 @@ export function buildCtvAttributionPage(input: {
     return row;
   }).sort((a, b) => a.name.localeCompare(b.name));
   const pixels = [...byPixel.values()].map((row) => {
+    const deliveryImpressions = [...row.campaignIds].reduce((sum, id) => sum + (byCampaign.get(id)?.impressions ?? 0), 0);
     const next: CtvAttributionPage["pixels"][number] = {
       id: row.id,
       name: row.name,
-      impressions: row.impressions,
+      impressions: deliveryImpressions,
       clickConversions: row.clickConversions,
       viewConversions: row.viewConversions,
-      perThousand: perThousand(row.clickConversions + row.viewConversions, row.impressions),
+      perThousand: perThousand(row.clickConversions + row.viewConversions, deliveryImpressions),
     };
     if (showMoney) next.spend = row.spend;
     return next;
@@ -238,7 +240,7 @@ export function buildCtvAttributionPage(input: {
     ipSplitAvailable: input.ipSplitAvailable,
     ipSplitNote: input.ipSplitAvailable ? "" : IP_SPLIT_UNAVAILABLE,
     pixelAvailable: input.pixelAvailable,
-    pixelNote: input.pixelAvailable ? (input.pixelNote || "") : (input.pixelNote || PIXEL_UNAVAILABLE),
+    pixelNote: input.pixelAvailable ? (pixels.length ? "" : (input.pixelNote || "No conversions in this range.")) : (input.pixelNote || PIXEL_UNAVAILABLE),
     breakdownNote: input.breakdownNote || "",
     totals: pageTotals,
     trend: dates.map((date) => trend.get(date) ?? { date, impressions: 0, clickConversions: 0, viewConversions: 0 }),

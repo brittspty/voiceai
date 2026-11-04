@@ -2,16 +2,15 @@
  * Read-only StackAdapt conversion reads for Connected TV.
  * One advertiser per request. Pages follow the cursor. Budget and bid fields are not requested.
  *
- * The campaignDelivery metrics below that #61 already runs are the verified ones:
- * impressionsBigint, clickConversionsBigint, impressionConversionsBigint, cost,
- * campaign.channelType, and granularity.startTime.
- *
- * Everything in STACKADAPT_CTV_UNVERIFIED_FIELDS is in the public GraphQL schema
- * (StackAdapt pa-typescript-sdk 0.73) and has not been run against this account.
- * A schema error on ipConversionsBigint or cookieConversionsBigint retries without them.
- * A schema error on the insight breakdown query keeps the delivery rows and records
- * an honest not-available note. audienceInsights is a job-id audience study in that
- * schema, not a per-campaign conversion breakdown, so this path uses campaignInsight.
+ * STACKADAPT_CTV_VERIFIED_FIELDS was checked against a live read. Every name exists and returns data.
+ * cookieConversions is a decimal. ipConversionsBigint and cookieConversionsBigint are included on the
+ * delivery query, so the IP or cookie split is shown when that query succeeds.
+ * A schema error on those two fields still retries without them.
+ * campaignInsight often answers { __typename: "Progress" } first and has rows about 10 seconds later.
+ * Insight reads retry about every 6 seconds for up to 3 minutes, then record that the report is still processing.
+ * Breakdowns are one dimension at a time, filtered to the CTV campaign ids from the delivery read.
+ * A live account of about 196k impressions fit in 7 pages that way, under the page cap.
+ * audienceInsights needs a job id and is audience research, so this path uses campaignInsight.
  */
 
 import { addDaysISO } from "../../time";
@@ -22,6 +21,7 @@ import {
   stackAdaptGraphql,
   type FetchLike,
 } from "../connectors/stackadapt-client";
+import { isExplicitCtvType } from "./parse";
 import {
   parseCtvBreakdownNode,
   parseCtvConversionNode,
@@ -32,12 +32,13 @@ import {
 } from "./attribution-parse";
 
 export const VIEW_THROUGH_LABEL = "View-through visits are pixel-tracked site visits after a CTV impression.";
+export const STILL_PROCESSING = "StackAdapt attribution is still processing.";
 export const PIXEL_UNAVAILABLE = "Conversions by pixel or event name are not available.";
 export const BREAKDOWN_UNAVAILABLE = "Publisher, app, device, and geo breakdowns are not available.";
 export const IP_SPLIT_UNAVAILABLE = "The IP or household versus cookie split is not available.";
 
-/** Public schema names that this account has not confirmed. Verify live before relying on them. */
-export const STACKADAPT_CTV_UNVERIFIED_FIELDS = [
+/** Confirmed on a live StackAdapt read. Every field exists and returns data. */
+export const STACKADAPT_CTV_VERIFIED_FIELDS = [
   "metrics.ipConversionsBigint",
   "metrics.cookieConversionsBigint",
   "campaignInsight",
@@ -118,6 +119,66 @@ ${metrics}
 export const STACKADAPT_CTV_CONVERSION_QUERY = deliveryQuery(CONVERSION_METRICS);
 export const STACKADAPT_CTV_CONVERSION_VERIFIED_QUERY = deliveryQuery(VERIFIED_CONVERSION_METRICS);
 
+/** Insight reports are often still processing on the first call. */
+export const INSIGHT_RETRY_MS = 6_000;
+export const INSIGHT_RETRY_LIMIT_MS = 3 * 60_000;
+
+/**
+ * One attribute per request, plus the CTV campaign ids.
+ * DATE stays on the pixel query only. A combined attribute list was too fine-grained.
+ * first: 50 and a cap of 20 pages hold the 7 pages seen for about 196k impressions.
+ */
+export const CTV_BREAKDOWN_DIMENSIONS = [
+  { attribute: "APP", selection: "app { title domain }" },
+  { attribute: "SUPPLY_SOURCE", selection: "supplySource { id name }" },
+  { attribute: "DEVICE_TYPE", selection: "deviceType" },
+  { attribute: "COUNTRY", selection: "country { name code }" },
+] as const;
+
+export function stackAdaptCtvBreakdownQuery(attribute: string, selection: string) {
+  return `
+query StackAdaptCtvBreakdownInsight($advertiserIds: [ID!]!, $ids: [ID!]!, $from: ISO8601Date!, $to: ISO8601Date!, $after: String) {
+  campaignInsight(
+    attributes: [${attribute}]
+    date: { from: $from, to: $to }
+    filterBy: { advertiserIds: $advertiserIds, ids: $ids }
+  ) {
+    ... on CampaignInsightOutcome {
+      records(first: 50, after: $after) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          campaign {
+            id
+            name
+            channelType
+            advertiser { id }
+          }
+          attributes {
+            ${selection}
+          }
+          metrics {
+            impressions
+            clickConversions
+            impressionConversions
+            cookieConversions
+            cost
+          }
+        }
+      }
+    }
+    ... on Progress {
+      __typename
+    }
+  }
+}
+`.trim();
+}
+
+export const STACKADAPT_CTV_BREAKDOWN_QUERIES = CTV_BREAKDOWN_DIMENSIONS.map((dimension) => ({
+  ...dimension,
+  query: stackAdaptCtvBreakdownQuery(dimension.attribute, dimension.selection),
+}));
+
 export const STACKADAPT_CTV_PIXEL_QUERY = `
 query StackAdaptCtvPixelInsight($advertiserIds: [ID!]!, $from: ISO8601Date!, $to: ISO8601Date!, $after: String) {
   campaignInsight(
@@ -156,46 +217,6 @@ query StackAdaptCtvPixelInsight($advertiserIds: [ID!]!, $from: ISO8601Date!, $to
 }
 `.trim();
 
-export const STACKADAPT_CTV_BREAKDOWN_QUERY = `
-query StackAdaptCtvBreakdownInsight($advertiserIds: [ID!]!, $from: ISO8601Date!, $to: ISO8601Date!, $after: String) {
-  campaignInsight(
-    attributes: [SUPPLY_SOURCE, APP, DEVICE_TYPE, COUNTRY, DATE]
-    date: { from: $from, to: $to }
-    filterBy: { advertiserIds: $advertiserIds }
-  ) {
-    ... on CampaignInsightOutcome {
-      records(first: 50, after: $after) {
-        pageInfo { hasNextPage endCursor }
-        nodes {
-          campaign {
-            id
-            name
-            channelType
-            advertiser { id }
-          }
-          attributes {
-            date
-            supplySource { id name }
-            app { title domain }
-            deviceType
-            country { name code }
-          }
-          metrics {
-            impressions
-            clickConversions
-            impressionConversions
-            cost
-          }
-        }
-      }
-    }
-    ... on Progress {
-      __typename
-    }
-  }
-}
-`.trim();
-
 function record(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
@@ -221,6 +242,10 @@ function messageOf(error: unknown) {
   return error instanceof Error ? error.message : String(error || "");
 }
 
+function stillProcessing(payload: Record<string, unknown> | null) {
+  return payload?.__typename === "Progress" || Boolean(payload && !("records" in payload));
+}
+
 async function readPaged<T>(input: {
   apiKey: string;
   query: string;
@@ -228,7 +253,10 @@ async function readPaged<T>(input: {
   from: string;
   to: string;
   advertiserId: string;
+  ids?: string[];
   fetchImpl?: FetchLike;
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
   parse: (node: unknown, advertiserId: string) => T | null;
 }): Promise<{ rows: T[]; warnings: string[] }> {
   const advertiserId = assertStackAdaptAdvertiserQuery(input.query, { advertiserIds: [input.advertiserId] });
@@ -237,16 +265,35 @@ async function readPaged<T>(input: {
   let after: string | null = null;
   let pages = 0;
   const exclusiveTo = addDaysISO(input.to, 1);
+  const retryProgress = input.root === "campaignInsight";
+  const sleep = input.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const now = input.now ?? Date.now;
   for (; pages < STACKADAPT_MAX_PAGES; pages += 1) {
-    const data = await stackAdaptGraphql({
-      apiKey: input.apiKey,
-      fetchImpl: input.fetchImpl,
-      query: input.query,
-      variables: { advertiserIds: [advertiserId], from: input.from, to: exclusiveTo, after },
-    });
-    const payload = record(record(data)?.[input.root]);
-    if (payload?.__typename === "Progress" || (payload && !("records" in payload))) {
-      warnings.push("StackAdapt attribution is still processing.");
+    const started = now();
+    let payload: Record<string, unknown> | null = null;
+    while (true) {
+      const data = await stackAdaptGraphql({
+        apiKey: input.apiKey,
+        fetchImpl: input.fetchImpl,
+        query: input.query,
+        variables: {
+          advertiserIds: [advertiserId],
+          from: input.from,
+          to: exclusiveTo,
+          after,
+          ...(input.ids ? { ids: input.ids } : {}),
+        },
+      });
+      payload = record(record(data)?.[input.root]);
+      if (!retryProgress || !stillProcessing(payload)) break;
+      if (now() - started >= INSIGHT_RETRY_LIMIT_MS) {
+        warnings.push(STILL_PROCESSING);
+        return { rows, warnings };
+      }
+      await sleep(INSIGHT_RETRY_MS);
+    }
+    if (!retryProgress && stillProcessing(payload)) {
+      warnings.push(STILL_PROCESSING);
       break;
     }
     const records = record(payload?.records);
@@ -262,12 +309,25 @@ async function readPaged<T>(input: {
   return { rows, warnings };
 }
 
+function ctvCampaignIds(rows: CtvConversionDelivery[]) {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!isExplicitCtvType(row.channelType) || !row.campaignId || seen.has(row.campaignId)) continue;
+    seen.add(row.campaignId);
+    ids.push(row.campaignId);
+  }
+  return ids;
+}
+
 export async function pullStackAdaptCtvAttribution(input: {
   apiKey: string;
   from: string;
   to: string;
   advertiserId: string;
   fetchImpl?: FetchLike;
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
 }): Promise<{
   rows: CtvConversionDelivery[];
   pixels: CtvPixelDelivery[];
@@ -316,25 +376,40 @@ export async function pullStackAdaptCtvAttribution(input: {
     pixels = pulled.rows;
     warnings.push(...pulled.warnings);
     pixelAvailable = true;
+    if (!pixels.length && pulled.warnings.includes(STILL_PROCESSING)) pixelNote = STILL_PROCESSING;
   } catch (error) {
     pixelNote = PIXEL_UNAVAILABLE;
     if (!isStackAdaptSchemaError(error)) warnings.push(messageOf(error) || "StackAdapt pixel read failed");
   }
   let breakdowns: CtvBreakdownDelivery[] = [];
   let breakdownNote = "";
-  try {
-    const pulled = await readPaged({
-      ...input,
-      query: STACKADAPT_CTV_BREAKDOWN_QUERY,
-      root: "campaignInsight",
-      parse: (node, advertiserId) => parseCtvBreakdownNode(node, advertiserId),
-    });
-    for (const row of pulled.rows) breakdowns.push(...row);
-    warnings.push(...pulled.warnings);
-  } catch (error) {
-    breakdownNote = BREAKDOWN_UNAVAILABLE;
-    breakdowns = [];
-    if (!isStackAdaptSchemaError(error)) warnings.push(messageOf(error) || "StackAdapt breakdown read failed");
+  const ids = ctvCampaignIds(delivery.rows);
+  if (ids.length) {
+    let failed = 0;
+    let breakdownStillProcessing = false;
+    for (const dimension of STACKADAPT_CTV_BREAKDOWN_QUERIES) {
+      try {
+        const pulled = await readPaged({
+          ...input,
+          query: dimension.query,
+          root: "campaignInsight",
+          ids,
+          parse: (node, advertiserId) => parseCtvBreakdownNode(node, advertiserId),
+        });
+        for (const row of pulled.rows) breakdowns.push(...row);
+        warnings.push(...pulled.warnings);
+        if (pulled.warnings.includes(STILL_PROCESSING)) breakdownStillProcessing = true;
+      } catch (error) {
+        failed += 1;
+        if (!isStackAdaptSchemaError(error)) warnings.push(messageOf(error) || "StackAdapt breakdown read failed");
+      }
+    }
+    if (failed === STACKADAPT_CTV_BREAKDOWN_QUERIES.length) {
+      breakdownNote = BREAKDOWN_UNAVAILABLE;
+      breakdowns = [];
+    } else if (!breakdowns.length && breakdownStillProcessing) {
+      breakdownNote = STILL_PROCESSING;
+    }
   }
   return {
     rows: delivery.rows,

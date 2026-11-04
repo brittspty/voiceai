@@ -6,15 +6,18 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CtvAttributionLive } from "../../../components/ctv-attribution-live";
 import { brandTokens } from "../../brand/tokens";
-import { StackAdaptWriteBlockedError, stackAdaptGraphql } from "../connectors/stackadapt-client";
+import { STACKADAPT_MAX_PAGES, StackAdaptWriteBlockedError, stackAdaptGraphql } from "../connectors/stackadapt-client";
 import {
   BREAKDOWN_UNAVAILABLE,
+  INSIGHT_RETRY_LIMIT_MS,
+  INSIGHT_RETRY_MS,
+  IP_SPLIT_UNAVAILABLE,
   PIXEL_UNAVAILABLE,
-  STACKADAPT_CTV_BREAKDOWN_QUERY,
+  STACKADAPT_CTV_BREAKDOWN_QUERIES,
   STACKADAPT_CTV_CONVERSION_QUERY,
   STACKADAPT_CTV_CONVERSION_VERIFIED_QUERY,
   STACKADAPT_CTV_PIXEL_QUERY,
-  STACKADAPT_CTV_UNVERIFIED_FIELDS,
+  STACKADAPT_CTV_VERIFIED_FIELDS,
   VIEW_THROUGH_LABEL,
   pullStackAdaptCtvAttribution,
 } from "./attribution-graphql";
@@ -120,7 +123,12 @@ function page(root: "campaignDelivery" | "campaignInsight", body: unknown, curso
   };
 }
 
-const QUERIES = [STACKADAPT_CTV_CONVERSION_QUERY, STACKADAPT_CTV_CONVERSION_VERIFIED_QUERY, STACKADAPT_CTV_PIXEL_QUERY, STACKADAPT_CTV_BREAKDOWN_QUERY];
+const QUERIES = [
+  STACKADAPT_CTV_CONVERSION_QUERY,
+  STACKADAPT_CTV_CONVERSION_VERIFIED_QUERY,
+  STACKADAPT_CTV_PIXEL_QUERY,
+  ...STACKADAPT_CTV_BREAKDOWN_QUERIES.map((dimension) => dimension.query),
+];
 
 test("the attribution switch stays off and makes no outbound call", async () => {
   let calls = 0;
@@ -162,9 +170,17 @@ test("the conversion query is read-only, paged, and requires one advertiser", as
   assert.match(STACKADAPT_CTV_CONVERSION_QUERY, /cookieConversionsBigint/);
   assert.doesNotMatch(STACKADAPT_CTV_CONVERSION_VERIFIED_QUERY, /ipConversionsBigint/);
   assert.match(STACKADAPT_CTV_PIXEL_QUERY, /conversionPixel/);
-  assert.match(STACKADAPT_CTV_BREAKDOWN_QUERY, /campaignInsight/);
-  assert.equal(STACKADAPT_CTV_UNVERIFIED_FIELDS.includes("metrics.ipConversionsBigint"), true);
-  assert.equal(STACKADAPT_CTV_UNVERIFIED_FIELDS.includes("campaignInsight"), true);
+  assert.match(STACKADAPT_CTV_PIXEL_QUERY, /\bDATE\b/);
+  assert.equal(STACKADAPT_CTV_BREAKDOWN_QUERIES.length, 4);
+  for (const dimension of STACKADAPT_CTV_BREAKDOWN_QUERIES) {
+    assert.match(dimension.query, /ids: \$ids/);
+    assert.match(dimension.query, new RegExp(`attributes: \\[${dimension.attribute}\\]`));
+    assert.doesNotMatch(dimension.query, /\bDATE\b/);
+  }
+  assert.equal(STACKADAPT_CTV_VERIFIED_FIELDS.includes("metrics.ipConversionsBigint"), true);
+  assert.equal(STACKADAPT_CTV_VERIFIED_FIELDS.includes("metrics.cookieConversionsBigint"), true);
+  assert.equal(STACKADAPT_CTV_VERIFIED_FIELDS.includes("campaignInsight"), true);
+  assert.ok(STACKADAPT_MAX_PAGES >= 7);
   let calls = 0;
   const fetchImpl = async () => {
     calls += 1;
@@ -212,6 +228,17 @@ test("conversion, pixel, and breakdown rows parse and ignore budget", () => {
   assert.equal(pixel?.pixelName, "Northwind site visit");
   assert.equal(pixel?.viewConversions, 2);
   assert.equal(JSON.stringify(pixel).includes("\"9\""), false);
+  const decimal = parseCtvConversionNode(deliveryNode({
+    metrics: { impressionsBigint: "1000", clickConversionsBigint: "1", impressionConversionsBigint: "1", ipConversionsBigint: "1.5", cookieConversions: "2.5", cost: "10" },
+  }), ADVERTISER);
+  assert.equal(decimal?.cookieConversions, 2.5);
+  assert.equal(decimal?.ipConversions, 1.5);
+  const decimalPixel = parseCtvPixelNode({
+    ...pixelNode(),
+    metrics: { impressions: 0, clickConversions: 0, impressionConversions: "1.25", cookieConversions: "3.5", cost: "4" },
+  }, ADVERTISER);
+  assert.equal(decimalPixel?.viewConversions, 1.25);
+  assert.equal(decimalPixel?.cookieConversions, 3.5);
   const parts = parseCtvBreakdownNode({
     campaign: { id: "camp-north", name: "Northwind evening slate", channelType: "CTV", advertiser: { id: ADVERTISER } },
     attributes: {
@@ -236,7 +263,7 @@ test("a schema error on the optional breakdown leaves the conversion rows", asyn
     fetchImpl: async (_url, init) => {
       const body = JSON.parse(String(init?.body || "{}")) as { query?: string; variables?: { after?: string } };
       const query = body.query || "";
-      if (query.includes("SUPPLY_SOURCE")) {
+      if (query.includes("campaignInsight") && !query.includes("CONVERSION_PIXEL")) {
         return Response.json({ errors: [{ message: 'Cannot query field "app" on type "InsightAttributes".' }] });
       }
       if (query.includes("CONVERSION_PIXEL")) return Response.json(page("campaignInsight", pixelNode(), { hasNextPage: false }));
@@ -288,6 +315,149 @@ test("a schema error on the IP split falls back to the verified conversion field
   assert.equal(pulled.rows[0]?.clickConversions, 6);
   assert.equal(pulled.rows[0]?.viewConversions, 2);
   assert.equal(pulled.rows[0]?.ipConversions, 0);
+});
+
+test("campaignInsight retries Progress, then stops after about 3 minutes", async () => {
+  let now = 0;
+  const sleeps: number[] = [];
+  let pixelCalls = 0;
+  const ready = await pullStackAdaptCtvAttribution({
+    apiKey: KEY,
+    from: "2026-11-01",
+    to: "2026-11-04",
+    advertiserId: ADVERTISER,
+    now: () => now,
+    sleep: async (ms) => {
+      sleeps.push(ms);
+      now += ms;
+    },
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(String(init?.body || "{}")) as { query?: string };
+      const query = body.query || "";
+      if (query.includes("campaignDelivery")) return Response.json(page("campaignDelivery", deliveryNode(), { hasNextPage: false }));
+      if (query.includes("CONVERSION_PIXEL")) {
+        pixelCalls += 1;
+        if (pixelCalls === 1) return Response.json({ data: { campaignInsight: { __typename: "Progress" } } });
+        return Response.json(page("campaignInsight", pixelNode(), { hasNextPage: false }));
+      }
+      return Response.json(page("campaignInsight", [], { hasNextPage: false }));
+    },
+  });
+  assert.deepEqual(sleeps, [INSIGHT_RETRY_MS]);
+  assert.equal(ready.pixels[0]?.pixelName, "Northwind site visit");
+  assert.equal(ready.warnings.some((warning) => /still processing/i.test(warning)), false);
+  assert.equal(ready.ipSplitAvailable, true);
+  assert.equal(JSON.stringify(ready).includes(IP_SPLIT_UNAVAILABLE), false);
+
+  now = 0;
+  const stalledSleeps: number[] = [];
+  const stalled = await pullStackAdaptCtvAttribution({
+    apiKey: KEY,
+    from: "2026-11-01",
+    to: "2026-11-04",
+    advertiserId: ADVERTISER,
+    now: () => now,
+    sleep: async (ms) => {
+      stalledSleeps.push(ms);
+      now += ms;
+    },
+    fetchImpl: async (_url, init) => {
+      const query = String(JSON.parse(String(init?.body || "{}")).query || "");
+      if (query.includes("campaignDelivery")) return Response.json(page("campaignDelivery", deliveryNode(), { hasNextPage: false }));
+      return Response.json({ data: { campaignInsight: { __typename: "Progress" } } });
+    },
+  });
+  assert.equal(stalledSleeps.every((ms) => ms === INSIGHT_RETRY_MS), true);
+  const insightQueries = 1 + STACKADAPT_CTV_BREAKDOWN_QUERIES.length;
+  assert.equal(stalledSleeps.length, insightQueries * (INSIGHT_RETRY_LIMIT_MS / INSIGHT_RETRY_MS));
+  assert.equal(stalled.warnings.filter((warning) => /still processing/i.test(warning)).length, 1);
+  assert.equal(stalled.pixelAvailable, true);
+});
+
+test("breakdown queries use the CTV campaign ids and one dimension", async () => {
+  const seen: { query: string; ids?: string[] }[] = [];
+  const pulled = await pullStackAdaptCtvAttribution({
+    apiKey: KEY,
+    from: "2026-11-01",
+    to: "2026-11-04",
+    advertiserId: ADVERTISER,
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(String(init?.body || "{}")) as { query?: string; variables?: { ids?: string[] } };
+      const query = body.query || "";
+      seen.push({ query, ids: body.variables?.ids });
+      if (query.includes("campaignDelivery")) {
+        return Response.json(page("campaignDelivery", [
+          deliveryNode(),
+          deliveryNode({
+            campaign: { id: "camp-display", name: "CTV special", channelType: "DISPLAY", advertiser: { id: ADVERTISER }, campaignStatus: { state: "LIVE" } },
+          }),
+        ], { hasNextPage: false }));
+      }
+      if (query.includes("attributes: [APP]")) {
+        return Response.json(page("campaignInsight", {
+          campaign: { id: "camp-north", name: "Northwind evening slate", channelType: "CTV", advertiser: { id: ADVERTISER } },
+          attributes: { app: { title: "Northwind Player" } },
+          metrics: { impressions: 196000, clickConversions: 6, impressionConversions: 2, cookieConversions: "2.5", cost: "10" },
+        }, { hasNextPage: false }));
+      }
+      return Response.json(page("campaignInsight", [], { hasNextPage: false }));
+    },
+  });
+  const breakdowns = seen.filter((row) => row.query.includes("campaignInsight") && !row.query.includes("CONVERSION_PIXEL"));
+  assert.deepEqual(breakdowns.map((row) => row.query.match(/attributes: \[([A-Z_]+)\]/)?.[1]).sort(), ["APP", "COUNTRY", "DEVICE_TYPE", "SUPPLY_SOURCE"]);
+  for (const row of breakdowns) {
+    assert.deepEqual(row.ids, ["camp-north"]);
+    assert.match(row.query, /ids: \$ids/);
+    assert.doesNotMatch(row.query, /\bDATE\b/);
+  }
+  const pixel = seen.find((row) => row.query.includes("CONVERSION_PIXEL"));
+  assert.match(pixel?.query || "", /\bDATE\b/);
+  assert.equal(pixel?.ids, undefined);
+  assert.equal(pulled.breakdowns.find((row) => row.kind === "app")?.name, "Northwind Player");
+  assert.equal(pulled.rows[0]?.cookieConversions, 3);
+});
+
+test("pixel rates use delivery impressions and zero-conversion pixels stay hidden", () => {
+  const built = buildCtvAttributionPage({
+    showMoney: false,
+    staff: true,
+    clientId: "north",
+    clientName: "Northwind Studio",
+    days: 14,
+    status: "active",
+    endDate: "2026-11-04",
+    ipSplitAvailable: true,
+    pixelAvailable: true,
+    campaigns: [{ id: "row-north", externalId: "camp-north", name: "Northwind evening slate", clientId: "north", status: "active", channelType: "CTV" }],
+    rows: [
+      { clientId: "north", campaignId: "camp-north", date: "2026-11-02", grain: "campaign", pixelId: "", pixelName: "", breakdown: "", breakdownName: "", impressions: 5000, clickConversions: 6, viewConversions: 2, ipConversions: 4, cookieConversions: 2.5, spend: 0 },
+      { clientId: "north", campaignId: "camp-north", date: "2026-11-02", grain: "pixel", pixelId: "px-visit", pixelName: "Northwind site visit", breakdown: "", breakdownName: "", impressions: 0, clickConversions: 6, viewConversions: 2, ipConversions: 0, cookieConversions: 2.5, spend: 0 },
+      { clientId: "north", campaignId: "camp-north", date: "2026-11-02", grain: "pixel", pixelId: "px-empty", pixelName: "Northwind quiet pixel", breakdown: "", breakdownName: "", impressions: 0, clickConversions: 0, viewConversions: 0, ipConversions: 0, cookieConversions: 0, spend: 0 },
+    ],
+  });
+  assert.equal(built.ipSplitNote, "");
+  assert.equal(built.totals.cookieConversions, 2.5);
+  assert.deepEqual(built.pixels.map((row) => row.name), ["Northwind site visit"]);
+  assert.equal(built.pixels[0]?.impressions, 5000);
+  assert.equal(built.pixels[0]?.perThousand, 1.6);
+  const quiet = buildCtvAttributionPage({
+    showMoney: false,
+    staff: true,
+    clientId: "north",
+    clientName: "Northwind Studio",
+    days: 7,
+    status: "active",
+    endDate: "2026-11-04",
+    ipSplitAvailable: true,
+    pixelAvailable: true,
+    campaigns: [{ id: "row-north", externalId: "camp-north", name: "Northwind evening slate", clientId: "north", status: "active", channelType: "CTV" }],
+    rows: [
+      { clientId: "north", campaignId: "camp-north", date: "2026-11-02", grain: "campaign", pixelId: "", pixelName: "", breakdown: "", breakdownName: "", impressions: 5000, clickConversions: 0, viewConversions: 0, ipConversions: 0, cookieConversions: 0, spend: 0 },
+      { clientId: "north", campaignId: "camp-north", date: "2026-11-02", grain: "pixel", pixelId: "px-empty", pixelName: "Northwind quiet pixel", breakdown: "", breakdownName: "", impressions: 0, clickConversions: 0, viewConversions: 0, ipConversions: 0, cookieConversions: 0, spend: 0 },
+    ],
+  });
+  assert.equal(quiet.pixels.length, 0);
+  assert.equal(quiet.pixelNote, "No conversions in this range.");
 });
 
 test("a live read keeps the other client's numbers and clears example rows", async () => {
@@ -346,7 +516,7 @@ test("a live read keeps the other client's numbers and clears example rows", asy
       assert.deepEqual(body.variables?.advertiserIds, [ADVERTISER]);
       assert.equal(JSON.stringify(body).includes(OTHER), false);
       const query = body.query || "";
-      if (query.includes("SUPPLY_SOURCE")) {
+      if (query.includes("campaignInsight") && !query.includes("CONVERSION_PIXEL")) {
         return Response.json({ errors: [{ message: 'Cannot query field "deviceType" on type "InsightAttributes".' }] });
       }
       if (query.includes("CONVERSION_PIXEL")) return Response.json(page("campaignInsight", pixelNode(), { hasNextPage: false }));
@@ -363,7 +533,7 @@ test("a live read keeps the other client's numbers and clears example rows", asy
     },
   });
   assert.equal(saved.status, "succeeded");
-  assert.equal(saved.outbound, 4);
+  assert.equal(saved.outbound, 7);
   assert.equal(store.examplesCleared, true);
   assert.equal(store.rows.some((row) => row.exampleData), false);
   assert.equal(store.segments.length, 0);
