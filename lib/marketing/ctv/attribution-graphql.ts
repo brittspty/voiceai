@@ -154,6 +154,7 @@ query StackAdaptCtvBreakdownInsight($advertiserIds: [ID!]!, $ids: [ID!]!, $from:
             advertiser { id }
           }
           attributes {
+            date
             ${selection}
           }
           metrics {
@@ -309,6 +310,31 @@ async function readPaged<T>(input: {
   return { rows, warnings };
 }
 
+/** Inclusive windows. A 90-day read is 13 windows of 7 days. */
+export function breakdownWindows(from: string, to: string, chunkDays = 7) {
+  const size = Math.max(1, Math.floor(chunkDays) || 7);
+  const chunks: { from: string; to: string }[] = [];
+  let cursor = from;
+  while (cursor <= to) {
+    const end = addDaysISO(cursor, size - 1);
+    const chunkEnd = end > to ? to : end;
+    chunks.push({ from: cursor, to: chunkEnd });
+    cursor = addDaysISO(chunkEnd, 1);
+  }
+  return chunks;
+}
+
+export function breakdownWeeksLabel(covered: number, total: number) {
+  if (total <= 0 || covered >= total) return "";
+  const unit = total === 1 ? "week" : "weeks";
+  return `Breakdown covers ${covered} of ${total} ${unit}`;
+}
+
+function isoDay(value: string) {
+  const day = value.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : "";
+}
+
 function ctvCampaignIds(rows: CtvConversionDelivery[]) {
   const ids: string[] = [];
   const seen = new Set<string>();
@@ -328,6 +354,7 @@ export async function pullStackAdaptCtvAttribution(input: {
   fetchImpl?: FetchLike;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
+  chunkDays?: number;
 }): Promise<{
   rows: CtvConversionDelivery[];
   pixels: CtvPixelDelivery[];
@@ -336,6 +363,11 @@ export async function pullStackAdaptCtvAttribution(input: {
   pixelAvailable: boolean;
   pixelNote: string;
   breakdownNote: string;
+  breakdownCovered: number;
+  breakdownTotal: number;
+  breakdownRangeStart: string;
+  breakdownRangeEnd: string;
+  breakdownGaps: string;
   warnings: string[];
 }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.from) || !/^\d{4}-\d{2}-\d{2}$/.test(input.to) || input.from > input.to) {
@@ -381,44 +413,101 @@ export async function pullStackAdaptCtvAttribution(input: {
     pixelNote = PIXEL_UNAVAILABLE;
     if (!isStackAdaptSchemaError(error)) warnings.push(messageOf(error) || "StackAdapt pixel read failed");
   }
-  let breakdowns: CtvBreakdownDelivery[] = [];
+  const summed = new Map<string, CtvBreakdownDelivery>();
   let breakdownNote = "";
+  let breakdownCovered = 0;
+  let breakdownTotal = 0;
+  let breakdownRangeStart = "";
+  let breakdownRangeEnd = "";
+  const gapNotes: string[] = [];
   const ids = ctvCampaignIds(delivery.rows);
   if (ids.length) {
-    let failed = 0;
-    let breakdownStillProcessing = false;
-    for (const dimension of STACKADAPT_CTV_BREAKDOWN_QUERIES) {
-      try {
-        const pulled = await readPaged({
-          ...input,
-          query: dimension.query,
-          root: "campaignInsight",
-          ids,
-          parse: (node, advertiserId) => parseCtvBreakdownNode(node, advertiserId),
-        });
-        for (const row of pulled.rows) breakdowns.push(...row);
-        warnings.push(...pulled.warnings);
-        if (pulled.warnings.includes(STILL_PROCESSING)) breakdownStillProcessing = true;
-      } catch (error) {
-        failed += 1;
-        if (!isStackAdaptSchemaError(error)) warnings.push(messageOf(error) || "StackAdapt breakdown read failed");
+    const chunks = breakdownWindows(input.from, input.to, input.chunkDays ?? 7);
+    breakdownTotal = chunks.length;
+    let attempts = 0;
+    let failures = 0;
+    const widen = (start: string, end: string) => {
+      if (!breakdownRangeStart || start < breakdownRangeStart) breakdownRangeStart = start;
+      if (end > breakdownRangeEnd) breakdownRangeEnd = end;
+    };
+    for (const chunk of chunks) {
+      let chunkOk = true;
+      let sawDate = false;
+      let reportedStart = "";
+      let reportedEnd = "";
+      const chunkRows: CtvBreakdownDelivery[] = [];
+      for (const dimension of STACKADAPT_CTV_BREAKDOWN_QUERIES) {
+        attempts += 1;
+        try {
+          const pulled = await readPaged({
+            ...input,
+            from: chunk.from,
+            to: chunk.to,
+            query: dimension.query,
+            root: "campaignInsight",
+            ids,
+            parse: (node, advertiserId) => parseCtvBreakdownNode(node, advertiserId),
+          });
+          warnings.push(...pulled.warnings);
+          if (pulled.warnings.includes(STILL_PROCESSING)) {
+            chunkOk = false;
+            gapNotes.push(`Breakdown week ${chunk.from} to ${chunk.to} is still processing.`);
+          }
+          for (const row of pulled.rows) chunkRows.push(...row);
+        } catch (error) {
+          failures += 1;
+          chunkOk = false;
+          gapNotes.push(`Breakdown week ${chunk.from} to ${chunk.to} failed.`);
+          if (!isStackAdaptSchemaError(error)) warnings.push(messageOf(error) || "StackAdapt breakdown read failed");
+        }
       }
+      for (const row of chunkRows) {
+        const day = isoDay(row.date);
+        if (day && (day < chunk.from || day > chunk.to)) continue;
+        if (day) {
+          sawDate = true;
+          if (!reportedStart || day < reportedStart) reportedStart = day;
+          if (day > reportedEnd) reportedEnd = day;
+        }
+        const key = [row.kind, row.name, row.campaignId].join("\0");
+        const current = summed.get(key);
+        if (!current) {
+          summed.set(key, { ...row, date: "" });
+          continue;
+        }
+        current.impressions += row.impressions;
+        current.clickConversions += row.clickConversions;
+        current.viewConversions += row.viewConversions;
+        current.spend += row.spend;
+      }
+      const reportedWholeChunk = Boolean(reportedStart && reportedStart <= chunk.from && reportedEnd >= chunk.to);
+      if (sawDate && reportedStart) widen(reportedStart, reportedEnd);
+      if (chunkOk && !sawDate) widen(chunk.from, chunk.to);
+      if (chunkOk && (!sawDate || reportedWholeChunk)) breakdownCovered += 1;
+      else if (chunkOk && sawDate) gapNotes.push(`Breakdown week ${chunk.from} to ${chunk.to} reported ${reportedStart} to ${reportedEnd}.`);
     }
-    if (failed === STACKADAPT_CTV_BREAKDOWN_QUERIES.length) {
+    if (attempts > 0 && failures === attempts) {
       breakdownNote = BREAKDOWN_UNAVAILABLE;
-      breakdowns = [];
-    } else if (!breakdowns.length && breakdownStillProcessing) {
+      summed.clear();
+      breakdownRangeStart = "";
+      breakdownRangeEnd = "";
+    } else if (summed.size === 0 && gapNotes.some((note) => note.includes("still processing"))) {
       breakdownNote = STILL_PROCESSING;
     }
   }
   return {
     rows: delivery.rows,
     pixels,
-    breakdowns,
+    breakdowns: [...summed.values()],
     ipSplitAvailable,
     pixelAvailable,
     pixelNote,
     breakdownNote,
+    breakdownCovered,
+    breakdownTotal,
+    breakdownRangeStart,
+    breakdownRangeEnd,
+    breakdownGaps: [...new Set(gapNotes)].join(" "),
     warnings: [...new Set(warnings.filter(Boolean))],
   };
 }

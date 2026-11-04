@@ -114,6 +114,7 @@ export function CtvAttributionLive({ model }: { model: CtvAttributionPage }) {
       <section className="rounded-xl border border-line bg-card p-4">
         <h2 className="font-semibold">Publisher, app, device, and geo</h2>
         {model.breakdownLabel ? <p className="mt-2 text-sm text-muted">{model.breakdownLabel}</p> : null}
+        {model.breakdownGaps ? <p className="mt-1 text-sm text-muted">{model.breakdownGaps}</p> : null}
         {model.breakdownNote ? <p className="mt-3 text-sm text-muted">{model.breakdownNote}</p> : (
           <div className="mt-3 grid gap-4 lg:grid-cols-2">
             {(["publisher", "app", "device", "geo"] as const).map((kind) => (

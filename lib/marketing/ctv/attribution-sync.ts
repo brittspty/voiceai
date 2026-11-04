@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import { addDaysISO, zonedISODate } from "../../time";
 import { clientForStackAdaptCampaign, liveStackAdaptAdvertiserIds, type StackAdaptClientRule } from "../client-campaign-scope";
-import { decideStackAdaptCtv, lookbackDays, type Env } from "../config";
+import { ctvBreakdownChunkDays, decideStackAdaptCtv, lookbackDays, type Env } from "../config";
 import { mapStackAdaptStatus } from "../connectors/stackadapt-status";
 import type { FetchLike } from "../connectors/stackadapt-client";
 import { WORKSPACE_ID } from "../types";
@@ -23,6 +23,9 @@ export type CtvAttributionMetaState = {
   pixelAvailable: boolean;
   pixelNote: string;
   breakdownNote: string;
+  breakdownCovered: number;
+  breakdownTotal: number;
+  breakdownGaps: string;
 };
 
 const BREAKDOWN_DIMENSIONS: CtvBreakdownKind[] = ["publisher", "app", "device", "geo"];
@@ -191,6 +194,9 @@ export async function saveCtvAttribution(workspaceId: string, clientId: string, 
         pixelAvailable: meta.pixelAvailable,
         pixelNote: meta.pixelNote,
         breakdownNote: meta.breakdownNote,
+        breakdownCovered: meta.breakdownCovered,
+        breakdownTotal: meta.breakdownTotal,
+        breakdownGaps: meta.breakdownGaps,
       },
     });
   });
@@ -259,6 +265,7 @@ export async function runStackAdaptCtvAttribution(options: {
         to: until,
         advertiserId,
         fetchImpl,
+        chunkDays: ctvBreakdownChunkDays(env),
       });
       warnings.push(...pulled.warnings);
       const byClient = new Map<string, CtvAttributionRow[]>();
@@ -329,8 +336,8 @@ export async function runStackAdaptCtvAttribution(options: {
           campaignName: record.campaignName,
           dimension: record.kind,
           name: record.name,
-          rangeStart: since,
-          rangeEnd: until,
+          rangeStart: pulled.breakdownRangeStart || since,
+          rangeEnd: pulled.breakdownRangeEnd || until,
           impressions: record.impressions,
           clickConversions: record.clickConversions,
           viewConversions: record.viewConversions,
@@ -347,6 +354,9 @@ export async function runStackAdaptCtvAttribution(options: {
         ipSplitAvailable: pulled.ipSplitAvailable,
         pixelAvailable: pulled.pixelAvailable,
         pixelNote: pulled.pixelNote,
+        breakdownCovered: pulled.breakdownCovered,
+        breakdownTotal: pulled.breakdownTotal,
+        breakdownGaps: pulled.breakdownGaps,
       };
       const clients = new Set([...byClient.keys(), ...breakdownByClient.keys()]);
       for (const clientId of clients) {

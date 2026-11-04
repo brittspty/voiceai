@@ -180,6 +180,9 @@ export async function loadCtvAttributionPage(input: {
     const pixelAvailable = relevant.length > 0 && relevant.every((row) => row.pixelAvailable);
     const pixelNote = relevant.map((row) => row.pixelNote).find(Boolean) || "";
     const breakdownNote = relevant.map((row) => row.breakdownNote).find(Boolean) || "";
+    const partial = relevant.filter((row) => row.breakdownTotal > 0 && row.breakdownCovered < row.breakdownTotal);
+    const coverage = partial.sort((a, b) => a.breakdownCovered / a.breakdownTotal - b.breakdownCovered / b.breakdownTotal)[0];
+    const gaps = (coverage || relevant.find((row) => row.breakdownGaps))?.breakdownGaps || "";
     return buildCtvAttributionPage({
       showMoney,
       staff,
@@ -195,6 +198,8 @@ export async function loadCtvAttributionPage(input: {
       pixelAvailable,
       pixelNote,
       breakdownNote,
+      breakdownCoverage: coverage ? { covered: coverage.breakdownCovered, total: coverage.breakdownTotal } : undefined,
+      breakdownGaps: gaps,
       campaigns,
       rows: stored.map((row) => ({
         clientId: row.clientId,
@@ -288,6 +293,8 @@ export async function loadPlanAttribution(clientName: string, env: Env = process
       pixelAvailable: Boolean(meta?.pixelAvailable),
       pixelNote: meta?.pixelNote || "",
       breakdownNote: meta?.breakdownNote || "",
+      breakdownCoverage: meta && meta.breakdownTotal > 0 ? { covered: meta.breakdownCovered, total: meta.breakdownTotal } : undefined,
+      breakdownGaps: meta?.breakdownGaps || "",
       campaigns,
       rows: stored.map((row) => ({
         clientId: row.clientId,

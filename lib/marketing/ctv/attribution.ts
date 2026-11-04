@@ -11,7 +11,7 @@ import { ctvPayloadForViewer } from "./report";
 import { isCtvCampaign } from "./parse";
 import type { CtvAudience } from "./types";
 import type { CtvSurface } from "./channel";
-import { BREAKDOWN_UNAVAILABLE, IP_SPLIT_UNAVAILABLE, PIXEL_UNAVAILABLE, VIEW_THROUGH_LABEL } from "./attribution-graphql";
+import { BREAKDOWN_UNAVAILABLE, IP_SPLIT_UNAVAILABLE, PIXEL_UNAVAILABLE, VIEW_THROUGH_LABEL, breakdownWeeksLabel } from "./attribution-graphql";
 
 export { BREAKDOWN_UNAVAILABLE, IP_SPLIT_UNAVAILABLE, PIXEL_UNAVAILABLE, VIEW_THROUGH_LABEL };
 
@@ -92,8 +92,9 @@ export type CtvAttributionPage = {
   pixelAvailable: boolean;
   pixelNote: string;
   breakdownNote: string;
-  /** Set when the stored breakdown window is not the page's date range. */
+  /** Weeks label when some chunks were missed, otherwise the stored window when it differs from the page. */
   breakdownLabel: string;
+  breakdownGaps: string;
   totals: CtvAttributionTotals;
   trend: { date: string; impressions: number; clickConversions: number; viewConversions: number }[];
   pixels: { id: string; name: string; impressions: number; clickConversions: number; viewConversions: number; perThousand: number | null; spend?: number }[];
@@ -140,6 +141,8 @@ export function buildCtvAttributionPage(input: {
   pixelAvailable: boolean;
   pixelNote?: string;
   breakdownNote?: string;
+  breakdownCoverage?: { covered: number; total: number };
+  breakdownGaps?: string;
   campaigns: readonly CtvAttributionCampaign[];
   rows: readonly CtvAttributionRow[];
   breakdowns?: readonly CtvBreakdownTotal[];
@@ -285,7 +288,9 @@ export function buildCtvAttributionPage(input: {
     pixelAvailable: input.pixelAvailable,
     pixelNote: input.pixelAvailable ? (pixels.length ? "" : (input.pixelNote || "No conversions in this range.")) : (input.pixelNote || PIXEL_UNAVAILABLE),
     breakdownNote: input.breakdownNote || "",
-    breakdownLabel: input.breakdownNote ? "" : breakdownCoverLabel(breakdownStart, breakdownEnd, dates[0] || "", dates[dates.length - 1] || ""),
+    breakdownLabel: breakdownWeeksLabel(input.breakdownCoverage?.covered ?? 0, input.breakdownCoverage?.total ?? 0)
+      || (input.breakdownNote ? "" : breakdownCoverLabel(breakdownStart, breakdownEnd, dates[0] || "", dates[dates.length - 1] || "")),
+    breakdownGaps: input.breakdownGaps || "",
     totals: pageTotals,
     trend: dates.map((date) => trend.get(date) ?? { date, impressions: 0, clickConversions: 0, viewConversions: 0 }),
     pixels,
