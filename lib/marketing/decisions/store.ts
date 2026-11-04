@@ -4,6 +4,8 @@ import { WORKSPACE_ID } from "../types";
 import { alertDedupeKey } from "./key";
 import type { DecisionDraft } from "./rules";
 
+const CLOSED = ["accepted", "resolved", "dismissed", "declined"] as const;
+
 function day(value: string) {
   if (!value) return null;
   return new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
@@ -38,8 +40,23 @@ export async function upsertOpenRecommendation(
       status: { in: ["draft", "verified"] },
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    select: { id: true },
+    select: { id: true, evidence: true },
   });
+  const prior = !existing && draft.dedupeKey
+    ? await prisma.recommendation.findFirst({
+        where: { workspaceId, dedupeKey: draft.dedupeKey, archivedAt: null, status: { in: [...CLOSED] } },
+        orderBy: [{ decidedAt: "desc" }, { createdAt: "desc" }],
+        select: { id: true },
+      })
+    : null;
+  const kept = existing?.evidence && typeof existing.evidence === "object" && !Array.isArray(existing.evidence)
+    ? (existing.evidence as Record<string, unknown>).priorRecommendationId
+    : null;
+  const evidence = {
+    ...(draft.evidence as Record<string, unknown>),
+    ...(typeof kept === "string" ? { priorRecommendationId: kept } : {}),
+    ...(prior ? { priorRecommendationId: prior.id } : {}),
+  } as Prisma.InputJsonValue;
   const data = {
     type: draft.type as RecommendationType,
     status: extra?.status ?? "verified",
@@ -60,7 +77,7 @@ export async function upsertOpenRecommendation(
     windowEnd: day(draft.windowEnd),
     sampleSize: Math.round(draft.sampleSize),
     sourceMetricIds: draft.sourceMetricIds,
-    evidence: draft.evidence as Prisma.InputJsonValue,
+    evidence,
     currentBudgetAmount: extra?.currentBudgetAmount ?? null,
     currentBudgetPeriod: extra?.currentBudgetPeriod ?? null,
     proposedBudgetAmount: extra?.proposedBudgetAmount ?? null,

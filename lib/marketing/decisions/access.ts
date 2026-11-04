@@ -1,6 +1,7 @@
 import { decisionsV1Enabled, marketingClientSwitcherEnabled, type Env } from "../config";
 
 const STAFF_KINDS = new Set(["super_admin", "account_manager", "all_clients_viewer", "staff"]);
+const ACT_KINDS = new Set(["super_admin", "account_manager", "staff"]);
 
 export type DecisionSurface = "page" | "api" | "share" | "plan" | "export";
 
@@ -13,6 +14,11 @@ export function decisionsView(env: Env = process.env): "v1" | "empty" | "example
 
 export function canSeeDecisions(kind: string | null | undefined) {
   return Boolean(kind && STAFF_KINDS.has(kind));
+}
+
+/** Staff who can open Decisions can act. The all-clients viewer stays view-only. */
+export function canActOnDecisions(kind: string | null | undefined) {
+  return Boolean(kind && ACT_KINDS.has(kind));
 }
 
 /**

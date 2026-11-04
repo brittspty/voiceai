@@ -6,14 +6,13 @@ import { requireUser } from "../../auth";
 import { denyAccess } from "../../deny";
 import { prisma } from "../../db";
 import { zonedISODate } from "../../time";
-import { canApproveMarketing } from "../access";
 import { decisionsV1Enabled } from "../config";
 import { loadMarketingAccess } from "../queries";
 import { WORKSPACE_ID } from "../types";
-import { decisionsRequestStatus } from "./access";
+import { canActOnDecisions, decisionsRequestStatus } from "./access";
 import { planDecision } from "./workflow";
 
-/** Records approve, dismiss, or snooze. Nothing is sent to an ad platform and no budget is written. */
+/** Records approve, dismiss, snooze, or resolve. Nothing is sent to an ad platform and no budget is written. */
 export async function recordDecisionAction(formData: FormData) {
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
@@ -23,15 +22,20 @@ export async function recordDecisionAction(formData: FormData) {
     signedIn: true,
     kind: access.kind,
   });
-  if (status !== 200 || !canApproveMarketing(access)) denyAccess();
+  if (status !== 200 || !canActOnDecisions(access.kind)) denyAccess();
   const id = String(formData.get("id") || "");
   const action = String(formData.get("action") || "");
-  if (action !== "approve" && action !== "dismiss" && action !== "snooze") {
-    throw new Error("Choose approve, dismiss, or snooze.");
+  if (action !== "approve" && action !== "dismiss" && action !== "snooze" && action !== "resolve") {
+    throw new Error("Choose approve, dismiss, snooze, or mark resolved.");
   }
   const row = await prisma.recommendation.findFirst({ where: { id, workspaceId: WORKSPACE_ID, archivedAt: null } });
   if (!row) throw new Error("That decision was not found.");
-  if (row.status !== "draft" && row.status !== "verified") throw new Error("This decision is already closed.");
+  const open = row.status === "draft" || row.status === "verified";
+  if (action === "resolve") {
+    if (!open && row.status !== "accepted") throw new Error("This decision is already closed.");
+  } else if (!open) {
+    throw new Error("This decision is already closed.");
+  }
   const org = await prisma.org.findUnique({ where: { id: "org" }, select: { timezone: true } });
   const now = new Date();
   const planned = planDecision({
@@ -71,7 +75,8 @@ export async function recordDecisionAction(formData: FormData) {
       decidedAt: action === "snooze" ? null : now,
     },
   });
-  await audit(user, action === "approve" ? "Approved a decision" : action === "dismiss" ? "Dismissed a decision" : "Snoozed a decision", {
+  const verb = action === "approve" ? "Approved a decision" : action === "dismiss" ? "Dismissed a decision" : action === "resolve" ? "Marked a decision resolved" : "Snoozed a decision";
+  await audit(user, verb, {
     type: "recommendation",
     id: row.id,
     label: row.title,

@@ -128,6 +128,7 @@ export async function runStoredDecisionRules(now = new Date()) {
       campaignId: row.campaignId,
       clientId,
       clientName: row.campaign.client?.name || clientName.get(clientId) || "Unassigned",
+      campaignName: row.campaign.name,
       code: row.code,
       severity: row.severity,
       title: row.title,

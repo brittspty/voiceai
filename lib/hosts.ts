@@ -1,4 +1,4 @@
-import { publicHttpsBase } from "./env";
+import { firstAppOrigin, publicHttpsBase } from "./env";
 
 /**
  * Public hosts this product is served on.
@@ -61,7 +61,7 @@ export function publicHostRedirect(
 }
 
 function configuredOrigin(env: Env) {
-  return (env.APP_URL || env.PUBLIC_APP_URL || "http://127.0.0.1:43123").replace(/\/$/, "");
+  return firstAppOrigin(env.APP_URL || env.PUBLIC_APP_URL);
 }
 
 /**

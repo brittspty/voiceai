@@ -1,8 +1,20 @@
+import { addDaysISO } from "../time";
 import type { MarketingAccess } from "./access";
 import type { BudgetStore } from "./budget";
 import type { MetricPoint, MonitorDraft } from "./monitor";
 
 export type RecommendationDecision = "dismiss" | "accept" | "decline";
+
+function datesBetween(start: string, end: string) {
+  const dates = new Set<string>();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || start > end) return dates;
+  let cursor = start;
+  while (cursor <= end && dates.size < 120) {
+    dates.add(cursor);
+    cursor = addDaysISO(cursor, 1);
+  }
+  return dates;
+}
 
 function sumRecent(rows: MetricPoint[], adId: string, dates: Set<string>) {
   const mine = rows.filter((row) => row.adId === adId && dates.has(row.date));
@@ -39,8 +51,8 @@ export function verifyRecommendation(
   rows: MetricPoint[],
   config: { minImpressions: number; minClicks: number; today: string; yesterday: string },
 ) {
-  const dates = new Set([config.today, config.yesterday]);
-  const fresh = sumRecent(rows, draft.adId, dates);
+  const dates = draft.windowStart && draft.windowEnd ? datesBetween(draft.windowStart, draft.windowEnd) : new Set([config.today, config.yesterday]);
+  const fresh = sumRecent(rows, draft.adId, dates.size ? dates : new Set([config.today, config.yesterday]));
   const sampleTooSmall = fresh.impressions < config.minImpressions || fresh.clicks < config.minClicks;
   if (draft.type === "roi") {
     if (!draft.currentBudgetAmount) return { status: "draft" as const, note: "ROI advice needs a budget a person has set.", sampleSize: fresh.impressions };

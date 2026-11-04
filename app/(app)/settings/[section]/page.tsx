@@ -343,7 +343,7 @@ function Users({ canInvite, user, users }: { canInvite: boolean; user: { id: str
         <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">Turn on two-step sign-in for every owner and admin before you go live.</p>
       )}
       <TotpSetup enabled={users.find((row) => row.id === user.id)?.totpEnabled || false} userId={user.id} />
-      {canInvite && <InviteForm />}
+      {canInvite && <InviteForm includeSuperAdmin={isSuperAdmin(user.role)} />}
       <div className="overflow-hidden rounded-xl border border-line bg-card">
         <table className="w-full text-left text-sm">
           <thead><tr className="border-b border-line text-[11px] text-muted">{["Name", "Email", "Role", "Two-step sign-in", "Added"].map((h) => <th key={h} scope="col" className="px-4 py-3 font-medium">{h}</th>)}</tr></thead>

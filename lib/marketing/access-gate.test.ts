@@ -5,7 +5,8 @@ import test from "node:test";
 import { canInviteTeammate, canOpenOperatorSettings, inviteRoleAllowed, permissionStatus } from "../auth";
 import { passwordIssues, roleLabel } from "./access";
 import { shownIntegrationStatus } from "../adapters";
-import { publicHttpsBase } from "../env";
+import { appUrl, firstAppOrigin, publicHttpsBase } from "../env";
+import { authLinkOrigin } from "../hosts";
 import { readinessItems, type ReadinessInput } from "../readiness";
 import { clientViewerAllowed } from "./client-gate";
 import { clientViewersEnabled } from "./config";
@@ -109,8 +110,11 @@ test("super admins see the same invite form and role limits as owners", () => {
   assert.equal(inviteRoleAllowed("admin"), true);
   assert.equal(inviteRoleAllowed("viewer"), true);
   assert.equal(inviteRoleAllowed("super_admin"), false);
+  assert.equal(inviteRoleAllowed("super_admin", "owner"), false);
+  assert.equal(inviteRoleAllowed("super_admin", "super_admin"), true);
   const settings = readFileSync(path.join(ROOT, "app/(app)/settings/[section]/page.tsx"), "utf8");
   assert.match(settings, /canInviteTeammate\(user\.role\)/);
+  assert.match(readFileSync(path.join(ROOT, "lib/actions.ts"), "utf8"), /inviteRoleAllowed\(input\.role, user\.role\)/);
   assert.match(settings, /canInvite && <InviteForm/);
   const menu = readFileSync(path.join(ROOT, "components/shell.tsx"), "utf8");
   const jarvis = readFileSync(path.join(ROOT, "components/jarvis/shell.tsx"), "utf8");
@@ -174,6 +178,14 @@ test("public links use https and integrations are not healthy without a live che
   assert.equal(publicHttpsBase({ APP_URL: "http://127.0.0.1:43109" }), null);
   assert.equal(publicHttpsBase({ APP_URL: "http://voiceai.specificityinc.com" }), "https://voiceai.specificityinc.com");
   assert.equal(publicHttpsBase({ APP_URL: "http://jarvis.specificityinc.com" }), "https://jarvis.specificityinc.com");
+  const listed = "https://jai.specificityinc.com, diverai.specificityinc.com, voiceai.specificityinc.com";
+  assert.equal(firstAppOrigin(listed), "https://jai.specificityinc.com");
+  assert.equal(firstAppOrigin(""), "http://127.0.0.1:43123");
+  assert.equal(appUrl({ APP_URL: listed }), "https://jai.specificityinc.com");
+  assert.equal(`${appUrl({ APP_URL: listed })}/invite/token`, "https://jai.specificityinc.com/invite/token");
+  assert.equal(authLinkOrigin({ APP_URL: listed }), "https://jai.specificityinc.com");
+  assert.equal(publicHttpsBase({ APP_URL: listed }), "https://jai.specificityinc.com");
+  assert.equal(listed.includes(","), true);
   assert.equal(shownIntegrationStatus({ status: "healthy", keysSet: false, live: false }), "Not connected");
   assert.equal(shownIntegrationStatus({ status: "healthy", keysSet: true, live: true }), "Healthy");
   const hints = readinessItems({

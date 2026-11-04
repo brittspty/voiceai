@@ -38,7 +38,7 @@ export async function loadMonitorRows(): Promise<{ rows: MetricPoint[]; hours: H
   const [metrics, hourly, campaigns] = await Promise.all([
     prisma.dailyMetric.findMany({
       include: {
-        ad: { select: { id: true, name: true, adGroup: { select: { id: true, campaignId: true, campaign: { select: { adAccountId: true, objective: true } } } } } },
+        ad: { select: { id: true, name: true, adGroup: { select: { id: true, campaignId: true, campaign: { select: { name: true, adAccountId: true, objective: true } } } } } },
       },
     }),
     prisma.adHourlyMetric.findMany(),
@@ -52,6 +52,7 @@ export async function loadMonitorRows(): Promise<{ rows: MetricPoint[]; hours: H
     campaignId: metric.ad.adGroup.campaignId,
     adAccountId: metric.ad.adGroup.campaign.adAccountId,
     objective: metric.ad.adGroup.campaign.objective,
+    campaignName: metric.ad.adGroup.campaign.name,
     date: metric.date.toISOString().slice(0, 10),
     ingestedAt: metric.ingestedAt.toISOString(),
     spend: dec(metric.spend),

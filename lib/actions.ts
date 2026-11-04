@@ -391,7 +391,7 @@ function hashInviteToken(token: string) {
 export async function inviteTeammate(input: { name: string; email: string; role: Role }) {
   const user = await requireStaffUser();
   if (!canOpenOperatorSettings(user.role)) denyAccess();
-  if (!inviteRoleAllowed(input.role)) {
+  if (!inviteRoleAllowed(input.role, user.role)) {
     throw new Error("That role is assigned separately.");
   }
   const name = input.name.trim();

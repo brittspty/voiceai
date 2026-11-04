@@ -1,9 +1,10 @@
 import { prisma } from "../../db";
 import type { SP } from "../../params";
 import { zonedISODate } from "../../time";
-import { canApproveMarketing, canSwitchMarketingClient, type MarketingAccess } from "../access";
+import { canSwitchMarketingClient, type MarketingAccess } from "../access";
 import { parseRealViewQuery, realClientId, realDateWindow, type RealStatus } from "../real-view";
 import { WORKSPACE_ID } from "../types";
+import { canActOnDecisions } from "./access";
 import { stepsFor } from "./workflow";
 import { filterDecisionRows, groupDecisions, presentDecisions, type DecisionCard } from "./present";
 import type { DashWindow } from "../dashboard-model";
@@ -25,6 +26,9 @@ export type DecisionListModel = {
   hasLeadValue: boolean;
   seesCost: boolean;
   canAct: boolean;
+  viewerEmail: string;
+  bucket: "open" | "closed";
+  closedCount: number;
   groups: ReturnType<typeof groupDecisions>;
 };
 
@@ -90,9 +94,15 @@ const include = {
   client: { select: { id: true, name: true } },
 } as const;
 
+function param(source: SP, key: string) {
+  const value = source[key];
+  return (Array.isArray(value) ? value[0] : value) || "";
+}
+
 export async function loadDecisionList(access: MarketingAccess, source: SP, now = new Date()): Promise<DecisionListModel> {
   const { days, status } = parseRealViewQuery(source, true);
-  const requested = typeof source.client === "string" ? source.client : Array.isArray(source.client) ? source.client[0] || "" : "";
+  const bucket = param(source, "closed") === "1" ? "closed" : "open";
+  const requested = param(source, "client");
   const [clients, org, settings] = await Promise.all([
     prisma.marketingClient.findMany({ where: { workspaceId: WORKSPACE_ID }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.org.findUnique({ where: { id: "org" }, select: { timezone: true } }),
@@ -109,8 +119,7 @@ export async function loadDecisionList(access: MarketingAccess, source: SP, now 
   const rows = await prisma.recommendation.findMany({
     where: {
       AND: [
-        { workspaceId: WORKSPACE_ID, archivedAt: null, status: { in: ["draft", "verified"] } },
-        { OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }] },
+        { workspaceId: WORKSPACE_ID, archivedAt: null, status: { in: ["draft", "verified", "accepted", "resolved", "dismissed", "declined"] } },
         ...(clientId ? [{ OR: [{ clientId }, { clientId: null, campaign: { clientId } }] }] : []),
       ],
     },
@@ -118,21 +127,22 @@ export async function loadDecisionList(access: MarketingAccess, source: SP, now 
     orderBy: [{ lastSeenAt: "desc" }, { createdAt: "desc" }],
   });
   const cards = rows.map(toCard);
-  const filtered = filterDecisionRows(cards, { clientId, dates, status, now: end });
-  const visible = presentDecisions(filtered, {
-    seesCost: access.seesCost,
-    hasLeadValue: (settings?.leadValueCents ?? 0) > 0,
-  });
+  const view = { seesCost: access.seesCost, hasLeadValue: (settings?.leadValueCents ?? 0) > 0 };
+  const openRows = presentDecisions(filterDecisionRows(cards, { clientId, dates, status, now: end, bucket: "open" }), view);
+  const closedRows = presentDecisions(filterDecisionRows(cards, { clientId, dates, status, now: end, bucket: "closed" }), view);
   const chosen = clients.find((client) => client.id === clientId);
   return {
     days,
     status,
     clientId,
     clientName: chosen?.name || "All clients",
-    hasLeadValue: (settings?.leadValueCents ?? 0) > 0,
+    hasLeadValue: view.hasLeadValue,
     seesCost: access.seesCost,
-    canAct: canApproveMarketing(access),
-    groups: groupDecisions(visible),
+    canAct: canActOnDecisions(access.kind),
+    viewerEmail: access.email,
+    bucket,
+    closedCount: closedRows.length,
+    groups: groupDecisions(bucket === "closed" ? closedRows : openRows),
   };
 }
 
@@ -152,7 +162,7 @@ export async function loadDecisionDetail(id: string, access: MarketingAccess) {
   return {
     hidden: false as const,
     card: shown,
-    canAct: canApproveMarketing(access) && (row.status === "draft" || row.status === "verified"),
+    canAct: canActOnDecisions(access.kind),
     audits: row.audits.map((audit) => ({
       id: audit.id,
       action: audit.action,

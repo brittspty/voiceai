@@ -7,10 +7,12 @@ import { clientViewerAllowed } from "../client-gate";
 import { decisionsV1Enabled } from "../config";
 import { visibleDecisionCards } from "../decision-ui";
 import { normalizeAppName } from "./apps";
-import { decisionsRequestStatus, decisionsView, rejectsDecisionsRequest } from "./access";
+import { canActOnDecisions, decisionsRequestStatus, decisionsView, rejectsDecisionsRequest } from "./access";
 import { planCollapse } from "./collapse";
+import { planDuplicatePairs } from "./fold";
+import { formatMultiple, formatPercent, metricTitle, rateSummary } from "./labels";
 import { recommendationDedupeKey } from "./key";
-import { filterDecisionRows, groupDecisions, isCostDecision, presentDecisions, type DecisionCard } from "./present";
+import { filterDecisionRows, groupDecisions, isCostDecision, presentDecisions, viewerLine, visibleDecisionActions, type DecisionCard } from "./present";
 import {
   CONVERSION_MIN_CLICKS,
   CONVERSION_MIN_PRIOR,
@@ -25,7 +27,8 @@ import {
   type CtvDaySlice,
   type DailySlice,
 } from "./rules";
-import { applyUpsert, selectOpenRecommendation, type OpenRecommendation } from "./upsert";
+import { applyUpsert, earlierRecommendationId, selectOpenRecommendation, type OpenRecommendation } from "./upsert";
+import { AUTOMATED_CTR, BARE_CTR, BARE_MIN_CLICKS, BARE_MIN_DAYS, COST_BASELINE_RATIO, CTR_BASELINE_RATIO, RATE_MIN_CLICKS, RATE_MIN_IMPRESSIONS, RATE_WINDOW_DAYS, evaluateAds, type MetricPoint } from "../monitor";
 import { planDecision } from "./workflow";
 
 const END = "2026-11-04";
@@ -243,7 +246,7 @@ test("app names normalize before outlier grouping", () => {
   assert.equal(normalizeAppName("  Harbor Stream: Live  "), "Harbor Stream");
 });
 
-test("deduped ad alerts become one recommendation per campaign and code", () => {
+test("deduped ad alerts fold into one item per ad, metric, and window", () => {
   const alert = (id: string, patch: Partial<AlertSlice> = {}): AlertSlice => ({
     id,
     adId: id,
@@ -263,14 +266,25 @@ test("deduped ad alerts become one recommendation per campaign and code", () => 
     sourceMetricIds: [`src-${id}`],
     ...patch,
   });
-  const grouped = evaluateDecisionRules({
+  const folded = evaluateDecisionRules({
     end: END,
     alerts: [alert("ad-1"), alert("ad-2", { severity: "critical" }), alert("ad-3", { archivedAt: "2026-11-01", adId: "ad-3" })],
+  }).filter((row) => row.rule === "ctr_off" || row.rule.startsWith("ad_alert:"));
+  assert.equal(folded.length, 2);
+  assert.deepEqual(folded.map((row) => row.adId).sort(), ["ad-1", "ad-2"]);
+  assert.equal(folded.some((row) => row.rule.startsWith("ad_alert:")), false);
+  assert.ok(folded.every((row) => Array.isArray(row.evidence.alertIds)));
+  assert.equal(folded.every((row) => row.writesAds === false), true);
+  const odd = evaluateDecisionRules({
+    end: END,
+    alerts: [
+      alert("ad-1", { code: "odd_hours", title: "Odd hours" }),
+      alert("ad-2", { code: "odd_hours", title: "Odd hours" }),
+    ],
   }).filter((row) => row.type === "ad_underperformance");
-  assert.equal(grouped.length, 1);
-  assert.equal(grouped[0]?.severity, "critical");
-  assert.deepEqual(grouped[0]?.evidence.adIds, ["ad-1", "ad-2"]);
-  assert.equal(grouped[0]?.writesAds, false);
+  assert.equal(odd.length, 1);
+  assert.match(odd[0]?.title || "", /^Campaign \(2 ads\):/);
+  assert.equal((odd[0]?.title || "").startsWith("2 ads:"), false);
 });
 
 test("approve, dismiss, and snooze save an audit and do not execute", () => {
@@ -342,6 +356,24 @@ test("approve, dismiss, and snooze save an audit and do not execute", () => {
     planDecision({ recommendationId: "rec-1", action: "snooze", snoozeUntil: "2026-11-01", today: END, userId: "person-1", at: "2026-11-04T17:00:00.000Z", rule: "stale_campaign" }).ok,
     false,
   );
+  assert.equal(planDecision({ recommendationId: "rec-1", action: "resolve", today: END, userId: "person-1", at: "2026-11-04T18:00:00.000Z", rule: "ctr_drift" }).ok, false);
+  const resolved = planDecision({
+    recommendationId: "rec-1",
+    action: "resolve",
+    note: "Paused the ad in the platform",
+    today: END,
+    userId: "person-1",
+    at: "2026-11-04T18:00:00.000Z",
+    rule: "ctr_drift",
+  });
+  assert.equal(resolved.ok, true);
+  if (resolved.ok) {
+    assert.equal(resolved.status, "resolved");
+    assert.equal(resolved.audit.action, "resolve");
+    assert.equal(resolved.audit.note, "Paused the ad in the platform");
+    assert.equal(resolved.executes, false);
+    assert.equal(resolved.budgetWrite, "none");
+  }
   const actions = readFileSync(path.join(ROOT, "lib/marketing/decisions/actions.ts"), "utf8");
   assert.match(actions, /planDecision/);
   assert.match(actions, /decisionAudit.create/);
@@ -460,4 +492,345 @@ test("decisions are grouped by client and ordered by severity then recency", () 
     { clientId: "client-pine", dates: ["2026-10-29", END], status: "active", now: END },
   );
   assert.deepEqual(filtered.map((row) => row.id), ["open"]);
+});
+
+test("staff can act, clients stay blocked, and closed or snoozed rows follow the list rules", () => {
+  for (const kind of ["super_admin", "account_manager", "staff"]) {
+    assert.equal(canActOnDecisions(kind), true, kind);
+    assert.equal(decisionsRequestStatus({ surface: "api", enabled: true, signedIn: true, kind }), 200, kind);
+  }
+  assert.equal(canActOnDecisions("all_clients_viewer"), false);
+  assert.deepEqual(visibleDecisionActions("verified", true), ["Approve", "Dismiss", "Snooze", "Mark resolved"]);
+  assert.deepEqual(visibleDecisionActions("accepted", true), ["Mark resolved"]);
+  assert.deepEqual(visibleDecisionActions("resolved", true), []);
+  assert.deepEqual(visibleDecisionActions("verified", false), []);
+  assert.equal(viewerLine(false, "ada@example.com"), "View only — signed in as ada@example.com");
+  assert.equal(viewerLine(true, "ada@example.com"), "Signed in as ada@example.com");
+  for (const kind of ["client_owner", "client_viewer", "none"]) {
+    assert.equal(canActOnDecisions(kind), false, kind);
+    assert.equal(decisionsRequestStatus({ surface: "api", enabled: true, signedIn: true, kind }), 403, kind);
+    assert.equal(decisionsRequestStatus({ surface: "share", enabled: true, signedIn: true, kind }), 403, kind);
+  }
+  assert.equal(decisionsRequestStatus({ surface: "share", enabled: true, signedIn: true, kind: "staff" }), 403);
+  assert.equal(decisionsRequestStatus({ surface: "export", enabled: true, signedIn: true, kind: "client_viewer" }), 403);
+  const actions = readFileSync(path.join(ROOT, "lib/marketing/decisions/actions.ts"), "utf8");
+  const page = readFileSync(path.join(ROOT, "components/jarvis/decisions-v1.tsx"), "utf8");
+  assert.match(actions, /canActOnDecisions/);
+  assert.equal(actions.includes("canApproveMarketing"), false);
+  assert.match(page, /Approve/);
+  assert.match(page, /Dismiss/);
+  assert.match(page, /Snooze/);
+  assert.match(page, /Mark resolved/);
+  assert.match(page, /viewerLine/);
+  assert.match(page, /Closed \(/);
+
+  const base = {
+    type: "ctr_drift",
+    rule: "ctr_drift",
+    status: "verified",
+    severity: "warning",
+    clientId: "client-pine",
+    clientName: "Pine Street Dental",
+    campaignId: "camp-pine",
+    campaignName: "Pine Search",
+    campaignStatus: "active",
+    title: "Open",
+    summary: "Click rate is lower.",
+    rationale: "",
+    metric: "ctr",
+    baseline: "0.0200",
+    observed: "0.0100",
+    windowStart: "2026-10-29",
+    windowEnd: END,
+    sampleSize: 1000,
+    sourceMetricIds: [],
+    evidence: {},
+    recency: "2026-11-04T00:00:00.000Z",
+    snoozedUntil: null,
+    archivedAt: null,
+    steps: [],
+    id: "open",
+  } satisfies DecisionCard;
+  const rows = [
+    base,
+    { ...base, id: "accepted", status: "accepted", title: "Accepted" },
+    { ...base, id: "resolved", status: "resolved", title: "Resolved" },
+    { ...base, id: "dismissed", status: "dismissed", title: "Dismissed" },
+    { ...base, id: "declined", status: "declined", title: "Declined" },
+    { ...base, id: "snoozed", title: "Snoozed", snoozedUntil: END },
+    { ...base, id: "returned", title: "Returned", snoozedUntil: "2026-11-03" },
+  ].map((row, index) => ({ ...row, id: row.id || `row-${index}` }));
+  const view = { clientId: "client-pine", dates: ["2026-10-29", END], status: "active" as const, now: END };
+  assert.deepEqual(filterDecisionRows(rows, view).map((row) => row.id).sort(), ["open", "returned"]);
+  const closed = filterDecisionRows(rows, { ...view, bucket: "closed" });
+  assert.deepEqual(closed.map((row) => row.status).sort(), ["accepted", "declined", "dismissed", "resolved"]);
+  assert.equal(closed.length, 4);
+
+  const key = "performance|client-pine|camp-pine|ad-pine|ctr_off";
+  const closedRow = openRow("earlier", "2026-10-01T00:00:00.000Z", { dedupeKey: key, status: "resolved", decidedById: "person-1", decidedAt: "2026-10-02T00:00:00.000Z" });
+  assert.equal(earlierRecommendationId([closedRow], key), "earlier");
+  const again = applyUpsert([closedRow], { dedupeKey: key, evidence: { metric: "ctr" } }, "2026-11-04T00:00:00.000Z", (id) => openRow(id, "2026-11-04T00:00:00.000Z", { dedupeKey: key, evidence: { metric: "ctr" } }));
+  assert.equal(again.action, "insert");
+  assert.equal((again.rows.find((row) => row.id === again.id)?.evidence as { priorRecommendationId?: string }).priorRecommendationId, "earlier");
+
+  const pair = planDuplicatePairs([
+    {
+      id: "metric",
+      rule: "ctr_off",
+      metric: "ctr",
+      adId: "ad-pine",
+      windowStart: "2026-10-29",
+      windowEnd: END,
+      status: "verified",
+      decidedById: null,
+      decidedAt: null,
+      snoozedUntil: null,
+      createdAt: "2026-11-04T00:00:00.000Z",
+      evidence: { metric: "ctr" },
+    },
+    {
+      id: "alert",
+      rule: "ad_alert:ctr_off",
+      metric: "ctr",
+      adId: null,
+      windowStart: "2026-10-29",
+      windowEnd: END,
+      status: "verified",
+      decidedById: null,
+      decidedAt: null,
+      snoozedUntil: null,
+      createdAt: "2026-11-03T00:00:00.000Z",
+      evidence: { adIds: ["ad-pine"], alertIds: ["alert-row"] },
+    },
+    {
+      id: "decided-alert",
+      rule: "ad_alert:cpc_off",
+      metric: "cpc",
+      adId: "ad-pine",
+      windowStart: "2026-10-29",
+      windowEnd: END,
+      status: "accepted",
+      decidedById: "person-1",
+      decidedAt: "2026-11-02T00:00:00.000Z",
+      snoozedUntil: null,
+      createdAt: "2026-11-01T00:00:00.000Z",
+      evidence: { adIds: ["ad-pine"] },
+    },
+    {
+      id: "cpc",
+      rule: "cpc_off",
+      metric: "cpc",
+      adId: "ad-pine",
+      windowStart: "2026-10-29",
+      windowEnd: END,
+      status: "verified",
+      decidedById: null,
+      decidedAt: null,
+      snoozedUntil: null,
+      createdAt: "2026-11-04T00:00:00.000Z",
+      evidence: {},
+    },
+  ]);
+  assert.equal(pair.dryRun, true);
+  assert.equal(pair.deletes, 0);
+  assert.deepEqual(pair.archive, ["alert"]);
+  assert.equal(pair.archive.includes("decided-alert"), false);
+  assert.equal(pair.updates.some((row) => row.id === "metric"), true);
+  assert.equal(pair.updates.some((row) => row.id === "cpc"), true);
+  const script = readFileSync(path.join(ROOT, "scripts/archive-duplicate-decision-pairs.ts"), "utf8");
+  assert.match(script, /--apply/);
+  assert.match(script, /Dry run/);
+  assert.equal(script.includes("deleteMany"), false);
+  assert.equal(script.includes(".delete("), false);
+});
+
+test("rate thresholds, labels, and client cost hiding", () => {
+  assert.equal(RATE_WINDOW_DAYS, 7);
+  assert.equal(RATE_MIN_IMPRESSIONS, 1000);
+  assert.equal(RATE_MIN_CLICKS, 50);
+  assert.equal(CTR_BASELINE_RATIO, 0.6);
+  assert.equal(COST_BASELINE_RATIO, 1.5);
+  assert.equal(BARE_CTR, 0.05);
+  assert.equal(BARE_MIN_CLICKS, 50);
+  assert.equal(BARE_MIN_DAYS, 3);
+  assert.equal(AUTOMATED_CTR, 0.08);
+  assert.equal(formatPercent(0.022), "2.2%");
+  assert.equal(formatPercent(0.0045), "0.45%");
+  assert.equal(formatMultiple(0.022, 0.0045), "4.9x usual");
+  const title = metricTitle({
+    campaignName: "Homestead Traffic",
+    adName: "2026 Model Video",
+    metric: "ctr",
+    observed: 0.022,
+    baseline: 0.0045,
+    conversions: 0,
+    days: 2,
+    seesCost: false,
+  });
+  assert.equal(title, "Homestead Traffic – 2026 Model Video: click rate 2.2% vs 0.45% usual, 4.9x usual, 0 conversions in 2 days");
+  const dollars = metricTitle({
+    campaignName: "Harbor",
+    adName: "Video",
+    metric: "cpc",
+    observed: 1.5,
+    baseline: 1,
+    conversions: 0,
+    days: 7,
+    seesCost: true,
+  });
+  assert.match(dollars, /\$1\.50/);
+  assert.match(dollars, /1\.5x usual/);
+  assert.equal(metricTitle({ campaignName: "Harbor", adName: "Video", metric: "cpc", observed: 1.5, baseline: 1, conversions: 0, days: 7, seesCost: false }).includes("$"), false);
+  assert.equal(rateSummary({ metric: "ctr", ctr: 0.05, conversions: 0 }).includes("automated"), false);
+  assert.match(rateSummary({ metric: "ctr", ctr: 0.09, conversions: 0 }), /automated/);
+
+  const point = (patch: Partial<MetricPoint> & Pick<MetricPoint, "id" | "adId" | "date">): MetricPoint => ({
+    adName: "2026 Model Video",
+    campaignName: "Homestead Traffic",
+    adGroupId: "ag-1",
+    campaignId: "camp-1",
+    adAccountId: "act-1",
+    objective: "leads",
+    ingestedAt: "2026-11-04T15:00:00.000Z",
+    spend: 20,
+    impressions: 200,
+    clicks: 10,
+    linkClicks: 8,
+    reach: 100,
+    leads: 0,
+    conversions: 0,
+    conversionValue: 0,
+    ...patch,
+  });
+  const weak = Array.from({ length: 7 }, (_, index) => point({
+    id: `weak-${index}`,
+    adId: "ad-weak",
+    date: addDaysISO("2026-10-29", index),
+    impressions: 600,
+    clicks: 8,
+    spend: 40,
+  }));
+  const usual = point({ id: "usual", adId: "ad-usual", date: "2026-10-01", impressions: 8000, clicks: 400, spend: 80, ingestedAt: "2026-10-01T12:00:00.000Z" });
+  const flagged = evaluateAds({
+    rows: [...weak, usual],
+    now: new Date("2026-11-04T15:10:00.000Z"),
+    today: END,
+    yesterday: "2026-11-03",
+    baselineDays: 7,
+    alertMinImpressions: 200,
+    benchmarks: { leads: { ctr: 0.02, cpc: 1 } },
+  });
+  const ctr = flagged.alerts.find((row) => row.code === "ctr_off");
+  assert.ok(ctr);
+  assert.equal(ctr?.severity, "critical");
+  assert.match(ctr?.title || "", /Homestead Traffic – 2026 Model Video: click rate/);
+  assert.match(ctr?.title || "", /%/);
+  const short = evaluateAds({
+    rows: [point({ id: "one", adId: "ad-weak", date: END, impressions: 8000, clicks: 40, spend: 200 }), usual],
+    now: new Date("2026-11-04T15:10:00.000Z"),
+    today: END,
+    yesterday: "2026-11-03",
+    baselineDays: 7,
+    alertMinImpressions: 200,
+    benchmarks: { leads: { ctr: 0.02 } },
+  });
+  assert.equal(short.alerts.some((row) => row.code === "ctr_off"), false);
+  const bareDays = Array.from({ length: 3 }, (_, index) => point({
+    id: `bare-${index}`,
+    adId: "ad-hot",
+    date: addDaysISO("2026-11-02", index),
+    impressions: 400,
+    clicks: 40,
+    spend: 10,
+    objective: "leads",
+  }));
+  const bareBase = point({ id: "bare-base", adId: "ad-calm", date: "2026-10-01", impressions: 6000, clicks: 60, spend: 30, ingestedAt: "2026-10-01T12:00:00.000Z" });
+  const bare = evaluateAds({
+    rows: [...bareDays, bareBase],
+    now: new Date("2026-11-04T15:10:00.000Z"),
+    today: END,
+    yesterday: "2026-11-03",
+    baselineDays: 7,
+    alertMinImpressions: 200,
+    benchmarks: {},
+  }).alerts.find((row) => row.code === "ctr_without_results");
+  assert.ok(bare);
+  assert.equal(bare?.severity, "critical");
+  assert.match(bare?.summary || "", /automated/);
+  const traffic = evaluateAds({
+    rows: bareDays.map((row) => ({ ...row, objective: "traffic" })),
+    now: new Date("2026-11-04T15:10:00.000Z"),
+    today: END,
+    yesterday: "2026-11-03",
+    baselineDays: 7,
+    alertMinImpressions: 200,
+    benchmarks: {},
+  }).alerts.find((row) => row.code === "ctr_without_results");
+  assert.equal(traffic?.severity, "warning");
+  assert.equal((traffic?.summary || "").includes("automated"), false);
+
+  const hidden = presentDecisions([
+    {
+      ...({
+        id: "ctr",
+        type: "ctr_drift",
+        rule: "ctr_drift",
+        status: "verified",
+        severity: "warning",
+        clientId: "client-pine",
+        clientName: "Pine Street Dental",
+        campaignId: "camp-pine",
+        campaignName: "Pine Search",
+        campaignStatus: "active",
+        title: "2 ads: click rate fell and spend rose",
+        summary: "Spend is up. CPA, CPL, ROAS, and budget need a look. Cost $12.00.",
+        rationale: "Compared cost.",
+        metric: "ctr",
+        baseline: "0.0200",
+        observed: "0.0100",
+        windowStart: "2026-10-29",
+        windowEnd: END,
+        sampleSize: 1000,
+        sourceMetricIds: [],
+        evidence: { impressions: 1000, spend: 40, cpa: 12, cpl: 9, roas: 1.2, budget: 80, cost: 40 },
+        recency: "2026-11-04T00:00:00.000Z",
+        snoozedUntil: null,
+        archivedAt: null,
+        steps: [],
+      } satisfies DecisionCard),
+    },
+    {
+      id: "cpc",
+      type: "performance",
+      rule: "cpc_off",
+      status: "verified",
+      severity: "warning",
+      clientId: "client-pine",
+      clientName: "Pine Street Dental",
+      campaignId: "camp-pine",
+      campaignName: "Pine Search",
+      campaignStatus: "active",
+      title: "Cost per click",
+      summary: "CPC rose",
+      rationale: "",
+      metric: "cpc",
+      baseline: "1",
+      observed: "2",
+      windowStart: "2026-10-29",
+      windowEnd: END,
+      sampleSize: 50,
+      sourceMetricIds: [],
+      evidence: { cpc: 2 },
+      recency: "2026-11-04T00:00:00.000Z",
+      snoozedUntil: null,
+      archivedAt: null,
+      steps: [],
+    },
+  ], { seesCost: false, hasLeadValue: false });
+  assert.equal(hidden.length, 1);
+  const text = JSON.stringify(hidden[0]);
+  for (const word of ["spend", "cpa", "cpl", "roas", "budget", "cost", "$"]) {
+    assert.equal(text.toLowerCase().includes(word), false, word);
+  }
+  assert.match(hidden[0]?.title || "", /^Campaign \(2 ads\):/);
 });
