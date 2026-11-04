@@ -114,7 +114,7 @@ export function assertStackAdaptReadOnly(document: string) {
   }
 }
 
-const CAMPAIGN_READ = /\b(campaigns|campaignDelivery|adDelivery|advertiserDelivery|campaignGroupDelivery)\s*\(/;
+const CAMPAIGN_READ = /\b(campaigns|campaignDelivery|adDelivery|advertiserDelivery|campaignGroupDelivery|campaignInsight|campaignGroupInsight)\s*\(/;
 
 /**
  * Campaign and delivery reads must name exactly one advertiser.

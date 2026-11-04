@@ -5,6 +5,7 @@ import { getCtvAdapter } from "./adapter";
 import { exampleCtvPull } from "./fixtures";
 import { ctvWindow } from "./pull";
 import { buildCtvView, ctvPayloadForViewer, type CtvView } from "./report";
+import { releaseCtvAttribution, type CtvAttributionPage } from "./attribution";
 import { releaseCtvChannel, type CtvChannelPage } from "./channel";
 import { prepareCtvRecords, readCtvPull, saveCtvRecords, type CtvRecords } from "./store";
 import type { CtvAudience } from "./types";
@@ -63,6 +64,26 @@ export async function runCtvAttributionSync(options: {
   return { status: "succeeded" as const, mode: decision.action, outbound, since, until, view: records.view };
 }
 
+/** Empty attribution view used when stored StackAdapt rows replace the example page. */
+export function ctvViewWithoutExample(): CtvView {
+  return buildCtvView({
+    platform: "stackadapt",
+    exampleData: false,
+    warnings: [],
+    delivery: [],
+    exposures: [],
+    households: [],
+    conversions: [],
+    nativeWindow: {
+      clickDays: null,
+      viewDays: null,
+      source: "stackadapt",
+      label: "CTV (StackAdapt) native window follows each conversion pixel.",
+    },
+    platformLifts: [],
+  });
+}
+
 export async function loadCtvAttributionView(env: Env = process.env): Promise<CtvView> {
   const decision = decideCtvAttribution(env);
   if (decision.action === "skip") {
@@ -84,22 +105,35 @@ export async function attachShareCtv<T extends object>(
   payload: T,
   env: Env = process.env,
   loadChannel?: () => Promise<CtvChannelPage | null>,
-): Promise<T & { ctv?: unknown; ctvChannel?: unknown }> {
-  let next: T & { ctv?: unknown; ctvChannel?: unknown } = payload;
-  if (!decisionOff(env)) {
+  loadAttribution?: () => Promise<CtvAttributionPage | null>,
+): Promise<T & { ctv?: unknown; ctvChannel?: unknown; ctvAttribution?: unknown }> {
+  let next: T & { ctv?: unknown; ctvChannel?: unknown; ctvAttribution?: unknown } = payload;
+  const live = stackAdaptCtvLiveEnabled(env);
+  if (!decisionOff(env) && !live) {
     const view = await loadCtvAttributionView(env);
     next = { ...next, ctv: ctvPayloadForViewer(view, "share" satisfies CtvAudience) };
   }
-  if (!stackAdaptCtvLiveEnabled(env)) return next;
+  if (!live) return next;
   const channel = loadChannel ? await loadChannel() : await loadShareChannel(env);
-  if (!channel) return next;
-  return { ...next, ctvChannel: releaseCtvChannel(channel, "share") };
+  if (channel) next = { ...next, ctvChannel: releaseCtvChannel(channel, "share") };
+  const attribution = loadAttribution ? await loadAttribution() : await loadShareAttribution(env);
+  if (!attribution) return next;
+  return { ...next, ctvAttribution: releaseCtvAttribution(attribution, "share") };
 }
 
 async function loadShareChannel(env: Env) {
   try {
     const { loadPlanCtv } = await import("./channel-query");
     return loadPlanCtv("", env);
+  } catch {
+    return null;
+  }
+}
+
+async function loadShareAttribution(env: Env) {
+  try {
+    const { loadPlanAttribution } = await import("./attribution-query");
+    return loadPlanAttribution("", env);
   } catch {
     return null;
   }
