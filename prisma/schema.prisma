@@ -3185,6 +3185,11 @@ model CtvAttributionMeta {
   pixelAvailable   Boolean  @default(false)
   pixelNote        String   @default("")
   breakdownNote    String   @default("")
+  /// Weeks whose breakdown reads finished, and weeks that were requested.
+  breakdownCovered Int      @default(0)
+  breakdownTotal   Int      @default(0)
+  /// Chunks that failed or were still processing. Empty when every week came back.
+  breakdownGaps    String   @default("")
   updatedAt        DateTime @default(now())
 
   @@unique([workspaceId, clientId], map: "CtvAttributionMeta_workspace_client_key")

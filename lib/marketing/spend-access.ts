@@ -148,7 +148,7 @@ const SAFE_KEYS = new Set(
     "changesdefault", "view3days", "view7days", "exposedhouseholds", "sitevisits",
     "leadsandconversions", "uniqueimpressions", "completion25", "completion50",
     "completion75", "completion100", "videostarts", "clickconversions", "viewconversions", "showmoney", "updatedlabel", "reportedclickconversions", "reportedviewconversions",
-    "ctvattribution", "viewthroughlabel", "ipsplitavailable", "ipsplitnote", "pixelavailable", "pixelnote", "breakdownnote", "breakdownlabel",
+    "ctvattribution", "viewthroughlabel", "ipsplitavailable", "ipsplitnote", "pixelavailable", "pixelnote", "breakdownnote", "breakdownlabel", "breakdowngaps",
     "perthousand", "trend", "pixels", "pixelname", "pixelid", "breakdowns", "breakdown", "breakdownname", "campaignname", "campaignid",
     "ipconversions", "cookieconversions", "maidlistid", "subsegmentkey",
     "deterministicmatchrate", "verifiedclickconversions", "verifiedviewconversions",

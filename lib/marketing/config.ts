@@ -238,6 +238,13 @@ export function stackAdaptCtvLiveEnabled(env: Env = process.env) {
   return flagOn(env, "STACKADAPT_CTV_LIVE");
 }
 
+/** Days per campaignInsight breakdown request. A long range often returns only the latest week. */
+export function ctvBreakdownChunkDays(env: Env = process.env) {
+  const parsed = Number(env.CTV_BREAKDOWN_CHUNK_DAYS ?? 7);
+  if (!Number.isFinite(parsed)) return 7;
+  return Math.min(31, Math.max(1, Math.floor(parsed)));
+}
+
 export type CtvAttributionDecision = { action: "skip"; reason: string } | { action: "mock" } | { action: "live"; apiKey: string };
 
 /**
