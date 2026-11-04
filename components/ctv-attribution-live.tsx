@@ -14,10 +14,10 @@ function money(value: number | null | undefined) {
 }
 
 const BREAKDOWN_LABEL: Record<CtvBreakdownKind, string> = {
-  publisher: "Publisher",
-  app: "App",
-  device: "Device",
-  geo: "Geo",
+  publisher: "Publishers",
+  app: "Apps",
+  device: "Devices",
+  geo: "Country",
 };
 
 /**
@@ -113,6 +113,7 @@ export function CtvAttributionLive({ model }: { model: CtvAttributionPage }) {
       </section>
       <section className="rounded-xl border border-line bg-card p-4">
         <h2 className="font-semibold">Publisher, app, device, and geo</h2>
+        {model.breakdownLabel ? <p className="mt-2 text-sm text-muted">{model.breakdownLabel}</p> : null}
         {model.breakdownNote ? <p className="mt-3 text-sm text-muted">{model.breakdownNote}</p> : (
           <div className="mt-3 grid gap-4 lg:grid-cols-2">
             {(["publisher", "app", "device", "geo"] as const).map((kind) => (
@@ -123,7 +124,7 @@ export function CtvAttributionLive({ model }: { model: CtvAttributionPage }) {
                     {(groups.get(kind) ?? []).map((row) => (
                       <li key={`${row.kind}-${row.name}`} className="flex justify-between gap-3">
                         <span>{row.name}</span>
-                        <span>{formatCount(row.viewConversions)} view-through · {formatCount(row.impressions)} impressions</span>
+                        <span>{formatCount(row.viewConversions)} view-through · {formatCount(row.impressions)} impressions{model.showMoney && row.spend != null ? ` · ${money(row.spend)}` : ""}</span>
                       </li>
                     ))}
                   </ul>

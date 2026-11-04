@@ -315,7 +315,7 @@ export function isMissingCtvTable(error: unknown) {
   const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code || "") : "";
   if (code === "P2021" || code === "P2022") return true;
   const message = error instanceof Error ? error.message : String(error || "");
-  return /does not exist|CtvExposure|CtvConversion|CtvPlatformLift|CtvHousehold|CtvDeliveryDay|CtvTouchpointLink|CtvAttributionDay|CtvAttributionMeta/i.test(message) && /does not exist|unknown arg|P2021|P2022/i.test(message);
+  return /does not exist|CtvExposure|CtvConversion|CtvPlatformLift|CtvHousehold|CtvDeliveryDay|CtvTouchpointLink|CtvAttributionDay|CtvAttributionMeta|CtvAttributionBreakdown/i.test(message) && /does not exist|unknown arg|P2021|P2022/i.test(message);
 }
 
 async function readOptional<T>(run: () => Promise<T>, empty: T): Promise<{ value: T; missing: boolean }> {
