@@ -1,7 +1,8 @@
 /**
  * Stores StackAdapt CTV conversion attribution for mapped advertisers.
  * STACKADAPT_CTV_LIVE off makes no request. INTEGRATIONS_MODE is not consulted.
- * A successful read replaces that client's rows in the window and clears example rows.
+ * A successful read replaces that client's daily rows in the window.
+ * Breakdown rows are replaced per chunk that actually finished, for that client and dimension.
  */
 
 import { createHash } from "node:crypto";
@@ -30,6 +31,13 @@ export type CtvAttributionMetaState = {
 
 const BREAKDOWN_DIMENSIONS: CtvBreakdownKind[] = ["publisher", "app", "device", "geo"];
 
+export type CtvBreakdownChunkReplace = {
+  dimension: CtvBreakdownKind;
+  rangeStart: string;
+  rangeEnd: string;
+  rows: CtvBreakdownTotal[];
+};
+
 export type CtvAttributionStore = {
   rows: CtvAttributionRow[];
   breakdowns: CtvBreakdownTotal[];
@@ -38,7 +46,7 @@ export type CtvAttributionStore = {
   campaigns: CtvLiveCampaign[];
   examplesCleared: boolean;
   replaceClient(clientId: string, from: string, to: string, rows: CtvAttributionRow[]): void;
-  replaceBreakdowns(clientId: string, rows: CtvBreakdownTotal[]): void;
+  replaceBreakdownChunks(clientId: string, chunks: CtvBreakdownChunkReplace[]): void;
   setMeta(meta: CtvAttributionMetaState): void;
   rememberChannel(externalId: string, channelType: string, clientId: string | null, name: string, status: string): void;
   clearExamples(): void;
@@ -61,9 +69,11 @@ export function memoryCtvAttributionStore(input: {
       box.rows = box.rows.filter((row) => row.exampleData || row.clientId !== clientId || row.date < from || row.date > to);
       box.rows.push(...rows.map((row) => ({ ...row, exampleData: false as const })));
     },
-    replaceBreakdowns(clientId, rows) {
-      box.breakdowns = box.breakdowns.filter((row) => row.exampleData || row.clientId !== clientId || !BREAKDOWN_DIMENSIONS.includes(row.dimension));
-      box.breakdowns.push(...rows.map((row) => ({ ...row, exampleData: false as const })));
+    replaceBreakdownChunks(clientId, chunks) {
+      for (const chunk of chunks) {
+        box.breakdowns = box.breakdowns.filter((row) => row.exampleData || row.clientId !== clientId || row.dimension !== chunk.dimension || row.rangeStart !== chunk.rangeStart || row.rangeEnd !== chunk.rangeEnd);
+        box.breakdowns.push(...chunk.rows.map((row) => ({ ...row, exampleData: false as const })));
+      }
     },
     setMeta(meta) {
       box.metas = box.metas.filter((row) => row.clientId !== meta.clientId);
@@ -125,75 +135,86 @@ function blank(partial: Omit<CtvAttributionRow, "pixelId" | "pixelName" | "break
   };
 }
 
-export async function saveCtvAttribution(workspaceId: string, clientId: string, from: string, to: string, rows: CtvAttributionRow[], meta: CtvAttributionMetaState, breakdowns: CtvBreakdownTotal[] = [], replaceDays = true) {
+export async function saveCtvAttribution(workspaceId: string, clientId: string, from: string, to: string, rows: CtvAttributionRow[], meta: CtvAttributionMetaState, chunks: CtvBreakdownChunkReplace[] = [], replaceDays = true) {
   const { prisma } = await import("../../db");
   const kept = rows.filter((row) => row.date >= from && row.date <= to);
   await prisma.$transaction(async (tx) => {
     if (replaceDays) {
-    await tx.ctvAttributionDay.deleteMany({
-      where: {
-        workspaceId,
-        clientId,
-        exampleData: false,
-        date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T00:00:00.000Z`) },
-      },
-    });
-    if (kept.length) {
-      await tx.ctvAttributionDay.createMany({
-        data: kept.map((row) => ({
+      await tx.ctvAttributionDay.deleteMany({
+        where: {
           workspaceId,
-          clientId: row.clientId,
-          date: new Date(`${row.date}T00:00:00.000Z`),
-          platform: "stackadapt",
-          identityKey: rowKey(row),
-          campaignId: row.campaignId,
-          campaignName: row.campaignName,
-          grain: row.grain,
-          pixelId: row.pixelId,
-          pixelName: row.pixelName,
-          breakdown: row.breakdown,
-          breakdownName: row.breakdownName,
-          impressions: BigInt(Math.round(row.impressions)),
-          clickConversions: money(row.clickConversions),
-          viewConversions: money(row.viewConversions),
-          ipConversions: money(row.ipConversions),
-          cookieConversions: money(row.cookieConversions),
-          spend: money(row.spend),
+          clientId,
           exampleData: false,
-        })),
+          date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T00:00:00.000Z`) },
+        },
       });
+      if (kept.length) {
+        await tx.ctvAttributionDay.createMany({
+          data: kept.map((row) => ({
+            workspaceId,
+            clientId: row.clientId,
+            date: new Date(`${row.date}T00:00:00.000Z`),
+            platform: "stackadapt",
+            identityKey: rowKey(row),
+            campaignId: row.campaignId,
+            campaignName: row.campaignName,
+            grain: row.grain,
+            pixelId: row.pixelId,
+            pixelName: row.pixelName,
+            breakdown: row.breakdown,
+            breakdownName: row.breakdownName,
+            impressions: BigInt(Math.round(row.impressions)),
+            clickConversions: money(row.clickConversions),
+            viewConversions: money(row.viewConversions),
+            ipConversions: money(row.ipConversions),
+            cookieConversions: money(row.cookieConversions),
+            spend: money(row.spend),
+            exampleData: false,
+          })),
+        });
+      }
     }
-    }
-    await tx.ctvAttributionBreakdown.deleteMany({
-      where: { workspaceId, clientId, exampleData: false, dimension: { in: [...BREAKDOWN_DIMENSIONS] } },
-    });
-    if (breakdowns.length) {
-      await tx.ctvAttributionBreakdown.createMany({
-        data: breakdowns.map((row) => ({
+    for (const chunk of chunks) {
+      await tx.ctvAttributionBreakdown.deleteMany({
+        where: {
           workspaceId,
-          clientId: row.clientId,
-          campaignId: row.campaignId,
-          campaignName: row.campaignName,
-          dimension: row.dimension,
-          name: row.name,
-          rangeStart: new Date(`${row.rangeStart}T00:00:00.000Z`),
-          rangeEnd: new Date(`${row.rangeEnd}T00:00:00.000Z`),
-          impressions: BigInt(Math.round(row.impressions)),
-          clickConversions: money(row.clickConversions),
-          viewConversions: money(row.viewConversions),
-          spend: money(row.spend),
+          clientId,
           exampleData: false,
-        })),
+          dimension: chunk.dimension,
+          rangeStart: new Date(`${chunk.rangeStart}T00:00:00.000Z`),
+          rangeEnd: new Date(`${chunk.rangeEnd}T00:00:00.000Z`),
+        },
       });
+      if (chunk.rows.length) {
+        await tx.ctvAttributionBreakdown.createMany({
+          data: chunk.rows.map((row) => ({
+            workspaceId,
+            clientId: row.clientId,
+            campaignId: row.campaignId,
+            campaignName: row.campaignName,
+            dimension: row.dimension,
+            name: row.name,
+            rangeStart: new Date(`${row.rangeStart}T00:00:00.000Z`),
+            rangeEnd: new Date(`${row.rangeEnd}T00:00:00.000Z`),
+            impressions: BigInt(Math.round(row.impressions)),
+            clickConversions: money(row.clickConversions),
+            viewConversions: money(row.viewConversions),
+            spend: money(row.spend),
+            exampleData: false,
+          })),
+        });
+      }
     }
+    const remaining = await tx.ctvAttributionBreakdown.count({ where: { workspaceId, clientId, exampleData: false } });
+    const breakdownNote = remaining > 0 ? "" : meta.breakdownNote;
     await tx.ctvAttributionMeta.upsert({
       where: { workspaceId_clientId: { workspaceId, clientId } },
-      create: { workspaceId, ...meta },
+      create: { workspaceId, ...meta, breakdownNote },
       update: {
         ipSplitAvailable: meta.ipSplitAvailable,
         pixelAvailable: meta.pixelAvailable,
         pixelNote: meta.pixelNote,
-        breakdownNote: meta.breakdownNote,
+        breakdownNote,
         breakdownCovered: meta.breakdownCovered,
         breakdownTotal: meta.breakdownTotal,
         breakdownGaps: meta.breakdownGaps,
@@ -233,6 +254,8 @@ export async function runStackAdaptCtvAttribution(options: {
   now?: Date;
   timezone?: string;
   fetchImpl?: FetchLike;
+  sleep?: (ms: number) => Promise<void>;
+  clock?: () => number;
   workspaceId?: string;
   advertisers?: StackAdaptClientRule[];
   store?: CtvAttributionStore;
@@ -266,10 +289,12 @@ export async function runStackAdaptCtvAttribution(options: {
         advertiserId,
         fetchImpl,
         chunkDays: ctvBreakdownChunkDays(env),
+        sleep: options.sleep,
+        now: options.clock,
       });
       warnings.push(...pulled.warnings);
       const byClient = new Map<string, CtvAttributionRow[]>();
-      const breakdownByClient = new Map<string, CtvBreakdownTotal[]>();
+      const writesByClient = new Map<string, CtvBreakdownChunkReplace[]>();
       const seen = new Map<string, { channelType: string; clientId: string | null; name: string; status: string }>();
       const consider = (campaign: { campaignId: string; campaignName: string; channelType: string; status?: string }) => {
         if (!campaign.channelType || !campaign.campaignId) return null;
@@ -326,25 +351,44 @@ export async function runStackAdaptCtvAttribution(options: {
         }));
         byClient.set(clientId, list);
       }
-      for (const record of pulled.breakdowns) {
-        const clientId = consider({ ...record, status: "" });
-        if (!clientId) continue;
-        const list = breakdownByClient.get(clientId) ?? [];
-        list.push({
-          clientId,
-          campaignId: record.campaignId,
-          campaignName: record.campaignName,
-          dimension: record.kind,
-          name: record.name,
-          rangeStart: pulled.breakdownRangeStart || since,
-          rangeEnd: pulled.breakdownRangeEnd || until,
-          impressions: record.impressions,
-          clickConversions: record.clickConversions,
-          viewConversions: record.viewConversions,
-          spend: record.spend,
-          exampleData: false,
-        });
-        breakdownByClient.set(clientId, list);
+      const scopedClients = new Set<string>();
+      for (const campaign of seen.values()) {
+        if (campaign.clientId) scopedClients.add(campaign.clientId);
+      }
+      for (const write of pulled.breakdownWrites) {
+        const rowsByClient = new Map<string, CtvBreakdownTotal[]>();
+        for (const record of write.rows) {
+          const clientId = consider({ ...record, status: "" });
+          if (!clientId || record.kind !== write.dimension) continue;
+          const row: CtvBreakdownTotal = {
+            clientId,
+            campaignId: record.campaignId,
+            campaignName: record.campaignName,
+            dimension: write.dimension,
+            name: record.name,
+            rangeStart: write.from,
+            rangeEnd: write.to,
+            impressions: record.impressions,
+            clickConversions: record.clickConversions,
+            viewConversions: record.viewConversions,
+            spend: record.spend,
+            exampleData: false,
+          };
+          const list = rowsByClient.get(clientId) ?? [];
+          list.push(row);
+          rowsByClient.set(clientId, list);
+          scopedClients.add(clientId);
+        }
+        for (const clientId of scopedClients) {
+          const chunks = writesByClient.get(clientId) ?? [];
+          chunks.push({
+            dimension: write.dimension,
+            rangeStart: write.from,
+            rangeEnd: write.to,
+            rows: rowsByClient.get(clientId) ?? [],
+          });
+          writesByClient.set(clientId, chunks);
+        }
       }
       for (const [externalId, campaign] of seen) {
         if (options.store) options.store.rememberChannel(externalId, campaign.channelType, campaign.clientId, campaign.name, campaign.status);
@@ -358,21 +402,22 @@ export async function runStackAdaptCtvAttribution(options: {
         breakdownTotal: pulled.breakdownTotal,
         breakdownGaps: pulled.breakdownGaps,
       };
-      const clients = new Set([...byClient.keys(), ...breakdownByClient.keys()]);
+      const clients = new Set([...byClient.keys(), ...writesByClient.keys()]);
       for (const clientId of clients) {
         const rows = byClient.get(clientId) ?? [];
-        const breakdowns = breakdownByClient.get(clientId) ?? [];
+        const chunks = writesByClient.get(clientId) ?? [];
         const meta = {
           clientId,
           ...metaBase,
-          breakdownNote: breakdowns.length ? "" : (pulled.breakdownNote || BREAKDOWN_UNAVAILABLE),
+          breakdownNote: pulled.breakdownNote || BREAKDOWN_UNAVAILABLE,
         };
         if (options.store) {
           if (rows.length || byClient.has(clientId)) options.store.replaceClient(clientId, since, until, rows);
-          options.store.replaceBreakdowns(clientId, breakdowns);
-          options.store.setMeta(meta);
+          options.store.replaceBreakdownChunks(clientId, chunks);
+          const remaining = options.store.breakdowns.some((row) => row.clientId === clientId && !row.exampleData);
+          options.store.setMeta({ ...meta, breakdownNote: remaining ? "" : meta.breakdownNote });
         } else {
-          await saveCtvAttribution(workspaceId, clientId, since, until, rows, meta, breakdowns, byClient.has(clientId));
+          await saveCtvAttribution(workspaceId, clientId, since, until, rows, meta, chunks, byClient.has(clientId));
         }
       }
       wrote = true;

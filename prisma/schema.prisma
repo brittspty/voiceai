@@ -3195,7 +3195,8 @@ model CtvAttributionMeta {
   @@unique([workspaceId, clientId], map: "CtvAttributionMeta_workspace_client_key")
 }
 
-/// Range total for one breakdown dimension. Insight rows have no day, so they are not daily.
+/// One weekly chunk of a breakdown dimension. rangeStart and rangeEnd are that chunk.
+/// A wider range is an older combined total. Weekly reads leave it in place.
 /// Spend stays on the row for staff. Client, share, plan, and export responses strip it.
 model CtvAttributionBreakdown {
   id               String   @id @default(cuid())
@@ -3216,6 +3217,7 @@ model CtvAttributionBreakdown {
   ingestedAt       DateTime @default(now())
 
   @@index([workspaceId, clientId, dimension])
+  @@index([workspaceId, clientId, dimension, rangeStart, rangeEnd], map: "CtvAttributionBreakdown_client_chunk_idx")
 }
 
 model CtvWindowSetting {

@@ -27,6 +27,7 @@ import {
   parseCtvConversionNode,
   parseCtvPixelNode,
   type CtvBreakdownDelivery,
+  type CtvBreakdownKind,
   type CtvConversionDelivery,
   type CtvPixelDelivery,
 } from "./attribution-parse";
@@ -129,10 +130,10 @@ export const INSIGHT_RETRY_LIMIT_MS = 3 * 60_000;
  * first: 50 and a cap of 20 pages hold the 7 pages seen for about 196k impressions.
  */
 export const CTV_BREAKDOWN_DIMENSIONS = [
-  { attribute: "APP", selection: "app { title domain }" },
-  { attribute: "SUPPLY_SOURCE", selection: "supplySource { id name }" },
-  { attribute: "DEVICE_TYPE", selection: "deviceType" },
-  { attribute: "COUNTRY", selection: "country { name code }" },
+  { attribute: "APP", kind: "app", selection: "app { title domain }" },
+  { attribute: "SUPPLY_SOURCE", kind: "publisher", selection: "supplySource { id name }" },
+  { attribute: "DEVICE_TYPE", kind: "device", selection: "deviceType" },
+  { attribute: "COUNTRY", kind: "geo", selection: "country { name code }" },
 ] as const;
 
 export function stackAdaptCtvBreakdownQuery(attribute: string, selection: string) {
@@ -324,6 +325,14 @@ export function breakdownWindows(from: string, to: string, chunkDays = 7) {
   return chunks;
 }
 
+/** A dimension read that finished. Failed and Progress-timeout chunks are omitted so storage leaves them alone. */
+export type CtvBreakdownWrite = {
+  from: string;
+  to: string;
+  dimension: CtvBreakdownKind;
+  rows: CtvBreakdownDelivery[];
+};
+
 export function breakdownWeeksLabel(covered: number, total: number) {
   if (total <= 0 || covered >= total) return "";
   const unit = total === 1 ? "week" : "weeks";
@@ -368,6 +377,8 @@ export async function pullStackAdaptCtvAttribution(input: {
   breakdownRangeStart: string;
   breakdownRangeEnd: string;
   breakdownGaps: string;
+  /** Successful chunk reads only. Each one may be replaced. Failures are not listed. */
+  breakdownWrites: CtvBreakdownWrite[];
   warnings: string[];
 }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.from) || !/^\d{4}-\d{2}-\d{2}$/.test(input.to) || input.from > input.to) {
@@ -414,6 +425,7 @@ export async function pullStackAdaptCtvAttribution(input: {
     if (!isStackAdaptSchemaError(error)) warnings.push(messageOf(error) || "StackAdapt pixel read failed");
   }
   const summed = new Map<string, CtvBreakdownDelivery>();
+  const breakdownWrites: CtvBreakdownWrite[] = [];
   let breakdownNote = "";
   let breakdownCovered = 0;
   let breakdownTotal = 0;
@@ -430,14 +442,26 @@ export async function pullStackAdaptCtvAttribution(input: {
       if (!breakdownRangeStart || start < breakdownRangeStart) breakdownRangeStart = start;
       if (end > breakdownRangeEnd) breakdownRangeEnd = end;
     };
+    const addSum = (row: CtvBreakdownDelivery) => {
+      const key = [row.kind, row.name, row.campaignId].join("\0");
+      const current = summed.get(key);
+      if (!current) {
+        summed.set(key, { ...row, date: "" });
+        return;
+      }
+      current.impressions += row.impressions;
+      current.clickConversions += row.clickConversions;
+      current.viewConversions += row.viewConversions;
+      current.spend += row.spend;
+    };
     for (const chunk of chunks) {
       let chunkOk = true;
-      let sawDate = false;
-      let reportedStart = "";
-      let reportedEnd = "";
-      const chunkRows: CtvBreakdownDelivery[] = [];
       for (const dimension of STACKADAPT_CTV_BREAKDOWN_QUERIES) {
+        const kind = CTV_BREAKDOWN_DIMENSIONS.find((item) => item.attribute === dimension.attribute)?.kind;
+        if (!kind) continue;
         attempts += 1;
+        let dimensionOk = true;
+        const dimensionRows: CtvBreakdownDelivery[] = [];
         try {
           const pulled = await readPaged({
             ...input,
@@ -450,45 +474,50 @@ export async function pullStackAdaptCtvAttribution(input: {
           });
           warnings.push(...pulled.warnings);
           if (pulled.warnings.includes(STILL_PROCESSING)) {
+            dimensionOk = false;
             chunkOk = false;
             gapNotes.push(`Breakdown week ${chunk.from} to ${chunk.to} is still processing.`);
           }
-          for (const row of pulled.rows) chunkRows.push(...row);
+          for (const row of pulled.rows) dimensionRows.push(...row);
         } catch (error) {
           failures += 1;
+          dimensionOk = false;
           chunkOk = false;
           gapNotes.push(`Breakdown week ${chunk.from} to ${chunk.to} failed.`);
           if (!isStackAdaptSchemaError(error)) warnings.push(messageOf(error) || "StackAdapt breakdown read failed");
         }
-      }
-      for (const row of chunkRows) {
-        const day = isoDay(row.date);
-        if (day && (day < chunk.from || day > chunk.to)) continue;
-        if (day) {
-          sawDate = true;
-          if (!reportedStart || day < reportedStart) reportedStart = day;
-          if (day > reportedEnd) reportedEnd = day;
+        let sawDate = false;
+        let reportedStart = "";
+        let reportedEnd = "";
+        const kept: CtvBreakdownDelivery[] = [];
+        for (const row of dimensionRows) {
+          if (row.kind !== kind) continue;
+          const day = isoDay(row.date);
+          if (day && (day < chunk.from || day > chunk.to)) continue;
+          if (day) {
+            sawDate = true;
+            if (!reportedStart || day < reportedStart) reportedStart = day;
+            if (day > reportedEnd) reportedEnd = day;
+          }
+          kept.push(row);
+          addSum(row);
         }
-        const key = [row.kind, row.name, row.campaignId].join("\0");
-        const current = summed.get(key);
-        if (!current) {
-          summed.set(key, { ...row, date: "" });
-          continue;
-        }
-        current.impressions += row.impressions;
-        current.clickConversions += row.clickConversions;
-        current.viewConversions += row.viewConversions;
-        current.spend += row.spend;
+        const reportedWholeChunk = Boolean(reportedStart && reportedStart <= chunk.from && reportedEnd >= chunk.to);
+        const replaceable = dimensionOk && (!sawDate || reportedWholeChunk);
+        if (replaceable) breakdownWrites.push({ from: chunk.from, to: chunk.to, dimension: kind, rows: kept });
+        if (sawDate && reportedStart) widen(reportedStart, reportedEnd);
+        if (!replaceable && dimensionOk && sawDate) gapNotes.push(`Breakdown week ${chunk.from} to ${chunk.to} reported ${reportedStart} to ${reportedEnd}.`);
+        if (!replaceable) chunkOk = false;
       }
-      const reportedWholeChunk = Boolean(reportedStart && reportedStart <= chunk.from && reportedEnd >= chunk.to);
-      if (sawDate && reportedStart) widen(reportedStart, reportedEnd);
-      if (chunkOk && !sawDate) widen(chunk.from, chunk.to);
-      if (chunkOk && (!sawDate || reportedWholeChunk)) breakdownCovered += 1;
-      else if (chunkOk && sawDate) gapNotes.push(`Breakdown week ${chunk.from} to ${chunk.to} reported ${reportedStart} to ${reportedEnd}.`);
+      if (chunkOk) {
+        breakdownCovered += 1;
+        widen(chunk.from, chunk.to);
+      }
     }
     if (attempts > 0 && failures === attempts) {
       breakdownNote = BREAKDOWN_UNAVAILABLE;
       summed.clear();
+      breakdownWrites.length = 0;
       breakdownRangeStart = "";
       breakdownRangeEnd = "";
     } else if (summed.size === 0 && gapNotes.some((note) => note.includes("still processing"))) {
@@ -508,6 +537,7 @@ export async function pullStackAdaptCtvAttribution(input: {
     breakdownRangeStart,
     breakdownRangeEnd,
     breakdownGaps: [...new Set(gapNotes)].join(" "),
+    breakdownWrites,
     warnings: [...new Set(warnings.filter(Boolean))],
   };
 }
