@@ -11,7 +11,7 @@ import { ctvPayloadForViewer } from "./report";
 import { isCtvCampaign } from "./parse";
 import type { CtvAudience } from "./types";
 import type { CtvSurface } from "./channel";
-import { BREAKDOWN_UNAVAILABLE, IP_SPLIT_UNAVAILABLE, PIXEL_UNAVAILABLE, VIEW_THROUGH_LABEL, breakdownWeeksLabel } from "./attribution-graphql";
+import { BREAKDOWN_UNAVAILABLE, IP_SPLIT_UNAVAILABLE, PIXEL_UNAVAILABLE, VIEW_THROUGH_LABEL, breakdownWeeksLabel, breakdownWindows } from "./attribution-graphql";
 
 export { BREAKDOWN_UNAVAILABLE, IP_SPLIT_UNAVAILABLE, PIXEL_UNAVAILABLE, VIEW_THROUGH_LABEL };
 
@@ -103,6 +103,22 @@ export type CtvAttributionPage = {
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function inclusiveDays(start: string, end: string) {
+  const [ys, ms, ds] = start.split("-").map(Number);
+  const [ye, me, de] = end.split("-").map(Number);
+  if (!ys || !ms || !ds || !ye || !me || !de) return 0;
+  return Math.round((Date.UTC(ye, me - 1, de) - Date.UTC(ys, ms - 1, ds)) / 86400000) + 1;
+}
+
+function rangesOverlap(start: string, end: string, otherStart: string, otherEnd: string) {
+  return start <= otherEnd && end >= otherStart;
+}
+
+/** A stored total wider than one chunk is an older combined row. Weekly reads must not add it on top of a chunk. */
+function isLegacyRange(row: { rangeStart: string; rangeEnd: string }) {
+  return inclusiveDays(row.rangeStart, row.rangeEnd) > 7;
+}
 
 function formatCoverDay(iso: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
@@ -212,11 +228,26 @@ export function buildCtvAttributionPage(input: {
       byPixel.set(key, current);
     }
   }
+  const pageStart = dates[0] || "";
+  const pageEnd = dates[dates.length - 1] || "";
+  const inRange = (input.breakdowns ?? []).filter((row) => {
+    if (row.exampleData || !row.dimension || !row.name) return false;
+    if (clientId && row.clientId !== clientId) return false;
+    if (!allowed.has(row.campaignId)) return false;
+    return rangesOverlap(row.rangeStart, row.rangeEnd, pageStart, pageEnd);
+  });
+  const exact = inRange.filter((row) => !isLegacyRange(row));
+  const included = [
+    ...exact,
+    ...inRange.filter((row) => {
+      if (!isLegacyRange(row)) return false;
+      // A combined total is only the number for its own window. A shorter page must not treat it as that page's weeks.
+      if (!pageStart || !pageEnd || pageStart > row.rangeStart || pageEnd < row.rangeEnd) return false;
+      return !exact.some((chunk) => chunk.dimension === row.dimension && chunk.clientId === row.clientId && rangesOverlap(chunk.rangeStart, chunk.rangeEnd, row.rangeStart, row.rangeEnd));
+    }),
+  ];
   if (!input.breakdownNote) {
-    for (const row of input.breakdowns ?? []) {
-      if (row.exampleData || !row.dimension || !row.name) continue;
-      if (clientId && row.clientId !== clientId) continue;
-      if (!allowed.has(row.campaignId)) continue;
+    for (const row of included) {
       if (!breakdownStart || row.rangeStart < breakdownStart) breakdownStart = row.rangeStart;
       if (row.rangeEnd > breakdownEnd) breakdownEnd = row.rangeEnd;
       const key = `${row.dimension}\0${row.name}`;
@@ -228,6 +259,8 @@ export function buildCtvAttributionPage(input: {
       byBreakdown.set(key, current);
     }
   }
+  const weeks = pageStart && pageEnd ? breakdownWindows(pageStart, pageEnd, 7) : [];
+  const weeksPresent = weeks.filter((week) => included.some((row) => rangesOverlap(row.rangeStart, row.rangeEnd, week.from, week.to))).length;
   const conversions = totals.clickConversions + totals.viewConversions;
   const pageTotals: CtvAttributionTotals = {
     impressions: totals.impressions,
@@ -288,8 +321,11 @@ export function buildCtvAttributionPage(input: {
     pixelAvailable: input.pixelAvailable,
     pixelNote: input.pixelAvailable ? (pixels.length ? "" : (input.pixelNote || "No conversions in this range.")) : (input.pixelNote || PIXEL_UNAVAILABLE),
     breakdownNote: input.breakdownNote || "",
-    breakdownLabel: breakdownWeeksLabel(input.breakdownCoverage?.covered ?? 0, input.breakdownCoverage?.total ?? 0)
-      || (input.breakdownNote ? "" : breakdownCoverLabel(breakdownStart, breakdownEnd, dates[0] || "", dates[dates.length - 1] || "")),
+    breakdownLabel: input.breakdownNote
+      ? ""
+      : (weeks.length
+        ? breakdownWeeksLabel(weeksPresent, weeks.length)
+        : breakdownCoverLabel(breakdownStart, breakdownEnd, pageStart, pageEnd)),
     breakdownGaps: input.breakdownGaps || "",
     totals: pageTotals,
     trend: dates.map((date) => trend.get(date) ?? { date, impressions: 0, clickConversions: 0, viewConversions: 0 }),
