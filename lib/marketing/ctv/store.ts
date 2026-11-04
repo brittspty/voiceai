@@ -310,22 +310,48 @@ function day(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
+/** Prod may not have the event tables yet. A missing table is empty, not a crash. */
+export function isMissingCtvTable(error: unknown) {
+  const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code || "") : "";
+  if (code === "P2021" || code === "P2022") return true;
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /does not exist|CtvExposure|CtvConversion|CtvPlatformLift|CtvHousehold|CtvDeliveryDay|CtvTouchpointLink/i.test(message) && /does not exist|unknown arg|P2021|P2022/i.test(message);
+}
+
+async function readOptional<T>(run: () => Promise<T>, empty: T): Promise<{ value: T; missing: boolean }> {
+  try {
+    return { value: await run(), missing: false };
+  } catch (error) {
+    if (isMissingCtvTable(error)) return { value: empty, missing: true };
+    throw error;
+  }
+}
+
 export async function readCtvPull(workspaceId = WORKSPACE_ID): Promise<CtvPull | null> {
   const { prisma } = await import("../../db");
   const [exposures, households, conversions, delivery, window, lifts] = await Promise.all([
-    prisma.ctvExposure.findMany({ where: { workspaceId } }),
-    prisma.ctvHousehold.findMany({ where: { workspaceId } }),
-    prisma.ctvConversion.findMany({ where: { workspaceId } }),
-    prisma.ctvDeliveryDay.findMany({ where: { workspaceId } }),
-    prisma.ctvWindowSetting.findFirst({ where: { workspaceId }, orderBy: { pulledAt: "desc" } }),
-    prisma.ctvPlatformLift.findMany({ where: { workspaceId } }),
+    readOptional(() => prisma.ctvExposure.findMany({ where: { workspaceId } }), []),
+    readOptional(() => prisma.ctvHousehold.findMany({ where: { workspaceId } }), []),
+    readOptional(() => prisma.ctvConversion.findMany({ where: { workspaceId } }), []),
+    readOptional(() => prisma.ctvDeliveryDay.findMany({ where: { workspaceId } }), []),
+    readOptional(() => prisma.ctvWindowSetting.findFirst({ where: { workspaceId }, orderBy: { pulledAt: "desc" } }), null),
+    readOptional(() => prisma.ctvPlatformLift.findMany({ where: { workspaceId } }), []),
   ]);
-  if (!exposures.length && !delivery.length && !window) return null;
+  const exposureRows = exposures.value;
+  const householdRows = households.value;
+  const conversionRows = conversions.value;
+  const deliveryRows = delivery.value;
+  const windowRow = window.value;
+  const liftRows = lifts.value;
+  const gap = exposures.missing || households.missing || conversions.missing || lifts.missing
+    ? ["Event-level exposures and households are not available yet."]
+    : [];
+  if (!exposureRows.length && !deliveryRows.length && !windowRow && !gap.length) return null;
   return {
     platform: "stackadapt",
-    exampleData: window?.exampleData ?? delivery.some((row) => row.exampleData),
-    warnings: window?.warnings ?? [],
-    exposures: exposures.map((row) => ({
+    exampleData: windowRow?.exampleData ?? deliveryRows.some((row) => row.exampleData),
+    warnings: [...(windowRow?.warnings ?? []), ...gap],
+    exposures: exposureRows.map((row) => ({
       eventId: row.eventId,
       ts: row.occurredAt.toISOString(),
       campaignId: row.campaignId,
@@ -347,7 +373,7 @@ export async function readCtvPull(workspaceId = WORKSPACE_ID): Promise<CtvPull |
       interaction: row.interaction === "click" ? "click" : "view",
       maid: row.maid,
     })),
-    households: households.map((row) => ({
+    households: householdRows.map((row) => ({
       householdId: row.householdId,
       ipHash: row.ipHash,
       linkedMaids: row.linkedMaids,
@@ -355,7 +381,7 @@ export async function readCtvPull(workspaceId = WORKSPACE_ID): Promise<CtvPull |
       matchMethod: row.matchMethod === "deterministic_maid" || row.matchMethod === "ip_device_graph" ? row.matchMethod : "probabilistic",
       matchConfidence: row.matchConfidence,
     })),
-    conversions: conversions.map((row) => ({
+    conversions: conversionRows.map((row) => ({
       conversionId: row.conversionId,
       pixelEvent: row.pixelEvent,
       ts: row.occurredAt.toISOString(),
@@ -377,7 +403,7 @@ export async function readCtvPull(workspaceId = WORKSPACE_ID): Promise<CtvPull |
       siteVisit: row.siteVisit,
       creditedChannel: row.creditedChannel,
     })),
-    delivery: delivery.map((row) => ({
+    delivery: deliveryRows.map((row) => ({
       date: day(row.date),
       campaignId: row.campaignId,
       campaignName: row.campaignName,
@@ -410,12 +436,12 @@ export async function readCtvPull(workspaceId = WORKSPACE_ID): Promise<CtvPull |
       currency: row.currency,
     })),
     nativeWindow: {
-      clickDays: window?.clickDays ?? null,
-      viewDays: window?.viewDays ?? null,
-      label: window?.label || "CTV (StackAdapt) native window: not in this response. TODO(verify) the conversion tracker window fields.",
-      source: window?.source || "missing",
+      clickDays: windowRow?.clickDays ?? null,
+      viewDays: windowRow?.viewDays ?? null,
+      label: windowRow?.label || "CTV (StackAdapt) native window: not in this response. TODO(verify) the conversion tracker window fields.",
+      source: windowRow?.source || "missing",
     },
-    platformLifts: lifts.flatMap((row) => {
+    platformLifts: liftRows.flatMap((row) => {
       if (row.kind !== "brand_lift" && row.kind !== "ghost_bid" && row.kind !== "psa") return [];
       return [{
         kind: row.kind,

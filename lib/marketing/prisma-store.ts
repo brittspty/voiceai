@@ -122,6 +122,7 @@ export function createPrismaMarketingStore(client: Client): MarketingStore {
           startDate: input.startDate ? new Date(input.startDate) : null,
           endDate: input.endDate ? new Date(input.endDate) : null,
           namingParsed: input.namingParsed,
+          ...(input.channelType ? { channelType: input.channelType } : {}),
         },
         update: {
           adAccountId: input.adAccountId,
@@ -135,6 +136,7 @@ export function createPrismaMarketingStore(client: Client): MarketingStore {
           startDate: input.startDate ? new Date(input.startDate) : null,
           endDate: input.endDate ? new Date(input.endDate) : null,
           namingParsed: input.namingParsed,
+          ...(input.channelType ? { channelType: input.channelType } : {}),
         },
       });
       return { id: row.id };

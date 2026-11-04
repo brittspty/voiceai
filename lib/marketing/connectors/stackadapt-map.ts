@@ -73,7 +73,11 @@ export function stackAdaptToSnapshot(bundle: StackAdaptBundle): NormalizedSnapsh
       budgetAmount: null,
       startDate: null,
       endDate: null,
-      namingParsed: campaign.advertiserId ? { stackadaptAdvertiserId: campaign.advertiserId } : {},
+      namingParsed: {
+        ...(campaign.advertiserId ? { stackadaptAdvertiserId: campaign.advertiserId } : {}),
+        ...(campaign.channelType ? { channelType: campaign.channelType } : {}),
+      },
+      ...(campaign.channelType ? { channelType: campaign.channelType } : {}),
     });
     for (const line of campaign.lineItems) addLineItem(snapshot, campaign, line);
   }

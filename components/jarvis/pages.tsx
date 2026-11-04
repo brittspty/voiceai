@@ -6,6 +6,8 @@ import type { Ais2lCallView, TestPill } from "@/lib/ais2l/screen";
 import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_WORDMARK } from "@/lib/brand";
 import { EXAMPLE_FEED } from "@/lib/marketing/channels/catalog";
 import { presentedVideoChannels } from "@/lib/marketing/channels/video-channels";
+import type { CtvChannelPage } from "@/lib/marketing/ctv/channel";
+import { CtvLive } from "./ctv-live";
 import { scopeLiveFeed, snoozeUntil, urgentEmail, type FeedViewer, type SnoozeChoice } from "@/lib/marketing/channels/feed";
 import { measureSpeed } from "@/lib/marketing/channels/speed";
 import { logJarvisLeadMark, saveUrgentEmailOptIn, undoJarvisLeadMark } from "@/lib/marketing/human-actions";
@@ -85,9 +87,9 @@ export function ClientHome({ channels = null }: { channels?: { href?: string; la
   );
 }
 
-export function ClientChannel({ channel = "facebook" }: { channel?: string }) {
+export function ClientChannel({ channel = "facebook", ctv = null }: { channel?: string; ctv?: CtvChannelPage | null }) {
   if (channel === "youtube") return <ClientYouTube />;
-  if (channel === "ctv") return <ClientCtv />;
+  if (channel === "ctv") return <ClientCtv model={ctv} />;
   return (
     <main>
       <Crumbs items={[{ label: "Home", href: "/" }, { label: "Facebook & Instagram ads" }]} />
@@ -157,7 +159,8 @@ function ClientYouTube() {
   );
 }
 
-function ClientCtv() {
+function ClientCtv({ model }: { model?: CtvChannelPage | null }) {
+  if (model) return <CtvLive model={model} />;
   const row = presentedVideoChannels("client").find((item) => item.id === "ctv");
   return (
     <main>

@@ -3,7 +3,7 @@ import { formatKpi } from "./reports/format";
 import { reportFooterLine } from "./reports/brand";
 import type { ClientChannel, ClientKpi, ClientReport, ReportChannel, ReportFlag, StaffReport } from "./reports/types";
 
-const FORBIDDEN_KEY = /spend|budget|cpc|cpm|cpa|roas|cost|cpl|bid|currency|amount|revenue|leadvalue|callvalue|externalid/i;
+const FORBIDDEN_KEY = /spend|budget|cpc|cpm|cpv|cpa|roas|cost|cpl|bid|currency|amount|revenue|leadvalue|callvalue|externalid/i;
 const FORBIDDEN_TEXT = /spend|cost|cpc|cpm|cpa|budget|roas|revenue|\$/i;
 
 export type ClientCampaign = {
@@ -139,7 +139,7 @@ export function collectKeys(value: unknown, keys: string[] = []): string[] {
   return keys;
 }
 
-const VIEW_COST_KEY = /spend|budget|cpc|cpm|cpa|cpl|roas|cost|bid|revenue|overpace|paceratio|conversionvalue|currency/i;
+const VIEW_COST_KEY = /spend|budget|cpc|cpm|cpv|cpa|cpl|roas|cost|bid|revenue|overpace|paceratio|conversionvalue|currency/i;
 const VIEW_COST_TEXT = /\$|\b(spend|budgets?|cpc|cpm|cpa|cpl|roas|revenue|costs?|bids?)\b/i;
 
 function isEmptyObject(value: unknown) {

@@ -1,19 +1,30 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { ctvAttributionEnabled } from "@/lib/marketing/config";
-import { ctvHttpDecision, ctvPayloadForViewer } from "@/lib/marketing/ctv/report";
+import { answerCtvRequest } from "@/lib/marketing/ctv/http";
+import { loadCtvChannelPage } from "@/lib/marketing/ctv/channel-query";
 import { loadCtvAttributionView } from "@/lib/marketing/ctv/sync";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
-import { forSpendViewer } from "@/lib/marketing/spend-access";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const user = await requireUser();
   const access = await loadMarketingAccess(user);
-  const decision = ctvHttpDecision({ enabled: ctvAttributionEnabled(), kind: access.kind, seesCost: access.seesCost });
-  if (decision.status === 404) return NextResponse.json({ error: "CTV attribution is turned off." }, { status: 404 });
-  if (decision.status === 403 || !decision.audience) return NextResponse.json({ error: "CTV attribution is staff only." }, { status: 403 });
-  const view = forSpendViewer(ctvPayloadForViewer(await loadCtvAttributionView(), decision.audience), access);
-  return NextResponse.json(view);
+  const channel = await loadCtvChannelPage({
+    access,
+    requestedClientId: null,
+    days: 7,
+    status: access.seesCost || access.kind === "super_admin" || access.kind === "account_manager" || access.kind === "staff" || access.kind === "all_clients_viewer" ? "active" : "",
+    path: "/marketing/ctv",
+  });
+  const result = answerCtvRequest({
+    enabled: ctvAttributionEnabled(),
+    kind: access.kind,
+    seesCost: access.seesCost,
+    role: access.role,
+    view: await loadCtvAttributionView(),
+    channel,
+  });
+  return NextResponse.json(result.body, { status: result.status });
 }

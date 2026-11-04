@@ -51,6 +51,8 @@ export type NormalizedCampaign = {
   startDate: string | null;
   endDate: string | null;
   namingParsed: Record<string, string>;
+  /** StackAdapt channel. Omitted when this read did not include one, so a later sync does not wipe it. */
+  channelType?: string;
   /** True when this row was invented because the edge did not load. Do not overwrite a stored row. */
   placeholder?: boolean;
 };

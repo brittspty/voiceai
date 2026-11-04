@@ -22,6 +22,7 @@ query StackAdaptAdvertiserCampaigns($advertiserIds: [ID!]!, $after: String) {
     nodes {
       id
       name
+      channelType
       isArchived
       isDraft
       advertiser { id }
@@ -225,7 +226,7 @@ function nodes<T>(value: unknown): T[] {
 export type StackAdaptCreative = { id: string; name: string; status: string };
 export type StackAdaptDailyStat = { date: string; impressions: number; clicks: number; conversions: number; spend: number };
 export type StackAdaptLineItem = { id: string; name: string; status: string; creatives: StackAdaptCreative[]; dailyStats: StackAdaptDailyStat[] };
-export type StackAdaptCampaign = { id: string; name: string; status: string; advertiserId?: string; lineItems: StackAdaptLineItem[] };
+export type StackAdaptCampaign = { id: string; name: string; status: string; advertiserId?: string; channelType?: string; lineItems: StackAdaptLineItem[] };
 export type StackAdaptBundle = { campaigns: StackAdaptCampaign[]; warnings: string[] };
 
 function num(value: unknown) {
@@ -273,11 +274,13 @@ export function parseStackAdaptCampaignNode(value: unknown, advertiserId: string
       return { id: adId, name: text(ad.name), status: adStatus(ad) };
     })
     .filter((item): item is StackAdaptCreative => Boolean(item));
+  const channelType = text(row.channelType);
   return {
     id,
     name: text(row.name) || id,
     status: campaignStatus(row),
     advertiserId,
+    ...(channelType ? { channelType } : {}),
     lineItems: [
       {
         id: `line:${id}`,

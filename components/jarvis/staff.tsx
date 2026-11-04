@@ -2,6 +2,8 @@ import Link from "next/link";
 import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_WORDMARK } from "@/lib/brand";
 import { recommendAd, type AdSignal } from "@/lib/marketing/channels/recommend";
 import { presentedVideoChannels } from "@/lib/marketing/channels/video-channels";
+import type { CtvChannelPage } from "@/lib/marketing/ctv/channel";
+import { CtvLive } from "./ctv-live";
 import { Crumbs, End, Flag, RecChip, Tile, Tip } from "./bits";
 import { ChannelTable } from "./channel-table";
 import { MoreChannels } from "./more-channels";
@@ -167,7 +169,8 @@ export function StaffHome({ surfaces = null }: { surfaces?: RegistrySurfaces | n
   );
 }
 
-function VideoChannelDetail({ id }: { id: "youtube" | "ctv" }) {
+function VideoChannelDetail({ id, ctv = null }: { id: "youtube" | "ctv"; ctv?: CtvChannelPage | null }) {
+  if (id === "ctv" && ctv) return <CtvLive model={ctv} />;
   const row = presentedVideoChannels("staff").find((item) => item.id === id);
   const youtube = id === "youtube";
   const name = row?.label || (youtube ? "YouTube" : "CTV (StackAdapt)");
@@ -240,8 +243,8 @@ function ChannelRow({ href, name, spend, leads, cpl, qualified, status, tone, co
   );
 }
 
-export function ChannelDetail({ channel }: { channel: string }) {
-  if (channel === "youtube" || channel === "ctv") return <VideoChannelDetail id={channel} />;
+export function ChannelDetail({ channel, ctv = null }: { channel: string; ctv?: CtvChannelPage | null }) {
+  if (channel === "youtube" || channel === "ctv") return <VideoChannelDetail id={channel} ctv={ctv} />;
   const meta = channel !== "google-ads";
   return (
     <main>

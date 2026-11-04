@@ -628,6 +628,8 @@ model Campaign {
   startDate    DateTime?
   endDate      DateTime?
   namingParsed Json                  @default("{}")
+  /// StackAdapt channel, such as CTV. Empty until a read stores it. CTV is chosen from this, not from the campaign name.
+  channelType  String                @default("")
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
   adGroups        AdGroup[]
@@ -3069,6 +3071,7 @@ model CtvDeliveryDay {
   impressions       BigInt   @default(0)
   uniqueImpressions BigInt   @default(0)
   frequency         Decimal  @default(0) @db.Decimal(12, 4)
+  videoStarts       BigInt   @default(0)
   completion25      BigInt   @default(0)
   completion50      BigInt   @default(0)
   completion75      BigInt   @default(0)
@@ -3082,10 +3085,13 @@ model CtvDeliveryDay {
   siteVisits        Decimal  @default(0) @db.Decimal(18, 4)
   currency          String   @default("USD")
   exampleData       Boolean  @default(false)
+  /// Marketing client that owns this row. Empty on older example rows.
+  clientId          String   @default("")
   ingestedAt        DateTime @default(now())
 
   @@unique([workspaceId, identityKey], map: "CtvDeliveryDay_workspace_identity_key")
   @@index([workspaceId, date])
+  @@index([workspaceId, clientId, date])
 }
 
 /// Dry run only. uploaded is constrained false. Nothing is sent to a platform.

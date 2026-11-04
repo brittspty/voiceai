@@ -1,10 +1,11 @@
-import { decideCtvAttribution, type Env } from "../config";
+import { decideCtvAttribution, stackAdaptCtvLiveEnabled, type Env } from "../config";
 import type { FetchLike } from "../connectors/stackadapt-client";
 import { WORKSPACE_ID } from "../types";
 import { getCtvAdapter } from "./adapter";
 import { exampleCtvPull } from "./fixtures";
 import { ctvWindow } from "./pull";
 import { buildCtvView, ctvPayloadForViewer, type CtvView } from "./report";
+import { releaseCtvChannel, type CtvChannelPage } from "./channel";
 import { prepareCtvRecords, readCtvPull, saveCtvRecords, type CtvRecords } from "./store";
 import type { CtvAudience } from "./types";
 
@@ -79,10 +80,29 @@ export async function loadCtvAttributionView(env: Env = process.env): Promise<Ct
   }
 }
 
-export async function attachShareCtv<T extends object>(payload: T, env: Env = process.env): Promise<T & { ctv?: unknown }> {
-  if (decisionOff(env)) return payload;
-  const view = await loadCtvAttributionView(env);
-  return { ...payload, ctv: ctvPayloadForViewer(view, "share" satisfies CtvAudience) };
+export async function attachShareCtv<T extends object>(
+  payload: T,
+  env: Env = process.env,
+  loadChannel?: () => Promise<CtvChannelPage | null>,
+): Promise<T & { ctv?: unknown; ctvChannel?: unknown }> {
+  let next: T & { ctv?: unknown; ctvChannel?: unknown } = payload;
+  if (!decisionOff(env)) {
+    const view = await loadCtvAttributionView(env);
+    next = { ...next, ctv: ctvPayloadForViewer(view, "share" satisfies CtvAudience) };
+  }
+  if (!stackAdaptCtvLiveEnabled(env)) return next;
+  const channel = loadChannel ? await loadChannel() : await loadShareChannel(env);
+  if (!channel) return next;
+  return { ...next, ctvChannel: releaseCtvChannel(channel, "share") };
+}
+
+async function loadShareChannel(env: Env) {
+  try {
+    const { loadPlanCtv } = await import("./channel-query");
+    return loadPlanCtv("", env);
+  } catch {
+    return null;
+  }
 }
 
 function decisionOff(env: Env) {
