@@ -18,6 +18,21 @@ export { BREAKDOWN_UNAVAILABLE, IP_SPLIT_UNAVAILABLE, PIXEL_UNAVAILABLE, VIEW_TH
 export type CtvAttributionGrain = "campaign" | "pixel" | "breakdown";
 export type CtvBreakdownKind = "publisher" | "app" | "device" | "geo";
 
+export type CtvBreakdownTotal = {
+  clientId: string;
+  campaignId: string;
+  campaignName: string;
+  dimension: CtvBreakdownKind;
+  name: string;
+  rangeStart: string;
+  rangeEnd: string;
+  impressions: number;
+  clickConversions: number;
+  viewConversions: number;
+  spend: number;
+  exampleData?: boolean;
+};
+
 export type CtvAttributionRow = {
   clientId: string;
   date: string;
@@ -77,12 +92,28 @@ export type CtvAttributionPage = {
   pixelAvailable: boolean;
   pixelNote: string;
   breakdownNote: string;
+  /** Set when the stored breakdown window is not the page's date range. */
+  breakdownLabel: string;
   totals: CtvAttributionTotals;
   trend: { date: string; impressions: number; clickConversions: number; viewConversions: number }[];
   pixels: { id: string; name: string; impressions: number; clickConversions: number; viewConversions: number; perThousand: number | null; spend?: number }[];
   campaigns: { id: string; name: string; status: string; impressions: number; clickConversions: number; viewConversions: number; perThousand: number | null; spend?: number }[];
-  breakdowns: { kind: CtvBreakdownKind; name: string; impressions: number; clickConversions: number; viewConversions: number }[];
+  breakdowns: { kind: CtvBreakdownKind; name: string; impressions: number; clickConversions: number; viewConversions: number; spend?: number }[];
 };
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatCoverDay(iso: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return iso;
+  return `${MONTHS[Number(match[2]) - 1]} ${Number(match[3])}`;
+}
+
+/** Empty when the stored total uses the same dates as the page. */
+export function breakdownCoverLabel(storedStart: string, storedEnd: string, pageStart: string, pageEnd: string) {
+  if (!storedStart || !storedEnd || (storedStart === pageStart && storedEnd === pageEnd)) return "";
+  return `Breakdown covers ${formatCoverDay(storedStart)} – ${formatCoverDay(storedEnd)}`;
+}
 
 function perThousand(conversions: number, impressions: number) {
   if (impressions <= 0) return null;
@@ -111,6 +142,7 @@ export function buildCtvAttributionPage(input: {
   breakdownNote?: string;
   campaigns: readonly CtvAttributionCampaign[];
   rows: readonly CtvAttributionRow[];
+  breakdowns?: readonly CtvBreakdownTotal[];
 }): CtvAttributionPage {
   const showMoney = input.showMoney && input.staff;
   const dates = realDateWindow(input.endDate, input.days);
@@ -138,7 +170,9 @@ export function buildCtvAttributionPage(input: {
     byCampaign.set(campaign.externalId, { impressions: 0, clickConversions: 0, viewConversions: 0, spend: 0 });
   }
   const byPixel = new Map<string, { id: string; name: string; clickConversions: number; viewConversions: number; spend: number; campaignIds: Set<string> }>();
-  const byBreakdown = new Map<string, { kind: CtvBreakdownKind; name: string; impressions: number; clickConversions: number; viewConversions: number }>();
+  const byBreakdown = new Map<string, { kind: CtvBreakdownKind; name: string; impressions: number; clickConversions: number; viewConversions: number; spend: number }>();
+  let breakdownStart = "";
+  let breakdownEnd = "";
   for (const row of input.rows) {
     if (row.exampleData) continue;
     if (!row.date || !dateSet.has(row.date)) continue;
@@ -173,12 +207,21 @@ export function buildCtvAttributionPage(input: {
       current.spend += row.spend;
       current.campaignIds.add(row.campaignId);
       byPixel.set(key, current);
-    } else if (row.grain === "breakdown" && !input.breakdownNote && row.breakdown) {
-      const key = `${row.breakdown}\0${row.breakdownName}`;
-      const current = byBreakdown.get(key) ?? { kind: row.breakdown, name: row.breakdownName, impressions: 0, clickConversions: 0, viewConversions: 0 };
+    }
+  }
+  if (!input.breakdownNote) {
+    for (const row of input.breakdowns ?? []) {
+      if (row.exampleData || !row.dimension || !row.name) continue;
+      if (clientId && row.clientId !== clientId) continue;
+      if (!allowed.has(row.campaignId)) continue;
+      if (!breakdownStart || row.rangeStart < breakdownStart) breakdownStart = row.rangeStart;
+      if (row.rangeEnd > breakdownEnd) breakdownEnd = row.rangeEnd;
+      const key = `${row.dimension}\0${row.name}`;
+      const current = byBreakdown.get(key) ?? { kind: row.dimension, name: row.name, impressions: 0, clickConversions: 0, viewConversions: 0, spend: 0 };
       current.impressions += row.impressions;
       current.clickConversions += row.clickConversions;
       current.viewConversions += row.viewConversions;
+      current.spend += row.spend;
       byBreakdown.set(key, current);
     }
   }
@@ -242,11 +285,22 @@ export function buildCtvAttributionPage(input: {
     pixelAvailable: input.pixelAvailable,
     pixelNote: input.pixelAvailable ? (pixels.length ? "" : (input.pixelNote || "No conversions in this range.")) : (input.pixelNote || PIXEL_UNAVAILABLE),
     breakdownNote: input.breakdownNote || "",
+    breakdownLabel: input.breakdownNote ? "" : breakdownCoverLabel(breakdownStart, breakdownEnd, dates[0] || "", dates[dates.length - 1] || ""),
     totals: pageTotals,
     trend: dates.map((date) => trend.get(date) ?? { date, impressions: 0, clickConversions: 0, viewConversions: 0 }),
     pixels,
     campaigns: campaignRows,
-    breakdowns: input.breakdownNote ? [] : [...byBreakdown.values()].sort((a, b) => a.kind.localeCompare(b.kind) || b.impressions - a.impressions || a.name.localeCompare(b.name)),
+    breakdowns: input.breakdownNote ? [] : [...byBreakdown.values()].map((row) => {
+      const next: CtvAttributionPage["breakdowns"][number] = {
+        kind: row.kind,
+        name: row.name,
+        impressions: row.impressions,
+        clickConversions: row.clickConversions,
+        viewConversions: row.viewConversions,
+      };
+      if (showMoney) next.spend = row.spend;
+      return next;
+    }).sort((a, b) => a.kind.localeCompare(b.kind) || b.impressions - a.impressions || a.name.localeCompare(b.name)),
   };
 }
 

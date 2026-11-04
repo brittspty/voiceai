@@ -6,7 +6,7 @@ import type { DashWindow } from "../dashboard-model";
 import { realClientId, type RealStatus } from "../real-view";
 import { WORKSPACE_ID } from "../types";
 import { isolatedWhere } from "../workspace";
-import { buildCtvAttributionPage, releaseCtvAttribution, type CtvAttributionPage, type CtvBreakdownKind } from "./attribution";
+import { buildCtvAttributionPage, releaseCtvAttribution, type CtvAttributionPage, type CtvBreakdownKind, type CtvBreakdownTotal } from "./attribution";
 import { isMissingCtvTable } from "./store";
 
 function num(value: bigint | number | { toString(): string } | null | undefined) {
@@ -16,6 +16,40 @@ function num(value: bigint | number | { toString(): string } | null | undefined)
 }
 
 const BREAKDOWN_KINDS = new Set(["publisher", "app", "device", "geo"]);
+
+function breakdownKind(value: string): CtvBreakdownKind | "" {
+  return BREAKDOWN_KINDS.has(value) ? (value as CtvBreakdownKind) : "";
+}
+
+function mapBreakdown(row: {
+  clientId: string;
+  campaignId: string;
+  campaignName: string;
+  dimension: string;
+  name: string;
+  rangeStart: Date;
+  rangeEnd: Date;
+  impressions: bigint | number | { toString(): string };
+  clickConversions: { toString(): string } | number;
+  viewConversions: { toString(): string } | number;
+  spend?: { toString(): string } | number;
+}, showMoney: boolean): CtvBreakdownTotal | null {
+  const dimension = breakdownKind(row.dimension);
+  if (!dimension) return null;
+  return {
+    clientId: row.clientId,
+    campaignId: row.campaignId,
+    campaignName: row.campaignName,
+    dimension,
+    name: row.name,
+    rangeStart: row.rangeStart.toISOString().slice(0, 10),
+    rangeEnd: row.rangeEnd.toISOString().slice(0, 10),
+    impressions: num(row.impressions),
+    clickConversions: num(row.clickConversions),
+    viewConversions: num(row.viewConversions),
+    spend: showMoney && row.spend != null ? num(row.spend) : 0,
+  };
+}
 
 /**
  * Stored CTV attribution for the signed-in viewer.
@@ -116,6 +150,28 @@ export async function loadCtvAttributionPage(input: {
           },
         })
       : [];
+    const storedBreakdowns = ids.length
+      ? await prisma.ctvAttributionBreakdown.findMany({
+      where: isolatedWhere(workspaceId, {
+        exampleData: false,
+        campaignId: { in: ids },
+        ...(clientId ? { clientId } : {}),
+      }),
+      select: {
+        clientId: true,
+        campaignId: true,
+        campaignName: true,
+        dimension: true,
+        name: true,
+        rangeStart: true,
+        rangeEnd: true,
+        impressions: true,
+        clickConversions: true,
+        viewConversions: true,
+        ...(showMoney ? { spend: true } : {}),
+      },
+    })
+      : [];
     const metas = await prisma.ctvAttributionMeta.findMany({
       where: isolatedWhere(workspaceId, clientId ? { clientId } : {}),
     });
@@ -157,6 +213,10 @@ export async function loadCtvAttributionPage(input: {
         cookieConversions: num(row.cookieConversions),
         ...(showMoney && "spend" in row ? { spend: num(row.spend) } : { spend: 0 }),
       })),
+      breakdowns: storedBreakdowns.flatMap((row) => {
+        const mapped = mapBreakdown(row, showMoney);
+        return mapped ? [mapped] : [];
+      }),
     });
   } catch (error) {
     if (isMissingCtvTable(error)) return blank;
@@ -198,6 +258,21 @@ export async function loadPlanAttribution(clientName: string, env: Env = process
         cookieConversions: true,
       },
     });
+    const storedBreakdowns = await prisma.ctvAttributionBreakdown.findMany({
+      where: { clientId: client.id, exampleData: false },
+      select: {
+        clientId: true,
+        campaignId: true,
+        campaignName: true,
+        dimension: true,
+        name: true,
+        rangeStart: true,
+        rangeEnd: true,
+        impressions: true,
+        clickConversions: true,
+        viewConversions: true,
+      },
+    });
     const meta = await prisma.ctvAttributionMeta.findUnique({
       where: { workspaceId_clientId: { workspaceId: WORKSPACE_ID, clientId: client.id } },
     });
@@ -231,6 +306,10 @@ export async function loadPlanAttribution(clientName: string, env: Env = process
         cookieConversions: num(row.cookieConversions),
         spend: 0,
       })),
+      breakdowns: storedBreakdowns.flatMap((row) => {
+        const mapped = mapBreakdown(row, false);
+        return mapped ? [mapped] : [];
+      }),
     });
     return releaseCtvAttribution(page, "plan");
   } catch (error) {

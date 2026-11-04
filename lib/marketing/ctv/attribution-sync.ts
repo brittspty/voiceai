@@ -11,8 +11,8 @@ import { decideStackAdaptCtv, lookbackDays, type Env } from "../config";
 import { mapStackAdaptStatus } from "../connectors/stackadapt-status";
 import type { FetchLike } from "../connectors/stackadapt-client";
 import { WORKSPACE_ID } from "../types";
-import { pullStackAdaptCtvAttribution } from "./attribution-graphql";
-import type { CtvAttributionRow } from "./attribution";
+import { BREAKDOWN_UNAVAILABLE, pullStackAdaptCtvAttribution } from "./attribution-graphql";
+import type { CtvAttributionRow, CtvBreakdownKind, CtvBreakdownTotal } from "./attribution";
 import { isExplicitCtvType } from "./parse";
 import { isMissingCtvTable } from "./store";
 import type { CtvLiveCampaign } from "./live-sync";
@@ -25,13 +25,17 @@ export type CtvAttributionMetaState = {
   breakdownNote: string;
 };
 
+const BREAKDOWN_DIMENSIONS: CtvBreakdownKind[] = ["publisher", "app", "device", "geo"];
+
 export type CtvAttributionStore = {
   rows: CtvAttributionRow[];
+  breakdowns: CtvBreakdownTotal[];
   metas: CtvAttributionMetaState[];
   segments: { exampleData: boolean }[];
   campaigns: CtvLiveCampaign[];
   examplesCleared: boolean;
   replaceClient(clientId: string, from: string, to: string, rows: CtvAttributionRow[]): void;
+  replaceBreakdowns(clientId: string, rows: CtvBreakdownTotal[]): void;
   setMeta(meta: CtvAttributionMetaState): void;
   rememberChannel(externalId: string, channelType: string, clientId: string | null, name: string, status: string): void;
   clearExamples(): void;
@@ -40,10 +44,12 @@ export type CtvAttributionStore = {
 export function memoryCtvAttributionStore(input: {
   campaigns?: CtvLiveCampaign[];
   rows?: CtvAttributionRow[];
+  breakdowns?: CtvBreakdownTotal[];
   segments?: { exampleData: boolean }[];
 } = {}): CtvAttributionStore {
   const box: CtvAttributionStore = {
     rows: (input.rows ?? []).map((row) => ({ ...row })),
+    breakdowns: (input.breakdowns ?? []).map((row) => ({ ...row })),
     metas: [],
     segments: (input.segments ?? []).map((row) => ({ ...row })),
     campaigns: (input.campaigns ?? []).map((row) => ({ ...row })),
@@ -51,6 +57,10 @@ export function memoryCtvAttributionStore(input: {
     replaceClient(clientId, from, to, rows) {
       box.rows = box.rows.filter((row) => row.exampleData || row.clientId !== clientId || row.date < from || row.date > to);
       box.rows.push(...rows.map((row) => ({ ...row, exampleData: false as const })));
+    },
+    replaceBreakdowns(clientId, rows) {
+      box.breakdowns = box.breakdowns.filter((row) => row.exampleData || row.clientId !== clientId || !BREAKDOWN_DIMENSIONS.includes(row.dimension));
+      box.breakdowns.push(...rows.map((row) => ({ ...row, exampleData: false as const })));
     },
     setMeta(meta) {
       box.metas = box.metas.filter((row) => row.clientId !== meta.clientId);
@@ -71,6 +81,7 @@ export function memoryCtvAttributionStore(input: {
     },
     clearExamples() {
       box.rows = box.rows.filter((row) => !row.exampleData);
+      box.breakdowns = box.breakdowns.filter((row) => !row.exampleData);
       box.segments = box.segments.filter((row) => !row.exampleData);
       box.examplesCleared = true;
     },
@@ -111,10 +122,11 @@ function blank(partial: Omit<CtvAttributionRow, "pixelId" | "pixelName" | "break
   };
 }
 
-export async function saveCtvAttribution(workspaceId: string, clientId: string, from: string, to: string, rows: CtvAttributionRow[], meta: CtvAttributionMetaState) {
+export async function saveCtvAttribution(workspaceId: string, clientId: string, from: string, to: string, rows: CtvAttributionRow[], meta: CtvAttributionMetaState, breakdowns: CtvBreakdownTotal[] = [], replaceDays = true) {
   const { prisma } = await import("../../db");
   const kept = rows.filter((row) => row.date >= from && row.date <= to);
   await prisma.$transaction(async (tx) => {
+    if (replaceDays) {
     await tx.ctvAttributionDay.deleteMany({
       where: {
         workspaceId,
@@ -148,6 +160,29 @@ export async function saveCtvAttribution(workspaceId: string, clientId: string, 
         })),
       });
     }
+    }
+    await tx.ctvAttributionBreakdown.deleteMany({
+      where: { workspaceId, clientId, exampleData: false, dimension: { in: [...BREAKDOWN_DIMENSIONS] } },
+    });
+    if (breakdowns.length) {
+      await tx.ctvAttributionBreakdown.createMany({
+        data: breakdowns.map((row) => ({
+          workspaceId,
+          clientId: row.clientId,
+          campaignId: row.campaignId,
+          campaignName: row.campaignName,
+          dimension: row.dimension,
+          name: row.name,
+          rangeStart: new Date(`${row.rangeStart}T00:00:00.000Z`),
+          rangeEnd: new Date(`${row.rangeEnd}T00:00:00.000Z`),
+          impressions: BigInt(Math.round(row.impressions)),
+          clickConversions: money(row.clickConversions),
+          viewConversions: money(row.viewConversions),
+          spend: money(row.spend),
+          exampleData: false,
+        })),
+      });
+    }
     await tx.ctvAttributionMeta.upsert({
       where: { workspaceId_clientId: { workspaceId, clientId } },
       create: { workspaceId, ...meta },
@@ -164,6 +199,7 @@ export async function saveCtvAttribution(workspaceId: string, clientId: string, 
 export async function clearExampleCtvAttribution(workspaceId: string) {
   const { prisma } = await import("../../db");
   await prisma.ctvAttributionDay.deleteMany({ where: { workspaceId, exampleData: true } });
+  await prisma.ctvAttributionBreakdown.deleteMany({ where: { workspaceId, exampleData: true } });
   await prisma.ctvSegmentRead.deleteMany({ where: { workspaceId, exampleData: true } });
 }
 
@@ -226,6 +262,7 @@ export async function runStackAdaptCtvAttribution(options: {
       });
       warnings.push(...pulled.warnings);
       const byClient = new Map<string, CtvAttributionRow[]>();
+      const breakdownByClient = new Map<string, CtvBreakdownTotal[]>();
       const seen = new Map<string, { channelType: string; clientId: string | null; name: string; status: string }>();
       const consider = (campaign: { campaignId: string; campaignName: string; channelType: string; status?: string }) => {
         if (!campaign.channelType || !campaign.campaignId) return null;
@@ -284,22 +321,23 @@ export async function runStackAdaptCtvAttribution(options: {
       }
       for (const record of pulled.breakdowns) {
         const clientId = consider({ ...record, status: "" });
-        if (!clientId || !record.date) continue;
-        const list = byClient.get(clientId) ?? [];
-        list.push(blank({
+        if (!clientId) continue;
+        const list = breakdownByClient.get(clientId) ?? [];
+        list.push({
           clientId,
-          date: record.date || until,
           campaignId: record.campaignId,
           campaignName: record.campaignName,
-          grain: "breakdown",
-          breakdown: record.kind,
-          breakdownName: record.name,
+          dimension: record.kind,
+          name: record.name,
+          rangeStart: since,
+          rangeEnd: until,
           impressions: record.impressions,
           clickConversions: record.clickConversions,
           viewConversions: record.viewConversions,
           spend: record.spend,
-        }));
-        byClient.set(clientId, list);
+          exampleData: false,
+        });
+        breakdownByClient.set(clientId, list);
       }
       for (const [externalId, campaign] of seen) {
         if (options.store) options.store.rememberChannel(externalId, campaign.channelType, campaign.clientId, campaign.name, campaign.status);
@@ -309,15 +347,22 @@ export async function runStackAdaptCtvAttribution(options: {
         ipSplitAvailable: pulled.ipSplitAvailable,
         pixelAvailable: pulled.pixelAvailable,
         pixelNote: pulled.pixelNote,
-        breakdownNote: pulled.breakdownNote,
       };
-      for (const [clientId, rows] of byClient) {
-        const meta = { clientId, ...metaBase };
+      const clients = new Set([...byClient.keys(), ...breakdownByClient.keys()]);
+      for (const clientId of clients) {
+        const rows = byClient.get(clientId) ?? [];
+        const breakdowns = breakdownByClient.get(clientId) ?? [];
+        const meta = {
+          clientId,
+          ...metaBase,
+          breakdownNote: breakdowns.length ? "" : (pulled.breakdownNote || BREAKDOWN_UNAVAILABLE),
+        };
         if (options.store) {
-          options.store.replaceClient(clientId, since, until, rows);
+          if (rows.length || byClient.has(clientId)) options.store.replaceClient(clientId, since, until, rows);
+          options.store.replaceBreakdowns(clientId, breakdowns);
           options.store.setMeta(meta);
         } else {
-          await saveCtvAttribution(workspaceId, clientId, since, until, rows, meta);
+          await saveCtvAttribution(workspaceId, clientId, since, until, rows, meta, breakdowns, byClient.has(clientId));
         }
       }
       wrote = true;

@@ -460,6 +460,160 @@ test("pixel rates use delivery impressions and zero-conversion pixels stay hidde
   assert.equal(quiet.pixelNote, "No conversions in this range.");
 });
 
+function insightNode(attribute: "supply" | "app", name: string, impressions: number, spend: string) {
+  const attributes = attribute === "supply"
+    ? { supplySource: { id: "src-1", name } }
+    : { app: { title: name } };
+  return {
+    campaign: { id: "camp-north", name: "Northwind evening slate", channelType: "CTV", advertiser: { id: ADVERTISER } },
+    attributes,
+    metrics: { impressions, clickConversions: 4, impressionConversions: 9, cost: spend },
+  };
+}
+
+test("dateless breakdown rows are stored as window totals and replaced on the next read", async () => {
+  let phase = 1;
+  const pine = {
+    clientId: "pine",
+    campaignId: "camp-pine",
+    campaignName: "Pinecrest late slate",
+    dimension: "publisher" as const,
+    name: "Pinecrest Stream",
+    rangeStart: "2026-10-22",
+    rangeEnd: "2026-11-04",
+    impressions: 33,
+    clickConversions: 1,
+    viewConversions: 1,
+    spend: 12,
+  };
+  const store = memoryCtvAttributionStore({ breakdowns: [pine] });
+  const advertisers = [
+    { id: "north", stackadaptAdvertiserIds: [ADVERTISER], stackadaptLiveRead: true, stackadaptCampaignNameContains: "Northwind" },
+    { id: "pine", stackadaptAdvertiserIds: [ADVERTISER], stackadaptLiveRead: true, stackadaptCampaignNameContains: "Pinecrest" },
+  ];
+  const fetchImpl = async (_url: string, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body || "{}")) as { query?: string };
+    const query = body.query || "";
+    if (query.includes("campaignDelivery")) return Response.json(page("campaignDelivery", deliveryNode(), { hasNextPage: false }));
+    if (query.includes("CONVERSION_PIXEL")) return Response.json(page("campaignInsight", [], { hasNextPage: false }));
+    if (query.includes("attributes: [SUPPLY_SOURCE]")) {
+      const name = phase === 1 ? "Northwind Stream" : "Cedar Stream";
+      const impressions = phase === 1 ? 1200 : 800;
+      return Response.json(page("campaignInsight", insightNode("supply", name, impressions, phase === 1 ? "40.5" : "20"), { hasNextPage: false }));
+    }
+    if (phase === 1 && query.includes("attributes: [APP]")) {
+      return Response.json(page("campaignInsight", insightNode("app", "Northwind Player", 900, "10"), { hasNextPage: false }));
+    }
+    return Response.json(page("campaignInsight", [], { hasNextPage: false }));
+  };
+  const first = await runStackAdaptCtvAttribution({
+    env: LIVE,
+    now: new Date("2026-11-04T15:00:00.000Z"),
+    store,
+    advertisers,
+    fetchImpl,
+  });
+  assert.equal(first.status, "succeeded");
+  const north = store.breakdowns.filter((row) => row.clientId === "north");
+  assert.deepEqual(north.map((row) => row.name).sort(), ["Northwind Player", "Northwind Stream"]);
+  assert.equal(north.every((row) => row.rangeStart === "2026-10-22" && row.rangeEnd === "2026-11-04"), true);
+  assert.equal(store.breakdowns.find((row) => row.clientId === "pine")?.impressions, 33);
+  assert.equal(store.rows.some((row) => row.grain === "breakdown"), false);
+  phase = 2;
+  await runStackAdaptCtvAttribution({
+    env: LIVE,
+    now: new Date("2026-11-04T15:00:00.000Z"),
+    store,
+    advertisers,
+    fetchImpl,
+  });
+  const replaced = store.breakdowns.filter((row) => row.clientId === "north");
+  assert.deepEqual(replaced.map((row) => row.name), ["Cedar Stream"]);
+  assert.equal(store.breakdowns.find((row) => row.name === "Northwind Stream"), undefined);
+  assert.equal(store.breakdowns.find((row) => row.clientId === "pine")?.name, "Pinecrest Stream");
+  const narrow = buildCtvAttributionPage({
+    showMoney: true,
+    staff: true,
+    clientId: "north",
+    clientName: "Northwind Studio",
+    days: 7,
+    status: "active",
+    endDate: "2026-11-04",
+    ipSplitAvailable: true,
+    pixelAvailable: true,
+    campaigns: [{ id: "row-north", externalId: "camp-north", name: "Northwind evening slate", clientId: "north", status: "active", channelType: "CTV" }],
+    rows: [],
+    breakdowns: replaced,
+  });
+  assert.equal(narrow.breakdownLabel, "Breakdown covers Oct 22 – Nov 4");
+  assert.deepEqual(narrow.breakdowns.map((row) => row.name), ["Cedar Stream"]);
+  assert.equal(narrow.breakdowns[0]?.spend, 20);
+  const matched = buildCtvAttributionPage({
+    showMoney: false,
+    staff: true,
+    clientId: "north",
+    clientName: "Northwind Studio",
+    days: 14,
+    status: "active",
+    endDate: "2026-11-04",
+    ipSplitAvailable: true,
+    pixelAvailable: true,
+    campaigns: [{ id: "row-north", externalId: "camp-north", name: "Northwind evening slate", clientId: "north", status: "active", channelType: "CTV" }],
+    rows: [],
+    breakdowns: replaced,
+  });
+  assert.equal(matched.breakdownLabel, "");
+  const html = renderToStaticMarkup(createElement(CtvAttributionLive, { model: narrow }));
+  assert.match(html, /Breakdown covers Oct 22 – Nov 4/);
+  assert.match(html, /Cedar Stream/);
+  assert.match(html, /\$20\.00/);
+  const shared = releaseCtvAttribution(narrow, "share");
+  assert.equal(keysOf(shared).includes("spend"), false);
+  assert.equal(keysOf(shared).includes("cost"), false);
+  assert.equal(releaseCtvAttribution(narrow, "staff").breakdowns[0]?.spend, 20);
+  for (const surface of ["client", "plan", "export", "staff_nocost"] as const) {
+    assert.equal(keysOf(releaseCtvAttribution(narrow, surface)).includes("spend"), false, surface);
+  }
+});
+
+test("a breakdown read that stores nothing saves the not-available note", async () => {
+  const store = memoryCtvAttributionStore();
+  const saved = await runStackAdaptCtvAttribution({
+    env: LIVE,
+    now: new Date("2026-11-04T15:00:00.000Z"),
+    store,
+    advertisers: [{ id: "north", stackadaptAdvertiserIds: [ADVERTISER], stackadaptLiveRead: true, stackadaptCampaignNameContains: "Northwind" }],
+    fetchImpl: async (_url, init) => {
+      const query = String(JSON.parse(String(init?.body || "{}")).query || "");
+      if (query.includes("campaignDelivery")) return Response.json(page("campaignDelivery", deliveryNode(), { hasNextPage: false }));
+      return Response.json(page("campaignInsight", [], { hasNextPage: false }));
+    },
+  });
+  assert.equal(saved.status, "succeeded");
+  assert.equal(store.breakdowns.length, 0);
+  assert.equal(store.metas.find((row) => row.clientId === "north")?.breakdownNote, BREAKDOWN_UNAVAILABLE);
+  const built = buildCtvAttributionPage({
+    showMoney: false,
+    staff: true,
+    clientId: "north",
+    clientName: "Northwind Studio",
+    days: 7,
+    status: "active",
+    endDate: "2026-11-04",
+    ipSplitAvailable: true,
+    pixelAvailable: true,
+    breakdownNote: BREAKDOWN_UNAVAILABLE,
+    campaigns: [{ id: "row-north", externalId: "camp-north", name: "Northwind evening slate", clientId: "north", status: "active", channelType: "CTV" }],
+    rows: [],
+    breakdowns: [],
+  });
+  assert.equal(built.breakdowns.length, 0);
+  assert.equal(built.breakdownLabel, "");
+  const html = renderToStaticMarkup(createElement(CtvAttributionLive, { model: built }));
+  assert.match(html, /not available/);
+  assert.equal(html.includes("None in this range"), false);
+});
+
 test("a live read keeps the other client's numbers and clears example rows", async () => {
   const example: CtvAttributionRow = {
     clientId: "north",

@@ -3190,6 +3190,29 @@ model CtvAttributionMeta {
   @@unique([workspaceId, clientId], map: "CtvAttributionMeta_workspace_client_key")
 }
 
+/// Range total for one breakdown dimension. Insight rows have no day, so they are not daily.
+/// Spend stays on the row for staff. Client, share, plan, and export responses strip it.
+model CtvAttributionBreakdown {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  clientId         String   @default("")
+  campaignId       String   @default("")
+  campaignName     String   @default("")
+  /// publisher, app, device, or geo.
+  dimension        String
+  name             String   @default("")
+  rangeStart       DateTime @db.Date
+  rangeEnd         DateTime @db.Date
+  impressions      BigInt   @default(0)
+  clickConversions Decimal  @default(0) @db.Decimal(18, 4)
+  viewConversions  Decimal  @default(0) @db.Decimal(18, 4)
+  spend            Decimal  @default(0) @db.Decimal(18, 4)
+  exampleData      Boolean  @default(false)
+  ingestedAt       DateTime @default(now())
+
+  @@index([workspaceId, clientId, dimension])
+}
+
 model CtvWindowSetting {
   id          String   @id @default(cuid())
   workspaceId String
