@@ -229,6 +229,15 @@ export function ctvAttributionEnabled(env: Env = process.env) {
   return flagOn(env, "CTV_ATTRIBUTION");
 }
 
+/**
+ * Off unless STACKADAPT_CTV_LIVE is explicitly on.
+ * On replaces the example CTV pages with stored StackAdapt delivery.
+ * The read uses the StackAdapt sync gate. INTEGRATIONS_MODE stays mock and is not consulted.
+ */
+export function stackAdaptCtvLiveEnabled(env: Env = process.env) {
+  return flagOn(env, "STACKADAPT_CTV_LIVE");
+}
+
 export type CtvAttributionDecision = { action: "skip"; reason: string } | { action: "mock" } | { action: "live"; apiKey: string };
 
 /**
@@ -268,6 +277,16 @@ export function decideStackAdapt(env: Env): StackAdaptDecision {
   const apiKey = (env.STACKADAPT_API_KEY || "").trim();
   if (!apiKey) return { action: "skip", reason: "missing STACKADAPT_API_KEY" };
   return { action: "live", apiKey };
+}
+
+/**
+ * CTV delivery read. Off makes no request and leaves the example pages in place.
+ * On follows decideStackAdapt: STACKADAPT_SYNC, the key, and mapped advertisers.
+ * INTEGRATIONS_MODE is not consulted.
+ */
+export function decideStackAdaptCtv(env: Env): StackAdaptDecision {
+  if (!stackAdaptCtvLiveEnabled(env)) return { action: "skip", reason: "STACKADAPT_CTV_LIVE is off" };
+  return decideStackAdapt(env);
 }
 
 /** Probe and backfill call StackAdapt only when this is live. Mock and skip make no request. */

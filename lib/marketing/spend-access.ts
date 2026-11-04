@@ -147,7 +147,7 @@ const SAFE_KEYS = new Set(
     "lag", "assists", "windows", "nativelabel", "verifiedhumanlabel",
     "changesdefault", "view3days", "view7days", "exposedhouseholds", "sitevisits",
     "leadsandconversions", "uniqueimpressions", "completion25", "completion50",
-    "completion75", "completion100", "reportedclickconversions", "reportedviewconversions",
+    "completion75", "completion100", "videostarts", "clickconversions", "viewconversions", "showmoney", "updatedlabel", "reportedclickconversions", "reportedviewconversions",
     "ipconversions", "cookieconversions", "maidlistid", "subsegmentkey",
     "deterministicmatchrate", "verifiedclickconversions", "verifiedviewconversions",
     "deterministicclickconversions", "deterministicviewconversions", "allmatchedconversions",
@@ -156,7 +156,7 @@ const SAFE_KEYS = new Set(
   ].map(spendKey),
 );
 
-const MONEY_TEXT = /\$|\b(spend|budgets?|costs?|cpc|cpm|cpa|cpl|cpql|roas|bids?|revenue|micros)\b/i;
+const MONEY_TEXT = /\$|\b(spend|budgets?|costs?|cpc|cpm|ecpv|cpa|cpl|cpql|roas|bids?|revenue|micros)\b/i;
 
 export function moneyText(value: string) {
   return MONEY_TEXT.test(value);

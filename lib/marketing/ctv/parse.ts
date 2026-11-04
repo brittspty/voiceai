@@ -31,6 +31,7 @@ import {
   VIDEO_Q2_FIELDS,
   VIDEO_Q3_FIELDS,
   VIDEO_RATE_FIELDS,
+  VIDEO_START_FIELDS,
   VIEW_CONVERSION_FIELDS,
   VIEW_WINDOW_FIELDS,
 } from "./fields";
@@ -87,6 +88,25 @@ export function isCtvChannel(value: string) {
   const key = value.trim().toLowerCase();
   if (!key) return true;
   return key === "ctv" || key === "connected tv" || key === "connected_tv";
+}
+
+/** CTV selection for stored campaigns. An empty type is not CTV, and the campaign name is not consulted. */
+export function isExplicitCtvType(value: string) {
+  const key = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return key === "ctv" || key === "connected_tv";
+}
+
+export function campaignChannelType(campaign: { channelType?: string | null; namingParsed?: unknown }) {
+  const column = (campaign.channelType || "").trim();
+  if (column) return column;
+  const parsed = campaign.namingParsed;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return "";
+  const value = (parsed as { channelType?: unknown }).channelType;
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function isCtvCampaign(campaign: { channelType?: string | null; namingParsed?: unknown; name?: string }) {
+  return isExplicitCtvType(campaignChannelType(campaign));
 }
 
 /**
@@ -290,3 +310,69 @@ export function pathLagHours(row: Record<string, unknown>, keys: readonly string
 }
 
 export { PATH_CLICK_LAG_FIELDS, PATH_VIEW_LAG_FIELDS, PATH_TYPE_FIELDS };
+
+export type CtvGraphqlDelivery = {
+  date: string;
+  campaignId: string;
+  campaignName: string;
+  channelType: string;
+  status: string;
+  impressions: number;
+  uniqueImpressions: number;
+  frequency: number;
+  videoStarts: number;
+  completion25: number;
+  completion50: number;
+  completion75: number;
+  completion100: number;
+  completionRate: number | null;
+  clickConversions: number;
+  viewConversions: number;
+  spend: number;
+};
+
+function gqlText(value: unknown) {
+  return typeof value === "string" ? value.trim() : typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+}
+
+function gqlRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+/**
+ * One campaignDelivery node. Rows for another advertiser are dropped.
+ * A campaign is CTV only when channelType says so. Budget and bid values are ignored.
+ */
+export function parseCtvGraphqlNode(value: unknown, advertiserId: string): CtvGraphqlDelivery | null {
+  const row = gqlRecord(value);
+  if (!row) return null;
+  const campaign = gqlRecord(row.campaign);
+  const owner = gqlText(gqlRecord(campaign?.advertiser)?.id);
+  const campaignId = gqlText(campaign?.id);
+  if (!campaignId || owner !== advertiserId) return null;
+  const metrics = gqlRecord(row.metrics) ?? {};
+  const channelType = gqlText(campaign?.channelType) || text(metrics, CHANNEL_FIELDS);
+  const date = gqlText(gqlRecord(row.granularity)?.startTime).slice(0, 10) || text(metrics, ["date", "day"]).slice(0, 10);
+  const impressions = amount(metrics, IMPRESSION_FIELDS);
+  const completion100 = amount(metrics, VIDEO_COMPLETE_FIELDS);
+  const status = gqlText(gqlRecord(campaign?.campaignStatus)?.state) || gqlText(campaign?.status);
+  return {
+    date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "",
+    campaignId,
+    campaignName: gqlText(campaign?.name) || campaignId,
+    channelType,
+    status,
+    impressions,
+    uniqueImpressions: amount(metrics, UNIQUE_IMPRESSION_FIELDS),
+    frequency: amount(metrics, FREQUENCY_FIELDS),
+    videoStarts: amount(metrics, VIDEO_START_FIELDS),
+    completion25: amount(metrics, VIDEO_Q1_FIELDS),
+    completion50: amount(metrics, VIDEO_Q2_FIELDS),
+    completion75: amount(metrics, VIDEO_Q3_FIELDS),
+    completion100,
+    completionRate: rate(amount(metrics, VIDEO_RATE_FIELDS)) ?? (impressions > 0 ? completion100 / impressions : null),
+    clickConversions: amount(metrics, CLICK_CONVERSION_FIELDS),
+    viewConversions: amount(metrics, VIEW_CONVERSION_FIELDS),
+    spend: amount(metrics, COST_FIELDS),
+  };
+}

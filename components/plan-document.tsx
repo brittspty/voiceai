@@ -17,6 +17,7 @@ export type PlanDocumentModel = {
   dashboard: PlanClientStats;
   showCost: boolean;
   preview?: boolean;
+  ctv?: { note: string; rows: { id: string; name: string; impressions: number; status: string }[] } | null;
 };
 
 export function PlanDocument({ plan }: { plan: PlanDocumentModel }) {
@@ -42,6 +43,19 @@ export function PlanDocument({ plan }: { plan: PlanDocumentModel }) {
             {plan.dashboard.leads != null ? <Stat label="Leads" value={plan.dashboard.leads.toLocaleString("en-US")} /> : null}
           </dl>
         </section>
+        {plan.ctv ? (
+          <section className="mt-8 rounded-2xl border p-5" style={{ borderColor: tone.line, background: tone.card }}>
+            <h2 className="text-lg font-semibold">Connected TV</h2>
+            <p className="mt-2 text-sm leading-6">{plan.ctv.note}</p>
+            {plan.ctv.rows.length ? (
+              <ul className="mt-3 space-y-1 text-sm">
+                {plan.ctv.rows.map((row) => (
+                  <li key={row.id}>{row.name} · {row.impressions.toLocaleString("en-US")} impressions · {row.status}</li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        ) : null}
         {plan.timeline ? <Block title="Timeline" body={plan.timeline} /> : null}
         {plan.weekly ? <Block title="What you will see each week" body={plan.weekly} /> : null}
         <a href={plan.ctaHref} className="btn-brand mt-8 inline-flex min-h-11 items-center rounded-full px-5 text-sm">{plan.ctaLabel || PLAN_START_LABEL}</a>

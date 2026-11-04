@@ -4,7 +4,9 @@ import { RealChannel } from "@/components/jarvis/real-home";
 import { ChannelDetail, Drill } from "@/components/jarvis/staff";
 import { requireUser } from "@/lib/auth";
 import { canSwitchMarketingClient } from "@/lib/marketing/access";
-import { jarvisUiV2Enabled, marketingClientSwitcherEnabled } from "@/lib/marketing/config";
+import { jarvisUiV2Enabled, marketingClientSwitcherEnabled, stackAdaptCtvLiveEnabled } from "@/lib/marketing/config";
+import { loadCtvChannelPage } from "@/lib/marketing/ctv/channel-query";
+import { releaseCtvChannel } from "@/lib/marketing/ctv/channel";
 import { parseRealViewQuery } from "@/lib/marketing/real-view";
 import { loadMarketingAccess } from "@/lib/marketing/queries";
 import { loadRealHome } from "@/lib/marketing/real-view-query";
@@ -18,8 +20,24 @@ export default async function DrillPage({ params, searchParams }: { params: Prom
   const access = await loadMarketingAccess(user);
   const { slug } = await params;
   const channel = slug[1] || "meta";
+  const sp = await searchParams;
+  if (channel === "ctv" && stackAdaptCtvLiveEnabled()) {
+    const staff = canSwitchMarketingClient(access);
+    const view = parseRealViewQuery(sp, staff);
+    const requested = !slug[0] || slug[0] === "all" ? null : slug[0];
+    const loaded = await loadCtvChannelPage({
+      access,
+      requestedClientId: requested,
+      days: view.days,
+      status: view.status,
+      path: `/c/${slug[0] || "all"}/ctv`,
+    });
+    const surface = staff ? (access.seesCost ? "staff" : "staff_nocost") : "client";
+    const model = loaded ? releaseCtvChannel(loaded, surface) : null;
+    if (staff || access.seesCost) return <ChannelDetail channel="ctv" ctv={model} />;
+    return <ClientChannel channel="ctv" ctv={model} />;
+  }
   if (marketingClientSwitcherEnabled()) {
-    const sp = await searchParams;
     const requested = !slug[0] || slug[0] === "all" ? null : slug[0];
     const view = parseRealViewQuery(sp, canSwitchMarketingClient(access));
     const model = await loadRealHome({ access, requestedClientId: requested, days: view.days, status: view.status });

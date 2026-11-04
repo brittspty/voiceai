@@ -11,6 +11,7 @@ import { presentForAudience } from "@/lib/marketing/share-payload";
 import { buildReportPdf } from "@/lib/marketing/reports/pdf";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
+import { ctvExportCsv, type CtvChannelPage } from "@/lib/marketing/ctv/channel";
 import { attachShareCtv } from "@/lib/marketing/ctv/sync";
 import { hashShareToken, SHARE_PASS_COOKIE, shareAccessDecision, shareHttpStatus, shareLinkState } from "@/lib/marketing/share-link";
 
@@ -88,8 +89,11 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   });
   if (!scoped.ok) return shareResponse(NextResponse.json({ error: scoped.error }, { status: scoped.status }));
   const payload = presentForAudience(scoped.body, "share") as ClientShareView;
+  const shared = await releaseShare(link.workspaceId, await attachShareCtv(payload));
   if (isExport) {
-    return shareResponse(new NextResponse(clientShareCsv(payload), { headers: { "Content-Type": "text/csv; charset=utf-8" } }));
+    const extra = ctvExportCsv((shared as { ctvChannel?: CtvChannelPage | null }).ctvChannel);
+    const csv = extra ? `${clientShareCsv(payload)}\n${extra}` : clientShareCsv(payload);
+    return shareResponse(new NextResponse(csv, { headers: { "Content-Type": "text/csv; charset=utf-8" } }));
   }
-  return shareResponse(NextResponse.json(await releaseShare(link.workspaceId, await attachShareCtv(payload))));
+  return shareResponse(NextResponse.json(shared));
 }

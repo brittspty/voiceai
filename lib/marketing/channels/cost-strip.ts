@@ -1,6 +1,6 @@
 import { projectWithoutSpend } from "../spend-access";
 
-const COST_KEY = /(spend|budget|cpc|cpm|cpa|cpl|cpql|roas|cost|revenue|conversionvalue|currencyamount|bid)/i;
+const COST_KEY = /(spend|budget|cpc|cpm|cpv|cpa|cpl|cpql|roas|cost|revenue|conversionvalue|currencyamount|bid)/i;
 
 export type CostAudience = "staff" | "client" | "share";
 
