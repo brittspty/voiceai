@@ -47,5 +47,5 @@ export default async function DecisionPage({ params, searchParams }: { params: P
     clientId: client || null,
     path: "/decisions",
   });
-  return <DecisionDetail card={loaded.card} canAct={loaded.canAct} audits={loaded.audits} back={back} />;
+  return <DecisionDetail card={loaded.card} canAct={loaded.canAct} viewerEmail={access.email} audits={loaded.audits} back={back} />;
 }

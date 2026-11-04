@@ -1,4 +1,5 @@
 import type { RealStatus } from "../real-view";
+import { readableDecisionTitle, softenSummary } from "./labels";
 
 const COST_METRICS = new Set([
   "spend",
@@ -47,6 +48,19 @@ export type DecisionCard = {
 };
 
 const SEVERITY_RANK: Record<string, number> = { critical: 0, high: 1, warning: 2, info: 3 };
+export const CLOSED_DECISION_STATUSES = new Set(["accepted", "resolved", "dismissed", "declined"]);
+const MONEY_WORD = /\$[\d,]+(?:\.\d+)?|\b(?:spend|cost|cpa|cpl|roas|budget)\b/gi;
+
+function scrubText(value: string) {
+  return value.replace(MONEY_WORD, "").replace(/\s{2,}/g, " ").replace(/\s+([,.;:])/g, "$1").trim();
+}
+
+function observedCtr(card: { metric: string; observed: string }) {
+  if (card.metric !== "ctr") return null;
+  const raw = Number(card.observed);
+  if (!Number.isFinite(raw)) return null;
+  return raw > 1 ? raw / 100 : raw;
+}
 
 export function isCostDecision(card: { type: string; metric: string }) {
   return COST_TYPES.has(card.type) || COST_METRICS.has(card.metric);
@@ -78,22 +92,50 @@ export function presentDecisions<T extends DecisionCard>(
     if (!input.seesCost && isCostDecision(card)) continue;
     if (!input.hasLeadValue && isRoasDecision(card)) continue;
     const evidence = stripValue(card.evidence, input.seesCost, input.hasLeadValue);
-    shown.push({ ...card, evidence: (evidence && typeof evidence === "object" ? evidence : {}) as Record<string, unknown> });
+    const title = readableDecisionTitle(card.title);
+    const summary = softenSummary(card.summary, observedCtr(card));
+    shown.push({
+      ...card,
+      title: input.seesCost ? title : scrubText(title),
+      summary: input.seesCost ? summary : scrubText(summary),
+      rationale: input.seesCost ? card.rationale : scrubText(card.rationale),
+      baseline: input.seesCost ? card.baseline : scrubText(card.baseline),
+      observed: input.seesCost ? card.observed : scrubText(card.observed),
+      evidence: (evidence && typeof evidence === "object" ? evidence : {}) as Record<string, unknown>,
+    });
   }
   return shown;
 }
 
+export function viewerLine(canAct: boolean, email: string) {
+  return canAct ? `Signed in as ${email}` : `View only — signed in as ${email}`;
+}
+
+export function visibleDecisionActions(status: string, canAct: boolean) {
+  if (!canAct) return [] as string[];
+  const open = status === "draft" || status === "verified";
+  const actions: string[] = [];
+  if (open) actions.push("Approve", "Dismiss", "Snooze");
+  if (open || status === "accepted") actions.push("Mark resolved");
+  return actions;
+}
+
 export function filterDecisionRows<T extends DecisionCard>(
   rows: readonly T[],
-  input: { clientId: string | null; dates: readonly string[]; status: RealStatus; now: string },
+  input: { clientId: string | null; dates: readonly string[]; status: RealStatus; now: string; bucket?: "open" | "closed" },
 ) {
   const start = input.dates[0] || "";
   const end = input.dates[input.dates.length - 1] || "";
+  const bucket = input.bucket ?? "open";
   return rows.filter((row) => {
     if (row.archivedAt) return false;
-    if (row.status !== "draft" && row.status !== "verified") return false;
     const today = input.now.slice(0, 10);
-    if (row.snoozedUntil && row.snoozedUntil > today) return false;
+    if (bucket === "closed") {
+      if (!CLOSED_DECISION_STATUSES.has(row.status)) return false;
+    } else {
+      if (row.status !== "draft" && row.status !== "verified") return false;
+      if (row.snoozedUntil && row.snoozedUntil >= today) return false;
+    }
     if (input.clientId && row.clientId !== input.clientId) return false;
     if (input.status) {
       const campaignStatus = row.campaignStatus || "active";

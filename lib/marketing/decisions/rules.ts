@@ -5,7 +5,9 @@
 
 import { addDaysISO } from "../../time";
 import { normalizeAppName } from "./apps";
+import { FOLDABLE_RULES } from "./fold";
 import { recommendationDedupeKey } from "./key";
+import { campaignAdsTitle, metricTitle, rateSummary } from "./labels";
 
 export const CTR_MIN_IMPRESSIONS = 1000;
 export const CTR_DROP = 0.25;
@@ -74,6 +76,7 @@ export type AlertSlice = {
   sampleSize: number;
   sourceMetricIds: string[];
   archivedAt?: string | null;
+  campaignName?: string;
 };
 
 export type DecisionDraft = {
@@ -552,8 +555,80 @@ function outlierDrafts(rows: readonly BreakdownSlice[]) {
 
 const SEVERITY_RANK: Record<string, number> = { critical: 0, high: 1, warning: 2, info: 3 };
 
+function asSeverity(value: string): DecisionDraft["severity"] {
+  if (value === "critical" || value === "high" || value === "info" || value === "warning") return value;
+  return "warning";
+}
+
+function foldAlertDrafts(rows: readonly AlertSlice[]) {
+  const open = rows.filter((row) => !row.archivedAt && FOLDABLE_RULES.has(row.code));
+  const groups = byKey(open, (row) => `${row.adId}|${row.code}|${row.windowStart}|${row.windowEnd}`);
+  const drafts: DecisionDraft[] = [];
+  for (const [, mine] of groups) {
+    const sample = mine[0];
+    if (!sample) continue;
+    const worst = [...mine].sort((a, b) => (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9))[0] ?? sample;
+    const observed = Number(sample.observed);
+    const baseline = Number(sample.baseline);
+    const observedRate = Number.isFinite(observed) ? observed : null;
+    const baselineRate = Number.isFinite(baseline) ? baseline : null;
+    const days = Math.max(1, daysBetween(sample.windowStart, sample.windowEnd) + 1);
+    const metric = sample.metric || (sample.code.startsWith("ctr") ? "ctr" : sample.code.replace(/_off$/, ""));
+    const seesCost = metric === "cpc" || metric === "cpm";
+    drafts.push(
+      makeDraft({
+        type: sample.code === "ctr_without_results" ? "traffic" : "performance",
+        rule: sample.code,
+        severity: asSeverity(worst.severity),
+        clientId: sample.clientId,
+        clientName: sample.clientName,
+        campaignId: sample.campaignId || null,
+        adId: sample.adId,
+        scope: sample.campaignId,
+        title: metricTitle({
+          campaignName: sample.campaignName || "",
+          adName: sample.adName,
+          metric,
+          observed: observedRate,
+          baseline: baselineRate,
+          conversions: 0,
+          days,
+          seesCost,
+        }),
+        summary: rateSummary({ metric, ctr: metric === "ctr" ? observedRate : null, conversions: 0 }),
+        rationale: "Folded from the matching ad alert so one item covers this ad, metric, and window.",
+        metric,
+        baseline: sample.baseline,
+        observed: sample.observed,
+        windowStart: sample.windowStart,
+        windowEnd: sample.windowEnd,
+        sampleSize: mine.reduce((sum, row) => sum + row.sampleSize, 0),
+        sourceMetricIds: [...new Set(mine.flatMap((row) => row.sourceMetricIds))],
+        steps: [
+          "Review this ad in the ad platform.",
+          "Nothing on this screen changes the ad.",
+        ],
+        evidence: {
+          metric,
+          baseline: sample.baseline,
+          observed: sample.observed,
+          windowStart: sample.windowStart,
+          windowEnd: sample.windowEnd,
+          sampleSize: mine.reduce((sum, row) => sum + row.sampleSize, 0),
+          sourceMetricIds: [...new Set(mine.flatMap((row) => row.sourceMetricIds))],
+          adIds: [sample.adId],
+          alertIds: mine.map((row) => row.id),
+          code: sample.code,
+          foldedFrom: `ad_alert:${sample.code}`,
+        },
+      }),
+    );
+  }
+  return drafts;
+}
+
 function groupedAlertDrafts(rows: readonly AlertSlice[]) {
-  const open = rows.filter((row) => !row.archivedAt);
+  const open = rows.filter((row) => !row.archivedAt && !FOLDABLE_RULES.has(row.code));
   const groups = byKey(open, (row) => `${row.clientId}|${row.campaignId}|${row.code}`);
   const drafts: DecisionDraft[] = [];
   for (const [, mine] of groups) {
@@ -573,8 +648,10 @@ function groupedAlertDrafts(rows: readonly AlertSlice[]) {
         campaignId: sample.campaignId || null,
         adId: null,
         scope: sample.campaignId,
-        title: mine.length === 1 ? sample.title : `${mine.length} ads: ${sample.title}`,
-        summary: `${sample.clientName}: ${mine.length} open ${sample.code.replaceAll("_", " ")} alert${mine.length === 1 ? "" : "s"} on this campaign.`,
+        title: campaignAdsTitle(mine.length, sample.title),
+        summary: mine.length === 1
+          ? `${sample.clientName}: one ad on this campaign needs a look.`
+          : `${sample.clientName}: ${mine.length} ads on this campaign need a look.`,
         rationale: "Grouped from deduped ad alerts. One open recommendation per campaign and alert code.",
         metric: sample.metric,
         baseline: sample.baseline,
@@ -616,6 +693,7 @@ export function evaluateDecisionRules(input: RuleInput) {
     ...frequencyDrafts(input.ctvDays ?? [], input.end, cap),
     ...outlierDrafts(input.breakdowns ?? []),
     ...groupedAlertDrafts(input.alerts ?? []),
+    ...foldAlertDrafts(input.alerts ?? []),
   ];
 }
 

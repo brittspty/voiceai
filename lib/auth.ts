@@ -62,7 +62,9 @@ export function canInviteTeammate(role: string) {
 
 export const INVITE_ROLES = ["owner", "admin", "viewer"] as const;
 
-export function inviteRoleAllowed(role: string) {
+/** Owners stay on viewer, admin, and owner. A super admin may also send or resend a super_admin invite. */
+export function inviteRoleAllowed(role: string, actorRole?: string) {
+  if (role === "super_admin") return isSuperAdmin(actorRole || "");
   return (INVITE_ROLES as readonly string[]).includes(role);
 }
 

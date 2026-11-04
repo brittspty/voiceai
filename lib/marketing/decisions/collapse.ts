@@ -8,7 +8,7 @@ export type CollapseRow = {
   snoozedUntil?: string | null;
 };
 
-const DECIDED = new Set(["accepted", "declined", "dismissed"]);
+const DECIDED = new Set(["accepted", "declined", "dismissed", "resolved"]);
 
 /** A person already acted. The collapse script keeps the row and never deletes it. */
 export function hasHumanDecision(row: Pick<CollapseRow, "status" | "decidedById" | "decidedAt" | "snoozedUntil">) {

@@ -10,6 +10,16 @@ export type OpenRecommendation = {
   lastSeenAt?: string | null;
 };
 
+const CLOSED = new Set(["accepted", "resolved", "dismissed", "declined"]);
+
+/** The newest closed row for this key, so a repeat issue can point back at it. */
+export function earlierRecommendationId(rows: readonly OpenRecommendation[], dedupeKey: string) {
+  if (!dedupeKey) return null;
+  const closed = rows.filter((row) => row.dedupeKey === dedupeKey && !row.archivedAt && CLOSED.has(row.status));
+  closed.sort((a, b) => (b.decidedAt || b.createdAt).localeCompare(a.decidedAt || a.createdAt) || b.id.localeCompare(a.id));
+  return closed[0]?.id ?? null;
+}
+
 export function isOpenRecommendation(row: OpenRecommendation) {
   if (!row.dedupeKey) return false;
   if (row.archivedAt) return false;
@@ -44,5 +54,10 @@ export function applyUpsert<T extends OpenRecommendation>(rows: readonly T[], dr
     };
   }
   const id = `new-${rows.length + 1}`;
-  return { action: "insert" as const, id, rows: [...rows, create(id)] };
+  const created = create(id);
+  const priorId = earlierRecommendationId(rows, draft.dedupeKey);
+  const evidence = priorId && created.evidence && typeof created.evidence === "object" && !Array.isArray(created.evidence)
+    ? { ...(created.evidence as Record<string, unknown>), priorRecommendationId: priorId }
+    : created.evidence;
+  return { action: "insert" as const, id, rows: [...rows, { ...created, evidence }] };
 }

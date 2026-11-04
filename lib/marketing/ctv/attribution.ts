@@ -92,7 +92,7 @@ export type CtvAttributionPage = {
   pixelAvailable: boolean;
   pixelNote: string;
   breakdownNote: string;
-  /** Weeks label when some chunks were missed, otherwise the stored window when it differs from the page. */
+    /** Weeks stored on CtvAttributionBreakdown. The last read's covered/total counters are not used. */
   breakdownLabel: string;
   breakdownGaps: string;
   totals: CtvAttributionTotals;
@@ -260,7 +260,8 @@ export function buildCtvAttributionPage(input: {
     }
   }
   const weeks = pageStart && pageEnd ? breakdownWindows(pageStart, pageEnd, 7) : [];
-  const weeksPresent = weeks.filter((week) => included.some((row) => rangesOverlap(row.rangeStart, row.rangeEnd, week.from, week.to))).length;
+  const weeklyChunks = included.filter((row) => !isLegacyRange(row));
+  const weeksPresent = weeks.filter((week) => weeklyChunks.some((row) => row.rangeStart >= week.from && row.rangeStart <= week.to)).length;
   const conversions = totals.clickConversions + totals.viewConversions;
   const pageTotals: CtvAttributionTotals = {
     impressions: totals.impressions,
@@ -323,7 +324,7 @@ export function buildCtvAttributionPage(input: {
     breakdownNote: input.breakdownNote || "",
     breakdownLabel: input.breakdownNote
       ? ""
-      : (weeks.length
+      : (weeklyChunks.length
         ? breakdownWeeksLabel(weeksPresent, weeks.length)
         : breakdownCoverLabel(breakdownStart, breakdownEnd, pageStart, pageEnd)),
     breakdownGaps: input.breakdownGaps || "",

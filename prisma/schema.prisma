@@ -969,6 +969,7 @@ enum RecommendationStatus {
   dismissed
   accepted
   declined
+  resolved
 }
 
 enum RecommendationType {
@@ -1209,7 +1210,7 @@ model Recommendation {
   @@index([archivedAt])
 }
 
-/// Who approved, dismissed, or snoozed a recommendation, and the note they left.
+/// Who approved, dismissed, snoozed, or resolved a recommendation, and the note they left.
 model DecisionAudit {
   id               String         @id @default(cuid())
   workspaceId      String         @default("org")

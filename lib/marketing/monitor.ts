@@ -1,5 +1,19 @@
+import { addDaysISO } from "../time";
 import type { Benchmark } from "./config";
 import { MONITOR_LAG_MS } from "./config";
+import { metricTitle, rateSummary } from "./decisions/labels";
+
+export const RATE_WINDOW_DAYS = 7;
+export const RATE_MIN_IMPRESSIONS = 1000;
+export const RATE_MIN_CLICKS = 50;
+export const CTR_BASELINE_RATIO = 0.6;
+export const COST_BASELINE_RATIO = 1.5;
+export const BARE_CTR = 0.05;
+export const BARE_CTR_MULTIPLE = 3;
+export const BARE_BASELINE_IMPRESSIONS = 5000;
+export const BARE_MIN_CLICKS = 50;
+export const BARE_MIN_DAYS = 3;
+export const AUTOMATED_CTR = 0.08;
 
 export type MetricPoint = {
   id: string;
@@ -9,6 +23,7 @@ export type MetricPoint = {
   campaignId: string;
   adAccountId: string;
   objective: string;
+  campaignName?: string;
   date: string;
   ingestedAt: string;
   spend: number;
@@ -94,8 +109,21 @@ function num(value: number | null) {
 
 function worse(metric: string, observed: number | null, baseline: number | null) {
   if (observed === null || baseline === null || baseline === 0) return false;
-  if (metric === "ctr") return observed < baseline * 0.75;
+  if (metric === "ctr") return observed <= baseline * CTR_BASELINE_RATIO;
+  if (metric === "cpc" || metric === "cpm") return observed >= baseline * COST_BASELINE_RATIO;
   return observed > baseline * 1.25;
+}
+
+function spanDays(dates: readonly string[]) {
+  if (!dates.length) return 0;
+  const sorted = [...dates].sort();
+  const start = sorted[0];
+  const end = sorted[sorted.length - 1];
+  if (!start || !end) return 0;
+  const a = Date.parse(`${start}T00:00:00.000Z`);
+  const b = Date.parse(`${end}T00:00:00.000Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+  return Math.round((b - a) / 86_400_000) + 1;
 }
 
 function benchmarkWorse(metric: string, observed: number | null, bench: number | undefined) {
@@ -136,7 +164,6 @@ export function evaluateAds(input: {
     if (!observed.landedAt) continue;
     const landed = Date.parse(observed.landedAt);
     if (!Number.isFinite(landed) || input.now.getTime() - landed > windowMs || landed > input.now.getTime()) continue;
-    if (observed.impressions < input.alertMinImpressions) continue;
 
     const baselineRows = input.rows.filter((row) => {
       if (recentDates.has(row.date)) return false;
@@ -195,29 +222,120 @@ export function evaluateAds(input: {
       sourceMetricIds: observed.ids,
     };
 
-    for (const metric of ["ctr", "cpc", "cpm", "cpa", "cpl"] as const) {
-      const observedValue = observedRates[metric];
-      const baselineValue = baselineRates[metric];
-      const offBaseline = worse(metric, observedValue, baselineValue);
-      const offBench = benchmarkWorse(metric, observedValue, bench[metric]);
-      if (!offBaseline && !offBench) continue;
-      if ((metric === "cpa" || metric === "cpl") && observed.conversions + observed.leads === 0) continue;
-      const label = metric === "ctr" ? "clicks" : metric === "cpl" || metric === "cpa" ? "results" : "cost";
-      const plain =
-        metric === "ctr"
-          ? "Fewer clicks than your other ads."
-          : "This ad costs more than your other ads.";
+    const rateStart = addDaysISO(input.today, -(RATE_WINDOW_DAYS - 1));
+    const rateRows = rows.filter((row) => row.date >= rateStart && row.date <= input.today);
+    const rateTotals = emptyTotals();
+    for (const row of rateRows) add(rateTotals, row);
+    const rateSpan = spanDays(rateRows.map((row) => row.date));
+    const rateReady = rateSpan >= RATE_WINDOW_DAYS && rateTotals.impressions >= RATE_MIN_IMPRESSIONS && rateTotals.clicks >= RATE_MIN_CLICKS;
+    const outsideRate = (row: MetricPoint) => row.date < rateStart || row.date > input.today;
+    const rateBaselineRows = input.rows.filter((row) => outsideRate(row) && row.adId !== adId && row.adGroupId === sample.adGroupId);
+    const rateBaselinePool = rateBaselineRows.length
+      ? rateBaselineRows
+      : input.rows.filter((row) => outsideRate(row) && row.adId !== adId && row.adAccountId === sample.adAccountId);
+    const rateBaseline = emptyTotals();
+    for (const row of rateBaselinePool) add(rateBaseline, row);
+    if (rateReady) {
+      const rateObserved = {
+        ctr: ratio(rateTotals.clicks, rateTotals.impressions),
+        cpc: ratio(rateTotals.spend, rateTotals.clicks),
+        cpm: rateTotals.impressions ? (rateTotals.spend / rateTotals.impressions) * 1000 : null,
+      };
+      const rateBase = {
+        ctr: ratio(rateBaseline.clicks, rateBaseline.impressions),
+        cpc: ratio(rateBaseline.spend, rateBaseline.clicks),
+        cpm: rateBaseline.impressions ? (rateBaseline.spend / rateBaseline.impressions) * 1000 : null,
+      };
+      for (const metric of ["ctr", "cpc", "cpm"] as const) {
+        const observedValue = rateObserved[metric];
+        const baselineValue = rateBase[metric];
+        const offBaseline = worse(metric, observedValue, baselineValue);
+        const offBench = benchmarkWorse(metric, observedValue, bench[metric]);
+        if (!offBaseline && !offBench) continue;
+        push({
+          ...common,
+          type: "performance",
+          code: `${metric}_off`,
+          severity: offBaseline && offBench ? "critical" : "warning",
+          title: metricTitle({
+            campaignName: sample.campaignName || "",
+            adName: sample.adName,
+            metric,
+            observed: observedValue,
+            baseline: baselineValue,
+            conversions: rateTotals.conversions,
+            days: rateSpan,
+            seesCost: true,
+          }),
+          summary: rateSummary({ metric, ctr: metric === "ctr" ? observedValue : null, conversions: rateTotals.conversions }),
+          rationale: "Compared with similar ads across at least 7 days, 1,000 impressions, and 50 clicks. Critical only when both the usual rate and the benchmark are missed.",
+          metric,
+          baseline: num(baselineValue),
+          observed: num(observedValue),
+          windowStart: rateStart,
+          windowEnd: input.today,
+          sampleSize: rateTotals.impressions,
+          sourceMetricIds: rateTotals.ids,
+          currentBudgetAmount: null,
+          currentBudgetPeriod: null,
+          proposedBudgetAmount: null,
+          proposedBudgetPeriod: null,
+          proposedCurrency: null,
+        });
+      }
+    }
+
+    const bareStart = addDaysISO(input.today, -(BARE_MIN_DAYS - 1));
+    const bareRows = rows.filter((row) => row.date >= bareStart && row.date <= input.today);
+    const bareTotals = emptyTotals();
+    for (const row of bareRows) add(bareTotals, row);
+    const bareSpan = spanDays(bareRows.map((row) => row.date));
+    const bareCtr = ratio(bareTotals.clicks, bareTotals.impressions) ?? 0;
+    const outsideBare = (row: MetricPoint) => row.date < bareStart || row.date > input.today;
+    const bareBaselineRows = input.rows.filter((row) => outsideBare(row) && row.adId !== adId && row.adGroupId === sample.adGroupId);
+    const bareBaselinePool = bareBaselineRows.length
+      ? bareBaselineRows
+      : input.rows.filter((row) => outsideBare(row) && row.adId !== adId && row.adAccountId === sample.adAccountId);
+    const bareBaseline = emptyTotals();
+    for (const row of bareBaselinePool) add(bareBaseline, row);
+    const bareBaseCtr = ratio(bareBaseline.clicks, bareBaseline.impressions) ?? 0;
+    const bareAbsolute = bareCtr >= BARE_CTR;
+    const bareMultiple = bareBaseline.impressions >= BARE_BASELINE_IMPRESSIONS && bareBaseCtr > 0 && bareCtr >= bareBaseCtr * BARE_CTR_MULTIPLE;
+    const noConversionEvent = sample.objective === "traffic" || sample.objective === "awareness";
+    if (
+      bareSpan >= BARE_MIN_DAYS &&
+      bareTotals.clicks >= BARE_MIN_CLICKS &&
+      bareTotals.conversions === 0 &&
+      bareTotals.leads === 0 &&
+      (bareAbsolute || bareMultiple)
+    ) {
+      const high = bareCtr >= AUTOMATED_CTR;
       push({
         ...common,
-        type: "performance",
-        code: `${metric}_off`,
-        severity: offBaseline && offBench ? "critical" : "warning",
-        title: `${sample.adName}: ${plain.replace(/\.$/, "")}`,
-        summary: `${plain} This is a note, not a change.`,
-        rationale: `Compared with your other ads on ${label}.`,
-        metric,
-        baseline: num(baselineValue),
-        observed: num(observedValue),
+        type: "traffic",
+        code: "ctr_without_results",
+        severity: noConversionEvent || !high ? "warning" : "critical",
+        title: metricTitle({
+          campaignName: sample.campaignName || "",
+          adName: sample.adName,
+          metric: "ctr",
+          observed: bareCtr,
+          baseline: bareBaseCtr || null,
+          conversions: 0,
+          days: bareSpan,
+          seesCost: false,
+        }),
+        summary: noConversionEvent
+          ? "This campaign is not measuring conversions. The click rate is only a warning."
+          : rateSummary({ metric: "ctr", ctr: bareCtr, conversions: 0 }),
+        rationale: "Click rate is at least 5% or 3x a baseline of 5,000 impressions, with 50 clicks, no conversions, and at least 3 days.",
+        metric: "ctr",
+        baseline: num(bareBaseCtr || null),
+        observed: num(bareCtr),
+        windowStart: bareStart,
+        windowEnd: input.today,
+        sampleSize: bareTotals.impressions,
+        sourceMetricIds: bareTotals.ids,
         currentBudgetAmount: null,
         currentBudgetPeriod: null,
         proposedBudgetAmount: null,
@@ -226,20 +344,25 @@ export function evaluateAds(input: {
       });
     }
 
-    const ctr = observedRates.ctr ?? 0;
-    const baseCtr = baselineRates.ctr ?? 0;
-    if (observed.clicks >= 20 && observed.conversions === 0 && observed.leads === 0 && (ctr >= 0.08 || (baseCtr > 0 && ctr >= baseCtr * 3))) {
+    if (observed.impressions < input.alertMinImpressions) continue;
+    for (const metric of ["cpa", "cpl"] as const) {
+      const observedValue = observedRates[metric];
+      const baselineValue = baselineRates[metric];
+      const offBaseline = worse(metric, observedValue, baselineValue);
+      const offBench = benchmarkWorse(metric, observedValue, bench[metric]);
+      if (!offBaseline && !offBench) continue;
+      if (observed.conversions + observed.leads === 0) continue;
       push({
         ...common,
-        type: "traffic",
-        code: "ctr_without_results",
-        severity: "critical",
-        title: `${sample.adName} is getting clicks and no results`,
-        summary: "A lot of clicks showed up without a lead or conversion. That can be low-quality or automated traffic.",
-        rationale: "Click rate is far above the usual range and results are zero.",
-        metric: "ctr",
-        baseline: num(baseCtr || null),
-        observed: num(ctr),
+        type: "performance",
+        code: `${metric}_off`,
+        severity: offBaseline && offBench ? "critical" : "warning",
+        title: `${sample.adName}: results cost more than similar ads`,
+        summary: "Results cost more than similar ads. This is a note, not a change.",
+        rationale: "Compared with your other ads on results.",
+        metric,
+        baseline: num(baselineValue),
+        observed: num(observedValue),
         currentBudgetAmount: null,
         currentBudgetPeriod: null,
         proposedBudgetAmount: null,

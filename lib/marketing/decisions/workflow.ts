@@ -1,6 +1,6 @@
 import { budgetSteps } from "./rules";
 
-export type DecisionAction = "approve" | "dismiss" | "snooze";
+export type DecisionAction = "approve" | "dismiss" | "snooze" | "resolve";
 
 export type DecisionAuditWrite = {
   recommendationId: string;
@@ -21,7 +21,7 @@ export type DecisionPlan =
       platformWrite: false;
       writesAds: false;
       changesSpend: false;
-      status: "accepted" | "dismissed" | "verified";
+      status: "accepted" | "dismissed" | "verified" | "resolved";
       snoozedUntil: string | null;
       decisionNote: string;
       steps: string[];
@@ -112,13 +112,14 @@ export function planDecision(input: {
   if (!input.recommendationId.trim()) return { ok: false, error: "A decision is required." };
   let snoozedUntil: string | null = null;
   if (input.action === "dismiss" && !reason) return { ok: false, error: "A reason is required to dismiss." };
+  if (input.action === "resolve" && !note) return { ok: false, error: "Say what was done." };
   if (input.action === "snooze") {
     const until = (input.snoozeUntil || "").trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(until)) return { ok: false, error: "Choose a date to snooze until." };
     if (until < input.today) return { ok: false, error: "Choose today or a later date." };
     snoozedUntil = until;
   }
-  const status = input.action === "approve" ? "accepted" : input.action === "dismiss" ? "dismissed" : "verified";
+  const status = input.action === "approve" ? "accepted" : input.action === "dismiss" ? "dismissed" : input.action === "resolve" ? "resolved" : "verified";
   const steps = input.action === "approve" ? stepsFor(input.rule, input.evidence) : [];
   return {
     ok: true,
@@ -129,7 +130,7 @@ export function planDecision(input: {
     changesSpend: false,
     status,
     snoozedUntil,
-    decisionNote: input.action === "approve" ? note || "approved" : input.action === "dismiss" ? reason : "",
+    decisionNote: input.action === "approve" ? note || "approved" : input.action === "dismiss" ? reason : input.action === "resolve" ? note : "",
     steps,
     audit: {
       recommendationId: input.recommendationId,

@@ -3,19 +3,48 @@ import { DASH_DAY_OPTIONS, type DashWindow } from "@/lib/marketing/dashboard-mod
 import { realViewSearch, type RealStatus } from "@/lib/marketing/real-view";
 import { recordDecisionAction } from "@/lib/marketing/decisions/actions";
 import type { DecisionListModel } from "@/lib/marketing/decisions/query";
-import type { DecisionCard } from "@/lib/marketing/decisions/present";
+import { viewerLine, visibleDecisionActions, type DecisionCard } from "@/lib/marketing/decisions/present";
 
-function queryOf(days: DashWindow, status: RealStatus, clientId: string | null) {
-  return realViewSearch({ days, status, staff: true, clientId, path: "" }).replace(/^\?/, "");
+function decisionHref(input: { days: DashWindow; status: RealStatus; clientId: string | null; bucket: "open" | "closed"; path: string }) {
+  const base = realViewSearch({
+    days: input.days,
+    status: input.status,
+    staff: true,
+    clientId: input.clientId,
+    path: input.path,
+  });
+  if (input.bucket !== "closed") return base;
+  return `${base}${base.includes("?") ? "&" : "?"}closed=1`;
 }
 
-function Filters({ days, status, clientId }: { days: DashWindow; status: RealStatus; clientId: string | null }) {
-  const href = (patch: { days?: DashWindow; status?: RealStatus }) =>
-    realViewSearch({
+function queryOf(days: DashWindow, status: RealStatus, clientId: string | null, bucket: "open" | "closed") {
+  return decisionHref({ days, status, clientId, bucket, path: "" }).replace(/^\?/, "");
+}
+
+function priorHref(card: DecisionCard) {
+  const value = card.evidence.priorRecommendationId;
+  return typeof value === "string" && value ? `/decisions/${value}` : "";
+}
+
+function Filters({
+  days,
+  status,
+  clientId,
+  bucket,
+  closedCount,
+}: {
+  days: DashWindow;
+  status: RealStatus;
+  clientId: string | null;
+  bucket: "open" | "closed";
+  closedCount: number;
+}) {
+  const href = (patch: { days?: DashWindow; status?: RealStatus; bucket?: "open" | "closed" }) =>
+    decisionHref({
       days: patch.days ?? days,
       status: patch.status !== undefined ? patch.status : status,
-      staff: true,
       clientId,
+      bucket: patch.bucket ?? bucket,
       path: "/decisions",
     });
   return (
@@ -38,6 +67,14 @@ function Filters({ days, status, clientId }: { days: DashWindow; status: RealSta
           All
         </Link>
       </div>
+      <div role="group" aria-label="Decision state">
+        <Link href={href({ bucket: "open" })} className={bucket === "open" ? "btn p" : "btn"} aria-current={bucket === "open" ? "page" : undefined}>
+          Open
+        </Link>
+        <Link href={href({ bucket: "closed" })} className={bucket === "closed" ? "btn p" : "btn"} aria-current={bucket === "closed" ? "page" : undefined}>
+          Closed ({closedCount})
+        </Link>
+      </div>
     </nav>
   );
 }
@@ -45,15 +82,16 @@ function Filters({ days, status, clientId }: { days: DashWindow; status: RealSta
 export function DecisionsV1({ model }: { model: DecisionListModel }) {
   return (
     <main className="decisions-v1">
-      <Filters days={model.days} status={model.status} clientId={model.clientId} />
+      <Filters days={model.days} status={model.status} clientId={model.clientId} bucket={model.bucket} closedCount={model.closedCount} />
       <div className="top">
         <div>
           <div className="sub">{model.clientName} · Last {model.days} days · Grouped by client</div>
           <h1>Decisions</h1>
+          <p className="sub">{viewerLine(model.canAct, model.viewerEmail)}</p>
         </div>
       </div>
       {model.groups.length === 0 ? (
-        <p>No open decisions in this view.</p>
+        <p>{model.bucket === "closed" ? "No closed decisions in this view." : "No open decisions in this view."}</p>
       ) : (
         model.groups.map((group) => (
           <section key={group.clientId} className="box" style={{ marginBottom: 16 }}>
@@ -63,10 +101,11 @@ export function DecisionsV1({ model }: { model: DecisionListModel }) {
                 <li key={item.id} className="fi">
                   <span className={item.severity === "critical" ? "sev u" : item.severity === "high" ? "sev h" : "sev i"}>{item.severity}</span>
                   <div>
-                    <Link href={`/decisions/${item.id}?${queryOf(model.days, model.status, model.clientId)}`}>
+                    <Link href={`/decisions/${item.id}?${queryOf(model.days, model.status, model.clientId, model.bucket)}`}>
                       <b>{item.title}</b>
                     </Link>
                     <div className="sub">{item.summary}</div>
+                    {priorHref(item) ? <div className="sub"><Link href={priorHref(item)}>Earlier decision</Link></div> : null}
                   </div>
                   <span className="sub">{item.recency.slice(0, 10)}</span>
                 </li>
@@ -98,15 +137,19 @@ function sources(card: DecisionCard) {
 export function DecisionDetail({
   card,
   canAct,
+  viewerEmail,
   audits,
   back,
 }: {
   card: DecisionCard;
   canAct: boolean;
+  viewerEmail: string;
   audits: { id: string; action: string; reason: string; note: string; snoozeUntil: string; who: string; at: string }[];
   back: string;
 }) {
   const rows = sources(card);
+  const actions = visibleDecisionActions(card.status, canAct);
+  const earlier = priorHref(card);
   return (
     <main className="decisions-v1">
       <p className="crumb"><Link href={back || "/decisions"}>Decisions</Link> <span className="sep">/</span> {card.clientName}</p>
@@ -115,6 +158,8 @@ export function DecisionDetail({
           <div className="tag">{card.severity} · {card.clientName}</div>
           <h1>{card.title}</h1>
           <p className="sub">{card.summary}</p>
+          <p className="sub">{viewerLine(canAct, viewerEmail)}</p>
+          {earlier ? <p className="sub"><Link href={earlier}>Earlier decision</Link></p> : null}
         </div>
       </div>
       <dl className="ev">
@@ -156,38 +201,54 @@ export function DecisionDetail({
           <ol>{card.steps.map((step) => <li key={step}>{step}</li>)}</ol>
         </div>
       )}
-      {canAct && (
+      {actions.length > 0 && (
         <div className="acts">
-          <form action={recordDecisionAction}>
-            <input type="hidden" name="id" value={card.id} />
-            <input type="hidden" name="action" value="approve" />
-            <label className="field">Note
-              <input name="note" />
-            </label>
-            <button className="btn p" type="submit">Approve</button>
-          </form>
-          <form action={recordDecisionAction}>
-            <input type="hidden" name="id" value={card.id} />
-            <input type="hidden" name="action" value="dismiss" />
-            <label className="field">Reason
-              <input name="reason" required />
-            </label>
-            <label className="field">Note
-              <input name="note" />
-            </label>
-            <button className="btn" type="submit">Dismiss</button>
-          </form>
-          <form action={recordDecisionAction}>
-            <input type="hidden" name="id" value={card.id} />
-            <input type="hidden" name="action" value="snooze" />
-            <label className="field">Snooze until
-              <input name="snoozeUntil" type="date" required />
-            </label>
-            <label className="field">Note
-              <input name="note" />
-            </label>
-            <button className="btn" type="submit">Snooze</button>
-          </form>
+          {actions.includes("Approve") && (
+            <form action={recordDecisionAction}>
+              <input type="hidden" name="id" value={card.id} />
+              <input type="hidden" name="action" value="approve" />
+              <label className="field">Note
+                <input name="note" />
+              </label>
+              <button className="btn p" type="submit">Approve</button>
+            </form>
+          )}
+          {actions.includes("Dismiss") && (
+            <form action={recordDecisionAction}>
+              <input type="hidden" name="id" value={card.id} />
+              <input type="hidden" name="action" value="dismiss" />
+              <label className="field">Reason
+                <input name="reason" required />
+              </label>
+              <label className="field">Note
+                <input name="note" />
+              </label>
+              <button className="btn" type="submit">Dismiss</button>
+            </form>
+          )}
+          {actions.includes("Snooze") && (
+            <form action={recordDecisionAction}>
+              <input type="hidden" name="id" value={card.id} />
+              <input type="hidden" name="action" value="snooze" />
+              <label className="field">Snooze until
+                <input name="snoozeUntil" type="date" required />
+              </label>
+              <label className="field">Note
+                <input name="note" />
+              </label>
+              <button className="btn" type="submit">Snooze</button>
+            </form>
+          )}
+          {actions.includes("Mark resolved") && (
+            <form action={recordDecisionAction}>
+              <input type="hidden" name="id" value={card.id} />
+              <input type="hidden" name="action" value="resolve" />
+              <label className="field">What was done
+                <input name="note" required />
+              </label>
+              <button className="btn p" type="submit">Mark resolved</button>
+            </form>
+          )}
         </div>
       )}
       {audits.length > 0 && (

@@ -851,6 +851,38 @@ test("a 7-day read keeps older weeks and a failed chunk keeps its previous rows"
     breakdowns: store.breakdowns.filter((row) => row.dimension === "app" && row.rangeStart === "2026-10-22"),
   });
   assert.equal(gap.breakdownLabel, "Breakdown covers 1 of 2 weeks");
+  const storedWeeks = buildCtvAttributionPage({
+    showMoney: true,
+    staff: true,
+    clientId: "north",
+    clientName: "Northwind Studio",
+    days: 14,
+    status: "active",
+    endDate: "2026-11-04",
+    ipSplitAvailable: true,
+    pixelAvailable: true,
+    breakdownCoverage: { covered: 1, total: 2 },
+    campaigns: [{ id: "row-north", externalId: "camp-north", name: "Northwind evening slate", clientId: "north", status: "active", channelType: "CTV" }],
+    rows: [],
+    breakdowns: store.breakdowns.filter((row) => row.dimension === "app"),
+  });
+  assert.equal(storedWeeks.breakdownLabel, "");
+  const lastReadFull = buildCtvAttributionPage({
+    showMoney: false,
+    staff: true,
+    clientId: "north",
+    clientName: "Northwind Studio",
+    days: 14,
+    status: "active",
+    endDate: "2026-11-04",
+    ipSplitAvailable: true,
+    pixelAvailable: true,
+    breakdownCoverage: { covered: 2, total: 2 },
+    campaigns: [{ id: "row-north", externalId: "camp-north", name: "Northwind evening slate", clientId: "north", status: "active", channelType: "CTV" }],
+    rows: [],
+    breakdowns: store.breakdowns.filter((row) => row.dimension === "app" && row.rangeStart === "2026-10-22"),
+  });
+  assert.equal(lastReadFull.breakdownLabel, "Breakdown covers 1 of 2 weeks");
   assert.equal(gap.breakdowns[0]?.impressions, 90);
   assert.equal(gap.breakdowns[0]?.spend, 8);
   const backfill = buildCtvAttributionPage({

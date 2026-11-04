@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { inviteTeammate } from "@/lib/actions";
 
-export function InviteForm() {
+export function InviteForm({ includeSuperAdmin = false }: { includeSuperAdmin?: boolean }) {
   const [message, setMessage] = useState<string | null>(null);
   const [link, setLink] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +18,7 @@ export function InviteForm() {
           const result = await inviteTeammate({
             name: String(formData.get("name") || ""),
             email: String(formData.get("email") || ""),
-            role: String(formData.get("role") || "viewer") as "viewer",
+            role: String(formData.get("role") || "viewer") as "viewer" | "admin" | "owner" | "super_admin",
           });
           setMessage(result.emailed ? `Invite emailed to ${String(formData.get("email") || "").trim()}.` : "Email isn't set up on this server yet. Copy this link and send it to them.");
           setLink(result.link);
@@ -38,6 +38,7 @@ export function InviteForm() {
           <option value="viewer">Viewer</option>
           <option value="admin">Admin</option>
           <option value="owner">Owner</option>
+          {includeSuperAdmin ? <option value="super_admin">Super admin</option> : null}
         </select>
       </label>
       <div className="flex items-end">

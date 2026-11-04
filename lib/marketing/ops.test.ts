@@ -131,8 +131,9 @@ test("intraday sync is today and yesterday insights only after a full run today"
 
 test("monitor flags weak ads and bad traffic within 30 minutes of landing", () => {
   const rows = [
+    point({ id: "span", adId: "ad-weak", date: "2026-10-01", impressions: 2000, clicks: 20, spend: 40, leads: 0, conversions: 0, ingestedAt: "2026-10-01T12:00:00.000Z" }),
     point({ id: "new", adId: "ad-weak", date: "2026-10-07", impressions: 8000, clicks: 40, spend: 200, leads: 1, conversions: 1 }),
-    point({ id: "base", adId: "ad-other", date: "2026-10-01", impressions: 8000, clicks: 400, spend: 80, leads: 8, conversions: 8, ingestedAt: "2026-10-01T12:00:00.000Z" }),
+    point({ id: "base", adId: "ad-other", date: "2026-09-24", impressions: 8000, clicks: 400, spend: 80, leads: 8, conversions: 8, ingestedAt: "2026-09-24T12:00:00.000Z" }),
   ];
   const fresh = evaluateAds({
     rows,
@@ -170,8 +171,9 @@ test("monitor flags weak ads and bad traffic within 30 minutes of landing", () =
 test("suggestions stay draft until a second check confirms the sample", () => {
   const draft = evaluateAds({
     rows: [
+      point({ id: "span", adId: "ad-weak", date: "2026-10-01", impressions: 2000, clicks: 20, spend: 40, leads: 0, conversions: 0, ingestedAt: "2026-10-01T12:00:00.000Z" }),
       point({ id: "new", adId: "ad-weak", date: "2026-10-07", impressions: 8000, clicks: 40, spend: 200, leads: 1, conversions: 1 }),
-      point({ id: "base", adId: "ad-other", date: "2026-10-01", impressions: 8000, clicks: 400, spend: 80, leads: 8, conversions: 8 }),
+      point({ id: "base", adId: "ad-other", date: "2026-09-24", impressions: 8000, clicks: 400, spend: 80, leads: 8, conversions: 8 }),
     ],
     budgets: [{ campaignId: "c1", amount: 100, period: "daily", currency: "USD" }],
     now: NOW,
