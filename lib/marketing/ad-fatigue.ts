@@ -1,4 +1,5 @@
 import { addDaysISO } from "../time";
+import { recommendationDedupeKey } from "./decisions/key";
 
 /**
  * Daily ad-fatigue scorer.
@@ -23,6 +24,36 @@ const CHECKS_MAX = 6;
 const DEDUPE_DAYS = 7;
 
 export type AdFatigueAction = "keep" | "rotate" | "pause";
+
+/** Pause is critical. Rotate is a warning. A keep is info. The rule stays on the action so the dedupe key does not change nightly. */
+export function adFatigueSeverity(action: AdFatigueAction): "info" | "warning" | "critical" {
+  if (action === "pause") return "critical";
+  if (action === "rotate") return "warning";
+  return "info";
+}
+
+/** Client, rule, severity, and the stable key written when an ad-fatigue recommendation is created. */
+export function adFatigueRecommendationIdentity(input: {
+  action: AdFatigueAction;
+  clientId: string;
+  campaignId: string;
+  adId: string;
+}) {
+  const clientId = input.clientId.trim();
+  const rule = `ad_fatigue_${input.action}`;
+  return {
+    clientId: clientId || null,
+    rule,
+    severity: adFatigueSeverity(input.action),
+    dedupeKey: recommendationDedupeKey({
+      type: "ad_fatigue",
+      clientId,
+      campaignId: input.campaignId,
+      adId: input.adId,
+      rule,
+    }),
+  };
+}
 export type AdFatiguePlatform = "meta" | "google_ads" | "stackadapt";
 
 export type AdFatigueRow = {

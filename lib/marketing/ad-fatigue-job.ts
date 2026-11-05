@@ -5,6 +5,7 @@ import {
   adFatigueThresholdMap,
   clampThreshold,
   pickAssignee,
+  adFatigueRecommendationIdentity,
   planAdFatigue,
   type AdFatigueAction,
   type AdFatigueAd,
@@ -100,7 +101,7 @@ async function runAccount(
         select: {
           name: true,
           creativeVersion: { select: { fingerprint: true, creativeId: true } },
-          adGroup: { select: { campaign: { select: { id: true, name: true, adAccountId: true } } } },
+          adGroup: { select: { campaign: { select: { id: true, name: true, adAccountId: true, clientId: true } } } },
         },
       },
     },
@@ -111,11 +112,14 @@ async function runAccount(
     select: { userId: true, scopeKind: true, adAccountId: true, campaignId: true },
   });
   const clientKey = account.clientId ? `client:${account.clientId}` : `account:${account.id}`;
+  const clientByCampaign = new Map<string, string>();
   const ads = new Map<string, AdFatigueAd>();
   for (const metric of metrics) {
     const platform = asFatiguePlatform(metric.platform);
     const campaign = metric.ad.adGroup.campaign;
     if (!platform || !campaign) continue;
+    const linkedClient = campaign.clientId || account.clientId || "";
+    if (linkedClient) clientByCampaign.set(campaign.id, linkedClient);
     let ad = ads.get(metric.adId);
     if (!ad) {
       ad = {
@@ -239,7 +243,7 @@ async function runAccount(
   }
 
   for (const recommendation of plan.recommendations) {
-    await saveRecommendation(prisma, account.workspaceId, recommendation, now);
+    await saveRecommendation(prisma, account.workspaceId, recommendation, clientByCampaign.get(recommendation.campaignId) || "", now);
   }
   return { checks: plan.checks.length, recommendations: plan.recommendations.length };
 }
@@ -248,35 +252,72 @@ async function saveRecommendation(
   prisma: Awaited<typeof import("../db")>["prisma"],
   workspaceId: string,
   recommendation: AdFatigueRecommendationDraft,
+  clientId: string,
   now: Date,
 ) {
+  const identity = adFatigueRecommendationIdentity({
+    action: recommendation.action,
+    clientId,
+    campaignId: recommendation.campaignId,
+    adId: recommendation.adId,
+  });
+  const evidence = {
+    action: recommendation.action,
+    rule: identity.rule,
+    severity: identity.severity,
+    confidence: recommendation.confidence,
+    assigneeUserId: recommendation.assigneeUserId,
+    learned: recommendation.learned,
+    changesSpend: false,
+    writesAds: false,
+    recommendationOnly: true,
+  };
+  const data = {
+    clientId: identity.clientId,
+    dedupeKey: identity.dedupeKey,
+    rule: identity.rule,
+    severity: identity.severity,
+    adId: recommendation.adId,
+    campaignId: recommendation.campaignId,
+    adAccountId: recommendation.adAccountId,
+    title: recommendation.title,
+    summary: recommendation.summary,
+    rationale: recommendation.rationale,
+    metric: recommendation.metric,
+    baseline: recommendation.baseline,
+    observed: recommendation.observed,
+    windowStart: dayStart(recommendation.windowStart),
+    windowEnd: dayStart(recommendation.windowEnd),
+    sampleSize: recommendation.sampleSize,
+    sourceMetricIds: recommendation.sourceMetricIds,
+    evidence,
+    lastSeenAt: now,
+  };
+  const open = await prisma.recommendation.findMany({
+    where: {
+      workspaceId,
+      type: "ad_fatigue",
+      adId: recommendation.adId,
+      archivedAt: null,
+      decidedById: null,
+      decidedAt: null,
+      snoozedUntil: null,
+      status: { in: ["draft", "verified"] },
+    },
+    select: { id: true, dedupeKey: true, rule: true, evidence: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const existing = open.find((row) => row.dedupeKey === identity.dedupeKey || (!row.dedupeKey && (row.rule === identity.rule || evidenceAction(row.evidence) === recommendation.action)));
+  if (existing) {
+    await prisma.recommendation.update({ where: { id: existing.id }, data });
+    return;
+  }
   await prisma.recommendation.create({
     data: {
+      ...data,
       workspaceId,
       type: "ad_fatigue",
       status: "verified",
-      adId: recommendation.adId,
-      campaignId: recommendation.campaignId,
-      adAccountId: recommendation.adAccountId,
-      title: recommendation.title,
-      summary: recommendation.summary,
-      rationale: recommendation.rationale,
-      metric: recommendation.metric,
-      baseline: recommendation.baseline,
-      observed: recommendation.observed,
-      windowStart: dayStart(recommendation.windowStart),
-      windowEnd: dayStart(recommendation.windowEnd),
-      sampleSize: recommendation.sampleSize,
-      sourceMetricIds: recommendation.sourceMetricIds,
-      evidence: {
-        action: recommendation.action,
-        confidence: recommendation.confidence,
-        assigneeUserId: recommendation.assigneeUserId,
-        learned: recommendation.learned,
-        changesSpend: false,
-        writesAds: false,
-        recommendationOnly: true,
-      },
       verifiedAt: now,
       verifierNote: "Confirmed from stored ad rows. Yes only records the answer. Nothing on the ad account changes.",
     },
