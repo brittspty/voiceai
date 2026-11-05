@@ -3,18 +3,20 @@ import { addDaysISO, zonedISODate } from "../time";
 import { applySnapshot } from "./apply";
 import {
   attributionWindowLabel,
-  attributionWindows,
-  decideSync,
   intradaySyncEnabled,
   lookbackDays,
   marketingSyncIntervalMs,
-  resolveAccountIds,
+  metaSecretRef,
+  planMetaReads,
+  routeMetaAccounts,
   STALE_SYNC_MS,
   type Env,
+  type MetaAccountPull,
+  type MetaReadSkip,
 } from "./config";
 import { mockMetaBundle } from "./connectors/fixtures";
-import type { FetchLike } from "./connectors/meta-client";
-import { normalizeMetaBundle } from "./connectors/meta-map";
+import { redactSecrets, type FetchLike } from "./connectors/meta-client";
+import { mergeSnapshots, normalizeMetaBundle } from "./connectors/meta-map";
 import { getConnector } from "./connectors/registry";
 import type { MarketingStore } from "./store";
 import { WORKSPACE_ID, type NormalizedSnapshot, type StoredSyncMode } from "./types";
@@ -31,7 +33,20 @@ export type SyncResult = {
   since?: string;
   until?: string;
   cadence?: "full" | "intraday";
+  /** Names only. Tokens stay in the environment. */
+  connections?: { name: string; accounts: number }[];
+  skippedConnections?: { name: string; reason: string }[];
 };
+
+function publicSkips(skipped: MetaReadSkip[], ran: string[]) {
+  const ready = new Set(ran);
+  const rows = skipped.filter((row) => !ready.has(row.name));
+  return rows.length ? rows.map((row) => ({ name: row.name, reason: row.reason })) : undefined;
+}
+
+function connectionSummary(pulls: MetaAccountPull[]) {
+  return pulls.length ? pulls.map((pull) => ({ name: pull.name, accounts: pull.accountIds.length })) : undefined;
+}
 
 function clip(value: string, max = 500) {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
@@ -77,8 +92,8 @@ export async function runMarketingSync(options: {
 } = {}): Promise<SyncResult> {
   if (demoForcesMock()) return { status: "skipped", reason: "demo workspace does not sync" };
   const env = options.env ?? process.env;
-  const decision = decideSync(env);
-  if (decision.action === "skip") return { status: "skipped", reason: decision.reason };
+  const plan = planMetaReads(env);
+  if (plan.action === "skip") return { status: "skipped", reason: plan.reason, skippedConnections: publicSkips(plan.skipped, []) };
 
   const now = options.now ?? new Date();
   const timeZone = options.timezone ?? (await defaultTimezone());
@@ -103,18 +118,29 @@ export async function runMarketingSync(options: {
     intradaySyncEnabled(env) && Boolean(lastFull) && zonedISODate(lastFull!.finishedAt, timeZone) === today;
   const window = intraday ? { since: addDaysISO(today, -1), until: today } : insightWindow(now, timeZone, lookbackDays(env));
   const cadence = intraday ? "intraday" : "full";
-  const windows = attributionWindows(env);
+  const windows = plan.attributionWindows;
   const attributionWindow = attributionWindowLabel(windows);
-  const mode: StoredSyncMode = decision.action === "mock" ? "mock" : "live";
+  const mode: StoredSyncMode = plan.action === "mock" ? "mock" : "live";
 
   let accountIds: string[] = [];
   let snapshot = options.snapshot;
-  const appId = decision.action === "live" ? decision.appId : "";
+  let pulls: MetaAccountPull[] = [];
+  let routeWarnings: string[] = [];
+  let skipped = plan.skipped;
+  const primary = plan.connections.find((connection) => connection.name === "primary");
+  const appId = plan.action === "live" ? (primary ?? plan.connections[0])?.appId ?? "" : "";
 
-  if (!snapshot && decision.action === "live") {
+  if (!snapshot && plan.action === "live") {
     const stored = await readStore(options.store, (store) => store.enabledAccountIds("meta", WORKSPACE_ID));
-    accountIds = resolveAccountIds(decision.accountIds, stored);
-    if (!accountIds.length) return { status: "skipped", reason: "no ad accounts configured", cadence };
+    const routed = routeMetaAccounts(plan, { dbEnabledIds: stored });
+    if (!routed.ok) return { status: "skipped", reason: routed.reason, cadence, skippedConnections: publicSkips(plan.skipped, []) };
+    pulls = routed.pulls;
+    routeWarnings = routed.warnings;
+    skipped = routed.skipped;
+    accountIds = pulls.flatMap((pull) => pull.accountIds);
+    if (!accountIds.length) {
+      return { status: "skipped", reason: "no ad accounts configured", cadence, skippedConnections: publicSkips(skipped, []) };
+    }
   }
 
   const claimed = await readStore(options.store, async (store) => {
@@ -122,7 +148,7 @@ export async function runMarketingSync(options: {
       workspaceId: WORKSPACE_ID,
       platform: "meta",
       authType: mode === "mock" ? "internal" : "system_user",
-      secretRef: mode === "mock" ? "fixture:meta" : "env:META_ACCESS_TOKEN",
+      secretRef: mode === "mock" ? "fixture:meta" : metaSecretRef(plan),
       appExternalId: appId,
       status: "connected",
       scopes: mode === "mock" ? ["fixture"] : ["ads_read", "read_insights"],
@@ -155,9 +181,9 @@ export async function runMarketingSync(options: {
     );
   };
 
-  let failures: string[] = [];
+  const failures: string[] = [];
   try {
-    if (!snapshot && decision.action === "mock") {
+    if (!snapshot && plan.action === "mock") {
       snapshot = normalizeMetaBundle(mockMetaBundle(now, timeZone), { attributionWindow });
       if (intraday) {
         snapshot.metrics = snapshot.metrics.filter((metric) => metric.date >= window.since && metric.date <= window.until);
@@ -165,20 +191,43 @@ export async function runMarketingSync(options: {
       accountIds = snapshot.accounts.map((account) => account.externalId);
     }
 
-    if (!snapshot && decision.action === "live") {
-      const pulled = await getConnector("meta").pull({
-        accountIds,
-        accessToken: decision.accessToken,
-        appSecret: decision.appSecret,
-        graphVersion: decision.graphVersion,
-        since: window.since,
-        until: window.until,
-        attributionWindows: windows,
-        fetchImpl: options.fetchImpl,
-        insightsOnly: intraday,
-      });
-      snapshot = pulled.snapshot;
-      failures = pulled.failures;
+    if (!snapshot && plan.action === "live") {
+      const parts: NormalizedSnapshot[] = [];
+      for (const pull of pulls) {
+        try {
+          const pulled = await getConnector("meta").pull({
+            accountIds: pull.accountIds,
+            accessToken: pull.accessToken,
+            appSecret: pull.appSecret,
+            graphVersion: plan.graphVersion,
+            since: window.since,
+            until: window.until,
+            attributionWindows: windows,
+            fetchImpl: options.fetchImpl,
+            insightsOnly: intraday,
+          });
+          parts.push(pulled.snapshot);
+          failures.push(...pulled.failures);
+        } catch (error) {
+          const message = redactSecrets(error instanceof Error ? error.message : "Meta sync failed", [pull.accessToken, pull.appSecret]);
+          failures.push(`${pull.name}: ${clip(message)}`);
+        }
+      }
+      if (!parts.length) {
+        const message = clip(failures.join("; ") || "nothing to sync");
+        await failRun(message);
+        return {
+          status: "failed",
+          error: message,
+          mode,
+          since: window.since,
+          until: window.until,
+          cadence,
+          connections: connectionSummary(pulls),
+          skippedConnections: publicSkips(skipped, pulls.map((pull) => pull.name)),
+        };
+      }
+      snapshot = mergeSnapshots(parts);
     }
   } catch (error) {
     const message = clip(error instanceof Error ? error.message : "Meta sync failed");
@@ -192,7 +241,15 @@ export async function runMarketingSync(options: {
   }
 
   const error = failures.length ? clip(failures.join("; ")) : null;
-  const note = clip(snapshot.warnings.filter((warning) => !warning.startsWith("Account pull failed")).join("; "));
+  const skipNote = skipped
+    .filter((row) => !pulls.some((pull) => pull.name === row.name))
+    .map((row) => `${row.name} skipped: ${row.reason}`)
+    .join("; ");
+  const note = clip(
+    [snapshot.warnings.filter((warning) => !warning.startsWith("Account pull failed")).join("; "), routeWarnings.join("; "), skipNote]
+      .filter(Boolean)
+      .join("; "),
+  );
   const status = failures.length ? "failed" : "succeeded";
 
   try {
@@ -235,6 +292,8 @@ export async function runMarketingSync(options: {
       since: window.since,
       until: window.until,
       cadence,
+      connections: connectionSummary(pulls),
+      skippedConnections: publicSkips(skipped, pulls.map((pull) => pull.name)),
     };
   } catch (caught) {
     const message = clip(caught instanceof Error ? caught.message : "Marketing sync failed");

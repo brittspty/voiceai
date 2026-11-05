@@ -148,9 +148,10 @@ A live sync needs a Meta system user token and the app that issued it:
 | `META_APP_SECRET` | App secret. When this is set, every Graph call sends `appsecret_proof` (HMAC-SHA256 of the access token, keyed by this secret). Never written to the database |
 | `META_APP_ID` | Meta app id that issued the token. Required for a live sync. Example: `1093413013101625` |
 | `META_AD_ACCOUNT_IDS` | Comma-separated ad account ids for this deployment (`act_123` or `123`). One deployment can list several accounts. Example: `act_532471207924121` (Specificity Inc Marketing, USD, America/New_York). Other clients set their own ids. The code does not default to that account |
+| `META_EXTRA_CONNECTIONS` | Optional comma-separated names for additional Meta businesses. Empty keeps the single primary connection. See below |
 | `META_GRAPH_VERSION` | Graph version. Default `v23.0` |
 | `META_ATTRIBUTION_WINDOWS` | Comma-separated windows sent to insights. Default `7d_click,1d_view`, stored as `7d_click_1d_view` |
-| `MARKETING_SYNC_MODE` | `auto` (default), `mock`, `live`, or `off`. `auto` syncs when the token, app id, and app secret are set and at least one account is configured; otherwise it skips |
+| `MARKETING_SYNC_MODE` | `auto` (default), `mock`, `live`, or `off`. `auto` syncs when the primary token, app id, and app secret are set, or when an extra connection is complete. Otherwise it skips |
 | `MARKETING_LOOKBACK_DAYS` | Trailing days re-pulled each run, from 1 to 90. Default 7. Late attribution is handled by upserting this window, not by a high-water mark |
 | `MARKETING_SYNC_INTERVAL_MS` | Worker interval. Default 6 hours, or 15 minutes when intraday sync is on and this value is empty. The worker also syncs once on startup |
 | `MARKETING_INTRADAY_SYNC` | `off` (default). `on` pulls today and yesterday at ad level between a once-a-day full window. A run is skipped when the previous one is still going |
@@ -175,7 +176,38 @@ A live sync needs a Meta system user token and the app that issued it:
 | `MARKETING_SUPER_ADMIN_EMAILS` | Comma-separated emails treated as super admins. Unset means nobody. A database role of `super_admin` still counts. |
 | `DATABASE_URL` | Postgres URL the CLI writes to. Required for `npm run meta:sync` unless you pass `--dry-run` |
 
-When `META_AD_ACCOUNT_IDS` is set, that list is the only allow-list. When it is empty, the sync uses `AdAccount` rows with `syncEnabled` still true. Clearing the env var does not delete history. Set `MARKETING_SYNC_MODE=off` to stop all syncs. Accounts removed from the allow-list stay in the database and are not pulled while the env list is non-empty.
+When `META_AD_ACCOUNT_IDS` is set, that list is the only allow-list for the primary connection. When it is empty, the primary sync uses `AdAccount` rows with `syncEnabled` still true, except accounts named on an extra connection. Clearing the env var does not delete history. Set `MARKETING_SYNC_MODE=off` to stop all syncs. Accounts removed from the allow-list stay in the database and are not pulled while the env list is non-empty.
+
+### Second Meta business
+
+The primary variables are one Meta connection (Specificity's system user). A client whose ad account lives in a different Meta Business needs its own app, system user, and `ads_read` token. Do not replace `META_ACCESS_TOKEN`. Do not grant `ads_management`. Do not store the token or app secret in the database. The scheduled sync reads every ready connection, and each account is pulled with the token whose allow-list contains it.
+
+`META_EXTRA_CONNECTIONS` is a comma-separated list of short names (letters, digits, underscores). For a name `befound` the process reads:
+
+| Variable | Use |
+| --- | --- |
+| `META_BEFOUND_ACCESS_TOKEN` | System user token for that business. `ads_read`, and `read_insights` when granted. Stored only as the pointer `env:META_BEFOUND_ACCESS_TOKEN` when that connection is the one recorded |
+| `META_BEFOUND_APP_ID` | App id that issued the token |
+| `META_BEFOUND_APP_SECRET` | App secret for `appsecret_proof`. Never written to the database |
+| `META_BEFOUND_AD_ACCOUNT_IDS` | Comma-separated allow-list. Required. This connection does not fall back to every stored account |
+
+The first extra connection is `befound`, for Be Found AI's ad account `act_2897217887308756`. A missing token, app id, app secret, or account list skips that name and still syncs the primary connection. An account listed on two connections is read with the earlier one, so the primary wins. Graph version and attribution windows stay the shared `META_GRAPH_VERSION` and `META_ATTRIBUTION_WINDOWS` settings. There is one `PlatformConnection` row per platform, so while the primary credentials are set the stored pointer stays `env:META_ACCESS_TOKEN`.
+
+Set the same variables on the app and the worker, then restart both. Check one connection without writing:
+
+```bash
+npm run meta:sync -- --connection befound --account act_2897217887308756 --days 7 --dry-run
+```
+
+`--connection primary` is the original token. With `--connection`, accounts are read with that connection, and `--account` overrides that connection's allow-list for the run. With no `--connection`, `--account` uses the connection whose allow-list contains that id. With only the primary connection configured, `--account` still overrides `META_AD_ACCOUNT_IDS` for that run. Omit both flags to read every ready allow-list. `--dry-run` calls Meta and prints counts.
+
+After a successful read, link the account to the existing Be Found AI client (`cmw40hnqi0000n7cvkh5brzm2`). Use that client's current name so the command updates the row instead of creating another client:
+
+```bash
+tsx scripts/client-campaign-scope.ts --name "<existing client name>" --accounts act_2897217887308756
+```
+
+`act_532471207924121` is still refused as a whole-account link. Campaign ids and the name rule still apply there. Spend visibility is unchanged.
 
 Set the same variables on the app and the worker, then restart the worker. `npm run marketing:sync` runs the Meta sync and the Google Ads sync. Google Ads does nothing unless `MARKETING_GOOGLE_ADS=on`.
 
@@ -230,7 +262,7 @@ META_ACCESS_TOKEN=... META_APP_ID=1093413013101625 META_APP_SECRET=... \
   npm run meta:sync -- --account act_532471207924121 --days 30 --dry-run
 ```
 
-`--account` accepts one id or a comma-separated list, and can be repeated. It overrides `META_AD_ACCOUNT_IDS` for that run. `--days` is the inclusive trailing window (1–90, default 7). The date window is computed in `America/New_York`. Omit `--dry-run` to upsert into `DATABASE_URL` and print a row count for each marketing table.
+`--account` accepts one id or a comma-separated list, and can be repeated. `--connection` limits the run to `primary` or one name from `META_EXTRA_CONNECTIONS`. `--days` is the inclusive trailing window (1–90, default 7). The date window is computed in `America/New_York`. Omit `--dry-run` to upsert into `DATABASE_URL` and print a row count for each marketing table.
 
 Insights run first, at ad level. Campaigns, ad sets, and ads are then loaded one edge at a time (not in parallel). Each list is filtered to rows updated since the window start and not archived or deleted. Delivered ids are loaded from the same account edge with `filtering` `IN` on `campaign.id`, `adset.id`, or `ad.id`, 50 ids at a time. The `ids` query parameter is not used. Ad rows ask only for `creative{id}`. Full creative fields, including `object_story_spec`, are a second pass on `/{account}/ads` filtered by `ad.id` IN, limit 25, and only for ads that delivered. Filtering `adcreative.id` is not supported. Ads that did not deliver stay on `creative{id}`.
 

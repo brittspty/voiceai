@@ -2,17 +2,40 @@ export type Env = Record<string, string | undefined>;
 
 const REQUIRED_LIVE = ["META_ACCESS_TOKEN", "META_APP_ID", "META_APP_SECRET"] as const;
 
+/** One read credential set. The token stays in env; `tokenEnv` is the pointer. */
+export type MetaReadConnection = {
+  /** `primary` or a name from META_EXTRA_CONNECTIONS. */
+  name: string;
+  tokenEnv: string;
+  accessToken: string;
+  appId: string;
+  appSecret: string;
+  accountIds: string[];
+};
+
+/** A listed connection that will not be called. `reason` names env vars, never secret values. */
+export type MetaReadSkip = {
+  name: string;
+  reason: string;
+};
+
 export type SyncDecision =
   | { action: "skip"; reason: string }
   | { action: "mock" }
   | {
       action: "live";
+      /**
+       * Primary connection when it is configured. Otherwise the first ready connection.
+       * Sync and the CLI read `connections` so each account uses the token that lists it.
+       */
       accessToken: string;
       appId: string;
       appSecret: string;
       accountIds: string[];
       graphVersion: string;
       attributionWindows: string[];
+      connections: MetaReadConnection[];
+      skipped: MetaReadSkip[];
     };
 
 /** Accepts `act_123` or `123`. Returns "" when the value is not an account id. */
@@ -760,22 +783,299 @@ export function googleAdsLiveRead(env: Env):
   return { ok: false, reason: decision.reason };
 }
 
-export function decideSync(env: Env): SyncDecision {
-  const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
-  if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };
-  if (mode === "mock") return { action: "mock" };
-  if (mode !== "auto" && mode !== "live") {
-    return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
+const EXTRA_CONNECTION_NAME = /^[a-z][a-z0-9_]{0,32}$/;
+
+export const PRIMARY_META_CONNECTION = "primary";
+
+/**
+ * Names from META_EXTRA_CONNECTIONS. Blank entries are ignored.
+ * `primary` and anything that is not a short slug are invalid and skipped.
+ */
+export function parseExtraConnectionNames(raw: string | undefined) {
+  const names: string[] = [];
+  const invalid: string[] = [];
+  const seen = new Set<string>();
+  for (const part of (raw || "").split(",")) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const name = trimmed.toLowerCase();
+    if (name === PRIMARY_META_CONNECTION || !EXTRA_CONNECTION_NAME.test(name)) {
+      invalid.push(trimmed);
+      continue;
+    }
+    if (seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
   }
-  const missing = REQUIRED_LIVE.filter((name) => !(env[name] || "").trim());
-  if (missing.length) return { action: "skip", reason: `missing ${missing.join(", ")}` };
+  return { names, invalid };
+}
+
+/** Env var names for one extra connection. The name is the slug, not the token. */
+export function metaExtraEnv(name: string) {
+  const prefix = `META_${name.trim().toUpperCase()}`;
   return {
-    action: "live",
-    accessToken: env.META_ACCESS_TOKEN!.trim(),
-    appId: env.META_APP_ID!.trim(),
-    appSecret: env.META_APP_SECRET!.trim(),
-    accountIds: parseAdAccountIds(env.META_AD_ACCOUNT_IDS),
+    tokenEnv: `${prefix}_ACCESS_TOKEN`,
+    appIdEnv: `${prefix}_APP_ID`,
+    appSecretEnv: `${prefix}_APP_SECRET`,
+    accountIdsEnv: `${prefix}_AD_ACCOUNT_IDS`,
+  };
+}
+
+export type MetaReadPlan = {
+  action: "skip" | "mock" | "live";
+  reason?: string;
+  graphVersion: string;
+  attributionWindows: string[];
+  connections: MetaReadConnection[];
+  skipped: MetaReadSkip[];
+};
+
+export type MetaAccountPull = {
+  name: string;
+  tokenEnv: string;
+  accessToken: string;
+  appId: string;
+  appSecret: string;
+  accountIds: string[];
+};
+
+function emptyPlan(action: MetaReadPlan["action"], env: Env, reason?: string): MetaReadPlan {
+  return {
+    action,
+    reason,
     graphVersion: graphVersion(env),
     attributionWindows: attributionWindows(env),
+    connections: [],
+    skipped: [],
+  };
+}
+
+function envTrimmed(env: Env, name: string) {
+  return (env[name] || "").trim();
+}
+
+/**
+ * Every Meta read connection for this process.
+ * The primary META_* variables stay the first connection.
+ * META_EXTRA_CONNECTIONS lists more. A missing extra token, app id, app secret,
+ * or account allow-list skips that name and leaves the others in place.
+ * An extra connection does not fall back to stored accounts.
+ */
+export function planMetaReads(env: Env): MetaReadPlan {
+  const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
+  if (mode === "off") return emptyPlan("skip", env, "MARKETING_SYNC_MODE=off");
+  if (mode === "mock") return emptyPlan("mock", env);
+  if (mode !== "auto" && mode !== "live") return emptyPlan("skip", env, `unknown MARKETING_SYNC_MODE ${mode}`);
+
+  const connections: MetaReadConnection[] = [];
+  const skipped: MetaReadSkip[] = [];
+  const primaryMissing = REQUIRED_LIVE.filter((name) => !envTrimmed(env, name));
+  if (primaryMissing.length) {
+    skipped.push({ name: PRIMARY_META_CONNECTION, reason: `missing ${primaryMissing.join(", ")}` });
+  } else {
+    connections.push({
+      name: PRIMARY_META_CONNECTION,
+      tokenEnv: "META_ACCESS_TOKEN",
+      accessToken: envTrimmed(env, "META_ACCESS_TOKEN"),
+      appId: envTrimmed(env, "META_APP_ID"),
+      appSecret: envTrimmed(env, "META_APP_SECRET"),
+      accountIds: parseAdAccountIds(env.META_AD_ACCOUNT_IDS),
+    });
+  }
+
+  const listed = parseExtraConnectionNames(env.META_EXTRA_CONNECTIONS);
+  for (const name of listed.invalid) {
+    skipped.push({ name: name.toLowerCase(), reason: `invalid Meta connection name ${name}` });
+  }
+  for (const name of listed.names) {
+    const vars = metaExtraEnv(name);
+    const missing = [vars.tokenEnv, vars.appIdEnv, vars.appSecretEnv].filter((key) => !envTrimmed(env, key));
+    if (missing.length) {
+      skipped.push({ name, reason: `missing ${missing.join(", ")}` });
+      continue;
+    }
+    const accountIds = parseAdAccountIds(env[vars.accountIdsEnv]);
+    if (!accountIds.length) {
+      skipped.push({ name, reason: `${vars.accountIdsEnv} has no ad account ids` });
+      continue;
+    }
+    connections.push({
+      name,
+      tokenEnv: vars.tokenEnv,
+      accessToken: envTrimmed(env, vars.tokenEnv),
+      appId: envTrimmed(env, vars.appIdEnv),
+      appSecret: envTrimmed(env, vars.appSecretEnv),
+      accountIds,
+    });
+  }
+
+  if (!connections.length) {
+    const primary = skipped.find((row) => row.name === PRIMARY_META_CONNECTION);
+    return {
+      ...emptyPlan("skip", env, primary?.reason ?? "missing META_ACCESS_TOKEN, META_APP_ID, META_APP_SECRET"),
+      skipped,
+    };
+  }
+  return {
+    action: "live",
+    graphVersion: graphVersion(env),
+    attributionWindows: attributionWindows(env),
+    connections,
+    skipped,
+  };
+}
+
+function pullFor(connection: MetaReadConnection, accountIds: string[]): MetaAccountPull {
+  return {
+    name: connection.name,
+    tokenEnv: connection.tokenEnv,
+    accessToken: connection.accessToken,
+    appId: connection.appId,
+    appSecret: connection.appSecret,
+    accountIds,
+  };
+}
+
+function claimAccounts(connections: MetaReadConnection[]) {
+  const owner = new Map<string, MetaReadConnection>();
+  const warnings: string[] = [];
+  for (const connection of connections) {
+    for (const id of connection.accountIds) {
+      const existing = owner.get(id);
+      if (existing) {
+        warnings.push(`${id} is listed on ${existing.name} and ${connection.name}; syncing it with ${existing.name}`);
+        continue;
+      }
+      owner.set(id, connection);
+    }
+  }
+  return { owner, warnings };
+}
+
+function pushAccount(grouped: Map<string, string[]>, name: string, id: string) {
+  const rows = grouped.get(name) ?? [];
+  if (!rows.includes(id)) rows.push(id);
+  grouped.set(name, rows);
+}
+
+function pullsFrom(connections: MetaReadConnection[], grouped: Map<string, string[]>) {
+  const pulls: MetaAccountPull[] = [];
+  for (const connection of connections) {
+    const accountIds = grouped.get(connection.name) ?? [];
+    if (accountIds.length) pulls.push(pullFor(connection, accountIds));
+  }
+  return pulls;
+}
+
+function fallbackAccountIds(connections: MetaReadConnection[], dbEnabledIds: string[]) {
+  const ownedByExtra = new Set<string>();
+  for (const connection of connections) {
+    if (connection.name === PRIMARY_META_CONNECTION) continue;
+    for (const id of connection.accountIds) ownedByExtra.add(id);
+  }
+  return parseAdAccountIds(dbEnabledIds.join(",")).filter((id) => !ownedByExtra.has(id));
+}
+
+export type MetaRoute =
+  | { ok: true; pulls: MetaAccountPull[]; skipped: MetaReadSkip[]; warnings: string[] }
+  | { ok: false; reason: string };
+
+/**
+ * Assigns each account to the connection that may read it.
+ * Primary is first. An account listed twice uses the earlier connection.
+ * `--connection` forces that credential for the requested accounts.
+ * An account on no list uses the only ready connection. With several connections it is an error.
+ * The primary's empty allow-list uses `dbEnabledIds`, minus accounts owned by an extra connection.
+ * Extra connections never use that fallback.
+ */
+export function routeMetaAccounts(
+  source: { connections: MetaReadConnection[]; skipped?: MetaReadSkip[] },
+  options: { accounts?: string[]; connection?: string | null; dbEnabledIds?: string[] } = {},
+): MetaRoute {
+  const skipped = source.skipped ?? [];
+  const requestedName = (options.connection || "").trim().toLowerCase();
+  if (requestedName) {
+    if (requestedName !== PRIMARY_META_CONNECTION && !EXTRA_CONNECTION_NAME.test(requestedName)) {
+      return { ok: false, reason: `unknown Meta connection ${options.connection}` };
+    }
+    const found = source.connections.find((connection) => connection.name === requestedName);
+    if (!found) {
+      const skip = skipped.find((row) => row.name === requestedName);
+      return { ok: false, reason: skip ? `${requestedName} skipped: ${skip.reason}` : `unknown Meta connection ${requestedName}` };
+    }
+    let accountIds = options.accounts?.length ? parseAdAccountIds(options.accounts.join(",")) : found.accountIds;
+    if (!accountIds.length && found.name === PRIMARY_META_CONNECTION && options.dbEnabledIds) {
+      accountIds = fallbackAccountIds(source.connections, options.dbEnabledIds);
+    }
+    if (!accountIds.length) {
+      const reason =
+        found.name === PRIMARY_META_CONNECTION
+          ? "No ad accounts. Pass --account act_... or set META_AD_ACCOUNT_IDS."
+          : `${metaExtraEnv(found.name).accountIdsEnv} has no ad account ids`;
+      return { ok: false, reason };
+    }
+    return { ok: true, pulls: [pullFor(found, accountIds)], skipped, warnings: [] };
+  }
+
+  if (options.accounts?.length) {
+    const requested = parseAdAccountIds(options.accounts.join(","));
+    if (!requested.length) return { ok: false, reason: "No ad accounts. Pass --account act_... or set META_AD_ACCOUNT_IDS." };
+    const { owner, warnings } = claimAccounts(source.connections);
+    const grouped = new Map<string, string[]>();
+    for (const id of requested) {
+      const found = owner.get(id);
+      if (found) {
+        pushAccount(grouped, found.name, id);
+        continue;
+      }
+      if (source.connections.length === 1) {
+        pushAccount(grouped, source.connections[0]!.name, id);
+        continue;
+      }
+      return { ok: false, reason: `${id} is not on a Meta connection allow-list. Pass --connection <name>.` };
+    }
+    return { ok: true, pulls: pullsFrom(source.connections, grouped), skipped, warnings };
+  }
+
+  const { owner, warnings } = claimAccounts(source.connections);
+  const grouped = new Map<string, string[]>();
+  const primary = source.connections.find((connection) => connection.name === PRIMARY_META_CONNECTION);
+  if (primary && !primary.accountIds.length && options.dbEnabledIds) {
+    for (const id of fallbackAccountIds(source.connections, options.dbEnabledIds)) pushAccount(grouped, primary.name, id);
+  }
+  for (const connection of source.connections) {
+    for (const id of connection.accountIds) {
+      if (owner.get(id)?.name !== connection.name) continue;
+      pushAccount(grouped, connection.name, id);
+    }
+  }
+  return { ok: true, pulls: pullsFrom(source.connections, grouped), skipped, warnings };
+}
+
+/** Pointer stored on the one Meta PlatformConnection row. Never a token value. */
+export function metaSecretRef(plan: MetaReadPlan) {
+  const primary = plan.connections.find((connection) => connection.name === PRIMARY_META_CONNECTION);
+  const chosen = primary ?? plan.connections[0];
+  return chosen ? `env:${chosen.tokenEnv}` : "env:META_ACCESS_TOKEN";
+}
+
+export function decideSync(env: Env): SyncDecision {
+  const plan = planMetaReads(env);
+  if (plan.action === "mock") return { action: "mock" };
+  if (plan.action === "skip" || !plan.connections.length) {
+    return { action: "skip", reason: plan.reason || "missing META_ACCESS_TOKEN, META_APP_ID, META_APP_SECRET" };
+  }
+  const primary = plan.connections.find((connection) => connection.name === PRIMARY_META_CONNECTION);
+  const head = primary ?? plan.connections[0]!;
+  return {
+    action: "live",
+    accessToken: head.accessToken,
+    appId: head.appId,
+    appSecret: head.appSecret,
+    accountIds: head.accountIds,
+    graphVersion: plan.graphVersion,
+    attributionWindows: plan.attributionWindows,
+    connections: plan.connections,
+    skipped: plan.skipped,
   };
 }

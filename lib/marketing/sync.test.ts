@@ -215,3 +215,158 @@ test("the env allow-list is exclusive", async () => {
   assert.ok(urls.some((url) => url.includes("/act_111")));
   assert.equal(urls.some((url) => url.includes("act_222")), false);
 });
+
+function tokensFor(urls: string[], accountId: string) {
+  const tokens = urls
+    .filter((url) => new URL(url).pathname.split("/").includes(accountId))
+    .map((url) => new URL(url).searchParams.get("access_token"));
+  return [...new Set(tokens)];
+}
+
+function accountFetch(urls: string[]): FetchLike {
+  return async (url) => {
+    urls.push(String(url));
+    const account = new URL(url).pathname.split("/").pop() ?? "";
+    if (/^act_\d+$/.test(account)) {
+      return Response.json({ id: account, name: account, currency: "USD", timezone_name: "America/New_York", account_status: 1 });
+    }
+    return Response.json({ data: [] });
+  };
+}
+
+test("each Meta account is read with the connection that lists it", async () => {
+  const urls: string[] = [];
+  const secretRefs: string[] = [];
+  const scopeSets: string[][] = [];
+  const store = createMemoryStore();
+  const upsert = store.upsertConnection.bind(store);
+  store.upsertConnection = async (input) => {
+    secretRefs.push(input.secretRef);
+    scopeSets.push(input.scopes);
+    return upsert(input);
+  };
+  const result = await runMarketingSync({
+    env: {
+      MARKETING_SYNC_MODE: "live",
+      META_ACCESS_TOKEN: "primary-token",
+      META_APP_ID: "primary-app",
+      META_APP_SECRET: "primary-secret",
+      META_AD_ACCOUNT_IDS: "act_111",
+      META_EXTRA_CONNECTIONS: "befound",
+      META_BEFOUND_ACCESS_TOKEN: "befound-token",
+      META_BEFOUND_APP_ID: "befound-app",
+      META_BEFOUND_APP_SECRET: "befound-secret",
+      META_BEFOUND_AD_ACCOUNT_IDS: "act_2897217887308756",
+    },
+    store,
+    fetchImpl: accountFetch(urls),
+    now: NOW,
+    timezone: TZ,
+  });
+  assert.equal(result.status, "succeeded");
+  assert.equal(result.accounts, 2);
+  assert.deepEqual(tokensFor(urls, "act_111"), ["primary-token"]);
+  assert.deepEqual(tokensFor(urls, "act_2897217887308756"), ["befound-token"]);
+  assert.deepEqual(secretRefs, ["env:META_ACCESS_TOKEN"]);
+  assert.deepEqual(scopeSets, [["ads_read", "read_insights"]]);
+  assert.equal(JSON.stringify(result).includes("primary-token"), false);
+  assert.equal(JSON.stringify(result).includes("befound-token"), false);
+  assert.deepEqual(result.connections, [
+    { name: "primary", accounts: 1 },
+    { name: "befound", accounts: 1 },
+  ]);
+});
+
+test("a missing extra Meta connection does not fail the primary sync", async () => {
+  const urls: string[] = [];
+  const result = await runMarketingSync({
+    env: {
+      MARKETING_SYNC_MODE: "live",
+      META_ACCESS_TOKEN: "primary-token",
+      META_APP_ID: "primary-app",
+      META_APP_SECRET: "primary-secret",
+      META_AD_ACCOUNT_IDS: "act_111",
+      META_EXTRA_CONNECTIONS: "befound",
+      META_BEFOUND_ACCESS_TOKEN: "befound-token",
+    },
+    store: createMemoryStore(),
+    fetchImpl: accountFetch(urls),
+    now: NOW,
+    timezone: TZ,
+  });
+  assert.equal(result.status, "succeeded");
+  assert.equal(result.accounts, 1);
+  assert.deepEqual(tokensFor(urls, "act_111"), ["primary-token"]);
+  assert.equal(urls.some((url) => url.includes("befound-token")), false);
+  assert.equal(result.skippedConnections?.length, 1);
+  assert.equal(result.skippedConnections?.[0]?.name, "befound");
+  assert.match(result.skippedConnections?.[0]?.reason ?? "", /META_BEFOUND_APP_ID/);
+  assert.equal(JSON.stringify(result).includes("befound-token"), false);
+});
+
+test("the primary allow-list fallback does not read an extra connection's account", async () => {
+  const store = createMemoryStore();
+  const seed = (externalId: string): NormalizedAccount & { workspaceId: string; connectionId: string } => ({
+    platform: "meta",
+    externalId,
+    name: externalId,
+    currency: "USD",
+    timezone: "America/New_York",
+    status: "unknown",
+    syncEnabled: true,
+    workspaceId: "org",
+    connectionId: "seed",
+  });
+  await store.upsertAccount(seed("act_111"));
+  await store.upsertAccount(seed("act_333"));
+  const urls: string[] = [];
+  const result = await runMarketingSync({
+    env: {
+      MARKETING_SYNC_MODE: "live",
+      META_ACCESS_TOKEN: "primary-token",
+      META_APP_ID: "primary-app",
+      META_APP_SECRET: "primary-secret",
+      META_AD_ACCOUNT_IDS: "",
+      META_EXTRA_CONNECTIONS: "befound",
+      META_BEFOUND_ACCESS_TOKEN: "befound-token",
+      META_BEFOUND_APP_ID: "befound-app",
+      META_BEFOUND_APP_SECRET: "befound-secret",
+      META_BEFOUND_AD_ACCOUNT_IDS: "act_333",
+    },
+    store,
+    fetchImpl: accountFetch(urls),
+    now: NOW,
+    timezone: TZ,
+  });
+  assert.equal(result.status, "succeeded");
+  assert.deepEqual(tokensFor(urls, "act_111"), ["primary-token"]);
+  assert.deepEqual(tokensFor(urls, "act_333"), ["befound-token"]);
+});
+
+test("an extra connection records its env var name when the primary credentials are absent", async () => {
+  const secretRefs: string[] = [];
+  const store = createMemoryStore();
+  const upsert = store.upsertConnection.bind(store);
+  store.upsertConnection = async (input) => {
+    secretRefs.push(input.secretRef);
+    return upsert(input);
+  };
+  const result = await runMarketingSync({
+    env: {
+      MARKETING_SYNC_MODE: "live",
+      META_EXTRA_CONNECTIONS: "befound",
+      META_BEFOUND_ACCESS_TOKEN: "befound-token",
+      META_BEFOUND_APP_ID: "befound-app",
+      META_BEFOUND_APP_SECRET: "befound-secret",
+      META_BEFOUND_AD_ACCOUNT_IDS: "act_2897217887308756",
+    },
+    store,
+    fetchImpl: accountFetch([]),
+    now: NOW,
+    timezone: TZ,
+  });
+  assert.equal(result.status, "succeeded");
+  assert.deepEqual(secretRefs, ["env:META_BEFOUND_ACCESS_TOKEN"]);
+  assert.equal(JSON.stringify(result).includes("befound-token"), false);
+  assert.equal(JSON.stringify(secretRefs).includes("befound-token"), false);
+});

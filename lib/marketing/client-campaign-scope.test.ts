@@ -152,6 +152,28 @@ test("linkable Meta ad account ids normalize and refuse the shared account", () 
   assert.throws(() => linkableMetaAdAccountIds(["not-an-account"]), /act_123/);
 });
 
+test("a non-shared account from another Meta business can be linked as a whole", () => {
+  const account = "act_2897217887308756";
+  assert.deepEqual(linkableMetaAdAccountIds([account]), [account]);
+  assert.equal(
+    clientForCampaign([rule({ id: "befound", metaAdAccountIds: [account] })], {
+      externalId: "1",
+      name: "Be Found",
+      accountExternalId: account,
+    }),
+    "befound",
+  );
+  assert.equal(
+    clientForCampaign([rule({ id: "befound", metaAdAccountIds: [account] })], {
+      externalId: "2",
+      name: "Shared account campaign",
+      accountExternalId: SHARED_META_AD_ACCOUNT_ID,
+    }),
+    null,
+  );
+  assert.throws(() => linkableMetaAdAccountIds([SHARED_META_AD_ACCOUNT_ID]), /cannot be linked as a whole/);
+});
+
 test("apply writes only local campaign rows", async () => {
   const updates: unknown[] = [];
   const result = await applyClientCampaignScopes(

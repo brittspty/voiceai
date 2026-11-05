@@ -7,6 +7,7 @@ import {
   graphVersion,
   parseAdAccountIds,
   resolveAccountIds,
+  routeMetaAccounts,
 } from "./config";
 import { appSecretProof, graphGet, graphList, type FetchLike } from "./connectors/meta-client";
 import { mockMetaBundle } from "./connectors/fixtures";
@@ -36,7 +37,14 @@ test("does not invent an ad account when the env list is empty", () => {
     META_APP_SECRET: "secret",
   });
   assert.equal(live.action, "live");
-  if (live.action === "live") assert.deepEqual(live.accountIds, []);
+  if (live.action === "live") {
+    assert.deepEqual(live.accountIds, []);
+    assert.equal(live.connections.length, 1);
+    assert.equal(live.connections[0]?.name, "primary");
+    assert.equal(live.connections[0]?.accessToken, "token");
+    assert.equal(live.connections[0]?.tokenEnv, "META_ACCESS_TOKEN");
+    assert.deepEqual(live.skipped, []);
+  }
 });
 
 test("parses a comma-separated ad account allow-list", () => {
@@ -178,4 +186,172 @@ test("pages a Graph list and redacts the token from errors", async () => {
 test("appsecret_proof is the hmac of the token", () => {
   const proof = appSecretProof("token-value", "secret-value");
   assert.equal(proof, createHmac("sha256", "secret-value").update("token-value").digest("hex"));
+});
+
+function metaEnv(extra: Record<string, string> = {}) {
+  return {
+    MARKETING_SYNC_MODE: "live",
+    META_ACCESS_TOKEN: "primary-token",
+    META_APP_ID: "primary-app",
+    META_APP_SECRET: "primary-secret",
+    META_AD_ACCOUNT_IDS: "act_111",
+    ...extra,
+  };
+}
+
+test("two Meta connections keep disjoint accounts on their own tokens", () => {
+  const decision = decideSync(
+    metaEnv({
+      META_EXTRA_CONNECTIONS: "befound",
+      META_BEFOUND_ACCESS_TOKEN: "befound-token",
+      META_BEFOUND_APP_ID: "befound-app",
+      META_BEFOUND_APP_SECRET: "befound-secret",
+      META_BEFOUND_AD_ACCOUNT_IDS: "2897217887308756",
+    }),
+  );
+  assert.equal(decision.action, "live");
+  if (decision.action !== "live") return;
+  assert.equal(decision.accessToken, "primary-token");
+  assert.deepEqual(decision.accountIds, ["act_111"]);
+  assert.deepEqual(
+    decision.connections.map((connection) => ({
+      name: connection.name,
+      tokenEnv: connection.tokenEnv,
+      accessToken: connection.accessToken,
+      accountIds: connection.accountIds,
+    })),
+    [
+      { name: "primary", tokenEnv: "META_ACCESS_TOKEN", accessToken: "primary-token", accountIds: ["act_111"] },
+      {
+        name: "befound",
+        tokenEnv: "META_BEFOUND_ACCESS_TOKEN",
+        accessToken: "befound-token",
+        accountIds: ["act_2897217887308756"],
+      },
+    ],
+  );
+  const routed = routeMetaAccounts(decision);
+  assert.equal(routed.ok, true);
+  if (!routed.ok) return;
+  assert.deepEqual(
+    routed.pulls.map((pull) => ({ name: pull.name, accessToken: pull.accessToken, accountIds: pull.accountIds })),
+    [
+      { name: "primary", accessToken: "primary-token", accountIds: ["act_111"] },
+      { name: "befound", accessToken: "befound-token", accountIds: ["act_2897217887308756"] },
+    ],
+  );
+  const oneAccount = routeMetaAccounts(decision, { accounts: ["act_2897217887308756"] });
+  assert.equal(oneAccount.ok, true);
+  if (!oneAccount.ok) return;
+  assert.equal(oneAccount.pulls.length, 1);
+  assert.equal(oneAccount.pulls[0]?.accessToken, "befound-token");
+  const named = routeMetaAccounts(decision, { connection: "befound" });
+  assert.equal(named.ok, true);
+  if (!named.ok) return;
+  assert.deepEqual(named.pulls[0]?.accountIds, ["act_2897217887308756"]);
+  assert.equal(named.pulls[0]?.accessToken, "befound-token");
+  const unlisted = routeMetaAccounts(decision, { accounts: ["act_999"] });
+  assert.equal(unlisted.ok, false);
+});
+
+test("a missing extra Meta connection does not drop the primary token", () => {
+  const decision = decideSync(
+    metaEnv({
+      META_EXTRA_CONNECTIONS: "befound, befound, not a name",
+      META_BEFOUND_ACCESS_TOKEN: "befound-token",
+    }),
+  );
+  assert.equal(decision.action, "live");
+  if (decision.action !== "live") return;
+  assert.equal(decision.connections.length, 1);
+  assert.equal(decision.connections[0]?.accessToken, "primary-token");
+  assert.deepEqual(decision.connections[0]?.accountIds, ["act_111"]);
+  const befound = decision.skipped.find((row) => row.name === "befound");
+  assert.match(befound?.reason ?? "", /META_BEFOUND_APP_ID/);
+  assert.match(befound?.reason ?? "", /META_BEFOUND_APP_SECRET/);
+  assert.equal(decision.skipped.some((row) => row.reason.includes("not a name")), true);
+  assert.equal(JSON.stringify(decision.skipped).includes("befound-token"), false);
+  assert.equal(JSON.stringify(decision.skipped).includes("primary-token"), false);
+  const routed = routeMetaAccounts(decision);
+  assert.equal(routed.ok, true);
+  if (!routed.ok) return;
+  assert.deepEqual(routed.pulls.map((pull) => pull.accessToken), ["primary-token"]);
+});
+
+test("an extra Meta connection with no account ids is skipped", () => {
+  const decision = decideSync(
+    metaEnv({
+      META_EXTRA_CONNECTIONS: "befound",
+      META_BEFOUND_ACCESS_TOKEN: "befound-token",
+      META_BEFOUND_APP_ID: "befound-app",
+      META_BEFOUND_APP_SECRET: "befound-secret",
+      META_BEFOUND_AD_ACCOUNT_IDS: "not-an-account",
+    }),
+  );
+  assert.equal(decision.action, "live");
+  if (decision.action !== "live") return;
+  assert.equal(decision.connections.length, 1);
+  assert.match(decision.skipped.find((row) => row.name === "befound")?.reason ?? "", /META_BEFOUND_AD_ACCOUNT_IDS/);
+});
+
+test("an account listed twice is read with the earlier Meta connection", () => {
+  const decision = decideSync(
+    metaEnv({
+      META_AD_ACCOUNT_IDS: "act_111, act_222",
+      META_EXTRA_CONNECTIONS: "befound",
+      META_BEFOUND_ACCESS_TOKEN: "befound-token",
+      META_BEFOUND_APP_ID: "befound-app",
+      META_BEFOUND_APP_SECRET: "befound-secret",
+      META_BEFOUND_AD_ACCOUNT_IDS: "act_222, act_333",
+    }),
+  );
+  const routed = routeMetaAccounts(decision);
+  assert.equal(routed.ok, true);
+  if (!routed.ok) return;
+  assert.deepEqual(routed.pulls[0]?.accountIds, ["act_111", "act_222"]);
+  assert.equal(routed.pulls[0]?.accessToken, "primary-token");
+  assert.deepEqual(routed.pulls[1]?.accountIds, ["act_333"]);
+  assert.equal(routed.pulls[1]?.accessToken, "befound-token");
+  assert.match(routed.warnings.join(" "), /act_222/);
+});
+
+test("stored accounts owned by an extra connection stay off the primary token", () => {
+  const decision = decideSync(
+    metaEnv({
+      META_AD_ACCOUNT_IDS: "",
+      META_EXTRA_CONNECTIONS: "befound",
+      META_BEFOUND_ACCESS_TOKEN: "befound-token",
+      META_BEFOUND_APP_ID: "befound-app",
+      META_BEFOUND_APP_SECRET: "befound-secret",
+      META_BEFOUND_AD_ACCOUNT_IDS: "act_333",
+    }),
+  );
+  const routed = routeMetaAccounts(decision, { dbEnabledIds: ["act_111", "act_333", "act_444"] });
+  assert.equal(routed.ok, true);
+  if (!routed.ok) return;
+  assert.deepEqual(routed.pulls[0]?.accountIds, ["act_111", "act_444"]);
+  assert.equal(routed.pulls[0]?.accessToken, "primary-token");
+  assert.deepEqual(routed.pulls[1]?.accountIds, ["act_333"]);
+  assert.equal(routed.pulls[1]?.accessToken, "befound-token");
+});
+
+test("a ready extra Meta connection still syncs when the primary credentials are missing", () => {
+  const decision = decideSync({
+    MARKETING_SYNC_MODE: "live",
+    META_ACCESS_TOKEN: "primary-token",
+    META_APP_ID: "primary-app",
+    META_EXTRA_CONNECTIONS: "BeFound",
+    META_BEFOUND_ACCESS_TOKEN: "befound-token",
+    META_BEFOUND_APP_ID: "befound-app",
+    META_BEFOUND_APP_SECRET: "befound-secret",
+    META_BEFOUND_AD_ACCOUNT_IDS: "act_2897217887308756",
+  });
+  assert.equal(decision.action, "live");
+  if (decision.action !== "live") return;
+  assert.equal(decision.connections.length, 1);
+  assert.equal(decision.connections[0]?.name, "befound");
+  assert.equal(decision.accessToken, "befound-token");
+  assert.deepEqual(decision.accountIds, ["act_2897217887308756"]);
+  assert.match(decision.skipped.find((row) => row.name === "primary")?.reason ?? "", /META_APP_SECRET/);
+  assert.equal(JSON.stringify(decision.skipped).includes("primary-token"), false);
 });
