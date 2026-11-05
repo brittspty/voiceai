@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PRODUCT_WORDMARK } from "@/lib/brand";
 import { DemoEntry } from "@/components/demo-entry";
-import { BASED_ON_LABEL, DEMO_TAGLINE, HUMANS_CONTROL_BUDGETS, ILLUSTRATIVE_BADGE } from "@/lib/demo/tour";
+import { BASED_ON_LABEL, DEMO_SUPPORTING_LINE, DEMO_TAGLINE, HUMANS_CONTROL_BUDGETS, ILLUSTRATIVE_BADGE } from "@/lib/demo/tour";
 import type { presentDemo } from "@/lib/demo/present";
 
 type Presentation = ReturnType<typeof presentDemo>;
@@ -81,6 +81,7 @@ function CommandCenter({ data }: { data: Presentation }) {
     <section data-tour-anchor="command">
       <p className="text-sm font-semibold">{PRODUCT_WORDMARK}</p>
       <p className="mt-1 text-sm font-semibold text-brand">{DEMO_TAGLINE}</p>
+      <p className="mt-1 text-sm">{DEMO_SUPPORTING_LINE}</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">Command center</h1>
       <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Morning view of the fictional demo accounts. The audience library, segment tests, reports, and the decisions inbox start here.</p>
       <ul className="mt-4 grid gap-3 md:grid-cols-2">

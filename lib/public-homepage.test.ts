@@ -291,7 +291,9 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(prose, /After/);
   assert.match(prose, /Where is your ad budget leaking/);
   assert.match(prose, /JAI vs a typical agency vs DIY ad platforms/);
-  assert.match(model.proof.tourBody, /Your Buyer Audience; Everywhere/);
+  assert.match(model.proof.tourBody, /Your Audience; Everywhere/);
+  assert.match(model.proof.tourBody, /Bots optimize, you make the call/);
+  assert.equal(model.proof.tourBody.includes("Your Buyer Audience; Everywhere"), false);
   assert.match(model.proof.tourBody, /signed demo link or the demo access page/);
   assert.equal(model.proof.tourBody.includes("No login needed"), false);
   assert.equal(model.proof.tourBody.includes("Try the demo"), false);

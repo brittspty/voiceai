@@ -77,7 +77,9 @@ test("talking points stay placeholder copy without industry statistics", () => {
     .filter((step) => /\d/.test(`${step.title} ${step.body}`.replaceAll("AIS2L", "")))
     .map((step) => step.id);
   assert.deepEqual(numbered, ["audience"]);
-  assert.match(renderTourSteps(DEMO_FACTS)[0]?.body || "", /Your Buyer Audience; Everywhere/);
+  assert.match(renderTourSteps(DEMO_FACTS)[0]?.body || "", /Your Audience; Everywhere/);
+  assert.match(renderTourSteps(DEMO_FACTS)[0]?.body || "", /Bots optimize, you make the call/);
+  assert.equal(text.includes("Your Buyer Audience; Everywhere"), false);
   assert.match(text, /Humans control budgets/);
   assert.equal(/Jarvis|Diver AI/i.test(text), false);
 });

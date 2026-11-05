@@ -10,7 +10,10 @@ import { PRODUCT_WORDMARK } from "../brand/names";
 export const TOUR_COPY_STATUS = "DRAFT" as const;
 
 /** Locked JAI line for the demo tour and demo chrome. Not the older brand tagline. */
-export const DEMO_TAGLINE = "Your Buyer Audience; Everywhere";
+export const DEMO_TAGLINE = "Your Audience; Everywhere";
+
+/** Supporting line on the demo. Not a statistic. */
+export const DEMO_SUPPORTING_LINE = "Bots optimize, you make the call";
 
 export const HUMANS_CONTROL_BUDGETS = "Humans control budgets";
 export const BASED_ON_LABEL = "Based on:";
@@ -42,7 +45,7 @@ const TEMPLATES: Array<Omit<TourStep, "body"> & { body: string }> = [
     anchor: "command",
     title: "The command center",
     showsFigures: false,
-    body: `${PRODUCT_WORDMARK}. ${DEMO_TAGLINE} This demo opens on the command center: one morning view of the sample accounts, then the audience library, segment tests, reports, and the decisions inbox.`,
+    body: `${PRODUCT_WORDMARK}. ${DEMO_TAGLINE} ${DEMO_SUPPORTING_LINE} This demo opens on the command center: one morning view of the sample accounts, then the audience library, segment tests, reports, and the decisions inbox.`,
   },
   {
     id: "audience",

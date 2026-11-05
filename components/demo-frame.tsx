@@ -1,7 +1,7 @@
 import { PRODUCT_WORDMARK } from "@/lib/brand";
 import { brandTokens } from "@/lib/brand/tokens";
 import { DataChip } from "@/components/data-chip";
-import { DEMO_TAGLINE } from "@/lib/demo/tour";
+import { DEMO_SUPPORTING_LINE, DEMO_TAGLINE } from "@/lib/demo/tour";
 
 const stripe = `
 .demo-frame{min-height:100vh;box-shadow:inset 0 0 0 4px ${brandTokens.light.brand};background:${brandTokens.light.canvas};color:${brandTokens.light.ink}}
@@ -18,6 +18,7 @@ export function DemoFrame({ children, exit }: { children: React.ReactNode; exit?
         <span className="demo-word">DEMO</span>
         <span className="demo-word">{PRODUCT_WORDMARK}</span>
         <span className="demo-tag">{DEMO_TAGLINE}</span>
+        <span className="demo-tag">{DEMO_SUPPORTING_LINE}</span>
         {exit}
       </div>
       <div className="border-b border-line bg-card px-4 py-2">
