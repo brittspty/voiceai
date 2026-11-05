@@ -10,7 +10,7 @@ import { normalizeAppName } from "./apps";
 import { canActOnDecisions, decisionsRequestStatus, decisionsView, rejectsDecisionsRequest } from "./access";
 import { planCollapse } from "./collapse";
 import { planDuplicatePairs } from "./fold";
-import { formatMultiple, formatPercent, metricTitle, rateSummary } from "./labels";
+import { decisionSubject, formatMultiple, formatPercent, metricTitle, rateSummary } from "./labels";
 import { recommendationDedupeKey } from "./key";
 import { filterDecisionRows, groupDecisions, isCostDecision, presentDecisions, viewerLine, visibleDecisionActions, type DecisionCard } from "./present";
 import {
@@ -668,6 +668,23 @@ test("rate thresholds, labels, and client cost hiding", () => {
     seesCost: false,
   });
   assert.equal(title, "Homestead Traffic – 2026 Model Video: click rate 2.2% vs 0.45% usual, 4.9x usual, 0 conversions in 2 days");
+  assert.equal(decisionSubject("Homestead Traffic", "2026 Model Video"), "Homestead Traffic – 2026 Model Video");
+  assert.equal(decisionSubject("CRS | August", "CRS | August"), "CRS | August");
+  assert.equal(decisionSubject("  crs | august ", "CRS | August"), "crs | august");
+  assert.equal(decisionSubject("CRS | August", "CRS | August – CRS | August"), "CRS | August");
+  assert.equal(decisionSubject("CRS", "CRS | August"), "CRS | August");
+  const repeated = metricTitle({
+    campaignName: "CRS | August",
+    adName: "CRS | August",
+    metric: "ctr",
+    observed: 0.022,
+    baseline: 0.0045,
+    conversions: 0,
+    days: 7,
+    seesCost: false,
+  });
+  assert.equal(repeated, "CRS | August: click rate 2.2% vs 0.45% usual, 4.9x usual, 0 conversions in 7 days");
+  assert.equal(repeated.includes("CRS | August – CRS | August"), false);
   const dollars = metricTitle({
     campaignName: "Harbor",
     adName: "Video",

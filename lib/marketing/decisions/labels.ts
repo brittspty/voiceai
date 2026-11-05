@@ -23,6 +23,31 @@ export function formatMultiple(observed: number | null, baseline: number | null)
   return `${text}x usual`;
 }
 
+function compactLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/** "CRS | August – CRS | August" is one name. A single distinct name is unchanged. */
+function collapseRepeatedName(value: string) {
+  const parts = value.split(/\s+[–-]\s+/);
+  if (parts.length === 2 && compactLabel(parts[0] || "") && compactLabel(parts[0] || "") === compactLabel(parts[1] || "")) {
+    return (parts[0] || "").trim();
+  }
+  return value;
+}
+
+/** One name when the campaign and the ad are the same. Different names stay "campaign – ad". */
+export function decisionSubject(campaignName: string, adName: string) {
+  const campaign = collapseRepeatedName(campaignName.trim().replace(/\s+/g, " "));
+  const ad = collapseRepeatedName(adName.trim().replace(/\s+/g, " "));
+  if (!campaign) return ad;
+  if (!ad || compactLabel(campaign) === compactLabel(ad)) return campaign;
+  const campaignKey = compactLabel(campaign);
+  const adKey = compactLabel(ad);
+  if (adKey.startsWith(`${campaignKey} – `) || adKey.startsWith(`${campaignKey} - `) || adKey.startsWith(`${campaignKey} | `)) return ad;
+  return `${campaign} – ${ad}`;
+}
+
 export function metricTitle(input: {
   campaignName: string;
   adName: string;
@@ -33,7 +58,7 @@ export function metricTitle(input: {
   days: number;
   seesCost: boolean;
 }) {
-  const who = input.campaignName ? `${input.campaignName} – ${input.adName}` : input.adName;
+  const who = decisionSubject(input.campaignName, input.adName);
   const multiple = formatMultiple(input.observed, input.baseline);
   const multipleBit = multiple ? `, ${multiple}` : "";
   const conversions = `${input.conversions} conversion${input.conversions === 1 ? "" : "s"}`;
