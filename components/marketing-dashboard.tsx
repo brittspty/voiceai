@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { PUBLIC_TAGLINE } from "@/lib/brand/public";
 import { brandTokens } from "@/lib/brand/tokens";
 import {
   anomalies,
@@ -417,7 +418,7 @@ export function MarketingDashboard({
       </div>
 
       <p className="py-6 text-center text-xs text-muted">
-        {brandTokens.wordmark} · {brandTokens.tagline} · {model.sourceLine}
+        {brandTokens.wordmark} · {basePath.startsWith("/share") ? PUBLIC_TAGLINE : brandTokens.tagline} · {model.sourceLine}
         {model.mock ? " · Mock data" : ""}
       </p>
 

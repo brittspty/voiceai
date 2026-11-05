@@ -81,7 +81,7 @@ const loginBrand = {
 test("rendered public pages and email templates do not say Jarvis", async () => {
   const home = homepageModel({ PUBLIC_HOMEPAGE: "on" });
   const pages = [
-    renderPublic(createElement(PublicHomepage, { model: home, origin: "https://voiceai.specificityinc.com" })),
+    renderPublic(createElement(PublicHomepage, { model: home })),
     renderPublic(createElement(LoginScreen, { brand: loginBrand, hint: null, magicLink: true, magicLinkDelivery: false })),
     renderPublic(createElement(LoginAnalyticsScreen, { brand: loginBrand, hint: null, audience: "client", magicLink: true, magicLinkDelivery: true, initial: null })),
     renderPublic(createElement(ForgotPasswordPage)),
@@ -188,7 +188,7 @@ test("rendered public pages and email templates do not say Jarvis", async () => 
       notes: ["12 leads waiting for a quality mark"],
     },
   });
-  const metadata = homepageMetadata("https://voiceai.specificityinc.com");
+  const metadata = homepageMetadata();
   const manifest = readFileSync(new URL("../public/site.webmanifest", import.meta.url), "utf8");
   const notification = readFileSync(new URL("../public/push-sw.js", import.meta.url), "utf8");
   const pdf = buildReportPdf(shared).toString("latin1");

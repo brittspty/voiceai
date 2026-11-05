@@ -5,7 +5,8 @@ import { PostHogAnalytics } from "@/components/posthog-analytics";
 import { ThemeProvider } from "@/components/theme-provider";
 import { posthogClientProps } from "@/lib/analytics/posthog";
 import { getCurrentUser } from "@/lib/auth";
-import { BRAND_FONT, loadBrand, PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_TITLE, PRODUCT_WORDMARK } from "@/lib/brand";
+import { BRAND_FONT, PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_TITLE, PRODUCT_WORDMARK } from "@/lib/brand";
+import { publicLogos } from "@/lib/brand/public";
 import { brandTokenCss } from "@/lib/brand/tokens";
 import "./globals.css";
 
@@ -14,7 +15,6 @@ const labelFont = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], va
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-plex-mono", display: "swap" });
 
 export async function generateMetadata(): Promise<Metadata> {
-  const brand = await loadBrand();
   return {
     title: { default: PRODUCT_TITLE, template: `%s · ${PRODUCT_NAME}` },
     description: PRODUCT_TAGLINE,
@@ -22,7 +22,13 @@ export async function generateMetadata(): Promise<Metadata> {
     manifest: "/site.webmanifest",
     openGraph: { title: PRODUCT_TITLE, description: PRODUCT_TAGLINE, siteName: PRODUCT_WORDMARK },
     twitter: { card: "summary", title: PRODUCT_TITLE, description: PRODUCT_TAGLINE },
-    icons: brand.logoUrl ? { icon: brand.logoUrl } : undefined,
+    icons: {
+      icon: [
+        { url: publicLogos.favicon32, sizes: "32x32", type: "image/png" },
+        { url: publicLogos.favicon192, sizes: "192x192", type: "image/png" },
+      ],
+      apple: [{ url: publicLogos.favicon192, sizes: "192x192" }],
+    },
   };
 }
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { PublicBrandLogo } from "@/components/public-brand-logo";
 import { requestAccess } from "@/lib/actions";
 
 export function RequestAccessForm({ wordmark, tagline }: { wordmark: string; tagline: string }) {
@@ -9,7 +10,8 @@ export function RequestAccessForm({ wordmark, tagline }: { wordmark: string; tag
   const [error, setError] = useState<string | null>(null);
   return (
     <main className="mx-auto min-h-screen max-w-lg px-4 py-12">
-      <p className="text-sm text-muted"><Link href="/login" className="underline">{wordmark}</Link></p>
+      <Link href="/" aria-label="JAI by Specificity"><PublicBrandLogo slot="wordmark-light" height={48} alt="" /></Link>
+      <p className="mt-4 text-sm text-muted"><Link href="/login" className="underline">{wordmark}</Link></p>
       <h1 className="mt-3 text-3xl font-semibold">Request access</h1>
       <p className="mt-2 text-sm italic text-zinc-600">{tagline}</p>
       {done ? (

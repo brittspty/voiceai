@@ -68,6 +68,10 @@
   flex-shrink: 0;
 }
 
+.jr-brand img.jai-wordmark {
+  height: 48px;
+}
+
 .jr-product {
   border-left: 1px solid var(--jr-line);
   padding-left: 16px;

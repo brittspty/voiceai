@@ -1,4 +1,5 @@
-import { BRAND_TAGLINE, BRAND_WORDMARK, PRODUCT_NAME, PRODUCT_WORDMARK } from "./brand";
+import { BRAND_WORDMARK, PRODUCT_NAME, PRODUCT_WORDMARK } from "./brand";
+import { PUBLIC_AD_LINE, PUBLIC_LOGO_ALT, PUBLIC_SITE_ORIGIN, PUBLIC_TAGLINE, publicLogos } from "./brand/public";
 import { brandTokens } from "./brand/tokens";
 import { BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { homepageDirection } from "./homepage-style";
@@ -59,9 +60,10 @@ export type HomepageModel = {
   byline: string;
   wordmark: string;
   tagline: string;
+  supportLine: string;
   brandColor: string;
   fonts: { sans: string; mono: string };
-  logos: { reversed: string; alt: string };
+  logos: { wordmark: string; lockup: string; alt: string };
   signedIn: boolean;
   appHref: string;
   showTryDemo: boolean;
@@ -163,16 +165,16 @@ const FEED: FeedItem[] = [
 export function homepageModel(env: Env = process.env, session: { signedIn: boolean; role?: string | null } = { signedIn: false }): HomepageModel {
   const showTryDemo = demoWorkspaceEnabled(env);
   const wordmark = BRAND_WORDMARK;
-  const tagline = BRAND_TAGLINE;
   return {
     direction: homepageDirection(env),
     product: PRODUCT_WORDMARK,
     byline: `by ${wordmark}`,
     wordmark,
-    tagline,
+    tagline: PUBLIC_TAGLINE,
+    supportLine: PUBLIC_AD_LINE,
     brandColor: brandTokens.light.brand,
     fonts: { sans: brandTokens.font.stack, mono: brandTokens.font.monoStack },
-    logos: { reversed: brandTokens.logo.reversed, alt: brandTokens.logo.alt },
+    logos: { wordmark: publicLogos.wordmarkDark, lockup: publicLogos.lockupDark, alt: PUBLIC_LOGO_ALT },
     signedIn: session.signedIn,
     appHref: session.signedIn ? postLoginPath(session.role, env) : "/app",
     showTryDemo,
@@ -481,6 +483,7 @@ export function homepageProse(model: HomepageModel) {
     model.hero.emphasis,
     model.hero.after,
     model.tagline,
+    model.supportLine,
     ...model.pillars.flatMap((item) => [item.title, item.body]),
     model.story.title,
     model.story.lead,
@@ -543,9 +546,10 @@ export function homepageDescription() {
   return `${PRODUCT_WORDMARK} builds your audience from verified real people in the data market, not from the ad platform's guess. Then it tests every segment and explains every change in plain English.`;
 }
 
-export function homepageJsonLd(origin: string | null) {
-  const url = origin ? `${origin}/` : "/";
-  const logo = origin ? `${origin}${brandTokens.logo.reversed}` : brandTokens.logo.reversed;
+/** Published address is always jai.specificityinc.com, not the host that received the request. */
+export function homepageJsonLd() {
+  const url = `${PUBLIC_SITE_ORIGIN}/`;
+  const logo = `${PUBLIC_SITE_ORIGIN}${publicLogos.rasterDark}`;
   const description = homepageDescription();
   return {
     "@context": "https://schema.org",
@@ -555,7 +559,7 @@ export function homepageJsonLd(origin: string | null) {
         name: BRAND_WORDMARK,
         url,
         logo,
-        slogan: BRAND_TAGLINE,
+        slogan: PUBLIC_TAGLINE,
       },
       {
         "@type": "SoftwareApplication",
@@ -570,21 +574,21 @@ export function homepageJsonLd(origin: string | null) {
   };
 }
 
-export function homepageMetadata(origin: string | null) {
-  const title = `${PRODUCT_NAME} | ${BRAND_TAGLINE}`;
+export function homepageMetadata() {
+  const title = `${PRODUCT_NAME} | ${PUBLIC_TAGLINE}`;
   const description = homepageDescription();
-  const image = origin ? `${origin}/brand/jai-og.png` : "/brand/jai-og.png";
+  const image = `${PUBLIC_SITE_ORIGIN}${publicLogos.og}`;
   return {
     title: { absolute: title },
     description,
-    alternates: origin ? { canonical: `${origin}/` } : undefined,
+    alternates: { canonical: `${PUBLIC_SITE_ORIGIN}/` },
     openGraph: {
       title,
       description,
       type: "website" as const,
       siteName: PRODUCT_WORDMARK,
-      url: origin ? `${origin}/` : undefined,
-      images: [{ url: image, width: 1200, height: 630, alt: `${BRAND_WORDMARK}. ${BRAND_TAGLINE}` }],
+      url: `${PUBLIC_SITE_ORIGIN}/`,
+      images: [{ url: image, width: 1200, height: 630, alt: `${PUBLIC_LOGO_ALT}. ${PUBLIC_TAGLINE}. ${PUBLIC_AD_LINE}` }],
     },
     twitter: { card: "summary_large_image" as const, title, description, images: [image] },
     robots: { index: true, follow: true },

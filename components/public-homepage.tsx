@@ -1,5 +1,5 @@
-import Image from "next/image";
 import { AfterArt, BeforeArt, CameraArt, PersonArt, TurnArt } from "@/components/homepage-art";
+import { publicLogoSize } from "@/lib/brand/public";
 import { TrackedLink } from "@/components/homepage-cta-link";
 import { ContactForm } from "@/components/homepage-contact-form";
 import { HomepageDemo } from "@/components/homepage-demo";
@@ -14,10 +14,10 @@ import { homepageStyle } from "@/lib/homepage-style";
 
 const BEAT_ART = [BeforeArt, TurnArt, AfterArt];
 
-function Wordmark({ model, large = false }: { model: HomepageModel; large?: boolean }) {
-  return (
-    <Image src={model.logos.reversed} alt={large ? "" : model.logos.alt} width={1427} height={498} priority={!large} className={large ? "wordmark-lg" : "wordmark"} style={{ width: "auto", height: large ? 44 : 30 }} />
-  );
+function Wordmark({ model, place }: { model: HomepageModel; place: "header" | "footer" }) {
+  const footer = place === "footer";
+  const size = publicLogoSize(footer ? "lockup" : "wordmark", footer ? 187 : 52);
+  return <img src={footer ? model.logos.lockup : model.logos.wordmark} alt={footer ? model.logos.alt : ""} width={size.width} height={size.height} className={footer ? "lockup" : "wordmark"} />;
 }
 
 function LoginLinks({ model, variant }: { model: HomepageModel; variant: "desk" | "menu" | "footer" }) {
@@ -68,14 +68,12 @@ function ArtLine({ text, strike, accent }: { text: string; strike?: boolean; acc
 export function PublicHomepage({
   model,
   notice = null,
-  origin = null,
 }: {
   model: HomepageModel;
   notice?: "saved" | "invalid" | null;
-  origin?: string | null;
 }) {
   const style = homepageStyle(model.direction);
-  const jsonLd = JSON.stringify(homepageJsonLd(origin)).replace(/</g, "\\u003c");
+  const jsonLd = JSON.stringify(homepageJsonLd()).replace(/</g, "\\u003c");
   const band = model.bands[0];
   const finale = model.bands[1];
 
@@ -88,7 +86,7 @@ export function PublicHomepage({
       <header id="header" className="site-header">
         <div className="w topbar">
           <a href="#hero" aria-label={model.logos.alt}>
-            <Wordmark model={model} />
+            <Wordmark model={model} place="header" />
           </a>
           <nav className="desk-nav" aria-label="Main">
             {model.nav.map((item) => (
@@ -154,7 +152,10 @@ export function PublicHomepage({
                 </div>
               </div>
               <div className="tagline mono">
-                <span>{model.tagline}</span>
+                <span className="tagline-lead">
+                  <span>{model.tagline}</span>
+                  <span className="tagline-support">{model.supportLine}</span>
+                </span>
                 <span>
                   {model.product} {model.byline}
                 </span>
@@ -448,7 +449,7 @@ export function PublicHomepage({
       <footer id="footer">
         <div className="w">
           <div>
-            <Wordmark model={model} large />
+            <Wordmark model={model} place="footer" />
             <p style={{ marginTop: 16, maxWidth: "30ch" }}>{model.footer.blurb}</p>
           </div>
           <div>

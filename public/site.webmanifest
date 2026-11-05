@@ -1,10 +1,13 @@
 {
   "name": "JAI by Specificity",
   "short_name": "JAI",
-  "description": "Identify. Engage. Convert.",
+  "description": "Your Audience; Everywhere",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#231F20",
   "theme_color": "#FF5800",
-  "icons": [{ "src": "/brand/specificity-mark.png", "sizes": "any", "type": "image/png", "purpose": "any" }]
+  "icons": [
+    { "src": "/brand/jai-favicon-32.png", "sizes": "32x32", "type": "image/png", "purpose": "any" },
+    { "src": "/brand/jai-favicon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" }
+  ]
 }
