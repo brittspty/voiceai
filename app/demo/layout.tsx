@@ -3,13 +3,18 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DemoFrame } from "@/components/demo-frame";
 import { DemoTourExit, DemoTourPanel } from "@/components/demo-tour";
+import { PRODUCT_WORDMARK } from "@/lib/brand";
 import { DEMO_FACTS } from "@/lib/demo/dataset";
 import { demoTourEnabled, demoWorkspaceEnabled } from "@/lib/demo/flags";
-import { renderTourSteps } from "@/lib/demo/tour";
+import { DEMO_SUPPORTING_LINE, DEMO_TAGLINE, renderTourSteps } from "@/lib/demo/tour";
+
+const demoDescription = `${DEMO_TAGLINE} ${DEMO_SUPPORTING_LINE}`;
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
-  title: "Demo",
+  title: `${PRODUCT_WORDMARK} demo`,
+  description: demoDescription,
+  openGraph: { title: `${PRODUCT_WORDMARK} demo`, description: demoDescription, siteName: PRODUCT_WORDMARK },
 };
 
 export default function DemoLayout({ children }: { children: React.ReactNode }) {

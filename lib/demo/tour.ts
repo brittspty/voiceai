@@ -1,13 +1,19 @@
 import { PRODUCT_WORDMARK } from "../brand/names";
 
 /**
- * DRAFT talking points. PLACEHOLDER COPY pending Jason's approval.
+ * DRAFT talking points. Jason still has the final word on this script.
  * Edit the words in this file only. Do not add industry statistics.
  * Numbers, when a step has them, are demo seed facts passed in as `facts`.
- * Step 5 has no figures.
+ * The compare step has no figures.
  */
 
 export const TOUR_COPY_STATUS = "DRAFT" as const;
+
+/** Locked JAI line for the demo tour and demo chrome. Not the older brand tagline. */
+export const DEMO_TAGLINE = "Your Audience; Everywhere";
+
+/** Supporting line on the demo. Not a statistic. */
+export const DEMO_SUPPORTING_LINE = "Bots optimize, you make the call";
 
 export const HUMANS_CONTROL_BUDGETS = "Humans control budgets";
 export const BASED_ON_LABEL = "Based on:";
@@ -34,28 +40,20 @@ export type TourStep = {
 
 const TEMPLATES: Array<Omit<TourStep, "body"> & { body: string }> = [
   {
-    id: "problem",
+    id: "command",
     href: "/demo",
-    anchor: "problem",
-    title: "The problem",
+    anchor: "command",
+    title: "The command center",
     showsFigures: false,
-    body: "This demo opens on the problem in these sample accounts: platform targeting is weak, and bot traffic wastes the demo spend.",
+    body: `${PRODUCT_WORDMARK}. ${DEMO_TAGLINE} ${DEMO_SUPPORTING_LINE} This demo opens on the command center: one morning view of the sample accounts, then the audience library, segment tests, reports, and the decisions inbox.`,
   },
   {
     id: "audience",
     href: "/demo/audiences",
     anchor: "audience",
-    title: "The audience in the data market",
+    title: "The audience library",
     showsFigures: true,
     body: "Harbor Point Marine (Demo) has a fake MAID upload in the seed: {fakeMaids} ids, {matchedMaids} marked matched, with the demo file named as the lineage.",
-  },
-  {
-    id: "serving",
-    href: "/demo/serving",
-    anchor: "serving",
-    title: "Serving verified humans",
-    showsFigures: false,
-    body: "The demo serves those people across Meta, Google, TikTok, and StackAdapt. AIS2L voice sits next to the ads. Nothing here calls a live platform.",
   },
   {
     id: "segments",
@@ -66,12 +64,36 @@ const TEMPLATES: Array<Omit<TourStep, "body"> & { body: string }> = [
     body: "The demo marks one segment to scale, one to keep in test, and one to cut. The labels come from the seed, and a person still decides.",
   },
   {
+    id: "report",
+    href: "/demo/report",
+    anchor: "report",
+    title: "Reports",
+    showsFigures: false,
+    body: "Gulf Coast Dental (Demo) has a weekly report. The client view of this demo leaves cost off the page. Staff see illustrative seed spend only.",
+  },
+  {
+    id: "feed",
+    href: "/demo/decisions",
+    anchor: "feed",
+    title: "The decisions inbox",
+    showsFigures: false,
+    body: "The account manager feed lists demo events, and the inbox holds one-tap decisions. Humans control budgets. The buttons do not spend.",
+  },
+  {
+    id: "serving",
+    href: "/demo/serving",
+    anchor: "serving",
+    title: "Where the audience is served",
+    showsFigures: false,
+    body: `${PRODUCT_WORDMARK} serves that buyer audience across Meta, Google, TikTok, and StackAdapt. AIS2L voice sits next to the ads. Nothing here calls a live platform.`,
+  },
+  {
     id: "compare",
     href: "/demo/compare",
     anchor: "compare",
-    title: "Our audience beside platform targeting",
+    title: "JAI beside platform targeting",
     showsFigures: false,
-    body: "Our audience sits beside platform targeting. This comparison is illustrative demo data. No figures are shown on this step.",
+    body: "The buyer audience sits beside platform targeting. This comparison is illustrative demo data. No figures are shown on this step.",
   },
   {
     id: "bots",
@@ -80,22 +102,6 @@ const TEMPLATES: Array<Omit<TourStep, "body"> & { body: string }> = [
     title: "Plain-English explanations",
     showsFigures: false,
     body: `${PRODUCT_WORDMARK} explains each demo optimization in plain English. Every note ends with a Based on line that names the seeded row it used.`,
-  },
-  {
-    id: "feed",
-    href: "/demo/decisions",
-    anchor: "feed",
-    title: "The live feed and decisions",
-    showsFigures: false,
-    body: "The account manager feed lists demo events, and the inbox holds one-tap decisions. Humans control budgets. The buttons do not spend.",
-  },
-  {
-    id: "report",
-    href: "/demo/report",
-    anchor: "report",
-    title: "The client report",
-    showsFigures: false,
-    body: "Gulf Coast Dental (Demo) has a weekly report. The client view of this demo leaves cost off the page.",
   },
 ];
 

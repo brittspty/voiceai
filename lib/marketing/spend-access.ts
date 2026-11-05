@@ -140,6 +140,7 @@ const SAFE_KEYS = new Set(
     "recommendationonly", "recommendations", "vertical", "basedon", "label",
     "example", "source", "mode", "recommendationsonly",
     "tests", "checklist", "met", "text", "daylabel", "onhold", "holdlabel", "summary",
+    "action", "plain", "secondstolead",
     "moneyincopy", "audience", "p1", "level", "levels", "filter", "filters",
     "children", "node", "nodes", "column", "columns",
     "vendor", "vendorid", "summary", "decisions", "datacpm",

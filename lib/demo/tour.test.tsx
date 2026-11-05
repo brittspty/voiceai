@@ -24,8 +24,12 @@ test("tour steps deep-link and navigate", () => {
   assert.equal(TOUR_COPY_STATUS, "DRAFT");
   assert.equal(steps.length, 8);
   assert.deepEqual(
+    steps.map((step) => step.id),
+    ["command", "audience", "segments", "report", "feed", "serving", "compare", "bots"],
+  );
+  assert.deepEqual(
     steps.map((step) => step.href),
-    ["/demo", "/demo/audiences", "/demo/serving", "/demo/segments", "/demo/compare", "/demo/explanations", "/demo/decisions", "/demo/report"],
+    ["/demo", "/demo/audiences", "/demo/segments", "/demo/report", "/demo/decisions", "/demo/serving", "/demo/compare", "/demo/explanations"],
   );
   assert.equal(new Set(steps.map((step) => step.href)).size, 8);
   assert.equal(tourStepIndex("1", steps.length), 0);
@@ -34,7 +38,8 @@ test("tour steps deep-link and navigate", () => {
   assert.equal(moveTour(0, -1, steps.length), 0);
   assert.equal(moveTour(7, 1, steps.length), 7);
   assert.equal(moveTour(2, 1, steps.length), 3);
-  assert.equal(tourLocation(steps[3]!, "self", "client", 3), "/demo/segments?tour=self&step=4&view=client");
+  const segments = steps.findIndex((step) => step.id === "segments");
+  assert.equal(tourLocation(steps[segments]!, "self", "client", segments), "/demo/segments?tour=self&step=3&view=client");
   assert.equal(tourKey("ArrowRight", "present"), "next");
   assert.equal(tourKey("ArrowLeft", "present"), "back");
   assert.equal(tourKey("ArrowRight", "self"), null);
@@ -46,10 +51,10 @@ test("tour steps deep-link and navigate", () => {
   assert.match(HUMANS_CONTROL_BUDGETS, /Humans control budgets/);
 });
 
-test("step 5 has no figures and the compare screen only shows the badge", () => {
+test("the compare step has no figures and the compare screen only shows the badge", () => {
   const steps = renderTourSteps(DEMO_FACTS);
-  const step = steps[4];
-  assert.equal(step?.id, "compare");
+  const step = steps.find((item) => item.id === "compare");
+  assert.ok(step);
   assert.equal(step?.showsFigures, false);
   assert.equal(/\d/.test(step?.body || "1"), false);
   assert.equal(/\d/.test(step?.title || "1"), false);
@@ -65,6 +70,16 @@ test("talking points stay placeholder copy without industry statistics", () => {
   assert.match(text, /PLACEHOLDER|DRAFT|demo/i);
   assert.equal(/industry average|% of marketers|studies show/i.test(text), false);
   const audience = renderTourSteps(DEMO_FACTS)[1];
+  assert.equal(audience?.id, "audience");
   assert.match(audience?.body || "", /48/);
   assert.match(audience?.body || "", /80/);
+  const numbered = renderTourSteps(DEMO_FACTS)
+    .filter((step) => /\d/.test(`${step.title} ${step.body}`.replaceAll("AIS2L", "")))
+    .map((step) => step.id);
+  assert.deepEqual(numbered, ["audience"]);
+  assert.match(renderTourSteps(DEMO_FACTS)[0]?.body || "", /Your Audience; Everywhere/);
+  assert.match(renderTourSteps(DEMO_FACTS)[0]?.body || "", /Bots optimize, you make the call/);
+  assert.equal(text.includes("Your Buyer Audience; Everywhere"), false);
+  assert.match(text, /Humans control budgets/);
+  assert.equal(/Jarvis|Diver AI/i.test(text), false);
 });

@@ -80,7 +80,7 @@ See `.env.example`. Secrets are only read from the environment. Do not commit `.
 | `SEED_SAMPLE_DATA` | `true` (default) fills Calls and Overview with sample leads and creates the admin and viewer. `false` leaves an empty dialer and creates only the owner |
 | `SHOW_DEMO_LOGIN` | `true` or `false`. Unset shows the demo hint only when `APP_URL` is localhost |
 | `PUBLIC_HOMEPAGE` | `on` serves the public JAI page at `/`. Off (default) leaves `/` as the signed-in app |
-| `DEMO_WORKSPACE` | `on` shows Try the demo, linking to `/demo`. Off hides those buttons. The demo page itself is separate |
+| `DEMO_WORKSPACE` | `on` shows Try the demo, linking to `/demo` (the enter flow: a signed link or the demo access page). Off hides those buttons. Primary path is `jai.specificityinc.com/demo`. `demo.jai.specificityinc.com` is optional future DNS and rewrites onto `/demo` |
 | `HOMEPAGE_DIRECTION` | `B` (default) or `A`. Layout only. Ignored while `PUBLIC_HOMEPAGE` is off |
 
 ## Public homepage

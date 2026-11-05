@@ -6,7 +6,8 @@ export type DemoView = "staff" | "client";
 
 const COST_KEY = /spend|roas|cost|cpa|cpl|cpc|cpm|budget|revenue/i;
 
-export function stripCostFields<T extends Record<string, unknown>>(row: T, showCost: boolean): T {
+/** Staff keep the payload. Client view uses the same spend allowlist as production viewers. */
+export function stripCostFields<T>(row: T, showCost: boolean): T {
   if (showCost) return row;
   return projectWithoutSpend(row);
 }
@@ -16,21 +17,18 @@ export function presentDemo(dataset: DemoDataset, view: DemoView) {
   const clientName = (id: string) => dataset.clients.find((client) => client.id === id)?.name || id;
   const totals = dataset.campaigns.map((campaign) => {
     const sum = campaignTotals(dataset, campaign.id);
-    return stripCostFields(
-      {
-        id: campaign.id,
-        client: clientName(campaign.clientId),
-        platform: campaign.platform,
-        name: campaign.name,
-        illustrative: campaign.illustrative,
-        impressions: sum.impressions,
-        clicks: sum.clicks,
-        leads: sum.leads,
-        verifiedConversions: sum.verifiedConversions,
-        spendCents: sum.spendCents,
-      },
-      showCost,
-    );
+    return {
+      id: campaign.id,
+      client: clientName(campaign.clientId),
+      platform: campaign.platform,
+      name: campaign.name,
+      illustrative: campaign.illustrative,
+      impressions: sum.impressions,
+      clicks: sum.clicks,
+      leads: sum.leads,
+      verifiedConversions: sum.verifiedConversions,
+      spendCents: sum.spendCents,
+    };
   });
   const compare = {
     badge: "ILLUSTRATIVE DEMO DATA" as const,
@@ -38,7 +36,7 @@ export function presentDemo(dataset: DemoDataset, view: DemoView) {
     platform: "Platform targeting (illustrative)",
     note: "Side by side in this demo. This step shows no figures.",
   };
-  return {
+  const body = {
     chip: dataChipLabel("demo"),
     view,
     clients: dataset.clients.map((client) => ({ name: client.name, email: client.email, phone: client.phone })),
@@ -58,9 +56,10 @@ export function presentDemo(dataset: DemoDataset, view: DemoView) {
     report: dataset.reports.map((report) => ({
       title: report.title,
       client: clientName(report.clientId),
-      weeks: report.weeks.map((week) => stripCostFields({ ...week }, showCost)),
+      weeks: report.weeks.map((week) => ({ ...week })),
     })),
   };
+  return stripCostFields(body, showCost);
 }
 
 export function compareHasFigures(compare: { badge: string; ours: string; platform: string; note: string }) {
