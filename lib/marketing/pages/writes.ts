@@ -151,10 +151,18 @@ export type CredentialRow = {
 
 const BLOCKED_REFS = new Set([READ_TOKEN_ENV, READ_SECRET_ENV, "META_APP_ID"]);
 
+/** Primary and extra Meta read credentials. ads_read tokens cannot pause ads. */
+export function isMetaAdsReadEnv(name: string) {
+  const trimmed = name.trim();
+  if (BLOCKED_REFS.has(trimmed)) return true;
+  if (trimmed.includes("_WRITE_")) return false;
+  return /^META_[A-Z][A-Z0-9_]{0,32}_(?:ACCESS_TOKEN|APP_ID|APP_SECRET)$/.test(trimmed);
+}
+
 export function secretRefIssue(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return "Enter the environment variable name.";
-  if (BLOCKED_REFS.has(trimmed)) return "Use a write token. The read token cannot pause ads.";
+  if (isMetaAdsReadEnv(trimmed)) return "Use a write token. The read token cannot pause ads.";
   if (!/^[A-Z][A-Z0-9_]{2,80}$/.test(trimmed)) return "Enter the environment variable name, not the token.";
   return null;
 }
@@ -187,7 +195,7 @@ export type ResolvedWrite =
 
 export function resolveWriteAccess(row: CredentialRow | undefined, env: Env, platform: AdPlatformWrite): ResolvedWrite {
   if (!row) return { mode: "dry_run", reason: platform === "meta" ? "No Meta write credential is saved for this client." : "No Google Ads write credential is saved for this client." };
-  if (BLOCKED_REFS.has(row.secretRef) || BLOCKED_REFS.has(row.appSecretRef) || BLOCKED_REFS.has(row.extraSecretRef)) {
+  if (isMetaAdsReadEnv(row.secretRef) || isMetaAdsReadEnv(row.appSecretRef) || isMetaAdsReadEnv(row.extraSecretRef)) {
     return { mode: "dry_run", reason: "Write credentials must be separate from the read token." };
   }
   const token = envValue(env, row.secretRef);

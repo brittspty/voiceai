@@ -1,6 +1,9 @@
 import { parseMetaSyncArgs, metaSyncHelp } from "../lib/marketing/cli-args";
-import { attributionWindows, decideSync, lookbackDays } from "../lib/marketing/config";
+import { lookbackDays, planMetaReads, routeMetaAccounts } from "../lib/marketing/config";
 import { ASYNC_INSIGHTS_AFTER_DAYS, inclusiveDays, pullMetaSnapshot } from "../lib/marketing/connectors/meta";
+import { redactSecrets } from "../lib/marketing/connectors/meta-client";
+import { mergeSnapshots } from "../lib/marketing/connectors/meta-map";
+import type { NormalizedSnapshot } from "../lib/marketing/types";
 import { addDaysISO, zonedISODate } from "../lib/time";
 
 type Counts = Record<string, number>;
@@ -94,18 +97,22 @@ async function main() {
   }
 
   const env = { ...process.env };
-  if (args.accounts.length) env.META_AD_ACCOUNT_IDS = args.accounts.join(",");
   if (args.days) env.MARKETING_LOOKBACK_DAYS = String(args.days);
   env.MARKETING_SYNC_MODE = "live";
 
-  const decision = decideSync(env);
-  if (decision.action !== "live") {
-    console.error(decision.action === "skip" ? decision.reason : "Meta sync did not start");
+  const plan = planMetaReads(env);
+  if (plan.action !== "live") {
+    console.error(plan.reason || "Meta sync did not start");
     process.exitCode = 1;
     return;
   }
-  const accountIds = args.accounts.length ? args.accounts : decision.accountIds;
-  if (!accountIds.length) {
+  const routed = routeMetaAccounts(plan, { accounts: args.accounts, connection: args.connection });
+  if (!routed.ok) {
+    console.error(routed.reason);
+    process.exitCode = 1;
+    return;
+  }
+  if (!routed.pulls.length) {
     console.error("No ad accounts. Pass --account act_... or set META_AD_ACCOUNT_IDS.");
     process.exitCode = 1;
     return;
@@ -121,17 +128,34 @@ async function main() {
   const until = zonedISODate(new Date(), timeZone);
   const since = addDaysISO(until, -(days - 1));
   const insights = inclusiveDays(since, until) > ASYNC_INSIGHTS_AFTER_DAYS ? "async" : "sync";
-  console.error(`Meta read ${accountIds.join(", ")} ${since}..${until} insights=${insights}${args.dryRun ? " dry-run" : ""}`);
+  for (const row of routed.skipped) console.error(`Meta connection ${row.name} skipped: ${row.reason}`);
+  for (const warning of routed.warnings) console.error(warning);
 
-  const pulled = await pullMetaSnapshot({
-    accountIds,
-    accessToken: decision.accessToken,
-    appSecret: decision.appSecret,
-    graphVersion: decision.graphVersion,
-    since,
-    until,
-    attributionWindows: attributionWindows(env),
-  });
+  const parts: NormalizedSnapshot[] = [];
+  const failures: string[] = [];
+  for (const pull of routed.pulls) {
+    console.error(
+      `Meta read ${pull.name} ${pull.accountIds.join(", ")} ${since}..${until} insights=${insights}${args.dryRun ? " dry-run" : ""}`,
+    );
+    try {
+      const pulled = await pullMetaSnapshot({
+        accountIds: pull.accountIds,
+        accessToken: pull.accessToken,
+        appSecret: pull.appSecret,
+        graphVersion: plan.graphVersion,
+        since,
+        until,
+        attributionWindows: plan.attributionWindows,
+      });
+      parts.push(pulled.snapshot);
+      failures.push(...pulled.failures);
+    } catch (error) {
+      const message = redactSecrets(error instanceof Error ? error.message : "Meta sync failed", [pull.accessToken, pull.appSecret]);
+      failures.push(`${pull.name}: ${message}`);
+    }
+  }
+  const snapshot = mergeSnapshots(parts);
+  const accountIds = routed.pulls.flatMap((pull) => pull.accountIds);
 
   const report: Record<string, unknown> = {
     dryRun: args.dryRun,
@@ -139,20 +163,22 @@ async function main() {
     until,
     insights,
     accountsRequested: accountIds,
-    errors: pulled.failures,
-    warnings: pulled.snapshot.warnings.filter((warning) => !warning.startsWith("Account pull failed")),
-    pulled: pulledCounts(pulled.snapshot),
+    connections: routed.pulls.map((pull) => ({ name: pull.name, accountIds: pull.accountIds })),
+    skipped: routed.skipped.map((row) => ({ name: row.name, reason: row.reason })),
+    errors: failures,
+    warnings: [...routed.warnings, ...snapshot.warnings.filter((warning) => !warning.startsWith("Account pull failed"))],
+    pulled: pulledCounts(snapshot),
   };
 
-  if (!args.dryRun && pulled.snapshot.accounts.length) {
+  if (!args.dryRun && snapshot.accounts.length) {
     const { runMarketingSync } = await import("../lib/marketing/sync");
     const written = await runMarketingSync({
       env,
       timezone: timeZone,
-      snapshot: pulled.snapshot,
+      snapshot,
     });
     report.status = written.status;
-    if (written.error) report.errors = [...pulled.failures, written.error];
+    if (written.error) report.errors = [...failures, written.error];
     report.database = await databaseCounts();
     const { prisma } = await import("../lib/db");
     await prisma.$disconnect();
@@ -164,7 +190,7 @@ async function main() {
   }
 
   console.log(JSON.stringify(report, null, 2));
-  if (pulled.failures.length || report.status === "failed") process.exitCode = 1;
+  if (failures.length || report.status === "failed") process.exitCode = 1;
 }
 
 main().catch((error) => {

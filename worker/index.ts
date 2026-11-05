@@ -115,7 +115,12 @@ function startMarketingSync() {
     try {
       const result = await runMarketingSync();
       if (result.status !== "skipped") {
-        console.log(`[worker] marketing sync ${result.status}${result.error ? `: ${result.error}` : ""}`);
+        const names = (result.connections ?? []).map((connection) => connection.name).join(", ");
+        console.log(`[worker] marketing sync ${result.status}${names ? ` (${names})` : ""}${result.error ? `: ${result.error}` : ""}`);
+      }
+      for (const skipped of result.skippedConnections ?? []) {
+        if (skipped.name === "primary" && result.status === "skipped") continue;
+        console.log(`[worker] marketing sync connection ${skipped.name} skipped: ${skipped.reason}`);
       }
       if (monitorEnabled() && result.status === "succeeded") {
         const monitored = await runStoredMonitor();

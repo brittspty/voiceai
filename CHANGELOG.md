@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Meta sync can read more than one business. `META_ACCESS_TOKEN`, `META_APP_ID`, `META_APP_SECRET`, and `META_AD_ACCOUNT_IDS` stay the primary connection. `META_EXTRA_CONNECTIONS` lists extra names, and each name uses `META_<NAME>_ACCESS_TOKEN`, `META_<NAME>_APP_ID`, `META_<NAME>_APP_SECRET`, and `META_<NAME>_AD_ACCOUNT_IDS`. A missing extra is skipped. Tokens stay in the environment. The first extra connection is Be Found AI (`act_2897217887308756`). Spend visibility and the shared-account link block are unchanged.
 - Google Ads live reads are per client and stay read-only. `MarketingClient.googleAdsCustomerIds` and `googleAdsLiveRead` (default off) choose the accounts. `GOOGLE_ADS_CUSTOMER_IDS`, when set, is an extra allow-list. Campaign queries use v26 `start_date_time` and `end_date_time`. Spend stays hidden from clients.
 - The user-facing product name is JAI by Specificity. Flags, route paths, file names, cookies, and the existing public hosts are unchanged.
 - `jai.specificityinc.com` is a public host alongside voiceai, jarvis, and diverai. With `CANONICAL_HOST` unset, all four serve and nothing redirects. `APP_URL` is unchanged.

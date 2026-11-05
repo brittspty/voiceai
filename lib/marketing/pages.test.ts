@@ -401,7 +401,14 @@ test("missing write credentials dry-run and never call the platform", async () =
   const refused = credentialFor("org", "meta", [{ clientKey: "org", platform: "meta", secretRef: "META_ACCESS_TOKEN", appSecretRef: "", extraSecretRef: "", accountExternalId: "", loginCustomerId: "", scopes: ["ads_management"] }], { META_ACCESS_TOKEN: "read-token-should-not-be-used" });
   assert.equal(refused.mode, "dry_run");
   assert.match(secretRefIssue("META_ACCESS_TOKEN") || "", /read token/i);
+  assert.match(secretRefIssue("META_BEFOUND_ACCESS_TOKEN") || "", /read token/i);
+  assert.match(secretRefIssue("META_BEFOUND_APP_SECRET") || "", /read token/i);
+  assert.match(secretRefIssue("META_BE_FOUND_ACCESS_TOKEN") || "", /read token/i);
+  assert.equal(secretRefIssue("META_PAGE_WRITE_TOKEN"), null);
+  assert.equal(secretRefIssue("META_PAGE_WRITE_APP_SECRET"), null);
   assert.match(secretRefIssue("EAABnotavariable") || "", /variable name/i);
+  const extraRead = credentialFor("org", "meta", [{ clientKey: "org", platform: "meta", secretRef: "META_BEFOUND_ACCESS_TOKEN", appSecretRef: "META_BEFOUND_APP_SECRET", extraSecretRef: "", accountExternalId: "", loginCustomerId: "", scopes: ["ads_management"] }], { META_BEFOUND_ACCESS_TOKEN: "befound-read-token", META_BEFOUND_APP_SECRET: "befound-secret" });
+  assert.equal(extraRead.mode, "dry_run");
   const live = credentialFor(CLIENT, "google_ads", [], { GOOGLE_ADS_WRITE_ACCESS_TOKEN: "google-write", GOOGLE_ADS_DEVELOPER_TOKEN: "dev-token", GOOGLE_ADS_CUSTOMER_IDS: "1234567890", GOOGLE_ADS_CUSTOMER_ID: "9999999999" });
   assert.equal(live.mode, "dry_run");
   const saved = credentialFor(CLIENT, "google_ads", [{ clientKey: CLIENT, platform: "google_ads", secretRef: "GOOGLE_ADS_WRITE_ACCESS_TOKEN", appSecretRef: "", extraSecretRef: "GOOGLE_ADS_DEVELOPER_TOKEN", accountExternalId: "1234567890", loginCustomerId: "", scopes: ["adwords"] }], { GOOGLE_ADS_WRITE_ACCESS_TOKEN: "google-write", GOOGLE_ADS_DEVELOPER_TOKEN: "dev-token" });

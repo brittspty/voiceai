@@ -823,6 +823,15 @@ test("meta sync cli flags", () => {
   assert.match(parseMetaSyncArgs(["--account", "not-an-account"]).error ?? "", /not an ad account/);
   assert.match(parseMetaSyncArgs(["--nope"]).error ?? "", /unknown argument/);
   assert.equal(parseMetaSyncArgs(["--help"]).help, true);
+
+  const targeted = parseMetaSyncArgs(["--connection", "BeFound", "--account", "act_2897217887308756", "--dry-run"]);
+  assert.equal(targeted.error, null);
+  assert.equal(targeted.connection, "befound");
+  assert.equal(targeted.dryRun, true);
+  assert.deepEqual(targeted.accounts, ["act_2897217887308756"]);
+  assert.equal(parseMetaSyncArgs(["--account", "act_111"]).connection, null);
+  assert.match(parseMetaSyncArgs(["--connection"]).error ?? "", /needs a name/);
+  assert.match(parseMetaSyncArgs(["--connection", "be-found"]).error ?? "", /befound/);
   assert.equal(lookbackDays({ MARKETING_LOOKBACK_DAYS: "30" }), 30);
   assert.equal(lookbackDays({ MARKETING_LOOKBACK_DAYS: "400" }), 90);
 });
