@@ -1,10 +1,21 @@
-/** Homepage and other surfaces link here. The page 404s while DEMO_WORKSPACE is off. */
+/**
+ * Homepage and other surfaces link here.
+ * Primary path: https://jai.specificityinc.com/demo.
+ * The page 404s while the demo workspace flag is off. When it is on, a visitor
+ * still needs a signed demo link (/demo/enter) or the demo access page.
+ */
 export const TRY_DEMO_HREF = "/demo";
 
 export const DEMO_ROUTE = "/demo";
 
-/** Future dedicated host. Requests on this host are rewritten onto /demo. */
-export const DEMO_PUBLIC_HOST = "demo.jarvis.specificityinc.com";
+/** Primary sales URL. The dedicated host below is optional future DNS. */
+export const DEMO_PRIMARY_URL = "https://jai.specificityinc.com/demo";
+
+/**
+ * Optional future host. Requests on this host are rewritten onto /demo.
+ * jai.specificityinc.com/demo stays the primary path until that DNS exists.
+ */
+export const DEMO_PUBLIC_HOST = "demo.jai.specificityinc.com";
 
 export const DEMO_CONTACT_HREF = "/contact";
 

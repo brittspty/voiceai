@@ -291,6 +291,10 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(prose, /After/);
   assert.match(prose, /Where is your ad budget leaking/);
   assert.match(prose, /JAI vs a typical agency vs DIY ad platforms/);
+  assert.match(model.proof.tourBody, /Your Buyer Audience; Everywhere/);
+  assert.match(model.proof.tourBody, /signed demo link or the demo access page/);
+  assert.equal(model.proof.tourBody.includes("No login needed"), false);
+  assert.equal(model.proof.tourBody.includes("Try the demo"), false);
   const privacy = model.faq.find((item) => item.question === "Is this private and compliant?");
   const pricing = model.faq.find((item) => item.question === "What does it cost?");
   const reply = model.faq.find((item) => item.question === "When will someone reply?");

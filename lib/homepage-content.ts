@@ -1,5 +1,6 @@
 import { BRAND_WORDMARK, PRODUCT_NAME, PRODUCT_WORDMARK } from "./brand";
 import { PUBLIC_AD_LINE, PUBLIC_LOGO_ALT, PUBLIC_SITE_ORIGIN, PUBLIC_TAGLINE, publicLogos } from "./brand/public";
+import { DEMO_TAGLINE } from "./demo/tour";
 import { brandTokens } from "./brand/tokens";
 import { BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { homepageDirection } from "./homepage-style";
@@ -247,7 +248,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         { label: "Decide", body: "JAI recommends, your team approves" },
       ],
       tourTitle: "Walk through JAI with sample data.",
-      tourBody: "See the command center, the audience library, a segment test, reports, and the decisions inbox. No login needed.",
+      tourBody: `${DEMO_TAGLINE} See the command center, the audience library, a segment test, reports, and the decisions inbox. The full demo opens through a signed demo link or the demo access page.`,
       logos: [`TODO(jason) ${JASON_FACTS} Logo`, `TODO(jason) ${JASON_FACTS} Logo`, `TODO(jason) ${JASON_FACTS} Logo`, `TODO(jason) ${JASON_FACTS} Logo`],
       slots: [
         { kicker: "CASE STUDY", title: "TODO(jason) Case study coming", note: `${JASON_FACTS} Published with client approval` },

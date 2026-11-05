@@ -4,6 +4,7 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DemoEntry } from "../../components/demo-entry";
 import { DemoFrame } from "../../components/demo-frame";
+import { DemoScreens, type DemoScreenId } from "../../components/demo-screens";
 import { TryDemoButton } from "../../components/try-demo-button";
 import { sendInviteEmail } from "../mail";
 import { getPorts } from "../adapters";
@@ -14,7 +15,8 @@ import { DEMO_WORKSPACE_ID, demoViewerGate, workspacesVisibleTo } from "./isolat
 import { DemoOutboundBlocked, OUTBOUND_CHANNELS, assertOutboundOpen, channelForUrl, integrationsModeForWorkspace, outboundPlan, runAsWorkspace } from "./outbound";
 import { compareHasFigures, presentDemo, presentationHasCost } from "./present";
 import { reseedDue } from "./reseed";
-import { TRY_DEMO_HREF, rewriteForDemoHost } from "./routes";
+import { DEMO_PRIMARY_URL, DEMO_PUBLIC_HOST, TRY_DEMO_HREF, rewriteForDemoHost } from "./routes";
+import { moneyText } from "../marketing/spend-access";
 import { reseedDemo, type DemoWriter } from "./seed-apply";
 import { runOptionalSeeds } from "./modules";
 import { demoLoginAccepted, demoWriteStatus, secretMatches } from "./access";
@@ -139,6 +141,8 @@ test("client view drops cost and the demo frame is labeled", () => {
     </DemoFrame>,
   );
   assert.match(html, /DEMO/);
+  assert.match(html, /JAI/);
+  assert.match(html, /Your Buyer Audience; Everywhere/);
   assert.match(html, /DEMO DATA/);
   assert.match(html, /demo-frame/);
   assert.match(html, /Start the tour/);
@@ -150,8 +154,44 @@ test("client view drops cost and the demo frame is labeled", () => {
   assert.match(renderToStaticMarkup(<TryDemoButton />), /href="\/demo"/);
 });
 
+test("client screens hide spend and staff spend stays illustrative", () => {
+  const staff = presentDemo(buildDemoDataset(), "staff");
+  const client = presentDemo(buildDemoDataset(), "client");
+  const screens: DemoScreenId[] = ["command", "audiences", "serving", "segments", "compare", "explanations", "decisions", "report"];
+  const clientHtml = screens.map((screen) => renderToStaticMarkup(<DemoScreens screen={screen} data={client} tourEnabled />)).join("\n");
+  const staffHtml = screens.map((screen) => renderToStaticMarkup(<DemoScreens screen={screen} data={staff} tourEnabled />)).join("\n");
+  assert.equal(clientHtml.includes("$"), false);
+  assert.equal(clientHtml.includes("Illustrative spend"), false);
+  assert.match(clientHtml, /Spend stays off this page/);
+  assert.match(clientHtml, /Command center/);
+  assert.match(clientHtml, /scale/);
+  assert.match(clientHtml, /22 seconds/);
+  assert.match(staffHtml, /Illustrative spend/);
+  assert.match(staffHtml, /\$/);
+  assert.match(staffHtml, /ILLUSTRATIVE DEMO DATA/);
+  const strings: string[] = [];
+  const walk = (value: unknown) => {
+    if (typeof value === "string") strings.push(value);
+    else if (Array.isArray(value)) value.forEach(walk);
+    else if (value && typeof value === "object") Object.values(value).forEach(walk);
+  };
+  walk(client);
+  assert.equal(strings.some((item) => moneyText(item) || item.includes("$")), false);
+  assert.equal(client.segments[0]?.action, "scale");
+  assert.equal(client.leads[0]?.secondsToLead, 22);
+  assert.equal(client.bots[0]?.plain.includes("hull"), true);
+  assert.equal("spendCents" in (client.totals[0] || {}), false);
+  assert.equal(typeof staff.totals.find((row) => row.illustrative)?.spendCents, "number");
+});
+
 test("demo host rewrite, login secret, and nightly reseed", () => {
-  assert.equal(rewriteForDemoHost("demo.jarvis.specificityinc.com", "/"), "/demo");
+  assert.equal(DEMO_PUBLIC_HOST, "demo.jai.specificityinc.com");
+  assert.equal(DEMO_PRIMARY_URL, "https://jai.specificityinc.com/demo");
+  assert.equal(rewriteForDemoHost("demo.jai.specificityinc.com", "/"), "/demo");
+  assert.equal(rewriteForDemoHost("demo.jai.specificityinc.com", "/audiences"), "/demo/audiences");
+  assert.equal(rewriteForDemoHost("demo.jai.specificityinc.com", "/demo/audiences"), "/demo/audiences");
+  assert.equal(rewriteForDemoHost("demo.jarvis.specificityinc.com", "/"), null);
+  assert.equal(rewriteForDemoHost("jai.specificityinc.com", "/demo"), null);
   assert.equal(rewriteForDemoHost("voice.example.com", "/"), null);
   assert.equal(secretMatches("same", "same"), true);
   assert.equal(secretMatches("same", "other"), false);

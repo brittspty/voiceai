@@ -1,21 +1,21 @@
 import Link from "next/link";
 import { PRODUCT_WORDMARK } from "@/lib/brand";
 import { DemoEntry } from "@/components/demo-entry";
-import { BASED_ON_LABEL, HUMANS_CONTROL_BUDGETS, ILLUSTRATIVE_BADGE } from "@/lib/demo/tour";
+import { BASED_ON_LABEL, DEMO_TAGLINE, HUMANS_CONTROL_BUDGETS, ILLUSTRATIVE_BADGE } from "@/lib/demo/tour";
 import type { presentDemo } from "@/lib/demo/present";
 
 type Presentation = ReturnType<typeof presentDemo>;
-export type DemoScreenId = "problem" | "audiences" | "serving" | "segments" | "compare" | "explanations" | "decisions" | "report";
+export type DemoScreenId = "command" | "audiences" | "serving" | "segments" | "compare" | "explanations" | "decisions" | "report";
 
 const NAV: Array<{ href: string; label: string; id: DemoScreenId }> = [
-  { href: "/demo", label: "Overview", id: "problem" },
-  { href: "/demo/audiences", label: "Audiences", id: "audiences" },
+  { href: "/demo", label: "Command center", id: "command" },
+  { href: "/demo/audiences", label: "Audience library", id: "audiences" },
+  { href: "/demo/segments", label: "Segment tests", id: "segments" },
+  { href: "/demo/report", label: "Reports", id: "report" },
+  { href: "/demo/decisions", label: "Decisions inbox", id: "decisions" },
   { href: "/demo/serving", label: "Serving", id: "serving" },
-  { href: "/demo/segments", label: "Audience Data", id: "segments" },
   { href: "/demo/compare", label: "Compare", id: "compare" },
   { href: "/demo/explanations", label: "Explanations", id: "explanations" },
-  { href: "/demo/decisions", label: "Decisions", id: "decisions" },
-  { href: "/demo/report", label: "Report", id: "report" },
 ];
 
 const PLATFORM: Record<string, string> = {
@@ -50,8 +50,8 @@ export function DemoScreens({
           </Link>
         ))}
       </nav>
-      {screen === "problem" ? <DemoEntry view={view} tourEnabled={tourEnabled} /> : null}
-      {screen === "problem" ? <Problem data={data} /> : null}
+      {screen === "command" ? <DemoEntry view={view} tourEnabled={tourEnabled} /> : null}
+      {screen === "command" ? <CommandCenter data={data} /> : null}
       {screen === "audiences" ? <Audiences data={data} /> : null}
       {screen === "serving" ? <Serving data={data} /> : null}
       {screen === "segments" ? <Segments data={data} /> : null}
@@ -63,12 +63,43 @@ export function DemoScreens({
   );
 }
 
-function Problem({ data }: { data: Presentation }) {
+function spendCentsOf(row: object) {
+  const value = (row as { spendCents?: unknown }).spendCents;
+  return typeof value === "number" ? value : null;
+}
+
+function CommandCenter({ data }: { data: Presentation }) {
+  const view = data.view;
+  const illustrative = data.totals.map((row) => ({ row, spend: spendCentsOf(row) })).find((item) => item.row.illustrative && item.spend !== null);
+  const stops = [
+    { href: `/demo/audiences?view=${view}`, title: "Audience library", body: `${data.audiences.matched} of ${data.audiences.uploaded} seeded ids are marked matched.` },
+    { href: `/demo/segments?view=${view}`, title: "Segment tests", body: "Scale, test, and cut come from the seed. A person still decides." },
+    { href: `/demo/report?view=${view}`, title: "Reports", body: data.report[0]?.title || "Weekly report" },
+    { href: `/demo/decisions?view=${view}`, title: "Decisions inbox", body: `${data.decisions.length} seeded decisions. ${HUMANS_CONTROL_BUDGETS}.` },
+  ];
   return (
-    <section data-tour-anchor="problem">
-      <h1 className="text-3xl font-semibold tracking-tight">Four fictional clients</h1>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">These businesses exist only in the demo tenant. Platform targeting in the sample accounts is the weak baseline the rest of the tour answers.</p>
+    <section data-tour-anchor="command">
+      <p className="text-sm font-semibold">{PRODUCT_WORDMARK}</p>
+      <p className="mt-1 text-sm font-semibold text-brand">{DEMO_TAGLINE}</p>
+      <h1 className="mt-2 text-3xl font-semibold tracking-tight">Command center</h1>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Morning view of the fictional demo accounts. The audience library, segment tests, reports, and the decisions inbox start here.</p>
       <ul className="mt-4 grid gap-3 md:grid-cols-2">
+        {stops.map((stop) => (
+          <li key={stop.href}>
+            <Link href={stop.href} className="block rounded-xl border border-line bg-card p-4">
+              <div className="font-semibold">{stop.title}</div>
+              <p className="mt-1 text-sm text-muted">{stop.body}</p>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {illustrative?.spend != null ? (
+        <p className="mt-4 text-sm font-semibold">{ILLUSTRATIVE_BADGE}. Platform targeting spend in the seed: {money(illustrative.spend)}. Not a live account.</p>
+      ) : (
+        <p className="mt-4 text-sm text-muted">Client view. Spend stays off this page.</p>
+      )}
+      <h2 className="mt-6 text-lg font-semibold">Sample accounts</h2>
+      <ul className="mt-3 grid gap-3 md:grid-cols-2">
         {data.clients.map((client) => (
           <li key={client.name} className="rounded-xl border border-line bg-card p-4">
             <div className="font-semibold">{client.name}</div>
@@ -103,7 +134,8 @@ function Serving({ data }: { data: Presentation }) {
   return (
     <section data-tour-anchor="serving">
       <h1 className="text-3xl font-semibold tracking-tight">Where the demo serves</h1>
-      <p className="mt-2 text-sm text-muted">Meta, Google, TikTok, StackAdapt, and AIS2L voice. Read only.</p>
+      <p className="mt-2 text-sm text-muted">Meta, Google, TikTok, StackAdapt, and AIS2L voice. Read only. Nothing here calls a live platform.</p>
+      {data.view === "staff" ? <p className="mt-2 text-xs font-semibold">{ILLUSTRATIVE_BADGE}. Spend in this table is seed data.</p> : <p className="mt-2 text-sm text-muted">Client view. Spend stays off this page.</p>}
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead>
@@ -112,7 +144,7 @@ function Serving({ data }: { data: Presentation }) {
               <th>Platform</th>
               <th>Campaign</th>
               <th>Leads</th>
-              {data.view === "staff" ? <th>Spend</th> : null}
+              {data.view === "staff" ? <th>Illustrative spend</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -222,7 +254,7 @@ function Report({ data }: { data: Presentation }) {
   return (
     <section data-tour-anchor="report">
       <h1 className="text-3xl font-semibold tracking-tight">{report.title}</h1>
-      <p className="mt-2 text-sm text-muted">{data.view === "client" ? "Client view. Cost stays off this page." : "Staff view. Cost is visible here."}</p>
+      <p className="mt-2 text-sm text-muted">{data.view === "client" ? "Client view. Spend stays off this page." : `${ILLUSTRATIVE_BADGE}. Staff view. Spend below is seed data.`}</p>
       <ul className="mt-4 space-y-3">
         {report.weeks.map((week) => (
           <li key={week.label} className="rounded-xl border border-line bg-card p-4 text-sm">
