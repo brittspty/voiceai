@@ -380,6 +380,14 @@ html:has(.home) body {
 .home .tagline span {
   white-space: nowrap;
 }
+.home .tagline-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.home .tagline-support {
+  color: var(--dim);
+}
 
 .home .pillars {
   padding: 88px 0 72px;

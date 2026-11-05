@@ -152,7 +152,10 @@ export function PublicHomepage({
                 </div>
               </div>
               <div className="tagline mono">
-                <span>{model.tagline}</span>
+                <span className="tagline-lead">
+                  <span>{model.tagline}</span>
+                  <span className="tagline-support">{model.supportLine}</span>
+                </span>
                 <span>
                   {model.product} {model.byline}
                 </span>

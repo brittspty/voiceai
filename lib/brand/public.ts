@@ -3,6 +3,8 @@
  * Jason locked the public tagline and the public web address.
  */
 export const PUBLIC_TAGLINE = "Your Audience; Everywhere";
+/** Supporting line for ads and marketing, shown next to the tagline. */
+export const PUBLIC_AD_LINE = "Bots optimize, you make the call";
 export const PUBLIC_SITE_HOST = "jai.specificityinc.com";
 export const PUBLIC_SITE_ORIGIN = "https://jai.specificityinc.com";
 export const PUBLIC_LOGO_ALT = "JAI by Specificity";

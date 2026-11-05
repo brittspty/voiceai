@@ -1,5 +1,5 @@
 import { BRAND_WORDMARK, PRODUCT_NAME, PRODUCT_WORDMARK } from "./brand";
-import { PUBLIC_LOGO_ALT, PUBLIC_SITE_ORIGIN, PUBLIC_TAGLINE, publicLogos } from "./brand/public";
+import { PUBLIC_AD_LINE, PUBLIC_LOGO_ALT, PUBLIC_SITE_ORIGIN, PUBLIC_TAGLINE, publicLogos } from "./brand/public";
 import { brandTokens } from "./brand/tokens";
 import { BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { homepageDirection } from "./homepage-style";
@@ -60,6 +60,7 @@ export type HomepageModel = {
   byline: string;
   wordmark: string;
   tagline: string;
+  supportLine: string;
   brandColor: string;
   fonts: { sans: string; mono: string };
   logos: { wordmark: string; lockup: string; alt: string };
@@ -170,6 +171,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     byline: `by ${wordmark}`,
     wordmark,
     tagline: PUBLIC_TAGLINE,
+    supportLine: PUBLIC_AD_LINE,
     brandColor: brandTokens.light.brand,
     fonts: { sans: brandTokens.font.stack, mono: brandTokens.font.monoStack },
     logos: { wordmark: publicLogos.wordmarkDark, lockup: publicLogos.lockupDark, alt: PUBLIC_LOGO_ALT },
@@ -481,6 +483,7 @@ export function homepageProse(model: HomepageModel) {
     model.hero.emphasis,
     model.hero.after,
     model.tagline,
+    model.supportLine,
     ...model.pillars.flatMap((item) => [item.title, item.body]),
     model.story.title,
     model.story.lead,
@@ -585,7 +588,7 @@ export function homepageMetadata() {
       type: "website" as const,
       siteName: PRODUCT_WORDMARK,
       url: `${PUBLIC_SITE_ORIGIN}/`,
-      images: [{ url: image, width: 1200, height: 630, alt: `${PUBLIC_LOGO_ALT}. ${PUBLIC_TAGLINE}` }],
+      images: [{ url: image, width: 1200, height: 630, alt: `${PUBLIC_LOGO_ALT}. ${PUBLIC_TAGLINE}. ${PUBLIC_AD_LINE}` }],
     },
     twitter: { card: "summary_large_image" as const, title, description, images: [image] },
     robots: { index: true, follow: true },
