@@ -7,6 +7,7 @@ import {
   AD_FATIGUE_CONFIDENCE_THRESHOLD,
   AD_FATIGUE_FIXED_LINE,
   adFatiguePlatforms,
+  adFatigueRecommendationIdentity,
   learnResumeChecks,
   learnWindowDays,
   pickAssignee,
@@ -274,6 +275,33 @@ test("ad fatigue code does not write ads or budgets", () => {
   assert.match(job, /adFatiguePlatforms/);
   assert.match(job, /recommendationOnly: true/);
   assert.match(job, /changesSpend: false/);
+  assert.match(job, /campaign\.clientId/);
+  assert.match(job, /adFatigueRecommendationIdentity/);
+  const rotate = adFatigueRecommendationIdentity({
+    action: "rotate",
+    clientId: "client-pine",
+    campaignId: "camp-pine",
+    adId: "ad-pine",
+  });
+  assert.equal(rotate.clientId, "client-pine");
+  assert.equal(rotate.rule, "ad_fatigue_rotate");
+  assert.equal(rotate.severity, "warning");
+  assert.equal(rotate.dedupeKey, "ad_fatigue|client-pine|camp-pine|ad-pine|ad_fatigue_rotate");
+  const pause = adFatigueRecommendationIdentity({
+    action: "pause",
+    clientId: "client-pine",
+    campaignId: "camp-pine",
+    adId: "ad-pine",
+  });
+  assert.equal(pause.severity, "critical");
+  assert.equal(pause.rule, "ad_fatigue_pause");
+  assert.notEqual(pause.dedupeKey, rotate.dedupeKey);
+  assert.equal(adFatigueRecommendationIdentity({
+    action: "rotate",
+    clientId: "  ",
+    campaignId: "camp-pine",
+    adId: "ad-pine",
+  }).clientId, null);
   const actions = readFileSync(path.join(ROOT, "lib/marketing/human-actions.ts"), "utf8");
   const note = actions.slice(actions.indexOf('rec.type === "ad_fatigue"'), actions.indexOf("reason || choice"));
   assert.match(note, /"yes"/);
