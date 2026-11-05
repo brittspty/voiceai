@@ -3,6 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PUBLIC_LOGO_ALT, PUBLIC_TAGLINE, publicLogos } from "@/lib/brand/public";
+import { BRAND_TAGLINE } from "@/lib/brand";
 import { REPORT_DOWNLOAD_NAME, REPORT_LOGO_ALT, REPORT_LOGO_REVERSED, REPORT_PRODUCT } from "@/lib/marketing/reports/brand";
 import { formatKpi, formatUpdatedEt } from "@/lib/marketing/reports/format";
 import { easeOutCubic, REPORT_MOTION, shouldAnimate } from "@/lib/marketing/reports/motion";
@@ -244,10 +246,14 @@ export function ReportScreen({
       <p className="jr-sr" aria-live="polite">{liveMessage}</p>
       <header className="jr-top">
         <div className="jr-brand">
-          <Image src={REPORT_LOGO_REVERSED} alt={REPORT_LOGO_ALT} width={148} height={30} priority />
+          {mode === "share" ? (
+            <img className="jai-wordmark" src={publicLogos.wordmarkDark} alt={PUBLIC_LOGO_ALT} width={56} height={48} />
+          ) : (
+            <Image src={REPORT_LOGO_REVERSED} alt={REPORT_LOGO_ALT} width={148} height={30} priority />
+          )}
           <div className="jr-product">
             {REPORT_PRODUCT}
-            <span>{report.footer.split("·").slice(1).join("·").trim()}</span>
+            <span>{(mode === "share" ? report.footer.replaceAll(BRAND_TAGLINE, PUBLIC_TAGLINE) : report.footer).split("·").slice(1).join("·").trim()}</span>
           </div>
         </div>
         <div className="jr-ctl">
@@ -365,7 +371,7 @@ export function ReportScreen({
       )}
       {staff && <p className="jr-attr">{staff.attribution}</p>}
       <footer className="jr-foot">
-        <span>{report.footer}</span>
+        <span>{mode === "share" ? report.footer.replaceAll(BRAND_TAGLINE, PUBLIC_TAGLINE) : report.footer}</span>
         <span>{report.exampleData ? "All figures are EXAMPLE DATA" : report.periodLabel}</span>
       </footer>
       {share && canShare && (

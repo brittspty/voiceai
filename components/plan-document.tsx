@@ -1,5 +1,6 @@
+import { PublicBrandLogo } from "@/components/public-brand-logo";
 import { brandTokens } from "@/lib/brand/tokens";
-import { BRAND_TAGLINE, BRAND_WORDMARK } from "@/lib/brand";
+import { PUBLIC_TAGLINE } from "@/lib/brand/public";
 import { PLAN_START_LABEL } from "@/lib/plans/plan";
 import type { PlanClientStats } from "@/lib/marketing/metric-visibility";
 
@@ -26,7 +27,8 @@ export function PlanDocument({ plan }: { plan: PlanDocumentModel }) {
   return (
     <article style={{ background: tone.canvas, color: tone.ink, fontFamily: brandTokens.font.stack }} className="min-h-screen">
       <div className="mx-auto max-w-3xl px-4 py-10">
-        <p className="text-sm" style={{ color: tone.muted }}>{BRAND_WORDMARK} · {BRAND_TAGLINE}</p>
+        <PublicBrandLogo slot="lockup-light" height={187} />
+        <p className="mt-3 text-sm" style={{ color: tone.muted }}>{PUBLIC_TAGLINE}</p>
         {plan.preview ? <p className="mt-4 rounded-xl border px-4 py-3 text-sm font-semibold" style={{ borderColor: tone.line, background: tone.card }}>Staff preview. This link is not shareable yet.</p> : null}
         <header className="mt-6 flex items-center gap-4">
           {plan.logoSrc ? <span aria-hidden="true" className="inline-block h-14 w-14 rounded-xl bg-contain bg-center bg-no-repeat" style={{ backgroundColor: tone.card, backgroundImage: `url("${plan.logoSrc}")` }} /> : null}

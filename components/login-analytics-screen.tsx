@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useState, type KeyboardEvent } from "react";
 import { PRODUCT_WORDMARK } from "@/lib/brand";
+import { PUBLIC_TAGLINE } from "@/lib/brand/public";
+import { PublicBrandLogo } from "@/components/public-brand-logo";
 import { analyticsThemeCss } from "@/lib/brand/tokens";
 import { countUpValue, loginFrameClass, nextLoginTab, type LoginTab, type PublicFigure, type PublicLoginAnalytics } from "@/lib/login-analytics";
 import { MAGIC_LINK_READY, WORK_EMAIL_ERROR, workEmailError } from "@/lib/magic-link";
@@ -48,7 +50,6 @@ export function LoginAnalyticsScreen({
 }
 
 function LoginColumn({
-  brand,
   hint,
   homeHref,
   audience,
@@ -99,12 +100,10 @@ function LoginColumn({
 
   return (
     <main className={`flex flex-col gap-6 px-6 py-8 min-[701px]:px-12 min-[701px]:py-12 ${centered ? "w-full max-w-[440px]" : "min-[701px]:border-r min-[701px]:border-line"}`}>
-      <div className="text-xl font-bold">
-        spec<span className="text-brand">i</span>ficity · {PRODUCT_WORDMARK}
-      </div>
+      <PublicBrandLogo slot="wordmark-dark" height={52} />
       <div>
         <h1 className="text-[32px] leading-tight font-semibold tracking-tight">Sign in to {PRODUCT_WORDMARK}</h1>
-        <p className="mt-2 text-sm text-soft">{brand.tagline}</p>
+        <p className="mt-2 text-sm text-soft">{PUBLIC_TAGLINE}</p>
       </div>
       <div role="tablist" aria-label="Who is signing in" className="flex overflow-hidden rounded border border-line" onKeyDown={onTabKey}>
         {TABS.map((item) => (

@@ -1,5 +1,7 @@
-import { brandTokens } from "@/lib/brand/tokens";
+import { PublicBrandLogo } from "@/components/public-brand-logo";
+import { PUBLIC_LOGO_ALT, PUBLIC_TAGLINE } from "@/lib/brand/public";
 
+/** Visitor share pages. Signed-in chrome does not use this lockup. */
 export function BrandLockup({
   compact = false,
   showTagline = false,
@@ -11,13 +13,8 @@ export function BrandLockup({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <img src={brandTokens.logo.src} alt={brandTokens.logo.alt} className="h-10 w-auto" />
-      {!compact && (
-        <div className="leading-tight">
-          <div className="text-sm font-semibold text-ink">{brandTokens.wordmark}</div>
-          {showTagline && <div className="text-xs italic text-muted">{brandTokens.tagline}</div>}
-        </div>
-      )}
+      <PublicBrandLogo slot="wordmark-light" height={40} />
+      {!compact && showTagline ? <div className="text-xs italic text-muted">{PUBLIC_TAGLINE}</div> : null}
     </div>
   );
 }
@@ -25,7 +22,7 @@ export function BrandLockup({
 export function BrandFooter() {
   return (
     <footer className="px-4 py-6 text-center text-sm text-muted">
-      {brandTokens.wordmark} Inc · {brandTokens.tagline}
+      {PUBLIC_LOGO_ALT} · {PUBLIC_TAGLINE}
     </footer>
   );
 }

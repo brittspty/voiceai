@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import { LoginAnalyticsScreen } from "@/components/login-analytics-screen";
 import { LoginScreen } from "@/components/login-form";
-import { BRAND_TAGLINE, BRAND_WORDMARK, loadBrand, PRODUCT_TAGLINE } from "@/lib/brand";
+import { BRAND_WORDMARK, loadBrand, PRODUCT_TAGLINE } from "@/lib/brand";
+import { PUBLIC_TAGLINE } from "@/lib/brand/public";
 import { clientConfig } from "@/lib/client-config";
 import { ANALYTICS_ZONE, assertPublicAnalytics, buildPublicLoginAnalytics, loginAnalyticsEnabled, loginAnalyticsMinClients, publicAsOf } from "@/lib/login-analytics";
 import { loadLoginContributions } from "@/lib/login-analytics-query";
@@ -24,7 +25,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const magicLink = magicLinkEnabled();
   const magicLinkDelivery = magicLink && authEmailCanSend();
   const props = {
-    brand: { companyName: brand.companyName, brandColor: brand.brandColor, logoUrl: brand.logoUrl, mark: brand.mark, wordmark: BRAND_WORDMARK, tagline: BRAND_TAGLINE, productLine: PRODUCT_TAGLINE },
+    brand: { companyName: brand.companyName, brandColor: brand.brandColor, logoUrl: brand.logoUrl, mark: brand.mark, wordmark: BRAND_WORDMARK, tagline: PUBLIC_TAGLINE, productLine: PRODUCT_TAGLINE },
     hint,
     homeHref: appHomePath(),
     magicLink,

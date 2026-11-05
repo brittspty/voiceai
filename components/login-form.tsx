@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
-import { BrandMark } from "@/components/brand-mark";
+import { PublicBrandLogo } from "@/components/public-brand-logo";
+import { PUBLIC_TAGLINE } from "@/lib/brand/public";
 import { loginHeading } from "@/lib/login-copy";
 import { sameOriginPath } from "@/lib/same-origin-path";
 
@@ -48,10 +49,10 @@ function LoginForm({ brand, hint, homeHref, magicLink, magicLinkDelivery }: { br
       <div className="w-full max-w-sm rounded-2xl border border-line bg-card p-6 shadow-[var(--shadow)]">
         <div className="mb-5">
           <div className="flex items-center gap-2.5">
-            <BrandMark brandColor={brand.brandColor} logoUrl={brand.logoUrl} mark={brand.mark} letter alt={brand.wordmark} />
+            <PublicBrandLogo slot="wordmark-light" height={44} />
             <div>
               <h1 className="text-base font-semibold">{heading}</h1>
-              <p className="text-xs italic text-zinc-600 dark:text-zinc-300">{brand.tagline}</p>
+              <p className="text-xs italic text-zinc-600 dark:text-zinc-300">{PUBLIC_TAGLINE}</p>
             </div>
           </div>
           <p className="mt-3 text-sm leading-6 text-zinc-700 dark:text-zinc-300">{brand.productLine}</p>
@@ -146,7 +147,7 @@ function LoginForm({ brand, hint, homeHref, magicLink, magicLinkDelivery }: { br
             <div className="mt-1">Admin: {hint.adminEmail}</div>
           </div>
         )}
-        <p className="mt-5 text-xs text-zinc-600 dark:text-zinc-300">© {brand.wordmark} · {brand.tagline} · <Link className="underline" href="/privacy">Privacy</Link> · <Link className="underline" href="/terms">Terms</Link> · <Link className="underline" href="/contact">Support</Link></p>
+        <p className="mt-5 text-xs text-zinc-600 dark:text-zinc-300">© {brand.wordmark} · {PUBLIC_TAGLINE} · <Link className="underline" href="/privacy">Privacy</Link> · <Link className="underline" href="/terms">Terms</Link> · <Link className="underline" href="/contact">Support</Link></p>
       </div>
     </div>
   );

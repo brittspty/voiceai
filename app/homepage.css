@@ -147,12 +147,12 @@ html:has(.home) body {
   gap: 28px;
 }
 .home .wordmark {
-  height: 30px !important;
+  height: 52px !important;
   width: auto !important;
 }
-.home .wordmark-lg {
-  height: 44px !important;
-  width: auto !important;
+.home .lockup {
+  width: 220px !important;
+  height: auto !important;
 }
 .home .desk-nav {
   display: flex;

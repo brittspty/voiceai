@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { BRAND_WORDMARK } from "@/lib/brand";
+import { PublicBrandLogo } from "@/components/public-brand-logo";
 
 export default function NotFound() {
   return (
     <div className="grid min-h-screen place-items-center bg-canvas px-4 text-center">
       <div>
-        <p className="text-sm text-muted">{BRAND_WORDMARK}</p>
+        <PublicBrandLogo slot="wordmark-light" height={48} className="mx-auto" />
         <h1 className="mt-2 text-2xl font-semibold">That page is not here</h1>
         <Link href="/login" className="mt-3 inline-block text-sm underline">Back to sign in</Link>
       </div>
