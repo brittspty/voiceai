@@ -3,7 +3,7 @@ import { demoWorkspaceEnabled } from "../lib/demo/flags";
 import { reseedDue } from "../lib/demo/reseed";
 import { applyDemoDataset } from "../lib/demo/seed-apply";
 import { runJob } from "../lib/dialer";
-import { adFatigueEnabled, amRealtimeEnabled, creativeFatigueEnabled, ctvAttributionEnabled, decisionsV1Enabled, digestEnabled, googleBusinessProfileEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, skillApprovalFanoutEnabled, speedToLeadEnabled, stackAdaptCtvLiveEnabled, stackAdaptSyncEnabled } from "../lib/marketing/config";
+import { adFatigueEnabled, amRealtimeEnabled, apolloSyncEnabled, creativeFatigueEnabled, ctvAttributionEnabled, decisionsV1Enabled, digestEnabled, googleBusinessProfileEnabled, monitorEnabled, offlineConversionsEnabled, pageMonitorEnabled, pacingRecsEnabled, skillApprovalFanoutEnabled, speedToLeadEnabled, stackAdaptCtvLiveEnabled, stackAdaptSyncEnabled, traxySyncEnabled } from "../lib/marketing/config";
 import { runAdFatigue } from "../lib/marketing/ad-fatigue-job";
 import { runAmRealtimeFeed } from "../lib/marketing/feed-job";
 import { ensureSkillOfferInbox } from "../lib/marketing/skill-approval-job";
@@ -14,6 +14,7 @@ import { runStoredOfflineCycle } from "../lib/marketing/offline/persist";
 import { runPageMonitor } from "../lib/marketing/pages/store";
 import { runStoredDecisionRules } from "../lib/marketing/decisions/run";
 import { runStoredDigests, runStoredMonitor } from "../lib/marketing/persist";
+import { runApolloSync, runTraxySync } from "../lib/marketing/prospects/sync";
 import { runStackAdaptSync } from "../lib/marketing/stackadapt-sync";
 import { runStackAdaptCtvAttribution } from "../lib/marketing/ctv/attribution-sync";
 import { runStackAdaptCtvSync } from "../lib/marketing/ctv/live-sync";
@@ -160,6 +161,22 @@ function startMarketingSync() {
         }
       } catch (error) {
         console.error("[worker] stackadapt failed", error);
+      }
+      try {
+        if (traxySyncEnabled()) {
+          const traxy = await runTraxySync();
+          if (traxy.status !== "skipped") console.log(`[worker] traxy prospects ${traxy.status} written=${traxy.written}`);
+        }
+      } catch (error) {
+        console.error("[worker] traxy prospects failed", error);
+      }
+      try {
+        if (apolloSyncEnabled()) {
+          const apollo = await runApolloSync();
+          if (apollo.status !== "skipped") console.log(`[worker] apollo prospects ${apollo.status} written=${apollo.written}`);
+        }
+      } catch (error) {
+        console.error("[worker] apollo prospects failed", error);
       }
       try {
         if (ctvAttributionEnabled() && !stackAdaptCtvLiveEnabled()) {

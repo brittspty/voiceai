@@ -247,6 +247,33 @@ export function stackAdaptSyncEnabled(env: Env = process.env) {
   return flagOn(env, "STACKADAPT_SYNC");
 }
 
+/** Off unless TRAXY_SYNC is explicitly on. Read-only. INTEGRATIONS_MODE is not consulted. */
+export function traxySyncEnabled(env: Env = process.env) {
+  return flagOn(env, "TRAXY_SYNC");
+}
+
+/** Off unless APOLLO_SYNC is explicitly on. Read-only. INTEGRATIONS_MODE is not consulted. */
+export function apolloSyncEnabled(env: Env = process.env) {
+  return flagOn(env, "APOLLO_SYNC");
+}
+
+export type ProspectSyncDecision = { action: "skip"; reason: string } | { action: "mock" } | { action: "live" };
+
+/**
+ * TRAXY_SYNC or APOLLO_SYNC must be on.
+ * MARKETING_SYNC_MODE=mock loads a fixture and makes no request.
+ * live or auto is a live read once that source has a key. off skips.
+ * INTEGRATIONS_MODE is not read. Per-client live read is applied by the sync.
+ */
+export function decideProspectSync(env: Env, flag: "TRAXY_SYNC" | "APOLLO_SYNC"): ProspectSyncDecision {
+  if (!flagOn(env, flag)) return { action: "skip", reason: `${flag} is off` };
+  const mode = (env.MARKETING_SYNC_MODE || "auto").trim().toLowerCase();
+  if (mode === "off") return { action: "skip", reason: "MARKETING_SYNC_MODE=off" };
+  if (mode === "mock") return { action: "mock" };
+  if (mode !== "auto" && mode !== "live") return { action: "skip", reason: `unknown MARKETING_SYNC_MODE ${mode}` };
+  return { action: "live" };
+}
+
 /** Off unless CTV_ATTRIBUTION is explicitly on. Staff-only read of CTV attribution. */
 export function ctvAttributionEnabled(env: Env = process.env) {
   return flagOn(env, "CTV_ATTRIBUTION");

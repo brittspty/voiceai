@@ -217,6 +217,36 @@ Read-only GraphQL. `INTEGRATIONS_MODE` stays `mock` and does not gate this conne
 
 `tsx scripts/stackadapt-client-scope.ts --name "Client" --advertisers 1001` links a client. `tsx scripts/stackadapt-backfill.ts --days 30` backfills up to 90 days. `tsx scripts/stackadapt-probe.ts --advertiser 1001` prints campaign count, the date range, and impression, click, and conversion totals. It does not print the key.
 
+### Traxy and Apollo prospects
+
+Read-only people for a later campaign audience. These rows are `MarketingProspect`. They are not speed-to-lead form, call, or page leads (`LeadLanding`, `LeadResponse`, `LeadAlert`, `LeadScore`). `INTEGRATIONS_MODE` stays `mock` and does not gate either connector. A live request needs `TRAXY_SYNC=on` or `APOLLO_SYNC=on`, plus `MARKETING_SYNC_MODE=live` or `auto` (the default) once that source's API key is set. `MARKETING_SYNC_MODE=mock` writes a labeled fixture and makes no request. `off` skips. A client is read only when that client's live-read flag is on.
+
+Traxy is `GET https://api.traxy.ai/api/v1`. One key is one workspace. The client never sends `organizationId` or `workspaceId`. Use `leads:read` and `leads:contact_read`. The public list has no saved-view id. A client can be scoped with monitored profile ids, lead tiers (`UNQUALIFIED`, `NURTURE`, `QUALIFIED`, `PRIORITY`), and a minimum ICP match. An unfiltered client is pulled only when it is the only live-read client on that connection.
+
+Apollo uses `https://api.apollo.io/api/v1` and the `x-api-key` header. The sync calls `POST /api/v1/contacts/search`, which Apollo documents as 0 credits, for the label ids saved on the client. `POST /people/match`, reveal flags, sequences, email sends, and contact creates are refused before any network call. Saved-search ids are stored and not queried: the public API has no credit-free saved-search read. An unfiltered Apollo client is pulled only when it is the only live-read client on that connection and no other client holds a saved search there.
+
+`TRAXY_EXTRA_CONNECTIONS=befound` reads `TRAXY_BEFOUND_API_KEY`. `APOLLO_EXTRA_CONNECTIONS=befound` reads `APOLLO_BEFOUND_API_KEY`. An empty connection name on the client uses the primary key. Keys stay in the environment.
+
+Staff open `/marketing/prospects`. Client viewers and share links cannot. The gate matches lead quality: super admins, account managers, staff, the org owner, and all-clients viewers can open it. Contact fields are on that page for those roles. A client or share presentation drops emails, phones, profile URLs, and any spend, budget, or cost field. `MarketingProspect.audienceId` is a nullable hook for a later audience selection. This change does not upload an audience or push to Meta, Google, StackAdapt, or any other ad platform. Webhooks, GoHighLevel, and live keys are not part of this change.
+
+| Variable | Use |
+| --- | --- |
+| `TRAXY_SYNC` | `off` (default). `on` allows a Traxy read |
+| `TRAXY_API_KEY` | Primary workspace key. Bearer token. Never written to the database |
+| `TRAXY_EXTRA_CONNECTIONS` | Optional comma-separated names. `befound` reads `TRAXY_BEFOUND_API_KEY` |
+| `APOLLO_SYNC` | `off` (default). `on` allows an Apollo read |
+| `APOLLO_API_KEY` | Primary Apollo key. Sent as `x-api-key`. Never written to the database |
+| `APOLLO_EXTRA_CONNECTIONS` | Optional comma-separated names. `befound` reads `APOLLO_BEFOUND_API_KEY` |
+
+```bash
+tsx scripts/prospect-client-scope.ts --name "Cedar Lane Studio" --source traxy --profiles 00000000-0000-4000-8000-000000000001
+tsx scripts/prospect-client-scope.ts --name "Cedar Lane Studio" --source apollo --connection befound --lists aaaaaaaaaaaaaaaaaaaaaaaa
+tsx scripts/traxy-probe.ts --connection primary
+tsx scripts/apollo-probe.ts --connection befound --lists aaaaaaaaaaaaaaaaaaaaaaaa
+```
+
+The probes print a count and a date range. They do not print the key or a person's contact details.
+
 ### Google Ads
 
 The connector is off unless `MARKETING_GOOGLE_ADS` is `on`. With the switch on and the OAuth client, client secret, refresh token, or login customer id missing, the sync skips and does not raise. A blank `GOOGLE_ADS_DEVELOPER_TOKEN` does not skip the sync. Google retired developer tokens on September 9, 2026. API access follows the Cloud project that owns the OAuth client ([developer token policy](https://developers.google.com/google-ads/api/docs/api-policy/developer-token)). The `developer-token` header is sent only when that variable is set, and the API ignores it. `login-customer-id` is sent when `GOOGLE_ADS_LOGIN_CUSTOMER_ID` is set. `MARKETING_SYNC_MODE=mock` loads labeled fixtures and does not call Google.
