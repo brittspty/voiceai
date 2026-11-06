@@ -19,6 +19,7 @@ import { runStackAdaptSync } from "../lib/marketing/stackadapt-sync";
 import { runStackAdaptCtvAttribution } from "../lib/marketing/ctv/attribution-sync";
 import { runStackAdaptCtvSync } from "../lib/marketing/ctv/live-sync";
 import { runCtvAttributionSync } from "../lib/marketing/ctv/sync";
+import { runGoogleAnalyticsSync } from "../lib/marketing/google-analytics/sync";
 import { runGoogleAdsSync } from "../lib/marketing/google-sync";
 import { runSpeedToLeadSweep } from "../lib/marketing/speed-to-lead-store";
 import { errorText } from "../lib/marketing/speed-to-lead";
@@ -137,6 +138,18 @@ function startMarketingSync() {
         }
       } catch (error) {
         console.error("[worker] google ads sync failed", error);
+      }
+      try {
+        const analytics = await runGoogleAnalyticsSync();
+        if (analytics.status !== "skipped") {
+          console.log(`[worker] google analytics ${analytics.status}${analytics.error ? `: ${analytics.error}` : ""}`);
+        }
+        for (const skipped of analytics.skipped) {
+          if (!skipped.client && analytics.status === "skipped") continue;
+          console.log(`[worker] google analytics ${skipped.client || skipped.name} skipped: ${skipped.reason}`);
+        }
+      } catch (error) {
+        console.error("[worker] google analytics failed", error);
       }
       if (creativeFatigueEnabled()) {
         const fatigue = await runCreativeFatigue();

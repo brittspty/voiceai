@@ -4,6 +4,8 @@ import { DecisionQueue } from "@/components/decision-queue";
 import { visibleDecisionCards } from "@/lib/marketing/decision-ui";
 import { HourlySummary } from "@/components/hourly-summary";
 import { SpeedToLeadTile } from "@/components/speed-to-lead-tile";
+import { AnalyticsTraffic } from "@/components/analytics-traffic";
+import type { AnalyticsTrafficView } from "@/lib/marketing/google-analytics/view";
 import type { SpeedDashboardView } from "@/lib/marketing/speed-to-lead";
 import { ShareLinkButton } from "@/components/share-link-button";
 import { Pill } from "@/components/pills";
@@ -225,6 +227,7 @@ export function MarketingView(props: {
   pacing?: { enabled: boolean; bars: { campaignId: string; name: string; status: string; chip: string; text: string; verification: string }[]; stale?: boolean };
   fatigue?: { enabled: boolean; ads: { campaignId: string; adName: string; headline: string; platform: string; chip: string }[] };
   demoData?: boolean;
+  analytics?: AnalyticsTrafficView | null;
 }) {
   const seesCost = Boolean(props.flags?.seesCost);
   const searchTerms = props.searchTerms ?? [];
@@ -285,6 +288,7 @@ export function MarketingView(props: {
           <span className="ml-2 text-muted">{props.lastRun.error}</span>
         </div>
       )}
+      {props.analytics ? <AnalyticsTraffic view={props.analytics} /> : null}
       {props.lastRun && (
         <p className="mb-4 text-sm text-muted">
           Last sync {props.lastRun.mode} · {props.lastRun.status}

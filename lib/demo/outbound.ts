@@ -56,7 +56,7 @@ export function channelForUrl(raw: string): OutboundChannel | null {
   if (host === "api.twilio.com" || host.endsWith(".twilio.com") || host === "api.elevenlabs.io") return "twilio";
   if (host === "services.leadconnectorhq.com") return "ghl";
   if (host === "graph.facebook.com") return "meta";
-  if (host === "googleads.googleapis.com" || host === "oauth2.googleapis.com") return "google";
+  if (host === "googleads.googleapis.com" || host === "oauth2.googleapis.com" || host === "analyticsdata.googleapis.com") return "google";
   if (host === "api.stackadapt.com") return "stackadapt";
   if (host === "business-api.tiktok.com" || host.endsWith(".tiktok.com")) return "tiktok";
   return null;

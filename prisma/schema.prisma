@@ -644,6 +644,7 @@ model Campaign {
   fatigueSignals  FatigueSignal[]
   pacingSnapshots PacingSnapshot[]
   adFatigueChecks AdFatigueCheck[]
+  analyticsDays   GoogleAnalyticsDaily[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([adAccountId])
@@ -990,6 +991,9 @@ enum RecommendationType {
   ctv_frequency
   ctv_outlier
   ad_underperformance
+  ga_spend_without_traffic
+  ga_traffic_no_conversions
+  ga_landing_drop
 }
 
 enum CreativeVersionStatus {
@@ -1667,6 +1671,10 @@ model MarketingClient {
   apolloListIds            String[]   @default([])
   /// Stored for a later credit-free saved-search read. Not sent to Apollo.
   apolloSavedSearchIds     String[]   @default([])
+  /// Empty uses GOOGLE_ANALYTICS_REFRESH_TOKEN. Any other value is a name from GOOGLE_ANALYTICS_EXTRA_CONNECTIONS.
+  googleAnalyticsConnectionName String @default("")
+  /// GA4 property id for this client. Empty means Analytics is not mapped and the sync skips the client.
+  googleAnalyticsPropertyId     String @default("")
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
   accounts     AdAccount[]
@@ -1676,9 +1684,38 @@ model MarketingClient {
   settings        ClientPageSetting[]
   credentials     PageWriteCredential[]
   recommendations Recommendation[]
+  analyticsDays   GoogleAnalyticsDaily[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
+}
+
+/// Daily Google Analytics 4 traffic for one client property.
+/// Read-only. Spend is not stored here. An empty connectionName uses the primary ads@ token.
+model GoogleAnalyticsDaily {
+  id                  String          @id @default(cuid())
+  workspaceId         String          @default("org")
+  clientId            String
+  client              MarketingClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  propertyId          String
+  connectionName      String          @default("")
+  date                DateTime        @db.Date
+  /// Hash of campaign, source, medium, and landing page. Keeps the unique key short.
+  dimensionKey        String          @db.VarChar(40)
+  sessionCampaignName String          @default("") @db.VarChar(500)
+  sessionSource       String          @default("") @db.VarChar(200)
+  sessionMedium       String          @default("") @db.VarChar(200)
+  landingPage         String          @default("") @db.VarChar(1000)
+  sessions            Int             @default(0)
+  engagedSessions     Int             @default(0)
+  conversions         Decimal         @default(0) @db.Decimal(18, 4)
+  campaignId          String?
+  campaign            Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  ingestedAt          DateTime        @default(now())
+
+  @@unique([workspaceId, clientId, propertyId, date, dimensionKey], map: "GoogleAnalyticsDaily_identity_key")
+  @@index([workspaceId, clientId, date])
+  @@index([campaignId])
 }
 
 enum MarketingProspectSource {

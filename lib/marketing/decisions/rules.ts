@@ -4,6 +4,7 @@
  */
 
 import { addDaysISO } from "../../time";
+import { evaluateAnalyticsDecisions, type AnalyticsSlice, type SpendSlice } from "../google-analytics/decisions";
 import { normalizeAppName } from "./apps";
 import { FOLDABLE_RULES } from "./fold";
 import { recommendationDedupeKey } from "./key";
@@ -112,6 +113,10 @@ export type RuleInput = {
   ctvDays?: readonly CtvDaySlice[];
   breakdowns?: readonly BreakdownSlice[];
   alerts?: readonly AlertSlice[];
+  /** Set only when GOOGLE_ANALYTICS_SYNC is on and a refresh token env is present. */
+  analyticsEnabled?: boolean;
+  analytics?: readonly AnalyticsSlice[];
+  spend?: readonly SpendSlice[];
 };
 
 const NO_WRITE = { writesAds: false as const, changesSpend: false as const, budgetWrite: "none" as const };
@@ -694,6 +699,7 @@ export function evaluateDecisionRules(input: RuleInput) {
     ...outlierDrafts(input.breakdowns ?? []),
     ...groupedAlertDrafts(input.alerts ?? []),
     ...foldAlertDrafts(input.alerts ?? []),
+    ...(input.analyticsEnabled ? evaluateAnalyticsDecisions({ end: input.end, analytics: input.analytics, spend: input.spend }) : []),
   ];
 }
 

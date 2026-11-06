@@ -16,7 +16,7 @@ const COST_METRICS = new Set([
   "cost",
   "pacing",
 ]);
-const COST_TYPES = new Set(["budget_change", "roi", "pacing"]);
+const COST_TYPES = new Set(["budget_change", "roi", "pacing", "ga_spend_without_traffic"]);
 const COST_KEY = /^(spend|cpa|cpl|cpc|cpm|cpx|cpql|roas|budget|bid|cost|roi|currentbudgetamount|proposedbudgetamount|proposedcurrency|conversionvalue)$/i;
 
 export type DecisionCard = {

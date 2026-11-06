@@ -1,4 +1,5 @@
 import { cookies, headers } from "next/headers";
+import { AnalyticsTraffic } from "@/components/analytics-traffic";
 import { ClientPerformance } from "@/components/client-performance";
 import { MarketingDashboard } from "@/components/marketing-dashboard";
 import { ShareChrome } from "@/components/share-chrome";
@@ -10,6 +11,7 @@ import { dashboardsV2Enabled, reportsP1Enabled, reportsV2Enabled } from "@/lib/m
 import { materializeShare } from "@/lib/marketing/reports/p1/share";
 import { parseDashQuery } from "@/lib/marketing/dashboard-model";
 import { loadClientDashboard } from "@/lib/marketing/dashboard-query";
+import { loadAnalyticsTraffic } from "@/lib/marketing/google-analytics/query";
 import { loadFeatureCards } from "@/lib/marketing/home-query";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
@@ -102,7 +104,7 @@ export default async function SharePage({ params, searchParams }: { params: Prom
   }
   if (dashboardsV2Enabled()) {
     const [data, features] = await Promise.all([
-      loadClientDashboard(link.workspaceId, org?.name || "Campaigns"),
+      loadClientDashboard(link.workspaceId, org?.name || "Campaigns", undefined, parseDashQuery(query).days),
       loadFeatureCards({ workspaceIds: [link.workspaceId], showMoney: false }),
     ]);
     return (
@@ -111,13 +113,16 @@ export default async function SharePage({ params, searchParams }: { params: Prom
       </ShareChrome>
     );
   }
-  const payload = await loadClientPerformance(org?.name || "Performance", {
-    sharedBy: manager,
-    expires,
-    range,
-    workspaceId: link.workspaceId,
-    adAccountIds: "all",
-  });
+  const [payload, analytics] = await Promise.all([
+    loadClientPerformance(org?.name || "Performance", {
+      sharedBy: manager,
+      expires,
+      range,
+      workspaceId: link.workspaceId,
+      adAccountIds: "all",
+    }),
+    loadAnalyticsTraffic({ workspaceId: link.workspaceId, days: range === "30" || range === "month" || range === "last-month" ? 30 : 7 }).catch(() => null),
+  ]);
   return (
     <ShareChrome>
       <form className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 px-4 pt-4 text-sm" method="get">
@@ -133,6 +138,7 @@ export default async function SharePage({ params, searchParams }: { params: Prom
         <button className="min-h-11 rounded-lg border border-line bg-card px-3">Show</button>
       </form>
       <ClientPerformance data={payload} />
+      {analytics ? <div className="mx-auto max-w-3xl px-4 pb-6"><AnalyticsTraffic view={analytics} /></div> : null}
     </ShareChrome>
   );
 }
