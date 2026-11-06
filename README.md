@@ -306,6 +306,36 @@ Development access (`ads_api_access_tier: development_access`) keeps CPU usage n
 
 Daily rows are unique on workspace, date, platform, ad, audience segment, and attribution window. Running the sync again updates those rows in place. Reach is stored and shown per row; the screen does not add it up. Budgets are converted from Meta minor units into the account currency. Overlapping lead action types use the max value so the same leads are not counted twice. Creative versions are a SHA-256 of headline, body, description, CTA, media id, and landing path (query strings are ignored). The first time a fingerprint is seen it gets the next `vN` label for that concept and keeps it.
 
+### Google Analytics 4
+
+The connector is off unless `GOOGLE_ANALYTICS_SYNC` is `on`. It stays off, and writes nothing, until that flag is on and a refresh token is present. It does not read `GOOGLE_ADS_REFRESH_TOKEN` and it does not request the adwords scope. The token refresh uses the existing web OAuth client (`GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`) and `https://www.googleapis.com/auth/analytics.readonly`.
+
+The only Analytics call is `POST https://analyticsdata.googleapis.com/v1beta/properties/{propertyId}:runReport`. Sessions, engaged sessions, and key events are stored by day with session campaign, source, medium, and landing page. Those rows join to a JAI campaign when the session campaign id or name matches one campaign for that client. The dashboard shows the traffic next to campaign performance. Clients, client viewers, and share links can see the traffic. Spend, ROAS, and cost stay off those surfaces.
+
+`GOOGLE_ANALYTICS_REFRESH_TOKEN` is the primary connection (ads@specificityinc.com). An empty `googleAnalyticsConnectionName` on a client uses it. `GOOGLE_ANALYTICS_EXTRA_CONNECTIONS` lists more logins, the same way Meta and Traxy list extras. A name `angelo` reads `GOOGLE_ANALYTICS_ANGELO_REFRESH_TOKEN`. Angelo Marketing and Capital Financial USA are expected later and are not mapped in this change. A client pointed at a name that has no token is skipped and logged. A client with no property id is skipped. The demo workspace does not call Google.
+
+New decision types run only when `DECISIONS_V1` is on, `GOOGLE_ANALYTICS_SYNC` is on, a refresh token env is set, and the client has a mapped property with enough stored rows: spend with little or no matching site traffic, site traffic with no conversions, and a sudden landing-page drop. They recommend only. They do not change a budget or write to Google Analytics. The spend decision is hidden from anyone who cannot see spend.
+
+The locked ads@ property list lives in `lib/marketing/google-analytics/locked-mappings.ts` for the helper and tests. It is not applied on migrate.
+
+| Variable | Use |
+| --- | --- |
+| `GOOGLE_ANALYTICS_SYNC` | `off` (default). `on` allows a read. Turning it off is the rollback |
+| `GOOGLE_OAUTH_CLIENT_ID` | Web OAuth client id used only to refresh the Analytics token |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Web OAuth client secret. Never written to the database |
+| `GOOGLE_ANALYTICS_REFRESH_TOKEN` | Primary Analytics refresh token. Not the Google Ads token |
+| `GOOGLE_ANALYTICS_EXTRA_CONNECTIONS` | Optional comma-separated names. Empty keeps the primary connection only |
+| `GOOGLE_ANALYTICS_<NAME>_REFRESH_TOKEN` | Refresh token for one extra name. Example: `GOOGLE_ANALYTICS_ANGELO_REFRESH_TOKEN` |
+
+```bash
+tsx scripts/google-analytics-client-scope.ts --name "Be Found AI" --property 553292453
+tsx scripts/google-analytics-client-scope.ts --print-locked
+tsx scripts/google-analytics-client-scope.ts --apply-locked
+GOOGLE_ANALYTICS_SYNC=on MARKETING_SYNC_MODE=live npm run google-analytics:sync
+```
+
+`--apply-locked` prints the locked ads@ mappings and does not write unless `--write` is also set. It updates an existing client and leaves every other field alone. Do not point it at production until the property list has been reviewed. `--connection angelo` stores that name for a later extra token.
+
 ### Add a source
 
 1. The `AdPlatform` enum already includes `google_ads`, `tiktok`, and `linkedin`. Add a new value only if the source is not in that list, and ship a migration with it.

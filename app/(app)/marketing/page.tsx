@@ -23,6 +23,7 @@ import {
 } from "@/lib/marketing/config";
 import { parseDashQuery, staffStatusSelection } from "@/lib/marketing/dashboard-model";
 import { loadDashboardForAccess, resolveDashboardClient } from "@/lib/marketing/dashboard-query";
+import { loadAnalyticsTraffic } from "@/lib/marketing/google-analytics/query";
 import { loadFatigueBoard } from "@/lib/marketing/fatigue-job";
 import { canReviewSearchWaste, canViewHoldouts, canWatchCompetitors } from "@/lib/marketing/feature-access";
 import { loadPacingBoard } from "@/lib/marketing/pacing-job";
@@ -43,6 +44,9 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
   const classic = !dashboardsV2Enabled() || query.view === "budget";
   if (classic) {
     const data = await getMarketingPage(access);
+    const analytics = access.workspaceId
+      ? await loadAnalyticsTraffic({ workspaceId: access.workspaceId, days: 30 }).catch(() => null)
+      : null;
     const speedToLead = speedToLeadEnabled()
       ? await loadSpeedPage().catch(() => ({ error: true as const }))
       : null;
@@ -55,6 +59,7 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
       <AmFeed access={access} />
       <MarketingView
         {...data}
+        analytics={analytics}
         speedToLead={speedToLead}
         fatigue={fatigue}
         pacing={{ ...pacing, stale: data.lastRun?.status === "failed" }}
@@ -92,7 +97,7 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
     mode: "staff",
   });
   const [data, features] = await Promise.all([
-    loadDashboardForAccess(access, "staff", org?.name || "Campaigns", undefined, scope),
+    loadDashboardForAccess(access, "staff", org?.name || "Campaigns", undefined, scope, parsed.days),
     loadFeatureCards({ workspaceIds: [access.workspaceId], showMoney: access.seesCost, clientId: scope.clientId }),
   ]);
   return <MarketingDashboard model={data} query={{ ...parsed, status, clientId: scope.clientId }} basePath="/marketing" features={features} />;

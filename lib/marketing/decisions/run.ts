@@ -1,6 +1,8 @@
 import { prisma } from "../../db";
+import { addDaysISO, zonedISODate } from "../../time";
 import { ctvFrequencyCap, decisionsV1Enabled } from "../config";
-import { zonedISODate } from "../../time";
+import { googleAnalyticsDecisionsEnabled } from "../google-analytics/connections";
+import type { AnalyticsSlice, SpendSlice } from "../google-analytics/decisions";
 import { WORKSPACE_ID } from "../types";
 import { evaluateDecisionRules, type AlertSlice, type BreakdownSlice, type CtvDaySlice, type DailySlice } from "./rules";
 import { upsertOpenRecommendation } from "./store";
@@ -13,6 +15,81 @@ function num(value: { toString(): string } | number | bigint | null | undefined)
   if (value === null || value === undefined) return 0;
   const parsed = Number(value.toString());
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/** Stored Analytics rows and campaign spend. Called only when the Analytics flag and a refresh token are set. */
+async function loadAnalyticsDecisionRows(end: string) {
+  const start = addDaysISO(end, -13);
+  const startDate = new Date(`${start}T00:00:00.000Z`);
+  const endDate = new Date(`${end}T00:00:00.000Z`);
+  const mapped = await prisma.marketingClient.findMany({
+    where: { workspaceId: WORKSPACE_ID, googleAnalyticsPropertyId: { not: "" } },
+    select: { id: true, name: true },
+  });
+  if (!mapped.length) return { analytics: [] as AnalyticsSlice[], spend: [] as SpendSlice[] };
+  const names = new Map(mapped.map((client) => [client.id, client.name]));
+  const ids = mapped.map((client) => client.id);
+  const [analyticsRows, campaigns] = await Promise.all([
+    prisma.googleAnalyticsDaily.findMany({
+      where: { workspaceId: WORKSPACE_ID, clientId: { in: ids }, date: { gte: startDate, lte: endDate } },
+      select: {
+        id: true,
+        clientId: true,
+        date: true,
+        sessionCampaignName: true,
+        sessionSource: true,
+        sessionMedium: true,
+        landingPage: true,
+        sessions: true,
+        engagedSessions: true,
+        conversions: true,
+        campaignId: true,
+        campaign: { select: { name: true } },
+      },
+    }),
+    prisma.campaign.findMany({
+      where: { workspaceId: WORKSPACE_ID, clientId: { in: ids } },
+      select: { id: true, name: true, clientId: true },
+    }),
+  ]);
+  const campaignById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
+  const analytics: AnalyticsSlice[] = analyticsRows.map((row) => ({
+    id: row.id,
+    clientId: row.clientId,
+    clientName: names.get(row.clientId) || "Unassigned",
+    date: iso(row.date),
+    campaignId: row.campaignId,
+    campaignName: row.campaign?.name || row.sessionCampaignName,
+    source: row.sessionSource,
+    medium: row.sessionMedium,
+    landingPage: row.landingPage,
+    sessions: row.sessions,
+    engagedSessions: row.engagedSessions,
+    conversions: num(row.conversions),
+  }));
+  const spend: SpendSlice[] = [];
+  if (campaigns.length) {
+    const grouped = await prisma.dailyMetric.groupBy({
+      by: ["campaignId", "date"],
+      where: { workspaceId: WORKSPACE_ID, campaignId: { in: campaigns.map((campaign) => campaign.id) }, date: { gte: startDate, lte: endDate } },
+      _sum: { spend: true },
+    });
+    for (const row of grouped) {
+      if (!row.campaignId) continue;
+      const campaign = campaignById.get(row.campaignId);
+      if (!campaign?.clientId) continue;
+      spend.push({
+        id: `${row.campaignId}:${iso(row.date)}`,
+        clientId: campaign.clientId,
+        clientName: names.get(campaign.clientId) || "Unassigned",
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        date: iso(row.date),
+        spend: num(row._sum.spend),
+      });
+    }
+  }
+  return { analytics, spend };
 }
 
 /**
@@ -141,7 +218,19 @@ export async function runStoredDecisionRules(now = new Date()) {
       sourceMetricIds: row.sourceMetricIds,
     };
   });
-  const drafts = evaluateDecisionRules({ end, frequencyCap: ctvFrequencyCap(), daily, ctvDays: ctv, breakdowns: breakdown, alerts: alertRows });
+  const analyticsOn = googleAnalyticsDecisionsEnabled();
+  const analyticsWindow = analyticsOn ? await loadAnalyticsDecisionRows(end) : { analytics: [] as AnalyticsSlice[], spend: [] as SpendSlice[] };
+  const drafts = evaluateDecisionRules({
+    end,
+    frequencyCap: ctvFrequencyCap(),
+    daily,
+    ctvDays: ctv,
+    breakdowns: breakdown,
+    alerts: alertRows,
+    analyticsEnabled: analyticsOn,
+    analytics: analyticsWindow.analytics,
+    spend: analyticsWindow.spend,
+  });
   const campaignIds = [...new Set(drafts.flatMap((draft) => (draft.campaignId ? [draft.campaignId] : [])))];
   if (campaignIds.length) {
     const metrics = await prisma.dailyMetric.findMany({
@@ -149,7 +238,7 @@ export async function runStoredDecisionRules(now = new Date()) {
       select: { id: true, campaignId: true, date: true, impressions: true, clicks: true, platformConversions: true },
     });
     for (const draft of drafts) {
-      if (!draft.campaignId) continue;
+      if (!draft.campaignId || draft.rule.startsWith("ga_")) continue;
       const start = typeof draft.evidence.windowStart === "string" ? draft.evidence.windowStart : draft.windowStart;
       const stop = typeof draft.evidence.windowEnd === "string" ? draft.evidence.windowEnd : draft.windowEnd;
       const mine = metrics.filter((row) => {

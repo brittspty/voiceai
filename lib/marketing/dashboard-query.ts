@@ -3,7 +3,8 @@ import { prisma } from "../db";
 import { addDaysISO, zonedISODate } from "../time";
 import { canSwitchMarketingClient, roleLabel, type MarketingAccess } from "./access";
 import { presentWithoutCost } from "./client-view";
-import { marketingClientSwitcherEnabled, type Env } from "./config";
+import { googleAnalyticsSyncEnabled, marketingClientSwitcherEnabled, type Env } from "./config";
+import { loadAnalyticsTraffic } from "./google-analytics/query";
 import { isCostContent } from "./cost-visibility";
 import {
   assembleCampaigns,
@@ -139,6 +140,7 @@ export async function loadDashboard(input: {
   /** Already resolved against this workspace. A raw query param is not accepted here. */
   clientScope?: DashboardClientScope;
   env?: Env;
+  analyticsDays?: number;
 }): Promise<DashboardModel> {
   const workspaceId = input.workspaceId.trim();
   const dates = dashboardDateAxis(input.now);
@@ -368,6 +370,16 @@ export async function loadDashboard(input: {
     workspaceName: input.workspaceName,
     mock: latest?.mode === "mock",
   };
+  if (googleAnalyticsSyncEnabled(env)) {
+    const analytics = await loadAnalyticsTraffic({
+      workspaceId,
+      clientId: mode === "staff" ? clientId : null,
+      days: input.analyticsDays ?? 30,
+      now: input.now,
+      env,
+    });
+    if (analytics) model.analytics = analytics;
+  }
   return withChoices(presentWithoutCost(projectDashboard(model, { mode, showMoney, canEditLeadValue: editable }), showMoney));
 }
 
@@ -377,10 +389,11 @@ export async function loadDashboardForAccess(
   workspaceName: string,
   now?: Date,
   clientScope?: DashboardClientScope,
+  analyticsDays?: number,
 ) {
-  return loadDashboard({ workspaceId: access.workspaceId, workspaceName, mode, access, now, clientScope });
+  return loadDashboard({ workspaceId: access.workspaceId, workspaceName, mode, access, now, clientScope, analyticsDays });
 }
 
-export async function loadClientDashboard(workspaceId: string, workspaceName: string, now?: Date) {
-  return loadDashboard({ workspaceId, workspaceName, mode: "client", now });
+export async function loadClientDashboard(workspaceId: string, workspaceName: string, now?: Date, analyticsDays?: number) {
+  return loadDashboard({ workspaceId, workspaceName, mode: "client", now, analyticsDays });
 }

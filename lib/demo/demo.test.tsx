@@ -59,6 +59,7 @@ test("the demo tenant forces mock and blocks every outbound channel", async () =
   assert.equal(channelForUrl("https://services.leadconnectorhq.com/contacts/"), "ghl");
   assert.equal(channelForUrl("https://graph.facebook.com/v23.0/act_1/campaigns"), "meta");
   assert.equal(channelForUrl("https://googleads.googleapis.com/v26/customers/1/googleAds:search"), "google");
+  assert.equal(channelForUrl("https://analyticsdata.googleapis.com/v1beta/properties/1:runReport"), "google");
   assert.equal(channelForUrl("https://api.stackadapt.com/graphql"), "stackadapt");
   assert.equal(channelForUrl("https://business-api.tiktok.com/open_api/v1.3/campaign/get/"), "tiktok");
 });

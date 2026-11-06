@@ -1,5 +1,6 @@
 import { forbiddenClientKeys } from "./client-view";
 import { googleAdsEnabled, stackAdaptEnabled, stackAdaptSyncEnabled, type Env } from "./config";
+import { analyticsForViewer, type AnalyticsTrafficView } from "./google-analytics/view";
 import { estimatedRoas, formatCents } from "./lead-value";
 import { isolatedWhere } from "./workspace";
 
@@ -81,6 +82,8 @@ export type DashboardModel = {
   metricVisibility?: Record<string, boolean>;
   /** Staff client switcher. Absent when the switch is off or the viewer is not staff. */
   clientChoices?: DashClientChoice[];
+  /** Site traffic from Google Analytics. Absent unless GOOGLE_ANALYTICS_SYNC is on and a client is mapped. */
+  analytics?: AnalyticsTrafficView;
 };
 
 export type DashClientChoice = { id: string; name: string };
@@ -440,6 +443,7 @@ export function projectDashboard(
     workspaceName: model.workspaceName,
     mock: model.mock,
   };
+  if (model.analytics) next.analytics = analyticsForViewer(model.analytics);
   if (showMoney) next.leadValue = model.leadValue ?? null;
   if (client) assertClientSafe(next);
   return next;
