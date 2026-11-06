@@ -74,6 +74,7 @@ export function jarvisNav(input: {
   items.push(
     { href: "/sites/landing-pages", label: "Landing pages", group: "Conversion" },
     { href: "/leads", label: "Leads & pipeline", group: "Conversion" },
+    { href: "/marketing/prospects", label: "Prospects", group: "Conversion" },
   );
   if (input.showAis2l) items.push({ href: "/ais2l", label: "AIS2L", group: "Conversion" });
   if (input.showSegments) items.push({ href: "/marketing/segments", label: "Audience Data", group: "Conversion" });

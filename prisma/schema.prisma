@@ -1649,10 +1649,29 @@ model MarketingClient {
   googleAdsCustomerIds     String[]   @default([])
   /// Off by default. Google Ads campaigns are linked to this client only while it is on.
   googleAdsLiveRead        Boolean    @default(false)
+  /// Off by default. Traxy people are stored for this client only while it is on.
+  traxyLiveRead            Boolean    @default(false)
+  /// Empty uses TRAXY_API_KEY. Any other value is a name from TRAXY_EXTRA_CONNECTIONS.
+  traxyConnectionName      String     @default("")
+  /// Monitored profile ids. Sent as monitoredProfileIds. The public API has no saved-view id.
+  traxyMonitoredProfileIds String[]   @default([])
+  /// UNQUALIFIED, NURTURE, QUALIFIED, or PRIORITY. Empty does not filter by tier.
+  traxyLeadTiers           String[]   @default([])
+  /// Inclusive minimum ICP match. Null does not filter.
+  traxyMinIcpMatchPercent  Int?
+  /// Off by default. Apollo people are stored for this client only while it is on.
+  apolloLiveRead           Boolean    @default(false)
+  /// Empty uses APOLLO_API_KEY. Any other value is a name from APOLLO_EXTRA_CONNECTIONS.
+  apolloConnectionName     String     @default("")
+  /// Apollo label ids. Sent as contact_label_ids on the credit-free contacts search.
+  apolloListIds            String[]   @default([])
+  /// Stored for a later credit-free saved-search read. Not sent to Apollo.
+  apolloSavedSearchIds     String[]   @default([])
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
   accounts     AdAccount[]
   campaigns    Campaign[]
+  prospects    MarketingProspect[]
   pages           LandingPage[]
   settings        ClientPageSetting[]
   credentials     PageWriteCredential[]
@@ -1660,6 +1679,46 @@ model MarketingClient {
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
+}
+
+enum MarketingProspectSource {
+  traxy
+  apollo
+}
+
+/// A person from Traxy or Apollo for a client campaign.
+/// Separate from LeadLanding, LeadResponse, LeadAlert, and LeadScore.
+/// audienceId is a nullable hook for a later audience selection. Sync leaves it empty and nothing here uploads an audience.
+model MarketingProspect {
+  id              String                  @id @default(cuid())
+  workspaceId     String                  @default("org")
+  clientId        String
+  client          MarketingClient         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  source          MarketingProspectSource
+  externalId      String
+  displayName     String                  @default("")
+  headline        String                  @default("")
+  company         String                  @default("")
+  location        String                  @default("")
+  emails          String[]                @default([])
+  phones          String[]                @default([])
+  profileUrl      String                  @default("")
+  icpMatchPercent Int?
+  intentScore     Float?
+  tier            String                  @default("")
+  signal          String                  @default("")
+  firstSeenAt     DateTime
+  lastSeenAt      DateTime
+  raw             Json                    @default("{}")
+  audienceId      String?
+  audience        MaidAudience?           @relation(fields: [audienceId], references: [id], onDelete: SetNull)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  @@unique([workspaceId, source, externalId])
+  @@index([workspaceId, clientId, source])
+  @@index([workspaceId, lastSeenAt])
+  @@index([audienceId])
 }
 
 model LandingPage {
@@ -2671,6 +2730,8 @@ model MaidAudience {
   refreshCadence  AudienceRefreshCadence
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
+  /// Unused by prospect sync. A later change may attach a selection here.
+  prospects       MarketingProspect[]
   members         MaidIdentifier[]
   tags            MaidAudienceTag[]
   platformStats   AudiencePlatformStat[]
