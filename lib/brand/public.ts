@@ -25,7 +25,7 @@ export const publicLogos = {
 /** viewBox sizes from the final SVGs. Lockup includes "by Specificity". */
 export const publicLogoBox = {
   wordmark: { width: 538.2, height: 462.8 },
-  lockup: { width: 538.2, height: 520 },
+  lockup: { width: 538.2, height: 458 },
 } as const;
 
 /** Full lockup stays at least 200px wide. Wordmark stays at least 24px tall. */

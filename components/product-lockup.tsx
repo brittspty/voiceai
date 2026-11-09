@@ -11,7 +11,7 @@ export function ProductLockup({
 }) {
   const src = surface === "dark" ? publicLogos.wordmarkDark : publicLogos.wordmarkLight;
   const large = size !== "header";
-  const height = large ? 92 : 44;
+  const height = large ? 92 : 52;
   const box = publicLogoSize("wordmark", height);
   const titleClass = large
     ? "text-3xl font-semibold tracking-tight md:text-4xl"
@@ -20,7 +20,7 @@ export function ProductLockup({
   const Title = size === "closing" ? "h1" : "p";
   return (
     <div className={`flex gap-4 ${large ? "flex-col items-start" : "items-center"}`}>
-      <img src={src} alt={PRODUCT_WORDMARK} width={box.width} height={box.height} className={large ? "h-[92px] w-auto" : "h-11 w-auto"} />
+      <img src={src} alt={PRODUCT_WORDMARK} width={box.width} height={box.height} className={large ? "h-[92px] w-auto" : "h-[52px] w-auto"} />
       <div>
         <Title className={`${titleClass} ${titleColor}`}>{PUBLIC_TAGLINE}</Title>
         {large ? <p className="mt-2 text-sm font-semibold text-brand">{PUBLIC_AD_LINE}</p> : null}
