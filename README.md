@@ -336,6 +336,32 @@ GOOGLE_ANALYTICS_SYNC=on MARKETING_SYNC_MODE=live npm run google-analytics:sync
 
 `--apply-locked` prints the locked ads@ mappings and does not write unless `--write` is also set. It updates an existing client and leaves every other field alone. Do not point it at production until the property list has been reviewed. `--connection angelo` stores that name for a later extra token.
 
+### Microsoft Clarity
+
+The connector is off unless `CLARITY_SYNC` is `on`. It stays off, and writes nothing, until that flag is on and at least one project token is present. It does not read Google, Meta, or StackAdapt credentials.
+
+The only Clarity call is `GET https://www.clarity.ms/export-data/api/v1/project-live-insights`. Each mapped project is requested twice per day: `URL`, `Source`, and `Campaign` for the last day, then `URL` alone. That is 2 of the 10 requests Clarity allows per project per day. A second run the same day does not call Clarity again. The API does not paginate and does not return history older than three days, so each successful day is stored and kept.
+
+`CLARITY_CONNECTIONS` is a comma-separated list of names. A name `befound` reads `CLARITY_BEFOUND_API_TOKEN`. The token is not written to the database and is not logged. A client pointed at a name that has no token is skipped. The demo workspace does not call Clarity.
+
+The dashboard card shows the top frustrated landing pages for the selected range: rage clicks, dead clicks, quick backs, and scroll depth. Clients, client viewers, and share links can see that card. It has no spend. `View in Clarity` opens `https://clarity.microsoft.com/projects/view/<projectId>/heatmaps`.
+
+New decision types run only when `DECISIONS_V1` is on, `CLARITY_SYNC` is on, a project token env is set, and the client has enough stored rows: rage or dead clicks on a paid landing page that also has spend, low scroll depth on a high-traffic campaign page, and a high quickback rate on an ad destination URL. They recommend only. The paid-landing decision is hidden from anyone who cannot see spend. The other two do not include spend.
+
+| Variable | Use |
+| --- | --- |
+| `CLARITY_SYNC` | `off` (default). `on` allows a read. Turning it off is the rollback |
+| `CLARITY_CONNECTIONS` | Comma-separated connection names. One name per Clarity project |
+| `CLARITY_<NAME>_API_TOKEN` | Project token for that name. Example: `CLARITY_BEFOUND_API_TOKEN` |
+
+```bash
+tsx scripts/clarity-client-scope.ts --name "Be Found AI" --project abc123xyz --connection befound
+tsx scripts/clarity-client-scope.ts --name "Be Found AI" --project abc123xyz --connection befound --label "Be Found site" --write
+CLARITY_SYNC=on MARKETING_SYNC_MODE=live npm run clarity:sync
+```
+
+The helper prints the scope and does not write unless `--write` is set. It updates an existing client and leaves every other field alone. Do not point it at production until the project id has been reviewed.
+
 ### Add a source
 
 1. The `AdPlatform` enum already includes `google_ads`, `tiktok`, and `linkedin`. Add a new value only if the source is not in that list, and ship a migration with it.

@@ -24,6 +24,7 @@ import {
 import { parseDashQuery, staffStatusSelection } from "@/lib/marketing/dashboard-model";
 import { loadDashboardForAccess, resolveDashboardClient } from "@/lib/marketing/dashboard-query";
 import { loadAnalyticsTraffic } from "@/lib/marketing/google-analytics/query";
+import { loadClarityFrustration } from "@/lib/marketing/clarity/query";
 import { loadFatigueBoard } from "@/lib/marketing/fatigue-job";
 import { canReviewSearchWaste, canViewHoldouts, canWatchCompetitors } from "@/lib/marketing/feature-access";
 import { loadPacingBoard } from "@/lib/marketing/pacing-job";
@@ -47,6 +48,9 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
     const analytics = access.workspaceId
       ? await loadAnalyticsTraffic({ workspaceId: access.workspaceId, days: 30 }).catch(() => null)
       : null;
+    const clarity = access.workspaceId
+      ? await loadClarityFrustration({ workspaceId: access.workspaceId, days: 30 }).catch(() => null)
+      : null;
     const speedToLead = speedToLeadEnabled()
       ? await loadSpeedPage().catch(() => ({ error: true as const }))
       : null;
@@ -60,6 +64,7 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
       <MarketingView
         {...data}
         analytics={analytics}
+        clarity={clarity}
         speedToLead={speedToLead}
         fatigue={fatigue}
         pacing={{ ...pacing, stale: data.lastRun?.status === "failed" }}

@@ -20,6 +20,7 @@ import { runStackAdaptCtvAttribution } from "../lib/marketing/ctv/attribution-sy
 import { runStackAdaptCtvSync } from "../lib/marketing/ctv/live-sync";
 import { runCtvAttributionSync } from "../lib/marketing/ctv/sync";
 import { runGoogleAnalyticsSync } from "../lib/marketing/google-analytics/sync";
+import { runClaritySync } from "../lib/marketing/clarity/sync";
 import { runGoogleAdsSync } from "../lib/marketing/google-sync";
 import { runSpeedToLeadSweep } from "../lib/marketing/speed-to-lead-store";
 import { errorText } from "../lib/marketing/speed-to-lead";
@@ -100,6 +101,31 @@ function startDemoReseed() {
       console.log(`[worker] demo reseed rows ${result.rows}`);
     } catch (error) {
       console.error("[worker] demo reseed failed", error);
+    } finally {
+      running = false;
+    }
+  };
+  void tick();
+  const timer = setInterval(() => void tick(), 60 * 60 * 1000);
+  return () => clearInterval(timer);
+}
+
+function startClaritySync() {
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const clarity = await runClaritySync();
+      if (clarity.status !== "skipped") {
+        console.log(`[worker] clarity ${clarity.status} requests=${clarity.requests ?? 0} written=${clarity.rowsWritten ?? 0}${clarity.error ? `: ${clarity.error}` : ""}`);
+      }
+      for (const skipped of clarity.skipped) {
+        if (!skipped.client && clarity.status === "skipped") continue;
+        console.log(`[worker] clarity ${skipped.client || skipped.name} skipped: ${skipped.reason}`);
+      }
+    } catch (error) {
+      console.error("[worker] clarity failed", error instanceof Error ? error.message : "Clarity sync failed");
     } finally {
       running = false;
     }
@@ -265,6 +291,7 @@ function startMarketingSync() {
 async function main() {
   console.log("[worker] voice operations dialer started");
   const stopMarketing = startMarketingSync();
+  const stopClarity = startClaritySync();
   const stopDemo = startDemoReseed();
   const stopSpeed = startSpeedToLead();
   const stopConversions = startOfflineConversions();
@@ -297,6 +324,7 @@ async function main() {
     }
   }
   stopMarketing();
+  stopClarity();
   stopDemo();
   stopSpeed();
   stopConversions();

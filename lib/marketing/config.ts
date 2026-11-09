@@ -674,6 +674,11 @@ export function googleAnalyticsSyncEnabled(env: Env = process.env) {
   return flagOn(env, "GOOGLE_ANALYTICS_SYNC");
 }
 
+/** Off unless CLARITY_SYNC is explicitly on. Read-only Data Export API. */
+export function claritySyncEnabled(env: Env = process.env) {
+  return flagOn(env, "CLARITY_SYNC");
+}
+
 /** Accepts `1234567890` or `123-456-7890`. Returns "" when it is not a 10-digit id. */
 export function normalizeCustomerId(raw: string) {
   const digits = raw.trim().replace(/-/g, "");

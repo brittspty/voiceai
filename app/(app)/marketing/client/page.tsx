@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { AnalyticsTraffic } from "@/components/analytics-traffic";
+import { ClarityFrustration } from "@/components/clarity-frustration";
 import { ClientPerformance } from "@/components/client-performance";
 import { MarketingDashboard } from "@/components/marketing-dashboard";
 import { NoAccess } from "@/components/no-access";
@@ -9,6 +10,7 @@ import { dashboardsV2Enabled } from "@/lib/marketing/config";
 import { parseDashQuery } from "@/lib/marketing/dashboard-model";
 import { loadDashboardForAccess } from "@/lib/marketing/dashboard-query";
 import { loadAnalyticsTraffic } from "@/lib/marketing/google-analytics/query";
+import { loadClarityFrustration } from "@/lib/marketing/clarity/query";
 import { loadFeatureCards } from "@/lib/marketing/home-query";
 import { loadClientPerformance, loadMarketingAccess, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
@@ -24,14 +26,16 @@ export default async function ClientMarketingPage({ searchParams }: { searchPara
   const meta = requestClientMeta(await headers());
   await recordClientView({ workspaceId: access.workspaceId, viewerUserId: user.id, page: "/marketing/client", ...meta });
   if (!dashboardsV2Enabled()) {
-    const [payload, analytics] = await Promise.all([
+    const [payload, analytics, clarity] = await Promise.all([
       loadClientPerformance(org?.name || "Performance", { workspaceId: access.workspaceId, adAccountIds: access.accounts }),
       loadAnalyticsTraffic({ workspaceId: access.workspaceId, days: 30 }).catch(() => null),
+      loadClarityFrustration({ workspaceId: access.workspaceId, days: 30 }).catch(() => null),
     ]);
     return (
       <>
         <ClientPerformance data={payload} />
         {analytics ? <div className="mx-auto max-w-3xl px-4"><AnalyticsTraffic view={analytics} /></div> : null}
+        {clarity ? <div className="mx-auto max-w-3xl px-4"><ClarityFrustration view={clarity} /></div> : null}
       </>
     );
   }
