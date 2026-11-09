@@ -27,7 +27,18 @@ import {
 import { matchAnalyticsCampaign } from "./match";
 import { parseRunReport } from "./report";
 import { analyticsScopeData } from "./scope";
-import { decideGoogleAnalytics, runGoogleAnalyticsSync } from "./sync";
+import {
+  ANALYTICS_DAILY_WRITE_CHUNK,
+  ANALYTICS_WRITE_MAX_WAIT_MS,
+  ANALYTICS_WRITE_TIMEOUT_MS,
+  decideGoogleAnalytics,
+  planAnalyticsWriteChunks,
+  runGoogleAnalyticsSync,
+  writeAnalyticsDailyRows,
+  type AnalyticsDailyDatabase,
+  type AnalyticsDailyWriteData,
+  type AnalyticsWriteRow,
+} from "./sync";
 import { analyticsForViewer, presentAnalyticsTraffic } from "./view";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
@@ -390,4 +401,217 @@ test("the demo workspace does not sync analytics", async () => {
   assert.equal(result.status, "skipped");
   assert.equal(result.reason, "demo workspace does not sync");
   assert.equal(called, false);
+});
+
+function analyticsWriteRow(clientId: string, propertyId: string, date: string, index: number, sessions = 1): AnalyticsWriteRow {
+  return {
+    date,
+    sessionCampaignName: `campaign-${index}`,
+    sessionCampaignId: String(index),
+    sessionSource: "google",
+    sessionMedium: "organic",
+    landingPage: `/p/${index}`,
+    sessions,
+    engagedSessions: 0,
+    conversions: 0,
+    clientId,
+    propertyId,
+    connectionName: "",
+    dimensionKey: `${clientId}-${date}-${index}`,
+    campaignId: null,
+  };
+}
+
+function memoryAnalyticsDb(seed: AnalyticsDailyWriteData[] = []) {
+  const rows = seed.map((row) => ({ ...row }));
+  const calls: { timeout?: number; maxWait?: number; created: number; deleted: string[]; clientId: string }[] = [];
+  let failClient = "";
+  const db: AnalyticsDailyDatabase = {
+    $transaction: async (fn, options) => {
+      const snapshot = rows.map((row) => ({ ...row }));
+      let created = 0;
+      let clientId = "";
+      const deleted: string[] = [];
+      const tx = {
+        googleAnalyticsDaily: {
+          deleteMany: async (args: { where: { clientId: string; propertyId: string; date: { in: Date[] } } }) => {
+            clientId = args.where.clientId;
+            deleted.push(...args.where.date.in.map((date) => date.toISOString().slice(0, 10)));
+            for (let i = rows.length - 1; i >= 0; i -= 1) {
+              const row = rows[i];
+              if (!row || row.clientId !== args.where.clientId || row.propertyId !== args.where.propertyId) continue;
+              if (args.where.date.in.some((date) => date.getTime() === row.date.getTime())) rows.splice(i, 1);
+            }
+          },
+          createMany: async (args: { data: AnalyticsDailyWriteData[] }) => {
+            clientId = args.data[0]?.clientId || clientId;
+            if (clientId && clientId === failClient) throw new Error("Transaction already closed: timeout for this transaction was 5000 ms");
+            created += args.data.length;
+            rows.push(...args.data.map((row) => ({ ...row })));
+          },
+        },
+      };
+      try {
+        const result = await fn(tx);
+        calls.push({ timeout: options?.timeout, maxWait: options?.maxWait, created, deleted, clientId });
+        return result;
+      } catch (error) {
+        rows.splice(0, rows.length, ...snapshot);
+        throw error;
+      }
+    },
+  };
+  return {
+    db,
+    rows,
+    calls,
+    fail(clientId: string) {
+      failClient = clientId;
+    },
+  };
+}
+
+test("a large analytics property is written in short chunks and a second run replaces those rows", async () => {
+  const since = "2026-11-01";
+  const until = "2026-11-07";
+  const perDay = ANALYTICS_DAILY_WRITE_CHUNK + 25;
+  const capital: AnalyticsWriteRow[] = [];
+  for (let day = 0; day < 7; day += 1) {
+    const date = `2026-11-0${day + 1}`;
+    for (let index = 0; index < perDay; index += 1) capital.push(analyticsWriteRow("capital", "111111111", date, index));
+  }
+  capital.push(analyticsWriteRow("capital", "111111111", "2026-11-01", 0, 42));
+  const small = [analyticsWriteRow("small", "553292453", until, 1, 3), analyticsWriteRow("small", "553292453", until, 2, 4)];
+  const chunks = planAnalyticsWriteChunks([...capital, ...small], since, until);
+  assert.equal(chunks.some((chunk) => chunk.rows.length > ANALYTICS_DAILY_WRITE_CHUNK), false);
+  const chunksPerDay = Math.ceil(perDay / ANALYTICS_DAILY_WRITE_CHUNK);
+  const capitalWrites = chunks.filter((chunk) => chunk.clientId === "capital" && chunk.rows.length > 0);
+  assert.equal(chunksPerDay > 1, true);
+  assert.equal(capitalWrites.length, 7 * chunksPerDay);
+  assert.equal(capitalWrites.filter((chunk) => chunk.deleteDates.length === 1).length, 7);
+  assert.equal(capitalWrites.filter((chunk) => chunk.deleteDates.length === 0).length, 7 * (chunksPerDay - 1));
+  for (const chunk of capitalWrites) {
+    const dates = new Set(chunk.rows.map((row) => row.date));
+    assert.equal(dates.size, 1);
+    const date = chunk.rows[0]?.date;
+    if (chunk.deleteDates.length) assert.deepEqual(chunk.deleteDates, [date]);
+  }
+  const capitalKeys = new Map<string, number>();
+  for (const chunk of capitalWrites) {
+    for (const row of chunk.rows) {
+      const key = `${row.date}\u001f${row.dimensionKey}`;
+      capitalKeys.set(key, (capitalKeys.get(key) ?? 0) + 1);
+    }
+  }
+  assert.equal(capitalKeys.size, 7 * perDay);
+  assert.equal([...capitalKeys.values()].every((count) => count === 1), true);
+  const emptySmall = chunks.find((chunk) => chunk.clientId === "small" && chunk.rows.length === 0);
+  assert.deepEqual(emptySmall?.deleteDates, ["2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06"]);
+
+  const store = memoryAnalyticsDb([
+    {
+      workspaceId: "org",
+      clientId: "capital",
+      propertyId: "111111111",
+      connectionName: "",
+      date: new Date("2026-11-01T00:00:00.000Z"),
+      dimensionKey: "stale-landing",
+      sessionCampaignName: "old",
+      sessionSource: "google",
+      sessionMedium: "organic",
+      landingPage: "/old",
+      sessions: 9,
+      engagedSessions: 0,
+      conversions: 0,
+      campaignId: null,
+    },
+    {
+      workspaceId: "org",
+      clientId: "capital",
+      propertyId: "111111111",
+      connectionName: "",
+      date: new Date("2025-01-01T00:00:00.000Z"),
+      dimensionKey: "keep-outside-window",
+      sessionCampaignName: "old",
+      sessionSource: "google",
+      sessionMedium: "organic",
+      landingPage: "/old",
+      sessions: 1,
+      engagedSessions: 0,
+      conversions: 0,
+      campaignId: null,
+    },
+  ]);
+  const written = await writeAnalyticsDailyRows(store.db, [...capital, ...small], since, until);
+  assert.equal(written, 7 * perDay + 2);
+  assert.equal(store.calls.length > 1, true);
+  assert.equal(store.calls.every((call) => call.timeout === ANALYTICS_WRITE_TIMEOUT_MS && call.maxWait === ANALYTICS_WRITE_MAX_WAIT_MS), true);
+  assert.equal(store.calls.every((call) => call.created <= ANALYTICS_DAILY_WRITE_CHUNK), true);
+  assert.equal(store.calls.filter((call) => call.clientId === "capital" && call.created > 0).length, 7 * chunksPerDay);
+  const capitalStored = store.rows.filter((row) => row.clientId === "capital" && row.date.toISOString().slice(0, 10) >= since);
+  assert.equal(capitalStored.length, 7 * perDay);
+  assert.equal(capitalStored.some((row) => row.dimensionKey === "stale-landing"), false);
+  assert.equal(store.rows.some((row) => row.dimensionKey === "keep-outside-window"), true);
+  const replaced = capitalStored.find((row) => row.date.toISOString().slice(0, 10) === "2026-11-01" && row.dimensionKey === "capital-2026-11-01-0");
+  assert.equal(replaced?.sessions, 42);
+
+  const again = capital.map((row) => ({ ...row, sessions: row.dimensionKey === "capital-2026-11-01-0" ? 42 : 5 }));
+  const second = await writeAnalyticsDailyRows(store.db, [...again, ...small], since, until);
+  assert.equal(second, 7 * perDay + 2);
+  const capitalAgain = store.rows.filter((row) => row.clientId === "capital" && row.date.toISOString().slice(0, 10) >= since);
+  assert.equal(capitalAgain.length, 7 * perDay);
+  assert.equal(capitalAgain.every((row) => row.sessions === (row.dimensionKey === "capital-2026-11-01-0" ? 42 : 5)), true);
+  assert.equal(store.rows.filter((row) => row.dimensionKey === "keep-outside-window").length, 1);
+
+  store.fail("capital");
+  const before = store.rows.map((row) => ({ ...row }));
+  await assert.rejects(() => writeAnalyticsDailyRows(store.db, [...again, ...small], since, until), /Transaction already closed/);
+  assert.deepEqual(store.rows.filter((row) => row.clientId === "capital"), before.filter((row) => row.clientId === "capital"));
+  assert.equal(store.rows.filter((row) => row.clientId === "small").length, 2);
+});
+
+test("one property that fails to write does not stop the next property", async () => {
+  const written: string[] = [];
+  const result = await runGoogleAnalyticsSync({
+    env: {
+      GOOGLE_ANALYTICS_SYNC: "on",
+      MARKETING_SYNC_MODE: "live",
+      MARKETING_LOOKBACK_DAYS: "7",
+      GOOGLE_OAUTH_CLIENT_ID: "oauth-client",
+      GOOGLE_OAUTH_CLIENT_SECRET: "oauth-secret",
+      GOOGLE_ANALYTICS_REFRESH_TOKEN: "analytics-refresh-token",
+    },
+    now: new Date("2026-11-06T16:00:00.000Z"),
+    timezone: "America/New_York",
+    clients: [
+      { id: "capital", name: "Capital Financial USA", googleAnalyticsConnectionName: "", googleAnalyticsPropertyId: "111111111" },
+      { id: "small", name: "Be Found AI", googleAnalyticsConnectionName: "", googleAnalyticsPropertyId: "553292453" },
+    ],
+    campaigns: [],
+    writeRows: async (rows) => {
+      const clientId = rows[0]?.clientId || "";
+      if (clientId === "capital") throw new Error("Transaction already closed: timeout for this transaction was 5000 ms");
+      written.push(clientId);
+      return rows.length;
+    },
+    fetchImpl: async (url) => {
+      if (url.includes("oauth2.googleapis.com")) {
+        return Response.json({ access_token: "ya29.analytics", scope: "https://www.googleapis.com/auth/analytics.readonly" });
+      }
+      return Response.json({
+        dimensionHeaders: ["date", "sessionCampaignName", "sessionCampaignId", "sessionSource", "sessionMedium", "landingPage"].map((name) => ({ name })),
+        metricHeaders: ["sessions", "engagedSessions", "keyEvents"].map((name) => ({ name })),
+        rows: [{
+          dimensionValues: [{ value: "20261106" }, { value: "(not set)" }, { value: "" }, { value: "google" }, { value: "organic" }, { value: "/" }].map((value) => ({ value: value.value })),
+          metricValues: [{ value: "4" }, { value: "2" }, { value: "0" }],
+        }],
+      });
+    },
+  });
+  assert.equal(result.status, "failed");
+  assert.deepEqual(written, ["small"]);
+  assert.equal(result.rowsWritten, 1);
+  assert.match(result.error || "", /Capital Financial USA/);
+  assert.match(result.error || "", /Transaction already closed/);
+  assert.equal(JSON.stringify(result).includes("analytics-refresh-token"), false);
 });
