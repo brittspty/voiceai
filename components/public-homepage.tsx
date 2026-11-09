@@ -356,17 +356,10 @@ export function PublicHomepage({
               <h2>{model.compare.title}</h2>
               <p className="lead">{model.compare.lead}</p>
               <div className="cmp">
-                {model.compare.rows.map((row) => (
-                  <article key={row.label}>
-                    <h3>{row.label}</h3>
-                    <div className="cmp-cols">
-                      {row.cells.map((cell, index) => (
-                        <p key={model.compare.columns[index]}>
-                          <span className="lab mono">{model.compare.columns[index]}</span>
-                          {cell}
-                        </p>
-                      ))}
-                    </div>
+                {model.compare.points.map((point) => (
+                  <article key={point.label}>
+                    <h3>{point.label}</h3>
+                    <p>{point.body}</p>
                   </article>
                 ))}
               </div>

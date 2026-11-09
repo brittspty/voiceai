@@ -111,7 +111,7 @@ export type HomepageModel = {
   slip: { title: string; body: string; why: string };
   modulesTitle: string;
   modules: { title: string; body: string; meta: string }[];
-  compare: { title: string; lead: string; columns: string[]; rows: { label: string; cells: string[] }[] };
+  compare: { title: string; lead: string; points: { label: string; body: string }[] };
   quiz: { title: string; lead: string; resultKicker: string; resultTitle: string };
   questions: { name: "q1" | "q2" | "q3" | "q4"; legend: string; options: { value: string; label: string }[] }[];
   faqTitle: string;
@@ -159,7 +159,7 @@ const FEED: FeedItem[] = [
   { title: "New creative ready for segment A", body: "The current ad is getting skipped. Your team can approve the swap." },
   { title: "Retarget pricing-page visitors on Google", body: "They looked at pricing and left. Suggested, waiting for you." },
   { title: "Budget shift suggested: Meta to TikTok", body: "Segment C is doing better on TikTok. Recommended, budget unchanged until you approve." },
-  { title: "Removed duplicate IDs from a new list", body: "Same people showed up twice. Cleaned before anything was served." },
+  { title: "A duplicate conversion was not counted", body: "The same person showed up twice. Only the first checked contact counts." },
   { title: "Suggested evening delivery for segment C", body: "That is when these people engage most. Waiting for your OK." },
 ];
 
@@ -204,13 +204,13 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     jasonFacts: JASON_FACTS,
     hero: {
       title: "Stop renting the platform's guess. Own the audience",
-      before: "JAI builds your audience from ",
-      emphasis: "verified real people in the data market",
-      after: ", not from Meta's or Google's targeting. Then it tests every segment and optimizes every metric on every channel.",
-      legend: ["Anonymous IDs", "Verified humans", "Winning segment"],
+      before: "JAI sources each campaign from ",
+      emphasis: "a fresh list in the live data market",
+      after: ", with the vendor and list id on every row. Only deduped, contact-checked conversions count as wins.",
+      legend: ["Data-market list", "Checked conversions", "Winning segment"],
     },
     pillars: [
-      { title: "Identify", body: "Build the audience from verified people in the data market, before a dollar is spent." },
+      { title: "Identify", body: "Source a fresh data-market list for each campaign, with the vendor and list id on every row." },
       { title: "Engage", body: "Reach those same people on every channel, and let the segments compete." },
       { title: "Convert", body: "JAI explains every change in plain English. A person still sets the budget." },
     ],
@@ -226,7 +226,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         {
           label: "The turn",
           title: "Start with real people instead",
-          body: "JAI builds your audience in the data market first, checks that every ID is a real human, and only then serves your ads. You can see where every person came from.",
+          body: "JAI sources a fresh audience from the live data market for each campaign, keeps the vendor and list id on every row, and counts only deduped, contact-checked conversions.",
         },
         {
           label: "After",
@@ -243,12 +243,12 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       methodBody: "You can see where each list came from and why it is running.",
       method: [
         { label: "Source", body: "Which data market vendor supplied the mobile ad IDs" },
-        { label: "Verify", body: "Bots and duplicates removed before anything is served" },
+        { label: "Count", body: "Only deduped, contact-checked conversions from a data-market list count as wins" },
         { label: "Test", body: "Segments compared against each other, not against a guess" },
         { label: "Decide", body: "JAI recommends, your team approves" },
       ],
       tourTitle: "Walk through JAI with sample data.",
-      tourBody: `${DEMO_TAGLINE} ${DEMO_SUPPORTING_LINE} See the command center, the audience library, a segment test, reports, and the decisions inbox. The full demo opens through a signed demo link or the demo access page.`,
+      tourBody: `${DEMO_TAGLINE} ${DEMO_SUPPORTING_LINE} See the problem, a fresh data-market list, the same audience on every channel, checked conversions, and the decision a person still makes. The full demo opens through a signed demo link or the demo access page.`,
       logos: [`TODO(jason) ${JASON_FACTS} Logo`, `TODO(jason) ${JASON_FACTS} Logo`, `TODO(jason) ${JASON_FACTS} Logo`, `TODO(jason) ${JASON_FACTS} Logo`],
       slots: [
         { kicker: "CASE STUDY", title: "TODO(jason) Case study coming", note: `${JASON_FACTS} Published with client approval` },
@@ -269,13 +269,13 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         lines: [{ text: "a91f-22c0" }, { text: "7be3-910d" }, { text: "c04a-5e17" }, { text: "..." }],
       },
       {
-        kicker: "Verified humans",
-        title: "Keep only real ones",
-        body: "Bots, duplicates and stale IDs are filtered out before a dollar is spent.",
+        kicker: "Checked conversions",
+        title: "Count only wins you can check",
+        body: "Every audience starts from a traceable data-market list, and only deduped, contact-checked conversions count as wins.",
         lines: [
-          { text: "a91f-22c0  human" },
-          { text: "7be3-910d  bot", strike: true },
-          { text: "c04a-5e17  human" },
+          { text: "demo-list-041  traced" },
+          { text: "duplicate  not counted", strike: true },
+          { text: "contact checked  counted", accent: true },
         ],
       },
       {
@@ -315,7 +315,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       accent: "JAI never touches it.",
       points: [
         "Audiences are built in the data market from mobile ad ID lists you can trace.",
-        "Bots and duplicates are filtered out, so spend goes to verified humans.",
+        "Only deduped, contact-checked conversions count. Platform-reported clicks stay unchecked.",
         "Every suggestion comes with its reason, in plain English.",
         "Your team owns every budget. A person approves or declines, and the decision is logged with who made it.",
         "Meta, Google, TikTok, and programmatic sit in one view.",
@@ -330,57 +330,22 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     },
     modulesTitle: "Inside JAI",
     modules: [
-      { title: "Audiences", body: "Data market sourcing, verification and segment tests.", meta: "core" },
+      { title: "Audiences", body: "Data-market sourcing, checked conversions, and segment tests.", meta: "core" },
       { title: "Pixels and retargeting", body: "The same people, followed across every platform.", meta: "core" },
       { title: "Optimization", body: "Every metric on every channel, explained.", meta: "core" },
       { title: "Landing pages and reports", body: "Pages per audience and reports a client can read in a minute.", meta: "module" },
       { title: "AIS2L voice", body: "An AI voice agent that answers and follows up with leads.", meta: "add-on" },
     ],
     compare: {
-      title: "JAI vs a typical agency vs DIY ad platforms.",
-      lead: "A qualitative look. No scores, no prices, and no results we have not published.",
-      columns: ["JAI", "A typical agency", "DIY ad platforms"],
-      rows: [
-        {
-          label: "Audience",
-          cells: [
-            "Built in the data market from mobile ad ID lists you can trace.",
-            "Often starts from the platform's targeting, then a monthly report.",
-            "You rent the platform's guess inside one ad account.",
-          ],
-        },
-        {
-          label: "Verification",
-          cells: [
-            "Bots and duplicates are removed before anything is served.",
-            "You may not see the check.",
-            "The platform decides what counts as a person.",
-          ],
-        },
-        {
-          label: "Recommendations",
-          cells: [
-            "Plain English, and a person approves any budget change.",
-            "A strategist, on their schedule.",
-            "Dashboards you interpret yourself.",
-          ],
-        },
-        {
-          label: "Budget",
-          cells: [
-            "Your team sets every budget. JAI never moves it.",
-            "The agency often moves spend for you.",
-            "You move it, without a shared paper trail.",
-          ],
-        },
-        {
-          label: "Channels",
-          cells: [
-            "Meta, Google, TikTok, and programmatic in one view.",
-            "Depends on the retainer.",
-            "One platform at a time.",
-          ],
-        },
+      title: "How JAI works.",
+      lead: "On its own terms. No scores, no prices, and no results we have not published.",
+      points: [
+        { label: "Audience", body: "Sourced fresh from the live data market for each campaign, with the vendor and list id on every row." },
+        { label: "Conversions", body: "Only deduped, contact-checked conversions from a data-market list count as wins." },
+        { label: "Recommendations", body: "Plain English, and a person approves any change to the budget." },
+        { label: "Control", body: "Your team sets every budget. JAI can recommend a change. It cannot send one." },
+        { label: "Channels", body: "The same audience is prepared for Meta, Google, TikTok, and StackAdapt." },
+        { label: "Honesty", body: "Known fake IDs and a holdout group check whether a vendor list is doing what it claims. The check recommends. It does not spend." },
       ],
     },
     quiz: {
@@ -432,7 +397,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       {
         question: "How is this different from platform targeting?",
         answer:
-          "Platform targeting asks Meta or Google to guess who your buyer is, inside their walls. JAI builds the audience first from the data market, verifies the people are real, then uses pixels to reach that same audience on every platform. You own the list and can see where it came from.",
+          "Platform targeting asks Meta or Google to guess who your buyer is, inside their walls. JAI sources a fresh audience from the live data market for each campaign, keeps the vendor and list id, and uses pixels to reach that same audience on every platform. Only deduped, contact-checked conversions count as wins.",
       },
       {
         question: "Is this private and compliant?",
@@ -522,8 +487,7 @@ export function homepageProse(model: HomepageModel) {
     ...model.modules.flatMap((row) => [row.title, row.body, row.meta]),
     model.compare.title,
     model.compare.lead,
-    ...model.compare.columns,
-    ...model.compare.rows.flatMap((row) => [row.label, ...row.cells]),
+    ...model.compare.points.flatMap((point) => [point.label, point.body]),
     model.quiz.title,
     model.quiz.lead,
     model.quiz.resultKicker,
@@ -544,7 +508,7 @@ export function homepageProse(model: HomepageModel) {
 }
 
 export function homepageDescription() {
-  return `${PRODUCT_WORDMARK} builds your audience from verified real people in the data market, not from the ad platform's guess. Then it tests every segment and explains every change in plain English.`;
+  return `${PRODUCT_WORDMARK} sources each campaign from a fresh list in the live data market, keeps the vendor and list id on every row, and counts only deduped, contact-checked conversions.`;
 }
 
 /** Published address is always jai.specificityinc.com, not the host that received the request. */

@@ -928,6 +928,11 @@ html:has(.home) body {
   font-size: 18px;
   margin-bottom: 16px;
 }
+.home .cmp p {
+  max-width: 68ch;
+  color: #d9d2cc;
+  font-size: 16px;
+}
 .home .cmp-cols {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

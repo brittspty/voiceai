@@ -290,7 +290,8 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(prose, /The turn/);
   assert.match(prose, /After/);
   assert.match(prose, /Where is your ad budget leaking/);
-  assert.match(prose, /JAI vs a typical agency vs DIY ad platforms/);
+  assert.match(prose, /How JAI works/);
+  assert.equal(/typical agency|DIY ad platforms|filtered out before a dollar|stale IDs are filtered|checks that every ID is a real human/i.test(prose), false);
   assert.match(model.proof.tourBody, /Your Audience; Everywhere/);
   assert.match(model.proof.tourBody, /Bots optimize, you make the call/);
   assert.equal(model.proof.tourBody.includes("Your Buyer Audience; Everywhere"), false);
@@ -347,7 +348,8 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.equal(html.includes("Your Buyer Audience"), false);
   assert.equal(model.logos.wordmark, publicLogos.wordmarkDark);
   assert.equal(model.logos.lockup, publicLogos.lockupDark);
-  assert.match(meta.description, /verified real people in the data market/);
+  assert.match(meta.description, /a fresh list in the live data market/);
+  assert.equal(meta.description.includes("verified real people"), false);
   assert.equal(meta.openGraph.title, meta.title.absolute);
   assert.equal(meta.openGraph.url, `${PUBLIC_SITE_ORIGIN}/`);
   assert.equal(meta.alternates.canonical, `${PUBLIC_SITE_ORIGIN}/`);

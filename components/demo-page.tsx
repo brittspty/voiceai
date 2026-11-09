@@ -4,6 +4,7 @@ import { demoView } from "@/lib/demo/access";
 import { demoTourEnabled } from "@/lib/demo/flags";
 import { presentDemo } from "@/lib/demo/present";
 import { requireDemoVisitor } from "@/lib/demo/session";
+import { parseTourMode } from "@/lib/demo/tour";
 
 export async function DemoPage({
   screen,
@@ -15,5 +16,5 @@ export async function DemoPage({
   await requireDemoVisitor();
   const query = await searchParams;
   const data = presentDemo(buildDemoDataset(), demoView(query.view));
-  return <DemoScreens screen={screen} data={data} tourEnabled={demoTourEnabled()} />;
+  return <DemoScreens screen={screen} data={data} tourEnabled={demoTourEnabled()} tourMode={parseTourMode(query.tour)} />;
 }
