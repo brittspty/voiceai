@@ -290,9 +290,9 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(prose, /The turn/);
   assert.match(prose, /After/);
   assert.match(prose, /Where is your ad budget leaking/);
-  assert.match(prose, /How JAI works/);
+  assert.match(prose, /How jAI works/);
   assert.equal(/typical agency|DIY ad platforms|filtered out before a dollar|stale IDs are filtered|checks that every ID is a real human/i.test(prose), false);
-  assert.match(model.proof.tourBody, /Your Audience; Everywhere/);
+  assert.match(model.proof.tourBody, /Your audience\. Everywhere\./);
   assert.match(model.proof.tourBody, /Bots optimize, you make the call/);
   assert.equal(model.proof.tourBody.includes("Your Buyer Audience; Everywhere"), false);
   assert.match(model.proof.tourBody, /signed demo link or the demo access page/);
@@ -340,9 +340,9 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(signedIn, /Go to app/);
   assert.match(signedIn, /href="\/marketing"/);
   const meta = homepageMetadata();
-  assert.equal(PUBLIC_TAGLINE, "Your Audience; Everywhere");
+  assert.equal(PUBLIC_TAGLINE, "Your audience. Everywhere.");
   assert.equal(PUBLIC_AD_LINE, "Bots optimize, you make the call");
-  assert.equal(meta.title.absolute, `JAI by Specificity | ${PUBLIC_TAGLINE}`);
+  assert.equal(meta.title.absolute, `jAI by Specificity | ${PUBLIC_TAGLINE}`);
   assert.equal(model.tagline, PUBLIC_TAGLINE);
   assert.equal(model.supportLine, PUBLIC_AD_LINE);
   assert.equal(html.includes("Your Buyer Audience"), false);

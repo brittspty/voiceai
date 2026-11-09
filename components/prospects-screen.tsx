@@ -62,7 +62,7 @@ export function ProspectsScreen({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted">People from Traxy and Apollo stay in JAI. A later step can add a selection to an audience. This page does not upload one.</p>
+      <p className="text-sm text-muted">People from Traxy and Apollo stay in jAI. A later step can add a selection to an audience. This page does not upload one.</p>
       <form method="get" className="flex flex-wrap items-end gap-3" action="/marketing/prospects">
         <label className="flex min-w-56 flex-col gap-1 text-sm">
           <span className="text-muted">Client</span>

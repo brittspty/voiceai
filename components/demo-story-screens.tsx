@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PRODUCT_WORDMARK } from "@/lib/brand";
+import { ProductLockup } from "@/components/product-lockup";
 import { DEMO_FACTS } from "@/lib/demo/dataset";
 import {
   CLIENT_PRICING,
@@ -22,7 +23,7 @@ import {
   demoVerifiedGap,
   formatDemoStamp,
 } from "@/lib/demo/story";
-import { BASED_ON_LABEL, DEMO_SUPPORTING_LINE, DEMO_TAGLINE, renderTourSteps, tourLocation, type TourMode } from "@/lib/demo/tour";
+import { BASED_ON_LABEL, renderTourSteps, tourLocation, type TourMode } from "@/lib/demo/tour";
 
 function Kicker({ children }: { children: string }) {
   return <p className="text-xs font-semibold uppercase tracking-wide text-brand">{children}</p>;
@@ -41,6 +42,9 @@ export function ProblemScreen() {
   const rest = PROBLEM_STATS.slice(1);
   return (
     <section data-tour-anchor="problem">
+      <div className="mb-8 rounded-2xl border border-line bg-card px-6 py-6">
+        <ProductLockup surface="light" size="banner" />
+      </div>
       <Kicker>Opening</Kicker>
       <h1 className="mt-2 max-w-3xl text-3xl font-semibold tracking-tight md:text-4xl">Half the web is not a person. Unprotected buying is where that shows up.</h1>
       <p className="mt-3 max-w-3xl text-base leading-7">{PROBLEM_FRAME}</p>
@@ -85,7 +89,7 @@ export function VerifiedScreen() {
           <p className="mt-2 text-4xl font-semibold">{gap.reported}</p>
         </article>
         <article className="rounded-2xl border border-brand bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand">JAI verified</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">jAI verified</p>
           <p className="mt-2 text-4xl font-semibold text-brand">{gap.verified}</p>
         </article>
         <article className="rounded-2xl border border-line bg-card p-4">
@@ -187,9 +191,12 @@ export function CloseScreen({ view, tourMode }: { view: "staff" | "client"; tour
 export function ClientEndingScreen({ view }: { view: "staff" | "client" }) {
   return (
     <section data-tour-anchor="client-ending">
-      <Kicker>Client ending</Kicker>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight">{DEMO_TAGLINE}</h1>
-      <p className="mt-2 text-sm font-semibold">{DEMO_SUPPORTING_LINE}</p>
+      <div className="rounded-2xl border border-line bg-card px-6 py-6">
+        <Kicker>Client ending</Kicker>
+        <div className="mt-4">
+          <ProductLockup surface="light" size="closing" />
+        </div>
+      </div>
       <p className="mt-3 max-w-3xl text-base leading-7">Here is the setup, the weekly view, and where a price would go. Nothing on this page is a quote.</p>
       <p className="mt-3 text-xs font-semibold text-muted">{SAMPLE_BADGE}</p>
       <h2 className="mt-8 text-xl font-semibold">Setup</h2>
@@ -236,10 +243,12 @@ export function InvestorScreen({ view }: { view: "staff" | "client" }) {
   ];
   return (
     <section data-tour-anchor="investor">
-      <div className="rounded-2xl bg-ink px-5 py-6 text-on-ink">
+      <div className="rounded-2xl bg-ink px-6 py-8 text-on-ink">
         <Kicker>Investor ending</Kicker>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">{DEMO_TAGLINE}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6">{DEMO_SUPPORTING_LINE}. Public market size is below. Every Specificity number is {SPECIFICITY_FIGURE}.</p>
+        <div className="mt-4">
+          <ProductLockup surface="dark" size="closing" />
+        </div>
+        <p className="mt-4 max-w-2xl text-sm leading-6">Public market size is below. Every Specificity number is {SPECIFICITY_FIGURE}.</p>
       </div>
       <h2 className="mt-8 text-xl font-semibold">The market</h2>
       <p className="mt-2 text-xs font-semibold text-muted">Public market size. Not this account. Not a Specificity result.</p>

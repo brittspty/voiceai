@@ -89,7 +89,7 @@ test("talking points cite research on the problem step and keep the product line
   const audience = open.find((step) => step.id === "audience");
   assert.match(audience?.body || "", /48/);
   assert.match(audience?.body || "", /80/);
-  assert.match(text, /Your Audience; Everywhere/);
+  assert.match(text, /Your audience\. Everywhere\./);
   assert.match(text, /Bots optimize, you make the call/);
   assert.equal(text.includes("Your Buyer Audience; Everywhere"), false);
   assert.match(text, /Humans control budgets/);

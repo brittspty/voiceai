@@ -135,6 +135,17 @@ export function PublicHomepage({
               <span className="tag">{model.illustrative}</span>
             </p>
             <div className="w">
+              <div className="hero-lockup">
+                <img
+                  src={model.logos.wordmark}
+                  alt={model.logos.alt}
+                  width={publicLogoSize("wordmark", 112).width}
+                  height={publicLogoSize("wordmark", 112).height}
+                  className="hero-mark"
+                />
+                <p className="hero-tag">{model.tagline}</p>
+                <p className="hero-support">{model.supportLine}</p>
+              </div>
               <h1 id="h1">
                 {model.hero.title}<em>.</em>
               </h1>
@@ -304,7 +315,7 @@ export function PublicHomepage({
                 <HomepageDemo segments={model.segments} illustrative={model.illustrative} group={model.demo.group} barNote={model.demo.barNote} />
                 <div className="panel">
                   <div className="ph mono">
-                    <span>{model.product.toUpperCase()} DECISION FEED</span>
+                    <span>{model.product} decision feed</span>
                     <span>{model.example}</span>
                   </div>
                   <HomepageFeed items={model.feed} example={model.example} />

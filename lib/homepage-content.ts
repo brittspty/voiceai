@@ -57,7 +57,7 @@ export type FeedItem = { title: string; body: string };
 
 export type HomepageModel = {
   direction: "A" | "B";
-  product: "JAI";
+  product: "jAI";
   byline: string;
   wordmark: string;
   tagline: string;
@@ -129,7 +129,7 @@ const SEGMENTS: DemoSegment[] = [
     bar: 78,
     channel: "TikTok",
     headline: "Segment C: keep it running, and consider giving it more room",
-    body: "People in this segment are watching your videos longer and booking more often than the others this week. JAI suggests moving some of your TikTok budget here.",
+    body: "People in this segment are watching your videos longer and booking more often than the others this week. jAI suggests moving some of your TikTok budget here.",
     note: "Budget change: recommended to your team, not made.",
   },
   {
@@ -139,7 +139,7 @@ const SEGMENTS: DemoSegment[] = [
     bar: 52,
     channel: "Meta",
     headline: "Segment A: still learning, give it a few more days",
-    body: "Not enough people have seen these ads yet to call it. JAI will keep testing and tell you when it knows.",
+    body: "Not enough people have seen these ads yet to call it. jAI will keep testing and tell you when it knows.",
     note: "No change needed.",
   },
   {
@@ -149,7 +149,7 @@ const SEGMENTS: DemoSegment[] = [
     bar: 30,
     channel: "TikTok",
     headline: "Segment B: consider pausing it",
-    body: "Cost per lead has been rising for 3 days and fewer people are clicking through. JAI suggests pausing it and trying a new creative.",
+    body: "Cost per lead has been rising for 3 days and fewer people are clicking through. jAI suggests pausing it and trying a new creative.",
     note: "Pause: recommended to your team, not changed.",
   },
 ];
@@ -204,7 +204,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     jasonFacts: JASON_FACTS,
     hero: {
       title: "Stop renting the platform's guess. Own the audience",
-      before: "JAI sources each campaign from ",
+      before: "jAI sources each campaign from ",
       emphasis: "a fresh list in the live data market",
       after: ", with the vendor and list id on every row. Only deduped, contact-checked conversions count as wins.",
       legend: ["Data-market list", "Checked conversions", "Winning segment"],
@@ -212,7 +212,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     pillars: [
       { title: "Identify", body: "Source a fresh data-market list for each campaign, with the vendor and list id on every row." },
       { title: "Engage", body: "Reach those same people on every channel, and let the segments compete." },
-      { title: "Convert", body: "JAI explains every change in plain English. A person still sets the budget." },
+      { title: "Convert", body: "jAI explains every change in plain English. A person still sets the budget." },
     ],
     story: {
       title: "You've been paying for the platform's guess.",
@@ -226,7 +226,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         {
           label: "The turn",
           title: "Start with real people instead",
-          body: "JAI sources a fresh audience from the live data market for each campaign, keeps the vendor and list id on every row, and counts only deduped, contact-checked conversions.",
+          body: "jAI sources a fresh audience from the live data market for each campaign, keeps the vendor and list id on every row, and counts only deduped, contact-checked conversions.",
         },
         {
           label: "After",
@@ -245,9 +245,9 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         { label: "Source", body: "Which data market vendor supplied the mobile ad IDs" },
         { label: "Count", body: "Only deduped, contact-checked conversions from a data-market list count as wins" },
         { label: "Test", body: "Segments compared against each other, not against a guess" },
-        { label: "Decide", body: "JAI recommends, your team approves" },
+        { label: "Decide", body: "jAI recommends, your team approves" },
       ],
-      tourTitle: "Walk through JAI with sample data.",
+      tourTitle: "Walk through jAI with sample data.",
       tourBody: `${DEMO_TAGLINE} ${DEMO_SUPPORTING_LINE} See the problem, a fresh data-market list, the same audience on every channel, checked conversions, and the decision a person still makes. The full demo opens through a signed demo link or the demo access page.`,
       logos: [`TODO(jason) ${JASON_FACTS} Logo`, `TODO(jason) ${JASON_FACTS} Logo`, `TODO(jason) ${JASON_FACTS} Logo`, `TODO(jason) ${JASON_FACTS} Logo`],
       slots: [
@@ -285,34 +285,34 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         lines: [{ text: "segment A  learning" }, { text: "segment B  learning" }, { text: "segment C  leading", accent: true }],
       },
       {
-        kicker: "JAI optimization",
+        kicker: "jAI optimization",
         title: "Improve every metric",
-        body: "JAI tunes creative, timing and placement, and tells you why in plain English.",
+        body: "jAI tunes creative, timing and placement, and tells you why in plain English.",
         lines: [{ text: "scale C" }, { text: "rest A" }, { text: "budget: ask a person", accent: true }],
       },
     ],
     stepsNote: "Examples above are illustrative.",
     bands: [
-      { id: "cta-1", title: "Want to see your own market through JAI?", body: "Bring a campaign you are already running. We will walk the audience, the test, and the decision." },
+      { id: "cta-1", title: "Want to see your own market through jAI?", body: "Bring a campaign you are already running. We will walk the audience, the test, and the decision." },
       {
         id: "cta-2",
         title: `${BOOK_DEMO_LABEL}.`,
-        body: "Tell us what you're running today. We'll show you what JAI would do with it, on a call, with no pressure.",
+        body: "Tell us what you're running today. We'll show you what jAI would do with it, on a call, with no pressure.",
       },
     ],
     demo: {
       kicker: "Command center",
       title: "See it work. Tap a segment.",
-      lead: "This is the kind of thing you'd see every morning. The audience library, segment tests, reports, and the decisions inbox live here. Pick a segment and JAI tells you what it thinks, and why.",
+      lead: "This is the kind of thing you'd see every morning. The audience library, segment tests, reports, and the decisions inbox live here. Pick a segment and jAI tells you what it thinks, and why.",
       group: "SEGMENTS: HOMEOWNERS, GULF COAST",
       barNote: "Bars are illustrative, not measurements.",
-      feedNote: "JAI never changes a budget. It asks you.",
+      feedNote: "jAI never changes a budget. It asks you.",
     },
     segments: SEGMENTS,
     feed: FEED,
     platform: {
       quote: "Your team sets every budget.",
-      accent: "JAI never touches it.",
+      accent: "jAI never touches it.",
       points: [
         "Audiences are built in the data market from mobile ad ID lists you can trace.",
         "Only deduped, contact-checked conversions count. Platform-reported clicks stay unchecked.",
@@ -325,10 +325,10 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     },
     slip: {
       title: "Shift part of the Meta budget to segment C on TikTok",
-      body: "JAI will not make this change on its own.",
+      body: "jAI will not make this change on its own.",
       why: "Why: segment C is engaging more often on TikTok this week and costs less to reach there.",
     },
-    modulesTitle: "Inside JAI",
+    modulesTitle: "Inside jAI",
     modules: [
       { title: "Audiences", body: "Data-market sourcing, checked conversions, and segment tests.", meta: "core" },
       { title: "Pixels and retargeting", body: "The same people, followed across every platform.", meta: "core" },
@@ -337,13 +337,13 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       { title: "AIS2L voice", body: "An AI voice agent that answers and follows up with leads.", meta: "add-on" },
     ],
     compare: {
-      title: "How JAI works.",
+      title: "How jAI works.",
       lead: "On its own terms. No scores, no prices, and no results we have not published.",
       points: [
         { label: "Audience", body: "Sourced fresh from the live data market for each campaign, with the vendor and list id on every row." },
         { label: "Conversions", body: "Only deduped, contact-checked conversions from a data-market list count as wins." },
         { label: "Recommendations", body: "Plain English, and a person approves any change to the budget." },
-        { label: "Control", body: "Your team sets every budget. JAI can recommend a change. It cannot send one." },
+        { label: "Control", body: "Your team sets every budget. jAI can recommend a change. It cannot send one." },
         { label: "Channels", body: "The same audience is prepared for Meta, Google, TikTok, and StackAdapt." },
         { label: "Honesty", body: "Known fake IDs and a holdout group check whether a vendor list is doing what it claims. The check recommends. It does not spend." },
       ],
@@ -397,7 +397,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       {
         question: "How is this different from platform targeting?",
         answer:
-          "Platform targeting asks Meta or Google to guess who your buyer is, inside their walls. JAI sources a fresh audience from the live data market for each campaign, keeps the vendor and list id, and uses pixels to reach that same audience on every platform. Only deduped, contact-checked conversions count as wins.",
+          "Platform targeting asks Meta or Google to guess who your buyer is, inside their walls. jAI sources a fresh audience from the live data market for each campaign, keeps the vendor and list id, and uses pixels to reach that same audience on every platform. Only deduped, contact-checked conversions count as wins.",
       },
       {
         question: "Is this private and compliant?",
@@ -406,7 +406,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       {
         question: "Who controls the budget?",
         answer:
-          "You do. People set every budget. JAI can recommend a budget change with its reasoning, and a person on your team approves or declines it. JAI never changes a budget on its own.",
+          "You do. People set every budget. jAI can recommend a budget change with its reasoning, and a person on your team approves or declines it. jAI never changes a budget on its own.",
       },
       {
         question: "What will I see as a client?",
@@ -427,7 +427,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     ],
     contact: {
       title: `${BOOK_DEMO_LABEL}.`,
-      body: "Tell us what you're running today. We'll show you what JAI would do with it, on a call, with no pressure.",
+      body: "Tell us what you're running today. We'll show you what jAI would do with it, on a call, with no pressure.",
       saved: "Saved on this server. Nothing was sent.",
       invalid: "Enter your name, email, and a message.",
       running: "What are you running today?",

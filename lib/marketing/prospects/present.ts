@@ -135,7 +135,7 @@ export function prospectEmptyState(input: {
   if (input.source === "apollo" && input.apolloSavedOnly) {
     return {
       title: "Apollo saved search is saved",
-      body: "The saved search is stored on this client. JAI does not query it yet, because Apollo's public API has no credit-free saved-search read. Add a list to sync people.",
+      body: "The saved search is stored on this client. jAI does not query it yet, because Apollo's public API has no credit-free saved-search read. Add a list to sync people.",
     };
   }
   if (input.source === "traxy") {
@@ -153,7 +153,7 @@ export function prospectEmptyState(input: {
   if (!input.traxyLiveRead && !input.apolloLiveRead) {
     return {
       title: "Traxy and Apollo are not connected",
-      body: "Neither source is reading for this client. Turn on live read for Traxy, Apollo, or both. People stay in JAI until a later step adds a selection to an audience.",
+      body: "Neither source is reading for this client. Turn on live read for Traxy, Apollo, or both. People stay in jAI until a later step adds a selection to an audience.",
     };
   }
   return {

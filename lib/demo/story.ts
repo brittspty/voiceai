@@ -340,7 +340,7 @@ export const MARKET_STATS = [
 export const REVENUE_LEVERS = [
   { title: "Audience and MAID sales", body: "Lists sourced in the data market and activated for a client.", figure: SPECIFICITY_FIGURE },
   { title: "Managed media margin", body: "Media run for clients on Meta, Google, TikTok, and StackAdapt.", figure: SPECIFICITY_FIGURE },
-  { title: "Platform subscriptions", body: "Access to JAI for a client team. The price is not set.", figure: SPECIFICITY_FIGURE },
+  { title: "Platform subscriptions", body: "Access to jAI for a client team. The price is not set.", figure: SPECIFICITY_FIGURE },
   { title: "Voice add-on", body: "AIS2L voice follow-up, sold beside the ads.", figure: SPECIFICITY_FIGURE },
   { title: "Be Found services", body: "Adjacent discovery services. Counts are not stated here.", figure: SPECIFICITY_FIGURE },
   {
@@ -354,7 +354,7 @@ export const WHY_NOW = [
   "Bots were a majority of observed web traffic in 2025 (Thales, April 29, 2026).",
   "Unprotected programmatic buying is where invalid traffic concentrates (Pixalate Q2 2026, ANA Q2 2026, DoubleVerify 2026).",
   "Identity stays split across walled gardens. A device-level audience can be sourced fresh for each campaign and prepared for each platform.",
-  "Automated buying is spreading. JAI's rule is structural: a bot may recommend a change and cannot send it.",
+  "Automated buying is spreading. jAI's rule is structural: a bot may recommend a change and cannot send it.",
 ] as const;
 
 export const INVESTOR_DISCLAIMER =
@@ -362,7 +362,7 @@ export const INVESTOR_DISCLAIMER =
 
 export const CLIENT_SETUP = [
   "Tell us the campaign and who you sell to.",
-  "JAI sources a fresh data-market list for that campaign. Every row keeps the vendor, the list id, and the time it was sourced.",
+  "jAI sources a fresh data-market list for that campaign. Every row keeps the vendor, the list id, and the time it was sourced.",
   "The same list is prepared for Meta, Google, TikTok, and StackAdapt. Pixels can retarget people who engage. A live upload stays off until a person turns it on.",
   "You see checked conversions, segment tests, and a weekly note in plain English.",
   "A bot may recommend a change. A person on your team approves it or declines it.",
@@ -370,7 +370,7 @@ export const CLIENT_SETUP = [
 
 export const CLIENT_WEEKLY = [
   "What changed, in plain English, with a Based on line that names the row.",
-  "Platform-reported conversions beside the ones JAI counted.",
+  "Platform-reported conversions beside the ones jAI counted.",
   "Segments marked scale, test, or cut. A person still decides.",
   "A vendor list flagged when it matches known fake IDs.",
   "The decision waiting for you. The client view leaves cost off the page.",

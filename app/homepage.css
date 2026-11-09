@@ -367,6 +367,32 @@ html:has(.home) body {
   padding: 2px 8px;
   border-radius: 3px;
 }
+.home .hero-lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 36px;
+  max-width: 720px;
+}
+.home .hero-mark {
+  height: 112px !important;
+  width: auto !important;
+}
+.home .hero-tag {
+  margin: 4px 0 0;
+  font-size: clamp(34px, 4.6vw, 60px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+  color: var(--tx);
+}
+.home .hero-support {
+  margin: 0;
+  color: var(--brand);
+  font-size: 16px;
+  font-weight: 600;
+}
 .home .tagline {
   font-size: 13px;
   color: var(--mute);

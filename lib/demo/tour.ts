@@ -1,4 +1,5 @@
 import { PRODUCT_WORDMARK } from "../brand/names";
+import { PUBLIC_TAGLINE } from "../brand/public";
 
 /**
  * Presenter cues for the demo tour. Jason still has the final word on this script.
@@ -9,8 +10,8 @@ import { PRODUCT_WORDMARK } from "../brand/names";
 
 export const TOUR_COPY_STATUS = "DRAFT" as const;
 
-/** Locked JAI line for the demo tour and demo chrome. Not the older brand tagline. */
-export const DEMO_TAGLINE = "Your Audience; Everywhere";
+/** Locked jAI tagline for the demo tour and demo chrome. */
+export const DEMO_TAGLINE = PUBLIC_TAGLINE;
 
 /** Supporting line on the demo. Not a statistic. */
 export const DEMO_SUPPORTING_LINE = "Bots optimize, you make the call";
@@ -91,7 +92,7 @@ const CORE: Array<Omit<TourStep, "body"> & { body: string }> = [
     title: "Verified vs platform-reported",
     showsFigures: true,
     badge: "sample",
-    body: "Platforms report every conversion they see. JAI counts one only when it came from a data-market MAID campaign, passed a contact check, and is not a duplicate. The rows on this screen were run through that rule. Sample data.",
+    body: "Platforms report every conversion they see. jAI counts one only when it came from a data-market MAID campaign, passed a contact check, and is not a duplicate. The rows on this screen were run through that rule. Sample data.",
   },
   {
     id: "compare",

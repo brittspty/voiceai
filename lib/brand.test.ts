@@ -3,9 +3,9 @@ import test from "node:test";
 import { AIS2L_LINE, AIS2L_NAME, BRAND_TAGLINE, BRAND_WORDMARK, PLACEHOLDER_BRAND_COLOR, PLACEHOLDER_LOGO_URL, PRODUCT_NAME, PRODUCT_TITLE, PRODUCT_WORDMARK, resolveBrandColor, resolveLogoUrl } from "./brand";
 
 test("Specificity placeholders fill in an unset brand", () => {
-  assert.equal(PRODUCT_NAME, "JAI by Specificity");
-  assert.equal(PRODUCT_TITLE, "JAI by Specificity");
-  assert.equal(PRODUCT_WORDMARK, "JAI");
+  assert.equal(PRODUCT_NAME, "jAI by Specificity");
+  assert.equal(PRODUCT_TITLE, "jAI by Specificity");
+  assert.equal(PRODUCT_WORDMARK, "jAI");
   assert.equal(AIS2L_NAME, "AIS2L");
   assert.equal(AIS2L_LINE, "AI calling for service businesses");
   assert.equal(BRAND_WORDMARK, "Specificity");

@@ -220,7 +220,7 @@ test("shape, share, report, and plan filters follow the saved map", () => {
     flags: [],
     flagsHeading: "Heads up",
     pdf: { kicker: "Performance report", coverSentence: "Results.", resultsKicker: "01", resultsTitle: "Results", preparer: "Your marketing team", annotation: "", periodName: "Last 30 days" },
-    footer: "JAI by Specificity",
+    footer: "jAI by Specificity",
   } satisfies ClientReport;
   const filteredReport = applyClientSurface(report, offViews, true);
   assert.equal(filteredReport.kpis.some((row) => row.id === "roas"), false);
