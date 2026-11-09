@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { AnalyticsTraffic } from "@/components/analytics-traffic";
+import { ClarityFrustration } from "@/components/clarity-frustration";
 import { ClientPerformance } from "@/components/client-performance";
 import { MarketingDashboard } from "@/components/marketing-dashboard";
 import { ShareChrome } from "@/components/share-chrome";
@@ -12,6 +13,7 @@ import { materializeShare } from "@/lib/marketing/reports/p1/share";
 import { parseDashQuery } from "@/lib/marketing/dashboard-model";
 import { loadClientDashboard } from "@/lib/marketing/dashboard-query";
 import { loadAnalyticsTraffic } from "@/lib/marketing/google-analytics/query";
+import { loadClarityFrustration } from "@/lib/marketing/clarity/query";
 import { loadFeatureCards } from "@/lib/marketing/home-query";
 import { loadClientPerformance, recordClientView } from "@/lib/marketing/queries";
 import { requestClientMeta } from "@/lib/marketing/request-meta";
@@ -113,7 +115,7 @@ export default async function SharePage({ params, searchParams }: { params: Prom
       </ShareChrome>
     );
   }
-  const [payload, analytics] = await Promise.all([
+  const [payload, analytics, clarity] = await Promise.all([
     loadClientPerformance(org?.name || "Performance", {
       sharedBy: manager,
       expires,
@@ -122,6 +124,7 @@ export default async function SharePage({ params, searchParams }: { params: Prom
       adAccountIds: "all",
     }),
     loadAnalyticsTraffic({ workspaceId: link.workspaceId, days: range === "30" || range === "month" || range === "last-month" ? 30 : 7 }).catch(() => null),
+    loadClarityFrustration({ workspaceId: link.workspaceId, days: range === "30" || range === "month" || range === "last-month" ? 30 : 7 }).catch(() => null),
   ]);
   return (
     <ShareChrome>
@@ -139,6 +142,7 @@ export default async function SharePage({ params, searchParams }: { params: Prom
       </form>
       <ClientPerformance data={payload} />
       {analytics ? <div className="mx-auto max-w-3xl px-4 pb-6"><AnalyticsTraffic view={analytics} /></div> : null}
+      {clarity ? <div className="mx-auto max-w-3xl px-4 pb-6"><ClarityFrustration view={clarity} /></div> : null}
     </ShareChrome>
   );
 }

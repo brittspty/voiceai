@@ -1,6 +1,8 @@
 import { prisma } from "../../db";
 import { addDaysISO, zonedISODate } from "../../time";
 import { ctvFrequencyCap, decisionsV1Enabled } from "../config";
+import { clarityDecisionsEnabled } from "../clarity/connections";
+import type { ClaritySlice, ClaritySpendSlice } from "../clarity/decisions";
 import { googleAnalyticsDecisionsEnabled } from "../google-analytics/connections";
 import type { AnalyticsSlice, SpendSlice } from "../google-analytics/decisions";
 import { WORKSPACE_ID } from "../types";
@@ -90,6 +92,88 @@ async function loadAnalyticsDecisionRows(end: string) {
     }
   }
   return { analytics, spend };
+}
+
+/** Stored Clarity rows and campaign spend. Called only when the Clarity flag and a project token are set. */
+async function loadClarityDecisionRows(end: string) {
+  const start = addDaysISO(end, -2);
+  const startDate = new Date(`${start}T00:00:00.000Z`);
+  const endDate = new Date(`${end}T00:00:00.000Z`);
+  const mapped = await prisma.clarityClientScope.findMany({
+    where: { workspaceId: WORKSPACE_ID },
+    select: { clientId: true, client: { select: { name: true } } },
+  });
+  if (!mapped.length) return { clarity: [] as ClaritySlice[], spend: [] as ClaritySpendSlice[] };
+  const names = new Map(mapped.map((scope) => [scope.clientId, scope.client.name]));
+  const ids = mapped.map((scope) => scope.clientId);
+  const [clarityRows, campaigns] = await Promise.all([
+    prisma.clarityDaily.findMany({
+      where: {
+        workspaceId: WORKSPACE_ID,
+        clientId: { in: ids },
+        breakdown: "url_source_campaign",
+        date: { gte: startDate, lte: endDate },
+      },
+      select: {
+        id: true,
+        clientId: true,
+        date: true,
+        url: true,
+        source: true,
+        medium: true,
+        campaignName: true,
+        campaignId: true,
+        sessions: true,
+        scrollDepth: true,
+        rageClicks: true,
+        deadClicks: true,
+        quickbacks: true,
+      },
+    }),
+    prisma.campaign.findMany({
+      where: { workspaceId: WORKSPACE_ID, clientId: { in: ids } },
+      select: { id: true, name: true, clientId: true },
+    }),
+  ]);
+  const campaignById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
+  const clarity: ClaritySlice[] = clarityRows.map((row) => ({
+    id: row.id,
+    clientId: row.clientId,
+    clientName: names.get(row.clientId) || "Unassigned",
+    date: iso(row.date),
+    url: row.url,
+    source: row.source,
+    medium: row.medium,
+    campaignName: row.campaignName,
+    campaignId: row.campaignId,
+    sessions: row.sessions,
+    scrollDepth: row.scrollDepth === null ? null : num(row.scrollDepth),
+    rageClicks: row.rageClicks,
+    deadClicks: row.deadClicks,
+    quickbacks: row.quickbacks,
+  }));
+  const spend: ClaritySpendSlice[] = [];
+  if (campaigns.length) {
+    const grouped = await prisma.dailyMetric.groupBy({
+      by: ["campaignId", "date"],
+      where: { workspaceId: WORKSPACE_ID, campaignId: { in: campaigns.map((campaign) => campaign.id) }, date: { gte: startDate, lte: endDate } },
+      _sum: { spend: true },
+    });
+    for (const row of grouped) {
+      if (!row.campaignId) continue;
+      const campaign = campaignById.get(row.campaignId);
+      if (!campaign?.clientId) continue;
+      spend.push({
+        id: `${row.campaignId}:${iso(row.date)}`,
+        clientId: campaign.clientId,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        date: iso(row.date),
+        spend: num(row._sum.spend),
+      });
+    }
+  }
+  return { clarity, spend };
 }
 
 /**
@@ -220,6 +304,8 @@ export async function runStoredDecisionRules(now = new Date()) {
   });
   const analyticsOn = googleAnalyticsDecisionsEnabled();
   const analyticsWindow = analyticsOn ? await loadAnalyticsDecisionRows(end) : { analytics: [] as AnalyticsSlice[], spend: [] as SpendSlice[] };
+  const clarityOn = clarityDecisionsEnabled();
+  const clarityWindow = clarityOn ? await loadClarityDecisionRows(end) : { clarity: [] as ClaritySlice[], spend: [] as ClaritySpendSlice[] };
   const drafts = evaluateDecisionRules({
     end,
     frequencyCap: ctvFrequencyCap(),
@@ -230,6 +316,9 @@ export async function runStoredDecisionRules(now = new Date()) {
     analyticsEnabled: analyticsOn,
     analytics: analyticsWindow.analytics,
     spend: analyticsWindow.spend,
+    clarityEnabled: clarityOn,
+    clarity: clarityWindow.clarity,
+    claritySpend: clarityWindow.spend,
   });
   const campaignIds = [...new Set(drafts.flatMap((draft) => (draft.campaignId ? [draft.campaignId] : [])))];
   if (campaignIds.length) {
@@ -238,7 +327,7 @@ export async function runStoredDecisionRules(now = new Date()) {
       select: { id: true, campaignId: true, date: true, impressions: true, clicks: true, platformConversions: true },
     });
     for (const draft of drafts) {
-      if (!draft.campaignId || draft.rule.startsWith("ga_")) continue;
+      if (!draft.campaignId || draft.rule.startsWith("ga_") || draft.rule.startsWith("clarity_")) continue;
       const start = typeof draft.evidence.windowStart === "string" ? draft.evidence.windowStart : draft.windowStart;
       const stop = typeof draft.evidence.windowEnd === "string" ? draft.evidence.windowEnd : draft.windowEnd;
       const mine = metrics.filter((row) => {

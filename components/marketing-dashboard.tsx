@@ -35,6 +35,7 @@ import {
 import { formatCents } from "@/lib/marketing/lead-value";
 import { kpiTileShown, metricShown, trendChoices } from "@/lib/marketing/metric-visibility";
 import { AnalyticsTraffic } from "@/components/analytics-traffic";
+import { ClarityFrustration } from "@/components/clarity-frustration";
 import { AudienceChart, CompareBars, CompareScatter, DonutChart, PacingChart, Sparkline, TrendChart } from "@/components/marketing-dashboard-charts";
 import { LeadValueForm } from "@/components/lead-value-form";
 import type { HomeFeature } from "@/lib/marketing/home-dashboard";
@@ -411,6 +412,7 @@ export function MarketingDashboard({
       )}
 
       {model.analytics ? <AnalyticsTraffic view={model.analytics} campaignName={selected?.name ?? null} /> : null}
+      {model.clarity ? <ClarityFrustration view={model.clarity} /> : null}
 
       <div className="flex flex-col">
         {selected ? (

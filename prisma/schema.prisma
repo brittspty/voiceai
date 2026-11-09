@@ -645,6 +645,7 @@ model Campaign {
   pacingSnapshots PacingSnapshot[]
   adFatigueChecks AdFatigueCheck[]
   analyticsDays   GoogleAnalyticsDaily[]
+  clarityDays     ClarityDaily[]
 
   @@unique([workspaceId, platform, externalId])
   @@index([adAccountId])
@@ -994,6 +995,9 @@ enum RecommendationType {
   ga_spend_without_traffic
   ga_traffic_no_conversions
   ga_landing_drop
+  clarity_paid_frustration
+  clarity_low_scroll
+  clarity_quickback
 }
 
 enum CreativeVersionStatus {
@@ -1685,6 +1689,8 @@ model MarketingClient {
   credentials     PageWriteCredential[]
   recommendations Recommendation[]
   analyticsDays   GoogleAnalyticsDaily[]
+  clarityScope    ClarityClientScope?
+  clarityDays     ClarityDaily[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
@@ -1714,6 +1720,88 @@ model GoogleAnalyticsDaily {
   ingestedAt          DateTime        @default(now())
 
   @@unique([workspaceId, clientId, propertyId, date, dimensionKey], map: "GoogleAnalyticsDaily_identity_key")
+  @@index([workspaceId, clientId, date])
+  @@index([campaignId])
+}
+
+/// One Clarity project for one client site. The API token stays in the environment.
+/// connectionName is a name from CLARITY_CONNECTIONS. The token is CLARITY_<NAME>_API_TOKEN.
+model ClarityClientScope {
+  id               String          @id @default(cuid())
+  workspaceId      String          @default("org")
+  clientId         String          @unique
+  client           MarketingClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  /// Clarity project id. Used only to build the heatmaps link. One project per client.
+  projectId        String
+  /// Staff label. Not sent to Clarity.
+  label            String          @default("")
+  connectionName   String
+  /// Calendar day of requestCount, stored as UTC midnight. Empty until the first pull.
+  requestDay       DateTime?       @db.Date
+  /// Export calls already made on requestDay. The sync stops at 2, under the 10-a-day project limit.
+  requestCount     Int             @default(0)
+  /// Breakdowns saved for requestDay. A saved breakdown is not requested again that day.
+  syncedBreakdowns String[]        @default([])
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  days             ClarityDaily[]
+
+  @@unique([workspaceId, projectId])
+  @@index([workspaceId])
+}
+
+/// Daily Microsoft Clarity metrics for one client project.
+/// The export API returns at most the last 3 days and does not paginate, so each successful day is kept.
+/// Read-only. Spend is not stored here.
+model ClarityDaily {
+  id               String             @id @default(cuid())
+  workspaceId      String             @default("org")
+  clientId         String
+  client           MarketingClient    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  scopeId          String
+  scope            ClarityClientScope @relation(fields: [scopeId], references: [id], onDelete: Cascade)
+  projectId        String
+  connectionName   String             @default("")
+  date             DateTime           @db.Date
+  /// `url` or `url_source_campaign`.
+  breakdown        String             @db.VarChar(40)
+  /// Hash of the dimension values. Keeps the unique key short.
+  dimensionKey     String             @db.VarChar(40)
+  url              String             @default("") @db.VarChar(1000)
+  source           String             @default("") @db.VarChar(200)
+  medium           String             @default("") @db.VarChar(200)
+  campaignName     String             @default("") @db.VarChar(500)
+  channel          String             @default("") @db.VarChar(200)
+  device           String             @default("") @db.VarChar(100)
+  browser          String             @default("") @db.VarChar(100)
+  os               String             @default("") @db.VarChar(100)
+  country          String             @default("") @db.VarChar(100)
+  sessions         Int                @default(0)
+  botSessions      Int                @default(0)
+  users            Int                @default(0)
+  pagesPerSession  Decimal            @default(0) @db.Decimal(18, 4)
+  engagementActive Decimal            @default(0) @db.Decimal(18, 4)
+  engagementTotal  Decimal            @default(0) @db.Decimal(18, 4)
+  /// Null when this row's response had no scroll-depth metric.
+  scrollDepth      Decimal?           @db.Decimal(18, 4)
+  popularPages     Int                @default(0)
+  deadClicks       Int                @default(0)
+  rageClicks       Int                @default(0)
+  quickbacks       Int                @default(0)
+  excessiveScroll  Int                @default(0)
+  scriptErrors     Int                @default(0)
+  errorClicks      Int                @default(0)
+  /// Percent, 0–100. Null when the response had no rate for that metric.
+  deadClickRate    Decimal?           @db.Decimal(18, 4)
+  rageClickRate    Decimal?           @db.Decimal(18, 4)
+  quickbackRate    Decimal?           @db.Decimal(18, 4)
+  /// Original metric objects keyed by metric name. Spend is not stored.
+  raw              Json               @default("{}")
+  campaignId       String?
+  campaign         Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  ingestedAt       DateTime           @default(now())
+
+  @@unique([workspaceId, clientId, projectId, date, breakdown, dimensionKey], map: "ClarityDaily_identity_key")
   @@index([workspaceId, clientId, date])
   @@index([campaignId])
 }

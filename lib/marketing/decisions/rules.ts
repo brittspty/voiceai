@@ -4,6 +4,7 @@
  */
 
 import { addDaysISO } from "../../time";
+import { evaluateClarityDecisions, type ClaritySlice, type ClaritySpendSlice } from "../clarity/decisions";
 import { evaluateAnalyticsDecisions, type AnalyticsSlice, type SpendSlice } from "../google-analytics/decisions";
 import { normalizeAppName } from "./apps";
 import { FOLDABLE_RULES } from "./fold";
@@ -117,6 +118,10 @@ export type RuleInput = {
   analyticsEnabled?: boolean;
   analytics?: readonly AnalyticsSlice[];
   spend?: readonly SpendSlice[];
+  /** Set only when CLARITY_SYNC is on and a project token env is present. */
+  clarityEnabled?: boolean;
+  clarity?: readonly ClaritySlice[];
+  claritySpend?: readonly ClaritySpendSlice[];
 };
 
 const NO_WRITE = { writesAds: false as const, changesSpend: false as const, budgetWrite: "none" as const };
@@ -700,6 +705,7 @@ export function evaluateDecisionRules(input: RuleInput) {
     ...groupedAlertDrafts(input.alerts ?? []),
     ...foldAlertDrafts(input.alerts ?? []),
     ...(input.analyticsEnabled ? evaluateAnalyticsDecisions({ end: input.end, analytics: input.analytics, spend: input.spend }) : []),
+    ...(input.clarityEnabled ? evaluateClarityDecisions({ end: input.end, clarity: input.clarity, spend: input.claritySpend }) : []),
   ];
 }
 

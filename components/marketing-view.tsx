@@ -5,7 +5,9 @@ import { visibleDecisionCards } from "@/lib/marketing/decision-ui";
 import { HourlySummary } from "@/components/hourly-summary";
 import { SpeedToLeadTile } from "@/components/speed-to-lead-tile";
 import { AnalyticsTraffic } from "@/components/analytics-traffic";
+import { ClarityFrustration } from "@/components/clarity-frustration";
 import type { AnalyticsTrafficView } from "@/lib/marketing/google-analytics/view";
+import type { ClarityFrustrationView } from "@/lib/marketing/clarity/view";
 import type { SpeedDashboardView } from "@/lib/marketing/speed-to-lead";
 import { ShareLinkButton } from "@/components/share-link-button";
 import { Pill } from "@/components/pills";
@@ -228,6 +230,7 @@ export function MarketingView(props: {
   fatigue?: { enabled: boolean; ads: { campaignId: string; adName: string; headline: string; platform: string; chip: string }[] };
   demoData?: boolean;
   analytics?: AnalyticsTrafficView | null;
+  clarity?: ClarityFrustrationView | null;
 }) {
   const seesCost = Boolean(props.flags?.seesCost);
   const searchTerms = props.searchTerms ?? [];
@@ -289,6 +292,7 @@ export function MarketingView(props: {
         </div>
       )}
       {props.analytics ? <AnalyticsTraffic view={props.analytics} /> : null}
+      {props.clarity ? <ClarityFrustration view={props.clarity} /> : null}
       {props.lastRun && (
         <p className="mb-4 text-sm text-muted">
           Last sync {props.lastRun.mode} · {props.lastRun.status}

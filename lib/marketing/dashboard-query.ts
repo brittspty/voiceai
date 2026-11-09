@@ -3,7 +3,8 @@ import { prisma } from "../db";
 import { addDaysISO, zonedISODate } from "../time";
 import { canSwitchMarketingClient, roleLabel, type MarketingAccess } from "./access";
 import { presentWithoutCost } from "./client-view";
-import { googleAnalyticsSyncEnabled, marketingClientSwitcherEnabled, type Env } from "./config";
+import { claritySyncEnabled, googleAnalyticsSyncEnabled, marketingClientSwitcherEnabled, type Env } from "./config";
+import { loadClarityFrustration } from "./clarity/query";
 import { loadAnalyticsTraffic } from "./google-analytics/query";
 import { isCostContent } from "./cost-visibility";
 import {
@@ -379,6 +380,16 @@ export async function loadDashboard(input: {
       env,
     });
     if (analytics) model.analytics = analytics;
+  }
+  if (claritySyncEnabled(env)) {
+    const clarity = await loadClarityFrustration({
+      workspaceId,
+      clientId: mode === "staff" ? clientId : null,
+      days: input.analyticsDays ?? 30,
+      now: input.now,
+      env,
+    });
+    if (clarity) model.clarity = clarity;
   }
   return withChoices(presentWithoutCost(projectDashboard(model, { mode, showMoney, canEditLeadValue: editable }), showMoney));
 }

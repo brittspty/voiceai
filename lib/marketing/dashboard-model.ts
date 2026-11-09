@@ -1,5 +1,6 @@
 import { forbiddenClientKeys } from "./client-view";
 import { googleAdsEnabled, stackAdaptEnabled, stackAdaptSyncEnabled, type Env } from "./config";
+import { clarityForViewer, type ClarityFrustrationView } from "./clarity/view";
 import { analyticsForViewer, type AnalyticsTrafficView } from "./google-analytics/view";
 import { estimatedRoas, formatCents } from "./lead-value";
 import { isolatedWhere } from "./workspace";
@@ -84,6 +85,8 @@ export type DashboardModel = {
   clientChoices?: DashClientChoice[];
   /** Site traffic from Google Analytics. Absent unless GOOGLE_ANALYTICS_SYNC is on and a client is mapped. */
   analytics?: AnalyticsTrafficView;
+  /** Frustrated landing pages from Clarity. Absent unless CLARITY_SYNC is on and a client is mapped. */
+  clarity?: ClarityFrustrationView;
 };
 
 export type DashClientChoice = { id: string; name: string };
@@ -444,6 +447,7 @@ export function projectDashboard(
     mock: model.mock,
   };
   if (model.analytics) next.analytics = analyticsForViewer(model.analytics);
+  if (model.clarity) next.clarity = clarityForViewer(model.clarity);
   if (showMoney) next.leadValue = model.leadValue ?? null;
   if (client) assertClientSafe(next);
   return next;
