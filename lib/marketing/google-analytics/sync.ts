@@ -100,66 +100,194 @@ async function loadCampaigns(): Promise<AnalyticsCampaignRef[]> {
   });
 }
 
-async function persistRows(rows: AnalyticsWriteRow[], since: string, until: string) {
-  const { prisma } = await import("../../db");
+/** Rows in one createMany. A day bigger than this is split into more short transactions. */
+export const ANALYTICS_DAILY_WRITE_CHUNK = 500;
+
+/** Passed on every batch so each transaction has an explicit timeout. */
+export const ANALYTICS_WRITE_TIMEOUT_MS = 15_000;
+export const ANALYTICS_WRITE_MAX_WAIT_MS = 5_000;
+
+export type AnalyticsDailyWriteData = {
+  workspaceId: string;
+  clientId: string;
+  propertyId: string;
+  connectionName: string;
+  date: Date;
+  dimensionKey: string;
+  sessionCampaignName: string;
+  sessionSource: string;
+  sessionMedium: string;
+  landingPage: string;
+  sessions: number;
+  engagedSessions: number;
+  conversions: number;
+  campaignId: string | null;
+};
+
+export type AnalyticsWriteChunk = {
+  clientId: string;
+  propertyId: string;
+  /** Dates cleared before this chunk's inserts. Empty on a continuation chunk so earlier batches stay put. */
+  deleteDates: string[];
+  rows: AnalyticsWriteRow[];
+};
+
+type AnalyticsDailyWriter = {
+  googleAnalyticsDaily: {
+    deleteMany(args: { where: { workspaceId: string; clientId: string; propertyId: string; date: { in: Date[] } } }): Promise<unknown>;
+    createMany(args: { data: AnalyticsDailyWriteData[] }): Promise<unknown>;
+  };
+};
+
+export type AnalyticsDailyDatabase = {
+  $transaction<T>(fn: (tx: AnalyticsDailyWriter) => Promise<T>, options?: { maxWait?: number; timeout?: number }): Promise<T>;
+};
+
+function utcDay(iso: string) {
+  return new Date(`${iso}T00:00:00.000Z`);
+}
+
+function isoDatesThrough(since: string, until: string) {
+  const dates: string[] = [];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(since) || !/^\d{4}-\d{2}-\d{2}$/.test(until)) return dates;
+  let cursor = since;
+  for (let i = 0; i < 400 && cursor <= until; i += 1) {
+    dates.push(cursor);
+    const next = addDaysISO(cursor, 1);
+    if (next <= cursor) break;
+    cursor = next;
+  }
+  return dates;
+}
+
+function dailyData(row: AnalyticsWriteRow): AnalyticsDailyWriteData {
+  return {
+    workspaceId: WORKSPACE_ID,
+    clientId: row.clientId,
+    propertyId: row.propertyId,
+    connectionName: row.connectionName,
+    date: utcDay(row.date),
+    dimensionKey: row.dimensionKey,
+    sessionCampaignName: row.sessionCampaignName,
+    sessionSource: row.sessionSource,
+    sessionMedium: row.sessionMedium,
+    landingPage: row.landingPage,
+    sessions: row.sessions,
+    engagedSessions: row.engagedSessions,
+    conversions: row.conversions,
+    campaignId: row.campaignId,
+  };
+}
+
+/**
+ * One chunk is one short transaction.
+ * The first chunk of a day deletes that day, then inserts. Later chunks only insert.
+ * Days in the window with no rows are deleted so a re-run matches the pull and does not leave stale keys.
+ * Duplicate dimension keys on the same day collapse to the last row, matching the old upsert.
+ */
+export function planAnalyticsWriteChunks(
+  rows: readonly AnalyticsWriteRow[],
+  since: string,
+  until: string,
+  chunkSize = ANALYTICS_DAILY_WRITE_CHUNK,
+): AnalyticsWriteChunk[] {
+  const size = Math.max(1, Math.floor(chunkSize));
+  const window = isoDatesThrough(since, until);
   const groups = new Map<string, AnalyticsWriteRow[]>();
   for (const row of rows) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(row.date)) continue;
     const key = `${row.clientId}\u001f${row.propertyId}`;
     const list = groups.get(key) ?? [];
     list.push(row);
     groups.set(key, list);
   }
-  const start = new Date(`${since}T00:00:00.000Z`);
-  const end = new Date(`${until}T00:00:00.000Z`);
+  const chunks: AnalyticsWriteChunk[] = [];
   for (const group of groups.values()) {
     const sample = group[0];
     if (!sample) continue;
-    await prisma.$transaction(async (tx) => {
-      for (const row of group) {
-        const data = {
-          connectionName: row.connectionName,
-          sessionCampaignName: row.sessionCampaignName,
-          sessionSource: row.sessionSource,
-          sessionMedium: row.sessionMedium,
-          landingPage: row.landingPage,
-          sessions: row.sessions,
-          engagedSessions: row.engagedSessions,
-          conversions: row.conversions,
-          campaignId: row.campaignId,
-        };
-        await tx.googleAnalyticsDaily.upsert({
-          where: {
-            workspaceId_clientId_propertyId_date_dimensionKey: {
-              workspaceId: WORKSPACE_ID,
-              clientId: row.clientId,
-              propertyId: row.propertyId,
-              date: new Date(`${row.date}T00:00:00.000Z`),
-              dimensionKey: row.dimensionKey,
-            },
-          },
-          create: {
-            workspaceId: WORKSPACE_ID,
-            clientId: row.clientId,
-            propertyId: row.propertyId,
-            date: new Date(`${row.date}T00:00:00.000Z`),
-            dimensionKey: row.dimensionKey,
-            ...data,
-          },
-          update: data,
-        });
-      }
-      await tx.googleAnalyticsDaily.deleteMany({
-        where: {
-          workspaceId: WORKSPACE_ID,
+    const byDate = new Map<string, Map<string, AnalyticsWriteRow>>();
+    for (const row of group) {
+      const day = byDate.get(row.date) ?? new Map<string, AnalyticsWriteRow>();
+      day.set(row.dimensionKey, row);
+      byDate.set(row.date, day);
+    }
+    const covered = new Set(byDate.keys());
+    const emptyDates = window.filter((date) => !covered.has(date));
+    if (emptyDates.length) {
+      chunks.push({ clientId: sample.clientId, propertyId: sample.propertyId, deleteDates: emptyDates, rows: [] });
+    }
+    for (const date of [...byDate.keys()].sort()) {
+      const dayRows = [...(byDate.get(date)?.values() ?? [])];
+      for (let offset = 0; offset < dayRows.length; offset += size) {
+        chunks.push({
           clientId: sample.clientId,
           propertyId: sample.propertyId,
-          date: { gte: start, lte: end },
-          dimensionKey: { notIn: group.map((row) => row.dimensionKey) },
-        },
-      });
-    });
+          deleteDates: offset === 0 ? [date] : [],
+          rows: dayRows.slice(offset, offset + size),
+        });
+      }
+    }
   }
-  return rows.length;
+  return chunks;
+}
+
+/**
+ * Writes each property in its own series of short transactions.
+ * A property that fails does not stop the properties after it.
+ * Running again deletes each day in the window and inserts the same rows, so the table matches the pull.
+ */
+export async function writeAnalyticsDailyRows(
+  db: AnalyticsDailyDatabase,
+  rows: readonly AnalyticsWriteRow[],
+  since: string,
+  until: string,
+): Promise<number> {
+  const chunks = planAnalyticsWriteChunks(rows, since, until);
+  const order: string[] = [];
+  const byClient = new Map<string, AnalyticsWriteChunk[]>();
+  for (const chunk of chunks) {
+    const key = `${chunk.clientId}\u001f${chunk.propertyId}`;
+    if (!byClient.has(key)) order.push(key);
+    const list = byClient.get(key) ?? [];
+    list.push(chunk);
+    byClient.set(key, list);
+  }
+  const failures: unknown[] = [];
+  let written = 0;
+  const options = { maxWait: ANALYTICS_WRITE_MAX_WAIT_MS, timeout: ANALYTICS_WRITE_TIMEOUT_MS };
+  for (const key of order) {
+    const group = byClient.get(key) ?? [];
+    try {
+      for (const chunk of group) {
+        await db.$transaction(async (tx) => {
+          if (chunk.deleteDates.length) {
+            await tx.googleAnalyticsDaily.deleteMany({
+              where: {
+                workspaceId: WORKSPACE_ID,
+                clientId: chunk.clientId,
+                propertyId: chunk.propertyId,
+                date: { in: chunk.deleteDates.map(utcDay) },
+              },
+            });
+          }
+          if (chunk.rows.length) await tx.googleAnalyticsDaily.createMany({ data: chunk.rows.map(dailyData) });
+        }, options);
+      }
+      written += group.reduce((sum, chunk) => sum + chunk.rows.length, 0);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length) {
+    throw new Error(failures.map((error) => (error instanceof Error ? error.message : "Analytics write failed")).join("; "));
+  }
+  return written;
+}
+
+async function persistRows(rows: AnalyticsWriteRow[], since: string, until: string) {
+  const { prisma } = await import("../../db");
+  return writeAnalyticsDailyRows(prisma as unknown as AnalyticsDailyDatabase, rows, since, until);
 }
 
 /**
