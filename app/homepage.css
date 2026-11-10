@@ -263,8 +263,9 @@ html:has(.home) body {
 .home .hero {
   border: 0;
   position: relative;
-  padding: 28px 0 48px;
-  overflow: hidden;
+  /* The sticky header is 84px and pulled over the hero with a negative margin. */
+  padding: 112px 0 48px;
+  overflow: visible;
 }
 .home .hero-grid {
   display: grid;
@@ -433,12 +434,12 @@ html:has(.home) body {
   max-width: none;
 }
 .home .hero-mark {
-  height: 148px !important;
+  height: 176px !important;
   width: auto !important;
 }
 .home .hero-tag {
   margin: 8px 0 0;
-  font-size: clamp(44px, 4.4vw, 76px);
+  font-size: clamp(48px, 4.8vw, 84px);
   font-weight: 600;
   letter-spacing: -0.035em;
   line-height: 0.98;
@@ -1317,7 +1318,7 @@ html:has(.home) body {
     padding: 0 20px;
   }
   .home .hero {
-    padding: 20px 0 36px;
+    padding: 108px 0 36px;
   }
   .home .hero-grid {
     grid-template-columns: 1fr;
@@ -1325,7 +1326,7 @@ html:has(.home) body {
     gap: 20px;
   }
   .home .hero-mark {
-    height: 104px !important;
+    height: 128px !important;
   }
   .home .hero-tag {
     font-size: clamp(40px, 11vw, 56px);
