@@ -292,22 +292,14 @@ html:has(.home) body {
   height: auto;
 }
 .home .hero-flow .flow-frame,
-.home .hero-flow .flow-pill-on,
+.home .hero-flow .flow-pill,
 .home .hero-flow .flow-line {
   fill: none;
   stroke: var(--brand);
   stroke-width: 1.5;
 }
 .home .hero-flow .flow-line {
-  opacity: 0.55;
-}
-.home .hero-flow .flow-line-on {
-  opacity: 1;
-}
-.home .hero-flow .flow-pill {
-  fill: none;
-  stroke: var(--mute);
-  stroke-width: 1.5;
+  opacity: 0.85;
 }
 .home .hero-flow .flow-bar {
   fill: var(--dim);
@@ -320,11 +312,12 @@ html:has(.home) body {
   font-family: var(--font-brand), Poppins, "Segoe UI", Arial, sans-serif;
   font-weight: 600;
 }
-.home .hero-flow .flow-kicker {
+.home .hero-flow .flow-claim {
+  margin: 14px 0 0;
   font-size: 15px;
-}
-.home .hero-flow .flow-name {
-  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--tx);
 }
 .home .hero-flow figcaption {
   margin-top: 10px;
