@@ -1,7 +1,7 @@
 {
-  "name": "JAI by Specificity",
-  "short_name": "JAI",
-  "description": "Your Audience; Everywhere",
+  "name": "jAI by Specificity",
+  "short_name": "jAI",
+  "description": "Your audience. Everywhere.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#231F20",

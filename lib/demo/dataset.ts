@@ -6,6 +6,23 @@ export const DEMO_FACTS = {
   matchedMaids: 48,
 } as const;
 
+/** One sample list, sourced for one sample campaign. Not a live vendor feed. */
+export const DEMO_LIST = {
+  vendor: "Harbor List Co (Demo)",
+  listId: "demo-list-harbor-041",
+  sourcedAt: "2026-10-28T14:12:00.000Z",
+  campaign: "Spring haul-out",
+} as const;
+
+/** An owned file that is older than the campaign. The demo does not use it. */
+export const DEMO_STALE_LIST = {
+  name: "Owned customer file",
+  vendor: "On file",
+  listId: "owned-harbor-2024",
+  sourcedAt: "2024-11-02T09:00:00.000Z",
+  note: "Static file. Not sourced for this campaign.",
+} as const;
+
 export type DemoPlatform = "meta" | "google_ads" | "tiktok" | "stackadapt" | "ais2l";
 export type FatigueState = "fresh" | "tiring" | "fatigued";
 
@@ -60,6 +77,9 @@ export type DemoMaid = {
   maid: string;
   matched: boolean;
   lineage: string;
+  vendor: string;
+  listId: string;
+  sourcedAt: string;
 };
 
 export type DemoSegment = {
@@ -298,7 +318,10 @@ export function buildDemoDataset(now = new Date("2026-10-30T15:00:00Z")): DemoDa
       clientId: "demo_harbor",
       maid: `demo-maid-harbor-${n}`,
       matched: index < DEMO_FACTS.matchedMaids,
-      lineage: "Demo upload Harbor Point Marine (Demo), file demo-upload-001",
+      vendor: DEMO_LIST.vendor,
+      listId: DEMO_LIST.listId,
+      sourcedAt: DEMO_LIST.sourcedAt,
+      lineage: `${DEMO_LIST.vendor}, list ${DEMO_LIST.listId}, sourced ${DEMO_LIST.sourcedAt} for ${DEMO_LIST.campaign}`,
     };
   });
   return {

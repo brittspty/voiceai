@@ -79,7 +79,7 @@ See `.env.example`. Secrets are only read from the environment. Do not commit `.
 | `SEED_OWNER_NAME`, `SEED_OWNER_EMAIL`, `SEED_OWNER_PASSWORD` | Owner created on the first seed. Admin and viewer use the same `SEED_ADMIN_*` and `SEED_VIEWER_*` shape, and are created only when `SEED_SAMPLE_DATA` is true |
 | `SEED_SAMPLE_DATA` | `true` (default) fills Calls and Overview with sample leads and creates the admin and viewer. `false` leaves an empty dialer and creates only the owner |
 | `SHOW_DEMO_LOGIN` | `true` or `false`. Unset shows the demo hint only when `APP_URL` is localhost |
-| `PUBLIC_HOMEPAGE` | `on` serves the public JAI page at `/`. Off (default) leaves `/` as the signed-in app |
+| `PUBLIC_HOMEPAGE` | `on` serves the public jAI page at `/`. Off (default) leaves `/` as the signed-in app |
 | `DEMO_WORKSPACE` | `on` shows Try the demo, linking to `/demo` (the enter flow: a signed link or the demo access page). Off hides those buttons. Primary path is `jai.specificityinc.com/demo`. `demo.jai.specificityinc.com` is optional future DNS and rewrites onto `/demo` |
 | `HOMEPAGE_DIRECTION` | `B` (default) or `A`. Layout only. Ignored while `PUBLIC_HOMEPAGE` is off |
 
@@ -310,7 +310,7 @@ Daily rows are unique on workspace, date, platform, ad, audience segment, and at
 
 The connector is off unless `GOOGLE_ANALYTICS_SYNC` is `on`. It stays off, and writes nothing, until that flag is on and a refresh token is present. It does not read `GOOGLE_ADS_REFRESH_TOKEN` and it does not request the adwords scope. The token refresh uses the existing web OAuth client (`GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`) and `https://www.googleapis.com/auth/analytics.readonly`.
 
-The only Analytics call is `POST https://analyticsdata.googleapis.com/v1beta/properties/{propertyId}:runReport`. Sessions, engaged sessions, and key events are stored by day with session campaign, source, medium, and landing page. Those rows join to a JAI campaign when the session campaign id or name matches one campaign for that client. The dashboard shows the traffic next to campaign performance. Clients, client viewers, and share links can see the traffic. Spend, ROAS, and cost stay off those surfaces.
+The only Analytics call is `POST https://analyticsdata.googleapis.com/v1beta/properties/{propertyId}:runReport`. Sessions, engaged sessions, and key events are stored by day with session campaign, source, medium, and landing page. Those rows join to a jAI campaign when the session campaign id or name matches one campaign for that client. The dashboard shows the traffic next to campaign performance. Clients, client viewers, and share links can see the traffic. Spend, ROAS, and cost stay off those surfaces.
 
 `GOOGLE_ANALYTICS_REFRESH_TOKEN` is the primary connection (ads@specificityinc.com). An empty `googleAnalyticsConnectionName` on a client uses it. `GOOGLE_ANALYTICS_EXTRA_CONNECTIONS` lists more logins, the same way Meta and Traxy list extras. A name `angelo` reads `GOOGLE_ANALYTICS_ANGELO_REFRESH_TOKEN`. Angelo Marketing and Capital Financial USA are expected later and are not mapped in this change. A client pointed at a name that has no token is skipped and logged. A client with no property id is skipped. The demo workspace does not call Google.
 

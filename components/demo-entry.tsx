@@ -1,10 +1,13 @@
 import Link from "next/link";
+import { DEMO_FACTS } from "@/lib/demo/dataset";
 import { DEMO_CONTACT_HREF } from "@/lib/demo/routes";
+import { renderTourSteps, tourLocation } from "@/lib/demo/tour";
 
 export function DemoEntry({ view, tourEnabled }: { view: "staff" | "client"; tourEnabled: boolean }) {
   const staff = view === "staff";
-  const tour = tourEnabled ? `/demo?tour=present&step=1&view=${view}` : "/demo";
-  const self = tourEnabled ? `/demo?tour=self&step=1&view=${view}` : "/demo";
+  const first = renderTourSteps(DEMO_FACTS)[0];
+  const tour = tourEnabled && first ? tourLocation(first, "present", view, 0) : "/demo";
+  const self = tourEnabled && first ? tourLocation(first, "self", view, 0) : "/demo";
   return (
     <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-line bg-card p-4 md:p-6">
       <div className="flex flex-wrap gap-2" role="group" aria-label="Staff or client view">

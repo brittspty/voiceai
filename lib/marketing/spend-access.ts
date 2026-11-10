@@ -156,6 +156,7 @@ const SAFE_KEYS = new Set(
     "deterministicclickconversions", "deterministicviewconversions", "allmatchedconversions",
     "liftcilow", "liftcihigh", "householdids", "iphashes", "identity",
     "alerts", "recommendations", "notes", "user", "userid",
+    "sourcedat",
   ].map(spendKey),
 );
 

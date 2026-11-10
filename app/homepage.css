@@ -263,29 +263,80 @@ html:has(.home) body {
 .home .hero {
   border: 0;
   position: relative;
-  min-height: max(760px, min(100svh, 940px));
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 140px 0 56px;
-  overflow: hidden;
+  /* The sticky header is 84px and pulled over the hero with a negative margin. */
+  padding: 112px 0 48px;
+  overflow: visible;
 }
-.home #field {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+.home .hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  grid-template-areas: "lock visual" "rest visual";
+  gap: 12px 40px;
+  align-items: center;
+}
+.home .hero-lockup {
+  grid-area: lock;
+}
+.home .hero-rest {
+  grid-area: rest;
+}
+.home .hero-flow {
+  grid-area: visual;
+}
+.home .hero-flow {
+  margin: 0;
+}
+.home .hero-flow svg {
   display: block;
+  width: 100%;
+  height: auto;
+}
+.home .hero-flow .flow-frame,
+.home .hero-flow .flow-pill,
+.home .hero-flow .flow-line {
+  fill: none;
+  stroke: var(--brand);
+  stroke-width: 1.5;
+}
+.home .hero-flow .flow-line {
+  opacity: 0.85;
+}
+.home .hero-flow .flow-bar {
+  fill: var(--dim);
+}
+.home .hero-flow .flow-bar-on {
+  fill: var(--brand);
+}
+.home .hero-flow text {
+  fill: var(--tx);
+  font-family: var(--font-brand), Poppins, "Segoe UI", Arial, sans-serif;
+  font-weight: 600;
+}
+.home .hero-flow .flow-claim {
+  margin: 14px 0 0;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--tx);
+}
+.home .hero-flow figcaption {
+  margin-top: 10px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--mute);
 }
 .home .hero .w {
   position: relative;
   width: 100%;
 }
 .home .hero h1 {
-  font-size: clamp(48px, 7.2vw, 112px);
-  line-height: 0.95;
-  letter-spacing: -0.045em;
-  max-width: 11ch;
+  font-size: clamp(22px, 1.7vw, 32px);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  max-width: 22ch;
+  margin-top: 18px;
+  font-weight: 500;
+  color: #d9d2cc;
 }
 .home .hero h1 em {
   font-style: normal;
@@ -366,6 +417,32 @@ html:has(.home) body {
   border: 1px solid #8d8486;
   padding: 2px 8px;
   border-radius: 3px;
+}
+.home .hero-lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+  max-width: none;
+}
+.home .hero-mark {
+  height: 176px !important;
+  width: auto !important;
+}
+.home .hero-tag {
+  margin: 8px 0 0;
+  font-size: clamp(48px, 4.8vw, 84px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 0.98;
+  color: var(--tx);
+}
+.home .hero-support {
+  margin: 0;
+  color: var(--brand);
+  font-size: 16px;
+  font-weight: 600;
 }
 .home .tagline {
   font-size: 13px;
@@ -928,6 +1005,11 @@ html:has(.home) body {
   font-size: 18px;
   margin-bottom: 16px;
 }
+.home .cmp p {
+  max-width: 68ch;
+  color: #d9d2cc;
+  font-size: 16px;
+}
 .home .cmp-cols {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1228,22 +1310,23 @@ html:has(.home) body {
   .home .w {
     padding: 0 20px;
   }
-  .home #field {
-    opacity: 0.55;
-  }
-  .home .legend {
-    top: 96px;
-    right: 20px;
-  }
-  .home .legend span:not(.tag) {
-    display: none;
-  }
   .home .hero {
-    padding: 120px 0 40px;
-    min-height: 760px;
+    padding: 108px 0 36px;
+  }
+  .home .hero-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas: "lock" "visual" "rest";
+    gap: 20px;
+  }
+  .home .hero-mark {
+    height: 128px !important;
+  }
+  .home .hero-tag {
+    font-size: clamp(40px, 11vw, 56px);
   }
   .home .hero h1 {
-    font-size: clamp(46px, 13vw, 68px);
+    font-size: 20px;
+    line-height: 1.25;
   }
   .home .beats,
   .home .dg,

@@ -224,8 +224,9 @@ test("rendered public pages and email templates do not say Jarvis", async () => 
   assert.deepEqual(lower, [], `${lower.join(",")} near ${JSON.stringify(visible.slice(Math.max(0, visible.toLowerCase().indexOf("jarvis") - 60), visible.toLowerCase().indexOf("jarvis") + 60))}`);
   assert.deepEqual(diver, [], `${diver.join(",")} near ${JSON.stringify(visible.slice(Math.max(0, visible.toLowerCase().indexOf("diver ai") - 60), visible.toLowerCase().indexOf("diver ai") + 60))}`);
   assert.equal(scanned.includes("Diver AI"), false);
-  assert.match(visible, /\bJAI\b/);
-  assert.match(scanned, /JAI by Specificity/);
-  assert.match(scanned, /JAI home/);
-  assert.match(manifest, /"short_name": "JAI"/);
+  assert.match(visible, /\bjAI\b/);
+  assert.equal(/\bJAI\b/.test(visible), false);
+  assert.match(scanned, /jAI by Specificity/);
+  assert.match(scanned, /jAI home/);
+  assert.match(manifest, /"short_name": "jAI"/);
 });

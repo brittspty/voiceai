@@ -2,12 +2,12 @@
  * Visitor marketing brand. Signed-in app chrome keeps lib/brand.ts.
  * Jason locked the public tagline and the public web address.
  */
-export const PUBLIC_TAGLINE = "Your Audience; Everywhere";
+export const PUBLIC_TAGLINE = "Your audience. Everywhere.";
 /** Supporting line for ads and marketing, shown next to the tagline. */
-export const PUBLIC_AD_LINE = "Bots optimize, you make the call";
+export const PUBLIC_AD_LINE = "Bots optimize, humans make the call";
 export const PUBLIC_SITE_HOST = "jai.specificityinc.com";
 export const PUBLIC_SITE_ORIGIN = "https://jai.specificityinc.com";
-export const PUBLIC_LOGO_ALT = "JAI by Specificity";
+export const PUBLIC_LOGO_ALT = "jAI by Specificity";
 
 export const publicLogos = {
   wordmarkDark: "/brand/jai-wordmark-dark.svg",

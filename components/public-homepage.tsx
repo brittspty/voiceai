@@ -4,7 +4,7 @@ import { TrackedLink } from "@/components/homepage-cta-link";
 import { ContactForm } from "@/components/homepage-contact-form";
 import { HomepageDemo } from "@/components/homepage-demo";
 import { HomepageFeed } from "@/components/homepage-feed";
-import { HomepageField } from "@/components/homepage-field";
+import { HomepageFlow } from "@/components/homepage-flow";
 import { HomepageMenu } from "@/components/homepage-header";
 import { HomepageQuiz } from "@/components/homepage-quiz";
 import { HOMEPAGE_REVEAL_SCRIPT, HomepageReveal } from "@/components/homepage-reveal";
@@ -118,23 +118,19 @@ export function PublicHomepage({
       <HomepageReveal>
         <main>
           <section className="hero" id="hero" aria-labelledby="h1">
-            <HomepageField />
-            <p className="legend mono">
-              <span>
-                <i className="swatch-dim" />
-                {model.hero.legend[0]}
-              </span>
-              <span>
-                <i className="swatch-paper" />
-                {model.hero.legend[1]}
-              </span>
-              <span>
-                <i className="swatch-brand" />
-                {model.hero.legend[2]}
-              </span>
-              <span className="tag">{model.illustrative}</span>
-            </p>
-            <div className="w">
+            <div className="w hero-grid">
+              <div className="hero-lockup">
+                <img
+                  src={model.logos.wordmark}
+                  alt={model.logos.alt}
+                  width={publicLogoSize("wordmark", 112).width}
+                  height={publicLogoSize("wordmark", 112).height}
+                  className="hero-mark"
+                />
+                <p className="hero-tag">{model.tagline}</p>
+                <p className="hero-support">{model.supportLine}</p>
+              </div>
+              <div className="hero-rest">
               <h1 id="h1">
                 {model.hero.title}<em>.</em>
               </h1>
@@ -152,14 +148,12 @@ export function PublicHomepage({
                 </div>
               </div>
               <div className="tagline mono">
-                <span className="tagline-lead">
-                  <span>{model.tagline}</span>
-                  <span className="tagline-support">{model.supportLine}</span>
-                </span>
                 <span>
                   {model.product} {model.byline}
                 </span>
               </div>
+              </div>
+              <HomepageFlow />
             </div>
           </section>
 
@@ -304,7 +298,7 @@ export function PublicHomepage({
                 <HomepageDemo segments={model.segments} illustrative={model.illustrative} group={model.demo.group} barNote={model.demo.barNote} />
                 <div className="panel">
                   <div className="ph mono">
-                    <span>{model.product.toUpperCase()} DECISION FEED</span>
+                    <span>{model.product} decision feed</span>
                     <span>{model.example}</span>
                   </div>
                   <HomepageFeed items={model.feed} example={model.example} />
@@ -356,17 +350,10 @@ export function PublicHomepage({
               <h2>{model.compare.title}</h2>
               <p className="lead">{model.compare.lead}</p>
               <div className="cmp">
-                {model.compare.rows.map((row) => (
-                  <article key={row.label}>
-                    <h3>{row.label}</h3>
-                    <div className="cmp-cols">
-                      {row.cells.map((cell, index) => (
-                        <p key={model.compare.columns[index]}>
-                          <span className="lab mono">{model.compare.columns[index]}</span>
-                          {cell}
-                        </p>
-                      ))}
-                    </div>
+                {model.compare.points.map((point) => (
+                  <article key={point.label}>
+                    <h3>{point.label}</h3>
+                    <p>{point.body}</p>
                   </article>
                 ))}
               </div>

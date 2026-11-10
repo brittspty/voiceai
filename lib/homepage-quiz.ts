@@ -18,7 +18,7 @@ export function quizRead(answers: QuizAnswers): string[] | null {
   const [who, bots, why, retarget] = order;
   const lines: string[] = [];
   if (who === "p") {
-    lines.push("Your audience is chosen by the platform. That is where guesswork starts. Building it from verified people first is the biggest fix.");
+    lines.push("Your audience is chosen by the platform. That is where guesswork starts. Sourcing a fresh list from the live data market is the biggest fix.");
   }
   if (who === "a") {
     lines.push("Ask your agency where the audience comes from. If the answer is platform targeting, you are paying for its guess.");

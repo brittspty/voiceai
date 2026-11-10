@@ -76,7 +76,7 @@ test("the seed is fictional, deterministic, and stays inside the demo workspace"
     assert.match(client.email, /@example\.com$/);
     assert.match(client.phone, /^\+1555555/);
   }
-  assert.ok(first.maids.every((row) => row.maid.startsWith("demo-maid-")));
+  assert.ok(first.maids.every((row) => row.maid.startsWith("demo-maid-") && row.vendor.length > 0 && row.listId.length > 0 && row.sourcedAt.length > 0));
   assert.equal(first.maids.length, DEMO_FACTS.fakeMaids);
   const platforms = new Set(first.campaigns.map((row) => row.platform));
   for (const platform of ["meta", "google_ads", "tiktok", "stackadapt", "ais2l"]) assert.ok(platforms.has(platform as "meta"));
@@ -142,9 +142,9 @@ test("client view drops cost and the demo frame is labeled", () => {
     </DemoFrame>,
   );
   assert.match(html, /DEMO/);
-  assert.match(html, /JAI/);
-  assert.match(html, /Your Audience; Everywhere/);
-  assert.match(html, /Bots optimize, you make the call/);
+  assert.match(html, /jAI/);
+  assert.match(html, /Your audience\. Everywhere\./);
+  assert.match(html, /Bots optimize, humans make the call/);
   assert.equal(html.includes("Your Buyer Audience; Everywhere"), false);
   assert.match(html, /DEMO DATA/);
   assert.match(html, /demo-frame/);
@@ -160,9 +160,13 @@ test("client view drops cost and the demo frame is labeled", () => {
 test("client screens hide spend and staff spend stays illustrative", () => {
   const staff = presentDemo(buildDemoDataset(), "staff");
   const client = presentDemo(buildDemoDataset(), "client");
-  const screens: DemoScreenId[] = ["command", "audiences", "serving", "segments", "compare", "explanations", "decisions", "report"];
-  const clientHtml = screens.map((screen) => renderToStaticMarkup(<DemoScreens screen={screen} data={client} tourEnabled />)).join("\n");
-  const staffHtml = screens.map((screen) => renderToStaticMarkup(<DemoScreens screen={screen} data={staff} tourEnabled />)).join("\n");
+  const screens: DemoScreenId[] = ["command", "problem", "audiences", "serving", "segments", "verified", "compare", "explanations", "decisions", "vendors", "report", "close", "client", "investor"];
+  const clientHtml = screens.filter((screen) => screen !== "investor").map((screen) => renderToStaticMarkup(<DemoScreens screen={screen} data={client} tourEnabled />)).join("\n");
+  const staffHtml = screens.filter((screen) => screen !== "investor").map((screen) => renderToStaticMarkup(<DemoScreens screen={screen} data={staff} tourEnabled />)).join("\n");
+  const investorHtml = renderToStaticMarkup(<DemoScreens screen="investor" data={client} tourEnabled />);
+  assert.match(investorHtml, /\$294\.6B/);
+  assert.match(investorHtml, /\$162\.4B/);
+  assert.match(investorHtml, /\[Specificity figure\]/);
   assert.equal(clientHtml.includes("$"), false);
   assert.equal(clientHtml.includes("Illustrative spend"), false);
   assert.match(clientHtml, /Spend stays off this page/);

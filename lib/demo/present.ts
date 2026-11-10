@@ -1,4 +1,4 @@
-import { campaignTotals, type DemoDataset, type DemoMetric } from "./dataset";
+import { campaignTotals, DEMO_LIST, DEMO_STALE_LIST, type DemoDataset, type DemoMetric } from "./dataset";
 import { dataChipLabel } from "./chip";
 import { projectWithoutSpend } from "../marketing/spend-access";
 
@@ -45,7 +45,19 @@ export function presentDemo(dataset: DemoDataset, view: DemoView) {
     audiences: {
       uploaded: dataset.maids.length,
       matched: dataset.maids.filter((row) => row.matched).length,
-      sample: dataset.maids.slice(0, 4).map((row) => ({ maid: row.maid, matched: row.matched, lineage: row.lineage })),
+      vendor: DEMO_LIST.vendor,
+      listId: DEMO_LIST.listId,
+      sourcedAt: DEMO_LIST.sourcedAt,
+      campaign: DEMO_LIST.campaign,
+      stale: { ...DEMO_STALE_LIST },
+      sample: dataset.maids.slice(0, 6).map((row) => ({
+        maid: row.maid,
+        matched: row.matched,
+        lineage: row.lineage,
+        vendor: row.vendor,
+        listId: row.listId,
+        sourcedAt: row.sourcedAt,
+      })),
     },
     serving: totals.filter((row) => !row.illustrative),
     segments: dataset.segments.map((row) => ({ ...row, client: clientName(row.clientId) })),

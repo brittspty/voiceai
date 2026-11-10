@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
-type Particle = { x: number; y: number; v: number; bot: boolean; seg: number; o: number; j: number };
+/** Particles that fall away are sample rows that do not become checked conversions. This is not a pre-serve bot filter. */
+type Particle = { x: number; y: number; v: number; drop: boolean; seg: number; o: number; j: number };
 
 function brandRgb() {
   const raw = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim();
@@ -39,7 +40,7 @@ export function HomepageField() {
         x,
         y: height * 0.16 + Math.random() * height * 0.52,
         v: 0.25 + Math.random() * 0.45,
-        bot: roll < 0.28,
+        drop: roll < 0.28,
         seg: (Math.random() * 3) | 0,
         o: (Math.random() - 0.5) * 26,
         j: Math.random() * 6.28,
@@ -76,7 +77,7 @@ export function HomepageField() {
         let size = 1.6;
         if (particle.x < gate()) {
           alpha = 0.45 + 0.35 * (particle.x / Math.max(gate(), 1));
-        } else if (particle.bot) {
+        } else if (particle.drop) {
           alpha = Math.max(0, 1 - (particle.x - gate()) / 70);
         } else if (particle.x < keep()) {
           color = "243,238,233";
@@ -105,12 +106,12 @@ export function HomepageField() {
       for (const particle of particles) {
         particle.x += particle.v;
         particle.j += 0.01;
-        if (particle.bot && particle.x > gate()) particle.y += 0.5;
-        if (!particle.bot && particle.x > keep()) {
+        if (particle.drop && particle.x > gate()) particle.y += 0.5;
+        if (!particle.drop && particle.x > keep()) {
           const target = lane(particle.seg) + particle.o + Math.sin(particle.j * 3) * 4;
           particle.y += (target - particle.y) * 0.035;
         }
-        if (particle.x > width + 4 || (particle.bot && particle.x > gate() + 80)) Object.assign(particle, make(-4));
+        if (particle.x > width + 4 || (particle.drop && particle.x > gate() + 80)) Object.assign(particle, make(-4));
       }
     }
 
