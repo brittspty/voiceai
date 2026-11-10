@@ -203,7 +203,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     example: EXAMPLE_LABEL,
     jasonFacts: JASON_FACTS,
     hero: {
-      title: "Stop renting the platform's guess. Own the audience",
+      title: "Stop letting platforms prescribe your ROI. Own the audience",
       before: "jAI sources each campaign from ",
       emphasis: "a fresh list in the live data market",
       after: ", with the vendor and list id on every row. Only deduped, contact-checked conversions count as wins.",
