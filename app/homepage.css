@@ -418,6 +418,11 @@ html:has(.home) body {
   padding: 2px 8px;
   border-radius: 3px;
 }
+.home .hero-lockup,
+.home .hero-rest,
+.home .hero-flow {
+  min-width: 0;
+}
 .home .hero-lockup {
   display: flex;
   flex-direction: column;
@@ -1289,44 +1294,46 @@ html:has(.home) body {
 }
 
 @media (max-width: 960px) {
-  .home .menu-btn {
-    display: inline-block !important;
-  }
-  .home .desk-nav {
-    display: none !important;
-  }
   .home .topbar {
     gap: 10px;
   }
-  .home .desk-logins {
-    margin-left: auto;
-    gap: 8px;
+  .home .desk-nav {
+    gap: 14px;
+    font-size: 13px;
   }
-  .home .desk-logins .client-login,
+  .home .desk-logins {
+    gap: 8px;
+    font-size: 13px;
+  }
   .home .desk-logins .team-login,
-  .home .desk-logins .go-app {
-    display: none;
+  .home .desk-logins .btn {
+    padding: 8px 10px;
+    min-height: 36px;
+    font-size: 13px;
   }
   .home .w {
     padding: 0 20px;
   }
   .home .hero {
-    padding: 108px 0 36px;
+    padding: 100px 0 28px;
   }
   .home .hero-grid {
-    grid-template-columns: 1fr;
-    grid-template-areas: "lock" "visual" "rest";
-    gap: 20px;
+    gap: 8px 16px;
   }
   .home .hero-mark {
-    height: 128px !important;
+    height: 120px !important;
   }
   .home .hero-tag {
-    font-size: clamp(40px, 11vw, 56px);
+    font-size: clamp(32px, 4vw, 44px);
   }
   .home .hero h1 {
+    margin-top: 8px;
     font-size: 20px;
     line-height: 1.25;
+  }
+  .home .hero .row {
+    margin-top: 16px;
+    gap: 16px;
   }
   .home .beats,
   .home .dg,
@@ -1428,6 +1435,70 @@ html:has(.home) body {
   }
   .home {
     font-size: 17px;
+  }
+  .home .tagline span {
+    white-space: normal;
+  }
+}
+
+/* Short desktop screens, including iPad landscape at 1024x768. */
+@media (min-width: 961px) and (max-height: 860px) {
+  .home .hero {
+    padding: 100px 0 24px;
+  }
+  .home .hero-grid {
+    gap: 8px 24px;
+  }
+  .home .hero-mark {
+    height: 128px !important;
+  }
+  .home .hero-tag {
+    font-size: clamp(34px, 3.8vw, 52px);
+  }
+  .home .hero h1 {
+    margin-top: 8px;
+  }
+  .home .hero .row {
+    margin-top: 14px;
+    gap: 16px;
+  }
+  .home .sub {
+    font-size: 18px;
+  }
+}
+
+/* Phones. A short landscape phone stays stacked. iPad widths do not. */
+@media (max-width: 700px), (max-width: 1023px) and (max-height: 520px) {
+  .home .menu-btn {
+    display: inline-block !important;
+  }
+  .home .desk-nav {
+    display: none !important;
+  }
+  .home .desk-logins .client-login,
+  .home .desk-logins .team-login,
+  .home .desk-logins .go-app {
+    display: none;
+  }
+  .home .hero-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas: "lock" "visual" "rest";
+    gap: 20px;
+  }
+  .home .hero {
+    padding: 108px 0 36px;
+  }
+  .home .hero-mark {
+    height: 128px !important;
+  }
+  .home .hero-tag {
+    font-size: clamp(40px, 11vw, 56px);
+  }
+  .home .hero h1 {
+    font-size: 20px;
+    line-height: 1.25;
+  }
+  .home {
     padding-bottom: 84px;
   }
   .home .sticky-cta {
@@ -1445,9 +1516,6 @@ html:has(.home) body {
   }
   .home .sticky-cta .btn {
     flex: 1;
-  }
-  .home .tagline span {
-    white-space: normal;
   }
 }
 
