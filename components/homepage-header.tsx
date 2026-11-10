@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-/** Phone menu. The button is visible below 960px, including a 390px screen. */
+/** Phone menu. Visible on a narrow phone, including a 390px screen, and on a short landscape phone. */
 export function HomepageMenu({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
