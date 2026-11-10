@@ -293,7 +293,7 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(prose, /How jAI works/);
   assert.equal(/typical agency|DIY ad platforms|filtered out before a dollar|stale IDs are filtered|checks that every ID is a real human/i.test(prose), false);
   assert.match(model.proof.tourBody, /Your audience\. Everywhere\./);
-  assert.match(model.proof.tourBody, /Bots optimize, you make the call/);
+  assert.match(model.proof.tourBody, /Bots optimize, humans make the call/);
   assert.equal(model.proof.tourBody.includes("Your Buyer Audience; Everywhere"), false);
   assert.match(model.proof.tourBody, /signed demo link or the demo access page/);
   assert.equal(model.proof.tourBody.includes("No login needed"), false);
@@ -341,7 +341,7 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(signedIn, /href="\/marketing"/);
   const meta = homepageMetadata();
   assert.equal(PUBLIC_TAGLINE, "Your audience. Everywhere.");
-  assert.equal(PUBLIC_AD_LINE, "Bots optimize, you make the call");
+  assert.equal(PUBLIC_AD_LINE, "Bots optimize, humans make the call");
   assert.equal(meta.title.absolute, `jAI by Specificity | ${PUBLIC_TAGLINE}`);
   assert.equal(model.tagline, PUBLIC_TAGLINE);
   assert.equal(model.supportLine, PUBLIC_AD_LINE);
@@ -367,7 +367,7 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(html, /jai-wordmark-dark\.svg/);
   assert.match(html, /jai-lockup-dark\.svg/);
   assert.match(html, new RegExp(PUBLIC_TAGLINE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.match(html, /Bots optimize, you make the call/);
+  assert.match(html, /Bots optimize, humans make the call/);
   assert.equal(html.includes("specificity-logo"), false);
   assert.equal(html.includes("diverai.specificityinc.com"), false);
   assert.match(html, /TODO\(jason\)/);

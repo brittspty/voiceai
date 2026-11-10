@@ -8,7 +8,7 @@ Do not name other companies. Meta, Google, TikTok, and StackAdapt are delivery c
 
 ## Open (before the clock)
 
-Home is the command center. Point at the logo and the line under it: "Your audience. Everywhere." and "Bots optimize, you make the call."
+Home is the command center. Point at the logo and the line under it: "Your audience. Everywhere." and "Bots optimize, humans make the call."
 
 Click **Start the tour**. Arrow keys move a present-mode tour. Escape exits.
 
@@ -71,7 +71,7 @@ Screen: `/demo/explanations`
 
 Say: "Every note says what we would do, and it ends with Based on and the seeded row. You can see the reason without a dashboard translation."
 
-## 9:00–10:30 Bots optimize, you make the call
+## 9:00–10:30 Bots optimize, humans make the call
 
 Screen: `/demo/decisions`
 

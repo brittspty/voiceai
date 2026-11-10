@@ -1,5 +1,5 @@
 import { PRODUCT_WORDMARK } from "../brand/names";
-import { PUBLIC_TAGLINE } from "../brand/public";
+import { PUBLIC_AD_LINE, PUBLIC_TAGLINE } from "../brand/public";
 
 /**
  * Presenter cues for the demo tour. Jason still has the final word on this script.
@@ -14,7 +14,7 @@ export const TOUR_COPY_STATUS = "DRAFT" as const;
 export const DEMO_TAGLINE = PUBLIC_TAGLINE;
 
 /** Supporting line on the demo. Not a statistic. */
-export const DEMO_SUPPORTING_LINE = "Bots optimize, you make the call";
+export const DEMO_SUPPORTING_LINE = PUBLIC_AD_LINE;
 
 export const HUMANS_CONTROL_BUDGETS = "Humans control budgets";
 export const BASED_ON_LABEL = "Based on:";
@@ -116,7 +116,7 @@ const CORE: Array<Omit<TourStep, "body"> & { body: string }> = [
     id: "decisions",
     href: "/demo/decisions",
     anchor: "decisions",
-    title: "Bots optimize, you make the call",
+    title: "Bots optimize, humans make the call",
     showsFigures: false,
     badge: "sample",
     body: "A bot just tried to write a daily cap. The same lock the product uses blocked it. The bot can recommend. A person approves. Humans control budgets. This demo does not spend.",

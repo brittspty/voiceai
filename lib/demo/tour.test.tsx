@@ -90,7 +90,7 @@ test("talking points cite research on the problem step and keep the product line
   assert.match(audience?.body || "", /48/);
   assert.match(audience?.body || "", /80/);
   assert.match(text, /Your audience\. Everywhere\./);
-  assert.match(text, /Bots optimize, you make the call/);
+  assert.match(text, /Bots optimize, humans make the call/);
   assert.equal(text.includes("Your Buyer Audience; Everywhere"), false);
   assert.match(text, /Humans control budgets/);
   assert.equal(/Jarvis|Diver AI|Totaligent|Performance Max|Advantage\+|Madgicx/i.test(text), false);

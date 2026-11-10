@@ -144,7 +144,7 @@ test("client view drops cost and the demo frame is labeled", () => {
   assert.match(html, /DEMO/);
   assert.match(html, /jAI/);
   assert.match(html, /Your audience\. Everywhere\./);
-  assert.match(html, /Bots optimize, you make the call/);
+  assert.match(html, /Bots optimize, humans make the call/);
   assert.equal(html.includes("Your Buyer Audience; Everywhere"), false);
   assert.match(html, /DEMO DATA/);
   assert.match(html, /demo-frame/);
