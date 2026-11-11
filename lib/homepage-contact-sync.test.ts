@@ -9,6 +9,7 @@ import {
   GHL_UPSERT_URL,
   backfillHomepageContacts,
   demoAlertRecipients,
+  homepageGhlKey,
   splitContactName,
   syncHomepageContact,
   type HomepageContactSyncPatch,
@@ -16,6 +17,7 @@ import {
 } from "./homepage-contact-sync";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
+const KEY = "ghl-api-key-value";
 const TOKEN = "pit-test-token-value";
 const RESEND = "re_test_key_value";
 const NOW = new Date("2026-11-11T15:00:00.000Z");
@@ -30,7 +32,7 @@ const lead = {
 
 function env(extra: Record<string, string | undefined> = {}) {
   return {
-    GHL_API_TOKEN: TOKEN,
+    GHL_API_KEY: KEY,
     GHL_LOCATION_ID: "loc_test",
     DEMO_ALERT_TO: "Jason@SpecificityInc.com, britt@specificityinc.com, jason@specificityinc.com",
     RESEND_API_KEY: RESEND,
@@ -120,7 +122,7 @@ test("a saved demo request upserts GoHighLevel and emails every recipient", asyn
   const upsert = calls.find((call) => call.url === GHL_UPSERT_URL);
   assert.ok(upsert);
   assert.equal(upsert.init?.method, "POST");
-  assert.equal(header(upsert.init, "authorization"), `Bearer ${TOKEN}`);
+  assert.equal(header(upsert.init, "authorization"), `Bearer ${KEY}`);
   assert.equal(header(upsert.init, "version"), GHL_API_VERSION);
   assert.deepEqual(bodyOf(upsert.init), {
     locationId: "loc_test",
@@ -164,6 +166,14 @@ test("a saved demo request upserts GoHighLevel and emails every recipient", asyn
   assert.equal("companyName" in second, false);
   assert.equal(plain.calls.some((call) => call.url.includes("resend.com")), false);
   assert.match(plain.warnings.join("\n"), /DEMO_ALERT_TO is unset/);
+
+  const overridden = harness(okFetch);
+  await syncHomepageContact(lead, { ...overridden.options, env: env({ GHL_API_TOKEN: TOKEN }) });
+  const overrideCall = overridden.calls.find((call) => call.url === GHL_UPSERT_URL);
+  assert.equal(header(overrideCall?.init, "authorization"), `Bearer ${TOKEN}`);
+  assert.equal(homepageGhlKey({ GHL_API_KEY: KEY, GHL_API_TOKEN: TOKEN }), TOKEN);
+  assert.equal(homepageGhlKey({ GHL_API_KEY: KEY }), KEY);
+  assert.equal(homepageGhlKey({}), "");
 });
 
 test("a GoHighLevel failure still alerts and still accepts the visitor", async () => {
@@ -212,13 +222,13 @@ test("a GoHighLevel failure still alerts and still accepts the visitor", async (
     sync: {
       ...options,
       fetchImpl: async () => {
-        throw new Error(`connect failed ${TOKEN}`);
+        throw new Error(`connect failed ${KEY}`);
       },
     },
   });
   assert.deepEqual(jsonResult, { status: 200, id: "row-9" });
   const leaked = JSON.stringify(updates) + errors.join("\n");
-  assert.equal(leaked.includes(TOKEN), false);
+  assert.equal(leaked.includes(KEY), false);
   assert.match(updates[updates.length - 1]?.ghlError || "", /\[redacted\]/);
 });
 
@@ -250,7 +260,7 @@ test("missing env skips both steps and logs a warning", async () => {
   assert.equal(result.alertSent, false);
   assert.equal(calls.length, 0);
   assert.equal(updates.length, 0);
-  assert.match(warnings.join("\n"), /GHL_API_TOKEN or GHL_LOCATION_ID is unset/);
+  assert.match(warnings.join("\n"), /GHL_API_KEY or GHL_LOCATION_ID is unset/);
   assert.match(warnings.join("\n"), /DEMO_ALERT_TO is unset/);
 
   const mailOnly = harness(() => {
@@ -284,8 +294,8 @@ test("a slow GoHighLevel call stops at the deadline and still returns", async ()
   assert.equal(result.ghlContactId, null);
   assert.match(result.ghlError || "", /timed out/);
   assert.equal(result.alertSent, false);
-  assert.equal(updates[0]?.ghlError?.includes(TOKEN), false);
-  assert.equal(errors.join("\n").includes(TOKEN), false);
+  assert.equal(updates[0]?.ghlError?.includes(KEY), false);
+  assert.equal(errors.join("\n").includes(KEY), false);
 });
 
 test("backfill stays dry until apply and does not send the alert", async () => {

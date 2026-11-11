@@ -5,7 +5,8 @@
  * Dry run is the default. It prints the candidate count and does not call GoHighLevel.
  *   tsx scripts/homepage-contact-backfill.ts
  *   tsx scripts/homepage-contact-backfill.ts --limit 50
- * Apply writes to the location in GHL_LOCATION_ID using GHL_API_TOKEN:
+ * Apply writes to the location in GHL_LOCATION_ID using GHL_API_KEY
+ * (or GHL_API_TOKEN when that override is set):
  *   tsx scripts/homepage-contact-backfill.ts --apply
  *
  * Do not run --apply against production.
@@ -23,7 +24,7 @@ function arg(name: string) {
 }
 
 function secrets() {
-  return [process.env.GHL_API_TOKEN || "", process.env.RESEND_API_KEY || ""].filter((value) => value.length >= 8);
+  return [process.env.GHL_API_TOKEN || "", process.env.GHL_API_KEY || "", process.env.RESEND_API_KEY || ""].filter((value) => value.length >= 8);
 }
 
 function redact(text: string) {

@@ -68,8 +68,8 @@ See `.env.example`. Secrets are only read from the environment. Do not commit `.
 | `AIS2L_SILENCE_HANGUP_SEC` | Silence hangup while compliance v2 is on. Clamped to 10–15 seconds. Default 12. |
 | `AIS2L_CALL_REASON` | Reason said first on a compliance v2 call. Default: you asked for a short introduction. |
 | `APP_URL` | Public origin, used in webhook instructions |
-| `GHL_API_KEY`, `GHL_LOCATION_ID`, `GHL_WEBHOOK_SECRET` | GoHighLevel lead sync. Specificity location id: `DbcsZg79I6sNbzpaN1Go` |
-| `GHL_API_TOKEN` | Private integration token for the public Book a demo upsert. Blank skips it |
+| `GHL_API_KEY`, `GHL_LOCATION_ID`, `GHL_WEBHOOK_SECRET` | GoHighLevel lead sync and the Book a demo upsert. Specificity location id: `DbcsZg79I6sNbzpaN1Go`. A blank key or location skips the form upsert |
+| `GHL_API_TOKEN` | Optional override for the Book a demo upsert. Blank uses `GHL_API_KEY` |
 | `DEMO_ALERT_TO` | Comma-separated Book a demo alert recipients. Intended: `jason@specificityinc.com,britt@specificityinc.com`. Blank skips the email |
 | `RESEND_API_KEY`, `MAIL_FROM` | Resend sender used by `lib/mail.ts`. Both are required for the demo alert |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_AGENT_PHONE_NUMBER_ID`, `ELEVENLABS_WEBHOOK_SECRET` | ElevenLabs outbound calls |
@@ -113,7 +113,7 @@ Team login is not connected. The button on the sign-in page says so and does not
 
 `AUTH_EMAIL_LIVE` (default off) is the only switch that lets sign-in-link and password-reset mail use Resend while `INTEGRATIONS_MODE=mock` keeps voice, SMS, and other sends mocked. `PASSWORD_RESET` and `MAGIC_LINK_ENABLED` also default off. `USER_ADMIN_V2` defaults off.
 
-The homepage contact form writes a `HomepageContact` row first. When `GHL_API_TOKEN` and `GHL_LOCATION_ID` are set, it then upserts a GoHighLevel contact (matched on email) and adds the message as a note. When `DEMO_ALERT_TO` is set, it emails that comma-separated list through the existing Resend helper. A failure or a missing variable still returns success and keeps the row. `tsx scripts/homepage-contact-backfill.ts` lists rows with no GoHighLevel contact; add `--apply` to upsert them. Do not run `--apply` against production. Privacy, pricing, and reply time are FAQ answers marked `TODO(jason)` until Jason signs off. They are not claims. Rename `Book a demo` and `Try the demo` in `lib/homepage-cta.ts`. On a phone, including a 390px screen, those logins sit behind the header Menu button (`aria-expanded`). Set `HOMEPAGE_DIRECTION=A` to preview the other layout. Direction B is the default. Section order does not change.
+The homepage contact form writes a `HomepageContact` row first. When `GHL_API_KEY` (or `GHL_API_TOKEN`, if that override is set) and `GHL_LOCATION_ID` are set, it then upserts a GoHighLevel contact (matched on email) and adds the message as a note. When `DEMO_ALERT_TO` is set, it emails that comma-separated list through the existing Resend helper. A failure or a missing variable still returns success and keeps the row. `tsx scripts/homepage-contact-backfill.ts` lists rows with no GoHighLevel contact; add `--apply` to upsert them. Do not run `--apply` against production. Privacy, pricing, and reply time are FAQ answers marked `TODO(jason)` until Jason signs off. They are not claims. Rename `Book a demo` and `Try the demo` in `lib/homepage-cta.ts`. On a phone, including a 390px screen, those logins sit behind the header Menu button (`aria-expanded`). Set `HOMEPAGE_DIRECTION=A` to preview the other layout. Direction B is the default. Section order does not change.
 
 ## How the integrations are wired
 

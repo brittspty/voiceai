@@ -1,4 +1,4 @@
-import { assertOutboundOpen } from "./demo/outbound";
+import { ghlFetch } from "./adapters";
 import { prisma } from "./db";
 import { sendDigestEmail } from "./mail";
 import type { Env } from "./public-routing";
@@ -93,8 +93,13 @@ export function demoAlertMessage(row: Pick<HomepageContactLead, "name" | "email"
   };
 }
 
+/** Book a demo uses the existing GoHighLevel key. GHL_API_TOKEN overrides it when set. */
+export function homepageGhlKey(env: Env) {
+  return env.GHL_API_TOKEN?.trim() || env.GHL_API_KEY?.trim() || "";
+}
+
 function ghlConfigured(env: Env) {
-  return Boolean(env.GHL_API_TOKEN?.trim() && env.GHL_LOCATION_ID?.trim());
+  return Boolean(homepageGhlKey(env) && env.GHL_LOCATION_ID?.trim());
 }
 
 function redact(text: string, secrets: string[]) {
@@ -145,16 +150,6 @@ function contactIdOf(body: unknown) {
   return null;
 }
 
-async function readJson(response: Response) {
-  const text = await response.text().catch(() => "");
-  if (!text) return {};
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return {};
-  }
-}
-
 // Upsert matches an existing contact on email. Phone is omitted so email is the only match key.
 function upsertPayload(row: HomepageContactLead, locationId: string) {
   const { firstName, lastName } = splitContactName(row.name);
@@ -186,33 +181,20 @@ async function upsertContact(input: {
   secrets: string[];
   log: SyncLog;
 }): Promise<GhlStep> {
-  const token = input.env.GHL_API_TOKEN?.trim() || "";
+  const apiKey = homepageGhlKey(input.env);
   const locationId = input.env.GHL_LOCATION_ID?.trim() || "";
-  if (!token || !locationId) {
-    input.log.warn("[homepage-contact] GoHighLevel upsert skipped: GHL_API_TOKEN or GHL_LOCATION_ID is unset");
+  if (!apiKey || !locationId) {
+    input.log.warn("[homepage-contact] GoHighLevel upsert skipped: GHL_API_KEY or GHL_LOCATION_ID is unset");
     return { attempted: false, contactId: null, error: null };
   }
   let contactId: string | null = null;
   try {
-    assertOutboundOpen("ghl");
-    const upsert = await input.fetchImpl(GHL_UPSERT_URL, {
+    const upsert = await ghlFetch("/contacts/upsert", {
       method: "POST",
       signal: input.signal,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Version: GHL_API_VERSION,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify(upsertPayload(input.row, locationId)),
-    });
-    if (!upsert.ok) {
-      await upsert.text().catch(() => "");
-      const error = `GoHighLevel upsert failed (${upsert.status})`;
-      input.log.error(`[homepage-contact] ${error} for row ${input.row.id}`);
-      return { attempted: true, contactId: null, error };
-    }
-    contactId = contactIdOf(await readJson(upsert));
+    }, { fetchImpl: input.fetchImpl, apiKey });
+    contactId = contactIdOf(upsert);
     if (!contactId) {
       const error = "GoHighLevel upsert returned no contact id";
       input.log.error(`[homepage-contact] ${error} for row ${input.row.id}`);
@@ -223,26 +205,19 @@ async function upsertContact(input: {
       input.log.error(`[homepage-contact] ${error} for row ${input.row.id}`);
       return { attempted: true, contactId, error };
     }
-    const note = await input.fetchImpl(`https://services.leadconnectorhq.com/contacts/${encodeURIComponent(contactId)}/notes`, {
+    await ghlFetch(`/contacts/${encodeURIComponent(contactId)}/notes`, {
       method: "POST",
       signal: input.signal,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Version: GHL_API_VERSION,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify({ body: input.row.message }),
-    });
-    if (!note.ok) {
-      await note.text().catch(() => "");
-      const error = `GoHighLevel note failed (${note.status})`;
-      input.log.error(`[homepage-contact] ${error} for row ${input.row.id}`);
-      return { attempted: true, contactId, error };
-    }
-    await note.text().catch(() => "");
+    }, { fetchImpl: input.fetchImpl, apiKey });
     return { attempted: true, contactId, error: null };
   } catch (error) {
+    const status = error instanceof Error ? /^GoHighLevel (\d{3})/.exec(error.message)?.[1] : undefined;
+    if (status) {
+      const summary = contactId ? `GoHighLevel note failed (${status})` : `GoHighLevel upsert failed (${status})`;
+      input.log.error(`[homepage-contact] ${summary} for row ${input.row.id}`);
+      return { attempted: true, contactId, error: summary };
+    }
     const detail = failureText(error, input.secrets);
     const summary = detail === "timed out"
       ? contactId ? "GoHighLevel note timed out" : "GoHighLevel request timed out"
@@ -306,7 +281,7 @@ export async function syncHomepageContact(row: HomepageContactLead, options: Hom
   const fetchImpl = options.fetchImpl ?? fetch;
   const update = options.update ?? defaultUpdate;
   const now = options.now ?? (() => new Date());
-  const secrets = [env.GHL_API_TOKEN || "", env.RESEND_API_KEY || "", env.MAIL_FROM || ""];
+  const secrets = [env.GHL_API_TOKEN || "", env.GHL_API_KEY || "", env.RESEND_API_KEY || "", env.MAIL_FROM || ""];
   const owned = options.signal ? null : deadline(options.timeoutMs ?? SYNC_TIMEOUT_MS);
   const signal = options.signal ?? owned?.signal ?? AbortSignal.timeout(SYNC_TIMEOUT_MS);
   const empty: HomepageContactSyncResult = {
@@ -377,7 +352,7 @@ export async function backfillHomepageContacts(options: HomepageContactSyncOptio
   const rows = await load(limit);
   if (!options.apply) return { apply: false as const, candidates: rows.length, synced: 0, failed: 0 };
   if (!ghlConfigured(env)) {
-    log.warn("[homepage-contact] backfill skipped: GHL_API_TOKEN or GHL_LOCATION_ID is unset");
+    log.warn("[homepage-contact] backfill skipped: GHL_API_KEY or GHL_LOCATION_ID is unset");
     return { apply: true as const, candidates: rows.length, synced: 0, failed: 0 };
   }
   let synced = 0;
