@@ -23,6 +23,8 @@ const COPY_FILES = [
   "components/demo-story-screens.tsx",
   "components/demo-budget-moment.tsx",
   "components/public-homepage.tsx",
+  "components/homepage-waitlist-form.tsx",
+  "lib/agency-waitlist.ts",
   "docs/demo-script.md",
 ];
 
