@@ -2,7 +2,8 @@ import { BRAND_WORDMARK, PRODUCT_NAME, PRODUCT_WORDMARK } from "./brand";
 import { PUBLIC_AD_LINE, PUBLIC_LOGO_ALT, PUBLIC_SITE_ORIGIN, PUBLIC_TAGLINE, publicLogos } from "./brand/public";
 import { DEMO_SUPPORTING_LINE, DEMO_TAGLINE } from "./demo/tour";
 import { brandTokens } from "./brand/tokens";
-import { BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
+import { CLIENT_COUNT_OPTIONS, MONTHLY_SPEND_OPTIONS } from "./agency-waitlist";
+import { AGENCY_WAITLIST_HREF, AGENCY_WAITLIST_LABEL, BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { homepageDirection } from "./homepage-style";
 import { canonicalOrigin } from "./hosts";
 import { demoWorkspaceEnabled, postLoginPath, type Env } from "./public-routing";
@@ -32,6 +33,7 @@ export const HOMEPAGE_SECTION_ORDER = [
   "compare",
   "quiz",
   "faq",
+  "agency-waitlist",
   "cta-2",
   "contact",
   "footer",
@@ -117,6 +119,30 @@ export type HomepageModel = {
   faqTitle: string;
   faq: { question: string; answer: string }[];
   contact: { title: string; body: string; saved: string; invalid: string; running: string };
+  agency: {
+    id: "agency-waitlist";
+    href: "#agency-waitlist";
+    navLabel: string;
+    kicker: string;
+    title: string;
+    lead: string;
+    note: string;
+    points: string[];
+    savedTitle: string;
+    saved: string;
+    invalid: string;
+    limited: string;
+    submit: string;
+    nameLabel: string;
+    emailLabel: string;
+    agencyLabel: string;
+    websiteLabel: string;
+    clientsLabel: string;
+    spendLabel: string;
+    messageLabel: string;
+    clientOptions: readonly string[];
+    spendOptions: readonly string[];
+  };
   footer: { blurb: string; product: string; account: string; legal: string };
   year: number;
 };
@@ -190,6 +216,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       { href: "#demo", label: "See it work" },
       { href: "#how-it-works", label: "How it works" },
       { href: "#faq", label: "FAQ" },
+      { href: AGENCY_WAITLIST_HREF, label: AGENCY_WAITLIST_LABEL },
     ],
     menuNav: [
       { href: "#story", label: "Your story" },
@@ -198,6 +225,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       { href: "#demo", label: "See it work" },
       { href: "#quiz", label: "Budget check" },
       { href: "#faq", label: "FAQ" },
+      { href: AGENCY_WAITLIST_HREF, label: AGENCY_WAITLIST_LABEL },
     ],
     illustrative: ILLUSTRATIVE_LABEL,
     example: EXAMPLE_LABEL,
@@ -432,6 +460,34 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       invalid: "Enter your name, email, and a message.",
       running: "What are you running today?",
     },
+    agency: {
+      id: "agency-waitlist",
+      href: AGENCY_WAITLIST_HREF,
+      navLabel: AGENCY_WAITLIST_LABEL,
+      kicker: "Agency waitlist",
+      title: "Bring jAI to your agency",
+      lead: "jAI runs our own client campaigns today. Agency subscriptions are coming. Join the waitlist for early access.",
+      note: "Tell us about your agency. We save the request on this server and use it when subscriptions open.",
+      points: [
+        "Specificity uses jAI on client campaigns today.",
+        "Subscriptions for other agencies are opening next.",
+        "This form asks for early access. It is not a contract.",
+      ],
+      savedTitle: "You're on the list.",
+      saved: "Saved on this server. Nothing was sent.",
+      invalid: "Enter your name, a work email, and your agency name. Leave optional fields blank or pick a listed range.",
+      limited: "Too many attempts. Wait a few minutes and try again.",
+      submit: "Join the waitlist",
+      nameLabel: "Name",
+      emailLabel: "Work email",
+      agencyLabel: "Agency name",
+      websiteLabel: "Website (optional)",
+      clientsLabel: "Number of clients managed (optional)",
+      spendLabel: "Monthly ad spend managed, USD (optional)",
+      messageLabel: "Message (optional)",
+      clientOptions: CLIENT_COUNT_OPTIONS,
+      spendOptions: MONTHLY_SPEND_OPTIONS,
+    },
     footer: {
       blurb: `${PRODUCT_NAME}. Audiences built from the data market.`,
       product: "Product",
@@ -499,6 +555,20 @@ export function homepageProse(model: HomepageModel) {
     model.contact.body,
     model.contact.saved,
     model.contact.invalid,
+    model.agency.kicker,
+    model.agency.title,
+    model.agency.lead,
+    model.agency.note,
+    ...model.agency.points,
+    model.agency.savedTitle,
+    model.agency.saved,
+    model.agency.invalid,
+    model.agency.limited,
+    model.agency.submit,
+    model.agency.clientsLabel,
+    model.agency.spendLabel,
+    ...model.agency.clientOptions,
+    ...model.agency.spendOptions,
     model.footer.blurb,
     model.product,
     model.byline,

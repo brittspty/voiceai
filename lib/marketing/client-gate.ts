@@ -25,7 +25,7 @@ export function clientViewerAllowed(pathname: string, env: Env = process.env) {
     if (pathname === "/audience-data/lineage" || pathname === "/audience-data/drill" || pathname === "/audience-data/tests") return true;
     if (pathname === "/api/marketing/audience-p1/lineage" || pathname === "/api/marketing/audience-p1/drill" || pathname === "/api/marketing/audience-p1/tests") return true;
   }
-  if (pathname === "/api/homepage/contact") return true;
+  if (pathname === "/api/homepage/contact" || pathname === "/api/homepage/waitlist") return true;
   if (pathname === "/demo" || pathname.startsWith("/demo/")) return true;
   if (pathname === "/plan" || pathname.startsWith("/plan/")) return true;
   if (audienceDataClientEnabled(env)) {

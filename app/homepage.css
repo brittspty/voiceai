@@ -163,6 +163,7 @@ html:has(.home) body {
 }
 .home .desk-nav a {
   text-decoration: none;
+  white-space: nowrap;
 }
 .home .desk-nav a:hover {
   color: var(--tx);
@@ -365,6 +366,24 @@ html:has(.home) body {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+.home .hero-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.home .hero-agency {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--brand);
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+}
+.home .hero-agency:hover {
+  color: #ff7024;
 }
 .home .legend {
   position: absolute;
@@ -1192,7 +1211,8 @@ html:has(.home) body {
   display: block;
 }
 .home input,
-.home textarea {
+.home textarea,
+.home select {
   width: 100%;
   margin-top: 6px;
   background: transparent;
@@ -1204,10 +1224,79 @@ html:has(.home) body {
   padding: 10px 0;
   transition: border-color 150ms var(--e);
 }
+.home select {
+  display: block;
+  min-height: 44px;
+  cursor: pointer;
+  padding-right: 28px;
+}
+.home select option {
+  background: #231f20;
+  color: #f3eee9;
+}
 .home input:focus,
-.home textarea:focus {
+.home textarea:focus,
+.home select:focus {
   outline: none;
   border-color: var(--brand);
+}
+.home .agency {
+  scroll-margin-top: 96px;
+  padding: 128px 0 112px;
+  background: var(--bg);
+}
+.home .agency-grid {
+  display: grid;
+  grid-template-columns: 5fr 6fr;
+  gap: 72px;
+  align-items: start;
+}
+.home .agency .kicker {
+  color: var(--brand);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.home .agency h2 {
+  font-size: clamp(44px, 5.4vw, 72px);
+  margin: 12px 0 20px;
+  letter-spacing: -0.04em;
+}
+.home .agency-note {
+  margin-top: 16px;
+}
+.home .agency .points {
+  margin-top: 28px;
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  list-style: none;
+}
+.home .agency .points li {
+  padding-left: 16px;
+  border-left: 2px solid var(--brand);
+  color: var(--mute);
+}
+.home .agency-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 28px 28px 32px;
+}
+.home .agency-success {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.home .agency-success h3 {
+  font-size: clamp(32px, 3vw, 44px);
+  letter-spacing: -0.03em;
+  margin: 8px 0 12px;
+}
+.home .agency-success p:last-child {
+  color: var(--mute);
+  max-width: 36ch;
 }
 .home .full {
   grid-column: 1 / -1;
@@ -1269,6 +1358,7 @@ html:has(.home) body {
 .home[data-direction="A"] .dg,
 .home[data-direction="A"] .quiz-grid,
 .home[data-direction="A"] .hum-grid,
+.home[data-direction="A"] .agency-grid,
 .home[data-direction="A"] .con-grid,
 .home[data-direction="A"] .proof .top,
 .home[data-direction="A"] .voices,
@@ -1355,6 +1445,7 @@ html:has(.home) body {
   .home .how,
   .home .hum,
   .home .faq,
+  .home .agency,
   .home .con,
   .home .mods,
   .home .compare,
@@ -1378,6 +1469,7 @@ html:has(.home) body {
   }
   .home .proof .top,
   .home .hum-grid,
+  .home .agency-grid,
   .home .con-grid,
   .home .mods-grid,
   .home .faq-grid {
@@ -1424,6 +1516,9 @@ html:has(.home) body {
   .home form {
     grid-template-columns: 1fr;
   }
+  .home .agency-card {
+    padding: 22px 18px 24px;
+  }
   .home footer .w {
     grid-template-columns: 1fr 1fr;
   }
@@ -1438,6 +1533,35 @@ html:has(.home) body {
   }
   .home .tagline span {
     white-space: normal;
+  }
+}
+
+/* Laptop and iPad landscape: keep the extra nav item on one row. */
+@media (max-width: 1200px) {
+  .home .topbar {
+    gap: 16px;
+  }
+  .home .desk-nav {
+    gap: 14px;
+    font-size: 13px;
+  }
+  .home .desk-logins {
+    gap: 10px;
+  }
+  .home .desk-logins .team-login,
+  .home .desk-logins .btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}
+
+/* Tablet portrait: the full nav no longer fits, so the menu carries Agency waitlist. */
+@media (max-width: 900px) {
+  .home .desk-nav {
+    display: none !important;
+  }
+  .home .menu-btn {
+    display: inline-block !important;
   }
 }
 

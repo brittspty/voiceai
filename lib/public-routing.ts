@@ -82,6 +82,10 @@ export function isHomepageContactPath(pathname: string) {
   return normalizePath(pathname) === "/api/homepage/contact";
 }
 
+export function isHomepageWaitlistPath(pathname: string) {
+  return normalizePath(pathname) === "/api/homepage/waitlist";
+}
+
 export function loginAnalyticsEnabled(env: Env = process.env) {
   return envEnabled(env.LOGIN_ANALYTICS);
 }
@@ -101,7 +105,7 @@ export function isPublicPath(pathname: string, env: Env) {
   if (isLegacyPublic(pathname)) return true;
   if (isLoginAnalyticsPath(pathname)) return true;
   if (publicHomepageEnabled(env) && normalizePath(pathname) === "/") return true;
-  if (publicHomepageEnabled(env) && isHomepageContactPath(pathname)) return true;
+  if (publicHomepageEnabled(env) && (isHomepageContactPath(pathname) || isHomepageWaitlistPath(pathname))) return true;
   if (demoWorkspaceEnabled(env) && (isDemoPath(pathname) || isDemoApiPath(pathname))) return true;
   if (isPlanPath(pathname)) return true;
   return false;

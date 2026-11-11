@@ -54,7 +54,7 @@ test("every client owner, client viewer, and share endpoint strips spend, cost, 
     const allowed = clientViewerAllowed(url) || clientViewerAllowed(url, jarvis) || url.startsWith("/api/share");
     if (!allowed) continue;
     const source = readFileSync(file, "utf8");
-    if (url.includes("/passcode") || url === "/api/health" || url === "/api/auth/logout" || url === "/api/homepage/contact") continue;
+    if (url.includes("/passcode") || url === "/api/health" || url === "/api/auth/logout" || url === "/api/homepage/contact" || url === "/api/homepage/waitlist") continue;
     if (source.includes("export { GET }")) {
       const target = path.resolve(path.dirname(file), "../route.ts");
       assert.match(readFileSync(target, "utf8"), /readScopedClient/, url);

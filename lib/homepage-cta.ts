@@ -6,3 +6,6 @@ export const BOOK_DEMO_LABEL = "Book a demo";
 export const TRY_DEMO_LABEL = "Try the demo";
 /** Secondary line under the contact form. Same action as Try the demo. */
 export const TRY_DEMO_FIRST_LABEL = "Or try the demo first";
+/** Nav, hero, and footer link to the agency waitlist section. */
+export const AGENCY_WAITLIST_LABEL = "Agency waitlist";
+export const AGENCY_WAITLIST_HREF = "#agency-waitlist";
