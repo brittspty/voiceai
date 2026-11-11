@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { syncHomepageContact, type HomepageContactSyncOptions } from "./homepage-contact-sync";
 import { publicHomepageEnabled, type Env } from "./public-routing";
 
 export type ContactInput = {
@@ -53,6 +54,18 @@ export async function saveHomepageContact(input: ContactInput, store: ContactSto
   return { ok: true as const, id: saved.id };
 }
 
+async function deliverHomepageContact(
+  row: ContactDraft & { id: string },
+  env: Env,
+  sync: Omit<HomepageContactSyncOptions, "env"> | undefined,
+) {
+  try {
+    await syncHomepageContact(row, { env, ...sync });
+  } catch (error) {
+    console.error("[homepage-contact] sync failed", error instanceof Error ? error.name : "error");
+  }
+}
+
 export function contactOriginAllowed(request: { headers: { get(name: string): string | null } }) {
   const origin = request.headers.get("origin");
   if (!origin) return true;
@@ -71,6 +84,7 @@ export async function acceptHomepageContact(input: {
   env?: Env;
   store?: ContactStore;
   originAllowed?: boolean;
+  sync?: Omit<HomepageContactSyncOptions, "env">;
 }): Promise<ContactResult> {
   const env = input.env ?? process.env;
   if (!publicHomepageEnabled(env)) return { status: 404 };
@@ -80,6 +94,8 @@ export async function acceptHomepageContact(input: {
     if (input.form) return { status: 303, location: "/?contact=invalid" };
     return { status: 400, error: saved.error };
   }
+  const draft = contactDraft(input.fields);
+  if (draft.ok) await deliverHomepageContact({ id: saved.id, ...draft.value }, env, input.sync);
   if (input.form) return { status: 303, location: "/?contact=saved" };
   return { status: 200, id: saved.id };
 }
