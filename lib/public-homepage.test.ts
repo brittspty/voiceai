@@ -214,7 +214,7 @@ test("try the demo is hidden unless DEMO_WORKSPACE is on", () => {
   const off = page(homepageModel({ PUBLIC_HOMEPAGE: "on" }));
   assert.equal(off.includes(TRY_DEMO_LABEL), false);
   assert.equal(off.includes('href="/demo"'), false);
-  assert.equal((off.match(/href="#contact"/g) || []).length, 6);
+  assert.equal((off.match(/href="#contact"/g) || []).length, 7);
   assert.equal((off.match(/>Client login</g) || []).length, 3);
   assert.equal((off.match(/>Team login</g) || []).length, 3);
   assert.equal((off.match(/href="\/login"/g) || []).length, 3);
@@ -371,6 +371,19 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.equal(html.includes("specificity-logo"), false);
   assert.equal(html.includes("diverai.specificityinc.com"), false);
   assert.match(html, /TODO\(jason\)/);
+  assert.match(html, /jAI runs ads on virtually every ad platform available\./);
+  assert.match(html, /Woman in a studio reviewing a tablet\./);
+  assert.match(html, /hero-network-1440\.webp 1440w, \/homepage\/hero-network-2560\.webp 2560w/);
+  assert.equal(html.toLowerCase().includes("executive-summary"), false);
+  assert.equal(html.includes("Download the executive summary"), false);
+  assert.equal(/client owner/i.test(html), false);
+  const css = sourceOf("app/homepage.css");
+  const motion = sourceOf("components/homepage-motion.tsx");
+  assert.match(css, /prefers-reduced-motion:\s*reduce/);
+  assert.match(css, /scale\(1\.08\)/);
+  assert.match(motion, /prefers-reduced-motion/);
+  assert.match(motion, /is-ready/);
+  assert.match(motion, /is-animating/);
 });
 
 test("team login copy is specific and does not change role routing", () => {
