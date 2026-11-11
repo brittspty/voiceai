@@ -190,11 +190,12 @@
       line-height: 1.45;
       color: var(--mute);
       max-width: 46ch;
-    }/* Reveals */.home .rv{
+    }/* Reveals. Hidden only after the page marks itself js-ready, so a no-JS
+       view and a full-page capture stay readable. */html.js .home .rv{
       opacity: 0;
       transform: translateY(18px);
       transition: opacity 0.7s var(--e), transform 0.7s var(--e);
-    }.home .rv.on{ opacity: 1; transform: none; }.home .rv-d1{ transition-delay: 0.08s; }.home .rv-d2{ transition-delay: 0.16s; }.home .rv-d3{ transition-delay: 0.24s; }/* Variant C: custom stroke icons and explanatory graphics */.home .ico{
+    }html.js .home .rv.on{ opacity: 1; transform: none; }.home .rv-d1{ transition-delay: 0.08s; }.home .rv-d2{ transition-delay: 0.16s; }.home .rv-d3{ transition-delay: 0.24s; }/* Variant C: custom stroke icons and explanatory graphics */.home .ico{
       display: block;
       flex: 0 0 auto;
       color: var(--paper);
@@ -822,13 +823,13 @@
       height: 100%;
       border-radius: inherit;
       background: #d9d2cc;
-    }.home .ui-bar.is-lead::after{ background: #FF5800; }/* Flow animation: only hide while waiting, if motion is allowed */@media (prefers-reduced-motion: no-preference){.home .ui-flow:not(.is-on):not(.is-final) .ui-row{
+    }.home .ui-bar.is-lead::after{ background: #FF5800; }/* Flow animation: only hide while waiting, if motion is allowed */@media (prefers-reduced-motion: no-preference){html.js .home .ui-flow:not(.is-on):not(.is-final) .ui-row{
         opacity: 0;
         transform: translateY(12px);
-      }.home .ui-flow:not([data-stage="2"]):not([data-stage="3"]):not([data-stage="4"]) .ui-row-dup .ui-chip, .home .ui-flow:not([data-stage="3"]):not([data-stage="4"]) .ui-row-ok .ui-chip{
+      }html.js .home .ui-flow:not([data-stage="2"]):not([data-stage="3"]):not([data-stage="4"]) .ui-row-dup .ui-chip, html.js .home .ui-flow:not([data-stage="3"]):not([data-stage="4"]) .ui-row-ok .ui-chip{
         opacity: 0;
         transform: scale(0.86);
-      }.home .ui-flow:not([data-stage="4"]) .ui-tally{
+      }html.js .home .ui-flow:not([data-stage="4"]) .ui-tally{
         opacity: 0;
         transform: translateY(12px);
       }.home .ui-flow.is-on .ui-row{
@@ -864,7 +865,7 @@
     }.home .ch-ico-pop{
       transform-box: fill-box;
       transform-origin: center;
-    }.home .ch-pulse{ opacity: 0; }@media (prefers-reduced-motion: no-preference){.home .hero-diag:not(.is-animating):not(.is-ready) .list-card, .home .hero-diag:not(.is-animating):not(.is-ready) .ch-line, .home .hero-diag:not(.is-animating):not(.is-ready) .ch-pill{
+    }.home .ch-pulse{ opacity: 0; }@media (prefers-reduced-motion: no-preference){html.js .home .hero-diag:not(.is-animating):not(.is-ready) .list-card, html.js .home .hero-diag:not(.is-animating):not(.is-ready) .ch-line, html.js .home .hero-diag:not(.is-animating):not(.is-ready) .ch-pill{
         opacity: 0;
       }.home .hero-diag.is-animating .list-card{
         animation: hd-card-in 400ms cubic-bezier(0, 0, 0.2, 1) both;
@@ -888,7 +889,7 @@
       0% { opacity: 0; stroke-dashoffset: 16; }
       18% { opacity: 0.95; }
       100% { opacity: 0; stroke-dashoffset: calc(-1 * var(--pulse-len, 90) * 1px); }
-    }@media (prefers-reduced-motion: reduce){html:has(.home){ scroll-behavior: auto; }.home .hero-bg img{ animation: none; transform: scale(1.08); }.home .rv{ opacity: 1; transform: none; transition: none; }.home .btn{ transition: none; }.home .draw-stroke path, .home .draw-stroke line, .home .draw-stroke polyline, .home .draw-stroke circle, .home .draw-stroke rect, .home .draw-stroke ellipse{
+    }@media (prefers-reduced-motion: reduce){html:has(.home){ scroll-behavior: auto; }.home .hero-bg img{ animation: none; transform: scale(1.08); }html.js .home .rv, .home .rv{ opacity: 1 !important; transform: none !important; transition: none !important; }.home .btn{ transition: none; }.home .draw-stroke path, .home .draw-stroke line, .home .draw-stroke polyline, .home .draw-stroke circle, .home .draw-stroke rect, .home .draw-stroke ellipse{
         stroke-dasharray: none !important;
         stroke-dashoffset: 0 !important;
         transition: none !important;

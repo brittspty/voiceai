@@ -381,6 +381,9 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   const motion = sourceOf("components/homepage-motion.tsx");
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.match(css, /scale\(1\.08\)/);
+  assert.match(css, /html\.js \.home \.rv\{[\s\S]*opacity:\s*0/);
+  assert.equal(/[^s] \.home \.rv\{\s*opacity:\s*0/.test(css), false);
+  assert.match(html, />Convert</);
   assert.match(motion, /prefers-reduced-motion/);
   assert.match(motion, /is-ready/);
   assert.match(motion, /is-animating/);
