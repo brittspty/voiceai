@@ -9,7 +9,7 @@ export function HomepageDemo({ segments, illustrative, group, barNote }: { segme
   if (!current) return null;
 
   return (
-    <div className="panel">
+    <div className="seg-board rv">
       <div className="ph mono">
         <span>{group}</span>
         <span>{illustrative}</span>

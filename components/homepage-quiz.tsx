@@ -21,7 +21,7 @@ export function HomepageQuiz({
 
   return (
     <form
-      className="qbox rv"
+      className="qgrid"
       onSubmit={(event) => event.preventDefault()}
       onChange={(event) => {
         const target = event.target;

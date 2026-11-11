@@ -214,14 +214,14 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     nav: [
       { href: "#story", label: "Your story" },
       { href: "#demo", label: "See it work" },
-      { href: "#how-it-works", label: "How it works" },
+      { href: "#compare", label: "How it works" },
       { href: "#faq", label: "FAQ" },
       { href: AGENCY_WAITLIST_HREF, label: AGENCY_WAITLIST_LABEL },
     ],
     menuNav: [
       { href: "#story", label: "Your story" },
       { href: "#proof", label: "Proof" },
-      { href: "#how-it-works", label: "How it works" },
+      { href: "#compare", label: "How it works" },
       { href: "#demo", label: "See it work" },
       { href: "#quiz", label: "Budget check" },
       { href: "#faq", label: "FAQ" },

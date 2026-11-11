@@ -1,4 +1,3 @@
-import { AfterArt, BeforeArt, CameraArt, PersonArt, TurnArt } from "@/components/homepage-art";
 import { publicLogoSize } from "@/lib/brand/public";
 import { TrackedLink } from "@/components/homepage-cta-link";
 import { ContactForm } from "@/components/homepage-contact-form";
@@ -6,22 +5,45 @@ import { WaitlistForm } from "@/components/homepage-waitlist-form";
 import { HomepageDemo } from "@/components/homepage-demo";
 import { HomepageFeed } from "@/components/homepage-feed";
 import { HomepageFlow } from "@/components/homepage-flow";
+import { BudgetGraphic, ConversionGraphic, TrailGraphic } from "@/components/homepage-graphics";
 import { HomepageMenu } from "@/components/homepage-header";
+import { FaqMark, IconPlate, NetCluster, NetRule } from "@/components/homepage-icons";
+import { HOMEPAGE_MOTION_SCRIPT } from "@/components/homepage-motion";
 import { HomepageQuiz } from "@/components/homepage-quiz";
 import { HOMEPAGE_REVEAL_SCRIPT, HomepageReveal } from "@/components/homepage-reveal";
 import { RecommendationSlip } from "@/components/homepage-slip";
+import type { MarkName } from "@/components/homepage-marks";
 import { HOMEPAGE_SECTION_ORDER, homepageJsonLd, type HomepageModel } from "@/lib/homepage-content";
 import { homepageStyle } from "@/lib/homepage-style";
 
-const BEAT_ART = [BeforeArt, TurnArt, AfterArt];
+const PILLAR_ICONS: MarkName[] = ["identify", "engage", "convert"];
+const COMPARE_ICONS: MarkName[] = ["audience", "conversions", "recommendations", "control", "channels", "honesty"];
+const MODULE_ICONS: Record<string, MarkName> = {
+  Audiences: "audience",
+  "Pixels and retargeting": "pixels",
+  Optimization: "optimization",
+  "Landing pages and reports": "reports",
+  "AIS2L voice": "voice",
+};
+
+const HERO_SRCSET = "/homepage/hero-network-1440.webp 1440w, /homepage/hero-network-2560.webp 2560w";
+const STORY_SRCSET = "/homepage/story-photo-1440.webp 1440w, /homepage/story-photo-2560.webp 2560w";
+
+const MOTION_BOOT = "document.documentElement.classList.add('js');if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)document.documentElement.classList.add('reduce-motion');";
+
+const NOSCRIPT_FINAL = `.home .hero-diag .list-card,.home .hero-diag .list-bar,.home .hero-diag .ch-line,.home .hero-diag .ch-pill,.home .hero-diag .ch-ico-pop{opacity:1 !important;transform:none !important;animation:none !important;stroke-dashoffset:0 !important;stroke-dasharray:none !important}.home .ui-flow .ui-row,.home .ui-flow .ui-chip,.home .ui-flow .ui-tally{opacity:1 !important;transform:none !important}`;
+
+function indexLabel(index: number) {
+  return String(index + 1).padStart(2, "0");
+}
 
 function Wordmark({ model, place }: { model: HomepageModel; place: "header" | "footer" }) {
   const footer = place === "footer";
-  const size = publicLogoSize(footer ? "lockup" : "wordmark", footer ? 187 : 52);
+  const size = publicLogoSize(footer ? "lockup" : "wordmark", footer ? 187 : 44);
   return <img src={footer ? model.logos.lockup : model.logos.wordmark} alt={footer ? model.logos.alt : ""} width={size.width} height={size.height} className={footer ? "lockup" : "wordmark"} />;
 }
 
-function LoginLinks({ model, variant }: { model: HomepageModel; variant: "desk" | "menu" | "footer" }) {
+function LoginLinks({ model }: { model: HomepageModel }) {
   return (
     <>
       {model.signedIn ? (
@@ -29,8 +51,12 @@ function LoginLinks({ model, variant }: { model: HomepageModel; variant: "desk" 
           Go to app
         </TrackedLink>
       ) : null}
-      <TrackedLink href={model.logins[0].href} cta={model.logins[0].cta} className={variant === "desk" ? "client-login" : undefined}>{model.logins[0].label}</TrackedLink>
-      <TrackedLink href={model.logins[1].href} cta={model.logins[1].cta} className="team-login">{model.logins[1].label}</TrackedLink>
+      <TrackedLink href={model.logins[0].href} cta={model.logins[0].cta} className="client-login">
+        {model.logins[0].label}
+      </TrackedLink>
+      <TrackedLink href={model.logins[1].href} cta={model.logins[1].cta} className="team-login">
+        {model.logins[1].label}
+      </TrackedLink>
     </>
   );
 }
@@ -38,17 +64,9 @@ function LoginLinks({ model, variant }: { model: HomepageModel; variant: "desk" 
 function TryLink({ model, className, cta, first = false }: { model: HomepageModel; className: string; cta: string; first?: boolean }) {
   if (!model.showTryDemo) return null;
   return (
-    <TrackedLink href={model.demoHref} cta={cta} className={className}>{first ? model.tryFirstLabel : model.tryLabel}</TrackedLink>
-  );
-}
-
-function Photo({ caption, wide = false, person = false, team = false }: { caption: string; wide?: boolean; person?: boolean; team?: boolean }) {
-  const shape = wide ? "photo photo-wide" : team ? "photo photo-team" : "photo";
-  return (
-    <figure className={shape}>
-      {person ? <PersonArt /> : <CameraArt />}
-      <figcaption>{caption}</figcaption>
-    </figure>
+    <TrackedLink href={model.demoHref} cta={cta} className={className}>
+      {first ? model.tryFirstLabel : model.tryLabel}
+    </TrackedLink>
   );
 }
 
@@ -79,10 +97,12 @@ export function PublicHomepage({
   const jsonLd = JSON.stringify(homepageJsonLd()).replace(/</g, "\\u003c");
   const band = model.bands[0];
   const finale = model.bands[1];
+  const heroMark = publicLogoSize("wordmark", 112);
 
   return (
     <div className={`home ${style.hero}`} data-direction={style.id} data-sections={HOMEPAGE_SECTION_ORDER.join(" ")} style={{ ["--brand" as string]: model.brandColor, fontFamily: model.fonts.sans }}>
-      <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />
+      <script dangerouslySetInnerHTML={{ __html: MOTION_BOOT }} />
+      <link rel="preload" as="image" href="/homepage/hero-network-2560.webp" imageSrcSet={HERO_SRCSET} imageSizes="100vw" />
       <a className="skip" href="#hero">
         Skip to content
       </a>
@@ -99,18 +119,21 @@ export function PublicHomepage({
             ))}
           </nav>
           <div className="desk-logins">
-            <LoginLinks model={model} variant="desk" />
+            <LoginLinks model={model} />
             <TrackedLink href={model.bookHref} cta="book-demo-header" className="btn">
               {model.bookLabel}
             </TrackedLink>
           </div>
+          <TrackedLink href={model.bookHref} cta="book-demo-header-bar" className="btn header-cta">
+            {model.bookLabel}
+          </TrackedLink>
           <HomepageMenu>
             {model.menuNav.map((item) => (
               <a key={item.href} href={item.href}>
                 {item.label}
               </a>
             ))}
-            <LoginLinks model={model} variant="menu" />
+            <LoginLinks model={model} />
             <TrackedLink href={model.bookHref} cta="book-demo-menu" className="btn">
               {model.bookLabel}
             </TrackedLink>
@@ -121,30 +144,27 @@ export function PublicHomepage({
       <HomepageReveal>
         <main>
           <section className="hero" id="hero" aria-labelledby="h1">
-            <div className="w hero-grid">
-              <div className="hero-lockup">
-                <img
-                  src={model.logos.wordmark}
-                  alt={model.logos.alt}
-                  width={publicLogoSize("wordmark", 112).width}
-                  height={publicLogoSize("wordmark", 112).height}
-                  className="hero-mark"
-                />
+            <div className="hero-bg" aria-hidden="true">
+              <img src="/homepage/hero-network-2560.webp" srcSet={HERO_SRCSET} sizes="100vw" alt="" width={2560} height={1441} fetchPriority="high" />
+              <div className="hero-grain" />
+            </div>
+            <div className="hero-scrim" aria-hidden="true" />
+            <div className="w">
+              <div className="hero-copy">
+                <img src={model.logos.wordmark} alt={model.logos.alt} width={heroMark.width} height={heroMark.height} className="hero-mark" />
                 <p className="hero-tag">{model.tagline}</p>
                 <p className="hero-support">{model.supportLine}</p>
-              </div>
-              <div className="hero-rest">
-              <h1 id="h1">
-                {model.hero.title}<em>.</em>
-              </h1>
-              <div className="row">
+                <h1 id="h1">
+                  {model.hero.title}
+                  <em>.</em>
+                </h1>
                 <p className="sub">
                   {model.hero.before}
                   <b>{model.hero.emphasis}</b>
                   {model.hero.after}
                 </p>
                 <div className="hero-actions">
-                  <div className="ctas">
+                  <div className="hero-cta">
                     <TrackedLink href={model.bookHref} cta="book-demo-hero" className="btn">
                       {model.bookLabel}
                     </TrackedLink>
@@ -155,54 +175,56 @@ export function PublicHomepage({
                   </TrackedLink>
                 </div>
               </div>
-              <div className="tagline mono">
-                <span>
-                  {model.product} {model.byline}
-                </span>
-              </div>
-              </div>
               <HomepageFlow />
             </div>
           </section>
 
-          <section className="pillars" id="pillars" aria-labelledby="pillars-title">
-            <div className="w">
-              <h2 id="pillars-title" className="sr-only">
-                {model.tagline}
-              </h2>
-              <div className="pillars-grid">
-                {model.pillars.map((pillar) => (
-                  <article key={pillar.title}>
-                    <h3>{pillar.title}</h3>
-                    <p>{pillar.body}</p>
-                  </article>
-                ))}
-              </div>
+          <section className="pillars rule-top" id="pillars" aria-labelledby="pillars-title">
+            <NetRule />
+            <h2 id="pillars-title" className="sr-only">
+              {model.tagline}
+            </h2>
+            <div className="w pillars-grid">
+              {model.pillars.map((pillar, index) => (
+                <article className={index ? `pillar rv rv-d${index}` : "pillar rv"} key={pillar.title}>
+                  <IconPlate name={PILLAR_ICONS[index] ?? "identify"} />
+                  <span className="lab">{indexLabel(index)}</span>
+                  <h3>{pillar.title}</h3>
+                  <p>{pillar.body}</p>
+                </article>
+              ))}
             </div>
           </section>
 
-          <section className="story" id="story">
+          <section className="story rule-top" id="story">
+            <NetRule />
             <div className="w">
-              <h2 className="rv">{model.story.title}</h2>
+              <h2 className="story-intro rv">{model.story.title}</h2>
               <p className="lead rv">{model.story.lead}</p>
               <div className="beats">
-                {model.story.beats.map((beat, index) => {
-                  const Art = BEAT_ART[index] ?? BeforeArt;
-                  return (
-                    <article className="beat rv" key={beat.label}>
-                      <Art />
-                      <span className="lab mono">{beat.label}</span>
-                      <h3>{beat.title}</h3>
-                      <p>{beat.body}</p>
-                    </article>
-                  );
-                })}
+                {model.story.beats.map((beat, index) => (
+                  <article className={index ? `beat rv rv-d${index}` : "beat rv"} key={beat.label}>
+                    <span className="lab">{beat.label}</span>
+                    <h3>{beat.title}</h3>
+                    <p>{beat.body}</p>
+                  </article>
+                ))}
               </div>
-              <Photo caption={model.story.photo} wide />
+              <figure className="story-photo">
+                <img
+                  src="/homepage/story-photo-1440.webp"
+                  srcSet={STORY_SRCSET}
+                  sizes="(min-width: 1024px) 1216px, calc(100vw - 40px)"
+                  alt="Woman in a studio reviewing a tablet."
+                  width={2560}
+                  height={1440}
+                />
+              </figure>
             </div>
           </section>
 
           <section className="proof" id="proof">
+            <NetRule />
             <div className="w">
               <div className="top rv">
                 <h2>{model.proof.title}</h2>
@@ -210,65 +232,69 @@ export function PublicHomepage({
               </div>
               <div className="logo-row" aria-label="Client logos">
                 {model.proof.logos.map((logo, index) => (
-                  <div className="slot logo-slot" key={`${logo}-${index}`}>
-                    <span className="mono lab">LOGO</span>
-                    <b>{logo}</b>
+                  <div className="logo-ph" key={`${logo}-${index}`}>
+                    <span>LOGO</span>
+                    <span>{logo}</span>
                   </div>
                 ))}
               </div>
-              <div className="pg rv">
-                <div className="method">
-                  <span className="lab mono">The method</span>
+              <div className="proof-grid">
+                <div className="method rv">
+                  <span className="lab">The method</span>
                   <h3>{model.proof.methodTitle}</h3>
                   <p className="lead">{model.proof.methodBody}</p>
+                  <TrailGraphic />
                   <ol>
                     {model.proof.method.map((step) => (
                       <li key={step.label}>
-                        <span className="mono">{step.label}</span>
-                        {step.body}
+                        <span className="k">{step.label}</span>
+                        <span>{step.body}</span>
                       </li>
                     ))}
                   </ol>
                 </div>
-                <div className="tour" id="tour">
-                  <div>
-                    <span className="lab mono">Demo tour</span>
-                    <h3>{model.proof.tourTitle}</h3>
-                    <p>{model.proof.tourBody}</p>
-                  </div>
+                <div className="tour rv rv-d1" id="tour">
+                  <span className="lab">Demo tour</span>
+                  <h3>{model.proof.tourTitle}</h3>
+                  <p>{model.proof.tourBody}</p>
                   <TryLink model={model} className="btn sec" cta="try-demo-tour" />
                 </div>
-                {model.proof.slots.map((slot) => (
-                  <div className="slot" key={slot.kicker}>
-                    <span className="mono lab">{slot.kicker}</span>
-                    <b>{slot.title}</b>
-                    <span className="lab">{slot.note}</span>
+                <div className="slots">
+                  {model.proof.slots.map((slot) => (
+                    <div className="slot" key={slot.kicker}>
+                      <span className="mono lab">{slot.kicker}</span>
+                      <b>{slot.title}</b>
+                      <span className="note">{slot.note}</span>
+                    </div>
+                  ))}
+                  <div className="quote">
+                    <span className="mono lab">{model.proof.quotes[0]?.kicker}</span>
+                    <p>{model.proof.quotes[0]?.body}</p>
+                    <p className="who">{model.proof.quotes[0]?.note}</p>
                   </div>
-                ))}
-              </div>
-              <div className="voices">
-                <div className="quote">
-                  <span className="mono lab">{model.proof.quotes[0]?.kicker}</span>
-                  <p>{model.proof.quotes[0]?.body}</p>
-                  <span className="lab">{model.proof.quotes[0]?.note}</span>
-                </div>
-                <Photo caption={model.proof.quotePhoto} person />
-                <div className="quote">
-                  <span className="mono lab">{model.proof.quotes[1]?.kicker}</span>
-                  <p>{model.proof.quotes[1]?.body}</p>
-                  <span className="lab">{model.proof.quotes[1]?.note}</span>
+                  <figure className="slot-photo">
+                    <figcaption>{model.proof.quotePhoto}</figcaption>
+                  </figure>
+                  <div className="quote quote-wide">
+                    <span className="mono lab">{model.proof.quotes[1]?.kicker}</span>
+                    <p>{model.proof.quotes[1]?.body}</p>
+                    <p className="who">{model.proof.quotes[1]?.note}</p>
+                  </div>
                 </div>
               </div>
             </div>
           </section>
 
-          <section className="how" id="how-it-works">
+          <section className="how rule-top" id="how-it-works">
+            <NetRule />
+            <NetCluster side="left" />
             <div className="w">
-              <h2>Here is what happens to your money.</h2>
-              <div className="flow rv">
-                {model.steps.map((step) => (
-                  <article className="fs" key={step.title}>
-                    <span className="lab mono">{step.kicker}</span>
+              <h2 className="rv">Here is what happens to your money.</h2>
+              <BudgetGraphic />
+              <div className="flow">
+                {model.steps.map((step, index) => (
+                  <article className={index % 2 ? "fs rv rv-d1" : "fs rv"} key={step.title}>
+                    <span className="lab">{step.kicker}</span>
                     <h3>{step.title}</h3>
                     <p>{step.body}</p>
                     <div className="art mono">
@@ -281,14 +307,14 @@ export function PublicHomepage({
                   </article>
                 ))}
               </div>
-              <p className="lab mono">{model.stepsNote}</p>
+              <p className="note lab">{model.stepsNote}</p>
             </div>
           </section>
 
           <section className="band" id={band.id} aria-label={band.title}>
             <div className="w">
               <h2>{band.title}</h2>
-              <div className="ctas">
+              <div className="actions">
                 <TrackedLink href={model.bookHref} cta="book-demo-band" className="btn">
                   {model.bookLabel}
                 </TrackedLink>
@@ -299,51 +325,57 @@ export function PublicHomepage({
 
           <section className="demo" id="demo">
             <div className="w">
-              <p className="lab mono rv">{model.demo.kicker}</p>
+              <p className="lab rv">{model.demo.kicker}</p>
               <h2 className="rv">{model.demo.title}</h2>
               <p className="lead rv">{model.demo.lead}</p>
-              <div className="dg rv">
+              <div className="console">
                 <HomepageDemo segments={model.segments} illustrative={model.illustrative} group={model.demo.group} barNote={model.demo.barNote} />
-                <div className="panel">
+                <div className="feed-wrap rv rv-d1">
                   <div className="ph mono">
-                    <span>{model.product} decision feed</span>
+                    <span>
+                      {model.product} decision feed
+                    </span>
                     <span>{model.example}</span>
                   </div>
                   <HomepageFeed items={model.feed} example={model.example} />
                   <p className="mono lab">{model.demo.feedNote}</p>
                 </div>
+                <section id="platform" className="console-rest">
+                  <div className="hum rv">
+                    <blockquote>
+                      {model.platform.quote} <span>{model.platform.accent}</span>
+                    </blockquote>
+                    <ul>
+                      {model.platform.points.map((point) => (
+                        <li key={point}>{point}</li>
+                      ))}
+                    </ul>
+                    <div className="team-row">
+                      {[0, 1, 2].map((index) => (
+                        <figure className="team-ph" key={index}>
+                          <div className="frame" aria-hidden="true" />
+                          <figcaption>{model.platform.photos}</figcaption>
+                        </figure>
+                      ))}
+                    </div>
+                    <p className="team-note">{model.platform.note}</p>
+                  </div>
+                  <div className="slip-wrap rv rv-d1">
+                    <RecommendationSlip illustrative={model.illustrative} title={model.slip.title} body={model.slip.body} why={model.slip.why} />
+                  </div>
+                </section>
               </div>
-            </div>
-          </section>
-
-          <section className="hum" id="platform">
-            <div className="w hum-grid">
-              <div>
-                <blockquote>
-                  {model.platform.quote} <span>{model.platform.accent}</span>
-                </blockquote>
-                <ul>
-                  {model.platform.points.map((point) => (
-                    <li key={point}>{point}</li>
-                  ))}
-                </ul>
-                <div className="team">
-                  {[0, 1, 2].map((index) => (
-                    <Photo key={index} caption={model.platform.photos} person team />
-                  ))}
-                </div>
-                <p className="lab">{model.platform.note}</p>
-              </div>
-              <RecommendationSlip illustrative={model.illustrative} title={model.slip.title} body={model.slip.body} why={model.slip.why} />
             </div>
           </section>
 
           <section className="mods" id="modules">
+            <NetRule />
             <div className="w mods-grid">
               <h2>{model.modulesTitle}</h2>
               <div>
                 {model.modules.map((row) => (
                   <article className="mr" key={row.title}>
+                    {MODULE_ICONS[row.title] ? <IconPlate name={MODULE_ICONS[row.title]} size={40} /> : null}
                     <h3>{row.title}</h3>
                     <p>{row.body}</p>
                     <span className="mono">{row.meta}</span>
@@ -353,13 +385,18 @@ export function PublicHomepage({
             </div>
           </section>
 
-          <section className="compare" id="compare">
+          <section className="cmp rule-top" id="compare">
+            <NetRule />
+            <NetCluster side="right" />
             <div className="w">
-              <h2>{model.compare.title}</h2>
+              <h2 className="rv">{model.compare.title}</h2>
               <p className="lead">{model.compare.lead}</p>
-              <div className="cmp">
-                {model.compare.points.map((point) => (
-                  <article key={point.label}>
+              <ConversionGraphic />
+              <div className="cmp-list">
+                {model.compare.points.map((point, index) => (
+                  <article className={index % 2 ? "cmp-item rv rv-d1" : "cmp-item rv"} key={point.label}>
+                    <IconPlate name={COMPARE_ICONS[index] ?? "audience"} />
+                    <span className="n">{indexLabel(index)}</span>
                     <h3>{point.label}</h3>
                     <p>{point.body}</p>
                   </article>
@@ -369,22 +406,26 @@ export function PublicHomepage({
           </section>
 
           <section className="quiz" id="quiz">
-            <div className="w quiz-grid">
+            <div className="w">
               <div>
                 <h2 className="rv">{model.quiz.title}</h2>
-                <p className="lead rv">{model.quiz.lead}</p>
+                <p className="deck rv">{model.quiz.lead}</p>
               </div>
               <HomepageQuiz questions={model.questions} quiz={model.quiz} bookHref={model.bookHref} bookLabel={model.bookLabel} />
             </div>
           </section>
 
           <section className="faq" id="faq">
-            <div className="w faq-grid">
+            <NetRule />
+            <div className="w">
               <h2>{model.faqTitle}</h2>
               <div>
                 {model.faq.map((item, index) => (
                   <details key={item.question} open={index === 0}>
-                    <summary>{item.question}</summary>
+                    <summary>
+                      <span className="faq-q">{item.question}</span>
+                      <FaqMark />
+                    </summary>
                     <p>{item.answer}</p>
                   </details>
                 ))}
@@ -486,7 +527,7 @@ export function PublicHomepage({
           </section>
 
           <section className="con" id={finale.id}>
-            <div className="w con-grid">
+            <div className="w">
               <div>
                 <h2>{finale.title}</h2>
                 <p className="lead">{finale.body}</p>
@@ -538,23 +579,23 @@ export function PublicHomepage({
         <div className="w">
           <div>
             <Wordmark model={model} place="footer" />
-            <p style={{ marginTop: 16, maxWidth: "30ch" }}>{model.footer.blurb}</p>
+            <p className="tag">{model.footer.blurb}</p>
           </div>
-          <div>
+          <div className="col">
             <h2>{model.footer.product}</h2>
-            <a href="#how-it-works">How it works</a>
+            <a href="#compare">How it works</a>
             <a href="#proof">Proof</a>
             <a href="#faq">FAQ</a>
             <a href={model.agency.href}>{model.agency.navLabel}</a>
           </div>
-          <nav aria-label="Account">
+          <nav aria-label="Account" className="col">
             <h2>{model.footer.account}</h2>
-            <LoginLinks model={model} variant="footer" />
+            <LoginLinks model={model} />
             <TrackedLink href={model.bookHref} cta="book-demo-footer">
               {model.bookLabel}
             </TrackedLink>
           </nav>
-          <div>
+          <div className="col">
             <h2>{model.footer.legal}</h2>
             <a href="/privacy">Privacy</a>
             <a href="/terms">Terms</a>
@@ -573,6 +614,10 @@ export function PublicHomepage({
           {model.bookLabel}
         </TrackedLink>
       </div>
+      <script dangerouslySetInnerHTML={{ __html: HOMEPAGE_MOTION_SCRIPT }} />
+      <noscript>
+        <style dangerouslySetInnerHTML={{ __html: NOSCRIPT_FINAL }} />
+      </noscript>
       <script dangerouslySetInnerHTML={{ __html: HOMEPAGE_REVEAL_SCRIPT }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
     </div>
