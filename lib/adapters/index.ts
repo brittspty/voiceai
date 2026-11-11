@@ -52,11 +52,15 @@ export const mockCrm: CrmPort = {
   },
 };
 
-async function ghlFetch(path: string, init?: RequestInit) {
+export async function ghlFetch(
+  path: string,
+  init?: RequestInit,
+  options?: { fetchImpl?: typeof fetch; apiKey?: string },
+) {
   assertOutboundOpen("ghl");
-  const key = process.env.GHL_API_KEY;
+  const key = options?.apiKey ?? process.env.GHL_API_KEY;
   if (!key) throw new Error("GHL_API_KEY is not set");
-  const res = await fetch(`https://services.leadconnectorhq.com${path}`, {
+  const res = await (options?.fetchImpl ?? fetch)(`https://services.leadconnectorhq.com${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${key}`,

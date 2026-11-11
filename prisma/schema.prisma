@@ -934,14 +934,18 @@ model AccessRequest {
   createdAt DateTime @default(now())
 }
 
-// Homepage demo requests. Stored only. Nothing is emailed until a destination is chosen.
+// Homepage demo requests. The row is saved first. GoHighLevel and the alert email follow and can fail without dropping the row.
 model HomepageContact {
-  id        String   @id @default(cuid())
-  name      String
-  email     String
-  company   String   @default("")
-  message   String
-  createdAt DateTime @default(now())
+  id           String    @id @default(cuid())
+  name         String
+  email        String
+  company      String    @default("")
+  message      String
+  createdAt    DateTime  @default(now())
+  ghlContactId String?
+  ghlSyncedAt  DateTime?
+  ghlError     String?
+  alertSentAt  DateTime?
 }
 
 model MarketingRawRecord {
