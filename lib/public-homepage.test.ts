@@ -10,7 +10,7 @@ import { feedShouldAdvance } from "./homepage-feed";
 import { BOOK_DEMO_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { BRAND_WORDMARK } from "./brand";
 import { PUBLIC_AD_LINE, PUBLIC_SITE_ORIGIN, PUBLIC_TAGLINE, publicLogos } from "./brand/public";
-import { EXEC_SUMMARY_BAND, EXEC_SUMMARY_HREF, HOMEPAGE_SECTION_ORDER, HOMEPAGE_SIGNOFF_TODO, homepageJsonLd, homepageMetadata, homepageModel, homepageProse } from "./homepage-content";
+import { EXEC_SUMMARY_BAND, EXEC_SUMMARY_HREF, HOMEPAGE_SECTION_ORDER, HOMEPAGE_SIGNOFF_TODO, SHOW_DEMO_TOUR, SHOW_LOGOS, SHOW_PROOF, homepageJsonLd, homepageMetadata, homepageModel, homepageProse } from "./homepage-content";
 import { quizRead } from "./homepage-quiz";
 import { loginHeading } from "./login-copy";
 import { homepageStyle } from "./homepage-style";
@@ -221,9 +221,9 @@ test("try the demo is hidden unless DEMO_WORKSPACE is on", () => {
   assert.equal((off.match(/href="\/login\?audience=team"/g) || []).length, 3);
 
   const on = page(homepageModel({ PUBLIC_HOMEPAGE: "on", DEMO_WORKSPACE: "on" }));
-  assert.equal((on.match(new RegExp(`>${TRY_DEMO_LABEL}<`, "g")) || []).length, 3);
+  assert.equal((on.match(new RegExp(`>${TRY_DEMO_LABEL}<`, "g")) || []).length, 2);
   assert.equal((on.match(/>Or try the demo first</g) || []).length, 1);
-  assert.equal(on.split('href="/demo"').length - 1, 4);
+  assert.equal(on.split('href="/demo"').length - 1, 3);
   assert.equal(homepageModel({}).showTryDemo, false);
   assert.equal(homepageModel({ DEMO_WORKSPACE: "on" }).showTryDemo, true);
 });
@@ -419,6 +419,64 @@ test("executive summary band renders the development line directly under the dek
   assert.match(css, /\.home \.exec-cta-note\s*\{[^}]*overflow:\s*visible/);
   assert.match(css, /\.home \.exec-cta-note\s*\{[^}]*white-space:\s*normal/);
   assert.equal(/\.exec-cta-note\{[^}]*(?:display:\s*none|line-clamp|text-overflow:\s*ellipsis|content:\s*none)/.test(css), false);
+});
+
+test("placeholder proof blocks stay in the model and stay out of the page until their flags are on", () => {
+  assert.equal(SHOW_LOGOS, false);
+  assert.equal(SHOW_DEMO_TOUR, false);
+  assert.equal(SHOW_PROOF, false);
+  const model = homepageModel({ PUBLIC_HOMEPAGE: "on", DEMO_WORKSPACE: "on" });
+  assert.equal(model.showLogos, false);
+  assert.equal(model.showDemoTour, false);
+  assert.equal(model.showProof, false);
+  assert.match(homepageProse(model), /You should see the method before the results/);
+  assert.match(homepageProse(model), /Case study coming/);
+  assert.match(homepageProse(model), /Walk through jAI with sample data/);
+  const hidden = page(model).replace(/&#x27;/g, "'");
+  for (const text of [
+    "You should see the method before the results.",
+    "We won't quote numbers we can't back up.",
+    "TODO(jason) [JASON FACTS] Logo",
+    "Walk through jAI with sample data.",
+    "TODO(jason) Case study coming",
+    "TODO(jason) White paper coming",
+    "TODO(jason) A real client quote goes here once they say yes.",
+    "TODO(jason) Second client voice.",
+    "Photo: [JASON FACTS] the client who gave the quote",
+  ]) {
+    assert.equal(hidden.includes(text), false, text);
+  }
+  assert.equal(hidden.includes('class="logo-row"'), false);
+  assert.equal(hidden.includes('class="tour'), false);
+  assert.equal(hidden.includes('class="slots"'), false);
+  assert.equal(hidden.includes('id="tour"'), false);
+  assert.equal(hidden.includes("try-demo-tour"), false);
+  assert.match(hidden, /Every audience has a paper trail\./);
+  assert.match(hidden, /class="method rv"/);
+  assert.match(hidden, /Which data source supplied the mobile ad IDs/);
+  const trailAt = hidden.indexOf('class="graphic graphic-trail"');
+  const trail = hidden.slice(trailAt, hidden.indexOf("</figure>", trailAt));
+  assert.match(trail, /<th>Data source<\/th>/);
+  assert.match(trail, />Data Source A</);
+  assert.match(trail, />Data Source B</);
+  assert.match(trail, />Data Source C</);
+  assert.match(trail, /ILLUSTRATIVE · the data source and list id on every row\./);
+  assert.equal(/vendor/i.test(trail), false);
+  assert.equal(trail.includes("AllSource"), false);
+  assert.equal((hidden.match(/>Try the demo</g) || []).length, 2);
+
+  const shown = page({ ...model, showLogos: true, showDemoTour: true, showProof: true }).replace(/&#x27;/g, "'");
+  assert.match(shown, /You should see the method before the results\./);
+  assert.match(shown, /We won't quote numbers we can't back up\./);
+  assert.match(shown, /class="logo-row"/);
+  assert.match(shown, /Walk through jAI with sample data\./);
+  assert.match(shown, /data-cta="try-demo-tour"/);
+  assert.match(shown, /TODO\(jason\) Case study coming/);
+  assert.match(shown, /TODO\(jason\) White paper coming/);
+  assert.match(shown, /TODO\(jason\) A real client quote goes here once they say yes\./);
+  assert.match(shown, /TODO\(jason\) Second client voice\./);
+  assert.match(shown, /Photo: \[JASON FACTS\] the client who gave the quote/);
+  assert.match(shown, /Every audience has a paper trail\./);
 });
 
 test("team login copy is specific and does not change role routing", () => {
