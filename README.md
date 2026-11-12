@@ -68,10 +68,10 @@ See `.env.example`. Secrets are only read from the environment. Do not commit `.
 | `AIS2L_SILENCE_HANGUP_SEC` | Silence hangup while compliance v2 is on. Clamped to 10–15 seconds. Default 12. |
 | `AIS2L_CALL_REASON` | Reason said first on a compliance v2 call. Default: you asked for a short introduction. |
 | `APP_URL` | Public origin, used in webhook instructions |
-| `GHL_API_KEY`, `GHL_LOCATION_ID`, `GHL_WEBHOOK_SECRET` | GoHighLevel lead sync and the Book a demo upsert. Specificity location id: `DbcsZg79I6sNbzpaN1Go`. A blank key or location skips the form upsert |
-| `GHL_API_TOKEN` | Optional override for the Book a demo upsert. Blank uses `GHL_API_KEY` |
-| `DEMO_ALERT_TO` | Comma-separated Book a demo alert recipients. Intended: `jason@specificityinc.com,britt@specificityinc.com`. Blank skips the email |
-| `RESEND_API_KEY`, `MAIL_FROM` | Resend sender used by `lib/mail.ts`. Both are required for the demo alert |
+| `GHL_API_KEY`, `GHL_LOCATION_ID`, `GHL_WEBHOOK_SECRET` | GoHighLevel lead sync, Book a demo, and the agency waitlist. Specificity location id: `DbcsZg79I6sNbzpaN1Go`. A blank key or location skips the form upsert |
+| `GHL_API_TOKEN` | Optional override for Book a demo and the agency waitlist. Blank uses `GHL_API_KEY` |
+| `DEMO_ALERT_TO` | Comma-separated Book a demo and agency waitlist alert recipients. Intended: `jason@specificityinc.com,britt@specificityinc.com`. Blank skips the email |
+| `RESEND_API_KEY`, `MAIL_FROM` | Resend sender used by `lib/mail.ts`. Both are required for those alerts |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `ELEVENLABS_AGENT_PHONE_NUMBER_ID`, `ELEVENLABS_WEBHOOK_SECRET` | ElevenLabs outbound calls |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `TWILIO_WEBHOOK_SECRET` | Twilio account check and status callbacks |
 | `WORKER_STEP_MS` | Pause between dial states so the live board can show them. `0` skips the pause |

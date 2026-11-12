@@ -1,3 +1,4 @@
+import { syncAgencyWaitlist, type AgencyWaitlistSyncOptions } from "./agency-waitlist-sync";
 import { prisma } from "./db";
 import { normalizeWorkEmail, WORK_EMAIL_ERROR } from "./magic-link";
 import { publicHomepageEnabled, type Env } from "./public-routing";
@@ -128,7 +129,15 @@ export function waitlistDraft(input: WaitlistInput): { ok: true; value: Waitlist
   return { ok: true, value: { name, email, agencyName, website, clientCount, monthlySpend, message } };
 }
 
-/** Writes one row. Does not send mail or call another service. */
+async function deliverWaitlist(row: WaitlistDraft & { id: string }, env: Env, sync: Omit<AgencyWaitlistSyncOptions, "env"> | undefined) {
+  try {
+    await syncAgencyWaitlist(row, { env, ...sync });
+  } catch (error) {
+    console.error("[agency-waitlist] sync failed", error instanceof Error ? error.name : "error");
+  }
+}
+
+/** Writes one row first. GoHighLevel and the alert run after that and cannot fail the visitor. */
 export async function acceptAgencyWaitlist(input: {
   fields: WaitlistInput;
   form?: boolean;
@@ -138,6 +147,7 @@ export async function acceptAgencyWaitlist(input: {
   now?: number;
   ip?: string;
   limits?: Map<string, { n: number; at: number }>;
+  sync?: Omit<AgencyWaitlistSyncOptions, "env">;
 }): Promise<WaitlistResult> {
   const env = input.env ?? process.env;
   if (!publicHomepageEnabled(env)) return { status: 404 };
@@ -161,6 +171,7 @@ export async function acceptAgencyWaitlist(input: {
     return { status: 400, error: draft.error };
   }
   const saved = await (input.store ?? defaultStore).create(draft.value);
+  await deliverWaitlist({ id: saved.id, ...draft.value }, env, input.sync);
   if (input.form) return { status: 303, location: SAVED };
   return { status: 200, id: saved.id };
 }
