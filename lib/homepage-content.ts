@@ -668,7 +668,7 @@ export function homepageMetadata() {
       type: "website" as const,
       siteName: PRODUCT_WORDMARK,
       url: `${PUBLIC_SITE_ORIGIN}/`,
-      images: [{ url: image, width: 1200, height: 630, alt: `${PUBLIC_LOGO_ALT}. ${PUBLIC_TAGLINE}. ${PUBLIC_AD_LINE}` }],
+      images: [{ url: image, width: 1200, height: 630, alt: `${PUBLIC_LOGO_ALT}. ${PUBLIC_TAGLINE} ${PUBLIC_AD_LINE}` }],
     },
     twitter: { card: "summary_large_image" as const, title, description, images: [image] },
     robots: { index: true, follow: true },

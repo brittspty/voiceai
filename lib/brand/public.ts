@@ -21,7 +21,7 @@ export const publicLogos = {
   rasterLight: "/brand/jai-logo-final-light.png",
   favicon32: "/brand/jai-favicon-32.png",
   favicon192: "/brand/jai-favicon-192.png",
-  og: "/brand/jai-og.png",
+  og: "/brand/jai-og.png?v=2",
 } as const;
 
 /** viewBox sizes from the final SVGs. Lockup includes "by Specificity". */
