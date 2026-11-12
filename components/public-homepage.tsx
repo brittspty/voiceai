@@ -13,7 +13,7 @@ import { HomepageQuiz } from "@/components/homepage-quiz";
 import { HOMEPAGE_REVEAL_SCRIPT, HomepageReveal } from "@/components/homepage-reveal";
 import { RecommendationSlip } from "@/components/homepage-slip";
 import type { MarkName } from "@/components/homepage-marks";
-import { EXEC_SUMMARY_BAND, EXEC_SUMMARY_HREF, EXEC_SUMMARY_NAV, HOMEPAGE_SECTION_ORDER, homepageJsonLd, type HomepageModel } from "@/lib/homepage-content";
+import { EXEC_SUMMARY_BAND, EXEC_SUMMARY_HREF, EXEC_SUMMARY_NAV, HOMEPAGE_SECTION_ORDER, homepageJsonLd, visibleFaqs, type HomepageModel } from "@/lib/homepage-content";
 import { homepageStyle } from "@/lib/homepage-style";
 
 const PILLAR_ICONS: MarkName[] = ["identify", "engage", "convert"];
@@ -462,7 +462,7 @@ export function PublicHomepage({
             <div className="w">
               <h2>{model.faqTitle}</h2>
               <div>
-                {model.faq.map((item, index) => (
+                {visibleFaqs(model.faq, model.showTodoFaqs).map((item, index) => (
                   <details key={item.question} open={index === 0}>
                     <summary>
                       <span className="faq-q">{item.question}</span>

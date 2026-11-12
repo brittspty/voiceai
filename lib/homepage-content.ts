@@ -23,6 +23,12 @@ export const JASON_FACTS = "[JASON FACTS]";
 export const SHOW_LOGOS = false;
 export const SHOW_DEMO_TOUR = false;
 export const SHOW_PROOF = false;
+/** Unsigned FAQ answers. Flip to true once Jason supplies the real wording. */
+export const SHOW_TODO_FAQS = false;
+
+export function visibleFaqs<T extends { answer: string }>(items: T[], showTodoFaqs = SHOW_TODO_FAQS) {
+  return showTodoFaqs ? items : items.filter((item) => !item.answer.startsWith("TODO(jason):"));
+}
 
 export const EXEC_SUMMARY_HREF = "/executive-summary/";
 export const EXEC_SUMMARY_NAV = "Executive summary";
@@ -90,6 +96,7 @@ export type HomepageModel = {
   showLogos: boolean;
   showDemoTour: boolean;
   showProof: boolean;
+  showTodoFaqs: boolean;
   demoHref: "/demo";
   bookHref: "#contact";
   bookLabel: string;
@@ -236,6 +243,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     showLogos: SHOW_LOGOS,
     showDemoTour: SHOW_DEMO_TOUR,
     showProof: SHOW_PROOF,
+    showTodoFaqs: SHOW_TODO_FAQS,
     demoHref: "/demo",
     bookHref: "#contact",
     bookLabel: BOOK_DEMO_LABEL,
