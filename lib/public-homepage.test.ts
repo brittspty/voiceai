@@ -10,7 +10,7 @@ import { feedShouldAdvance } from "./homepage-feed";
 import { BOOK_DEMO_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { BRAND_WORDMARK } from "./brand";
 import { PUBLIC_AD_LINE, PUBLIC_SITE_ORIGIN, PUBLIC_TAGLINE, publicLogos } from "./brand/public";
-import { EXEC_SUMMARY_BAND, EXEC_SUMMARY_HREF, HOMEPAGE_SECTION_ORDER, HOMEPAGE_SIGNOFF_TODO, SHOW_DEMO_TOUR, SHOW_LOGOS, SHOW_PROOF, homepageJsonLd, homepageMetadata, homepageModel, homepageProse } from "./homepage-content";
+import { EXEC_SUMMARY_BAND, EXEC_SUMMARY_HREF, HOMEPAGE_SECTION_ORDER, HOMEPAGE_SIGNOFF_TODO, SHOW_DEMO_TOUR, SHOW_LOGOS, SHOW_PROOF, SHOW_TODO_FAQS, homepageJsonLd, homepageMetadata, homepageModel, homepageProse, visibleFaqs } from "./homepage-content";
 import { quizRead } from "./homepage-quiz";
 import { loginHeading } from "./login-copy";
 import { homepageStyle } from "./homepage-style";
@@ -370,7 +370,7 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(html, /Bots optimize, humans make the call/);
   assert.equal(html.includes("specificity-logo"), false);
   assert.equal(html.includes("diverai.specificityinc.com"), false);
-  assert.match(html, /TODO\(jason\)/);
+  assert.equal(html.includes("TODO("), false);
   assert.match(html, /jAI runs ads on virtually every ad platform available\./);
   assert.match(html, /Woman in a studio reviewing a tablet\./);
   assert.match(html, /hero-network-1440\.webp 1440w, \/homepage\/hero-network-2560\.webp 2560w/);
@@ -505,6 +505,38 @@ test("the team strip uses the approved headshots and drops the photo placeholder
   const css = sourceOf("app/homepage.css");
   assert.match(css, /\.home \.team-ph \.frame img\{[^}]*object-fit:\s*cover/);
   assert.match(css, /\.home \.team-ph \.frame img\{[^}]*object-position:\s*center top/);
+});
+
+test("unsigned FAQ answers stay in the model and stay off the page", () => {
+  assert.equal(SHOW_TODO_FAQS, false);
+  const model = homepageModel({ PUBLIC_HOMEPAGE: "on" });
+  assert.equal(model.showTodoFaqs, false);
+  assert.equal(model.faq.length, 7);
+  assert.equal(visibleFaqs(model.faq).length, 4);
+  const hiddenQuestions = ["Is this private and compliant?", "What does it cost?", "When will someone reply?"];
+  for (const question of hiddenQuestions) {
+    const item = model.faq.find((entry) => entry.question === question);
+    assert.match(item?.answer || "", /^TODO\(jason\):/);
+  }
+  const html = page(model);
+  assert.equal(html.includes("TODO("), false);
+  assert.equal((html.match(/<details/g) || []).length, 4);
+  for (const question of hiddenQuestions) assert.equal(html.includes(question), false, question);
+  for (const question of [
+    "How is this different from platform targeting?",
+    "Who controls the budget?",
+    "What will I see as a client?",
+    "How soon will I see results?",
+  ]) {
+    assert.match(html, new RegExp(question.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  const shown = page({ ...model, showTodoFaqs: true });
+  assert.equal((shown.match(/<details/g) || []).length, 7);
+  for (const question of hiddenQuestions) assert.match(shown, new RegExp(question.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const linked = JSON.stringify(homepageJsonLd());
+  assert.equal(linked.includes("FAQPage"), false);
+  assert.equal(linked.includes("TODO("), false);
+  for (const question of hiddenQuestions) assert.equal(linked.includes(question), false, question);
 });
 
 test("team login copy is specific and does not change role routing", () => {
