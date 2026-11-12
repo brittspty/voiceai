@@ -1,10 +1,11 @@
+import { PUBLIC_TAGLINE } from "./brand/public";
 import { brandTokens } from "./brand/tokens";
 import { clientConfig, type ClientConfig } from "./client-config";
 
 export { AIS2L_LINE, AIS2L_NAME, PRODUCT_NAME, PRODUCT_TITLE, PRODUCT_WORDMARK } from "./brand/names";
 
-export const PRODUCT_TAGLINE =
-  "Avery calls your new leads in minutes, follows calling rules, and logs every call to GoHighLevel.";
+/** Sign-in product line. Same official jAI tagline as the public site. */
+export const PRODUCT_TAGLINE = PUBLIC_TAGLINE;
 
 /** One brand name for the header, sidebar, and sign-in. Not the workspace subtitle. */
 export const BRAND_WORDMARK = "Specificity";

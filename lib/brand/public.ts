@@ -5,6 +5,8 @@
 export const PUBLIC_TAGLINE = "Your audience. Everywhere.";
 /** Supporting line for ads and marketing, shown next to the tagline. */
 export const PUBLIC_AD_LINE = "Bots optimize, humans make the call";
+/** Public metadata description: tagline plus the supporting line. */
+export const PUBLIC_DESCRIPTION = `${PUBLIC_TAGLINE} ${PUBLIC_AD_LINE}`;
 export const PUBLIC_SITE_HOST = "jai.specificityinc.com";
 export const PUBLIC_SITE_ORIGIN = "https://jai.specificityinc.com";
 export const PUBLIC_LOGO_ALT = "jAI by Specificity";

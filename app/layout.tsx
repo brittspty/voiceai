@@ -5,8 +5,8 @@ import { PostHogAnalytics } from "@/components/posthog-analytics";
 import { ThemeProvider } from "@/components/theme-provider";
 import { posthogClientProps } from "@/lib/analytics/posthog";
 import { getCurrentUser } from "@/lib/auth";
-import { BRAND_FONT, PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_TITLE, PRODUCT_WORDMARK } from "@/lib/brand";
-import { publicLogos } from "@/lib/brand/public";
+import { BRAND_FONT, PRODUCT_NAME, PRODUCT_TITLE, PRODUCT_WORDMARK } from "@/lib/brand";
+import { PUBLIC_DESCRIPTION, publicLogos } from "@/lib/brand/public";
 import { brandTokenCss } from "@/lib/brand/tokens";
 import "./globals.css";
 
@@ -17,11 +17,11 @@ const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600
 export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { default: PRODUCT_TITLE, template: `%s · ${PRODUCT_NAME}` },
-    description: PRODUCT_TAGLINE,
+    description: PUBLIC_DESCRIPTION,
     applicationName: PRODUCT_WORDMARK,
     manifest: "/site.webmanifest",
-    openGraph: { title: PRODUCT_TITLE, description: PRODUCT_TAGLINE, siteName: PRODUCT_WORDMARK },
-    twitter: { card: "summary", title: PRODUCT_TITLE, description: PRODUCT_TAGLINE },
+    openGraph: { title: PRODUCT_TITLE, description: PUBLIC_DESCRIPTION, siteName: PRODUCT_WORDMARK },
+    twitter: { card: "summary", title: PRODUCT_TITLE, description: PUBLIC_DESCRIPTION },
     icons: {
       icon: [
         { url: publicLogos.favicon32, sizes: "32x32", type: "image/png" },
