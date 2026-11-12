@@ -18,10 +18,9 @@ import { clientViewerBlock } from "./marketing/client-gate";
  * - super_admin and account_manager open the staff marketing view
  * - owner, admin, and viewer open /app
  * With the homepage off, client_viewer still opens the client view and everyone
- * else still opens "/". LOGIN_ANALYTICS sends super admins and account managers
- * to /portfolio after they submit credentials, and leaves every client role on its own view.
- * Someone already signed in who opens /login goes to the platform. Staff open
- * /marketing, not /portfolio. /portfolio stays reachable on its own URL.
+ * else still opens "/". Staff open /marketing after they submit credentials
+ * and when they are already signed in and open /login. LOGIN_ANALYTICS does
+ * not send anyone to /portfolio. /portfolio stays reachable on its own URL.
  * There is one sign-in, not a second auth system.
  */
 
@@ -131,7 +130,7 @@ export function appHomePath(env: Env = process.env) {
 export function postLoginPath(role: string | null | undefined, env: Env = process.env) {
   if (role === "demo_viewer") return "/demo";
   if (role === "client_viewer") return CLIENT_VIEW_PATH;
-  if (loginAnalyticsEnabled(env) && (role === "super_admin" || role === "account_manager")) return PORTFOLIO_PATH;
+  if (loginAnalyticsEnabled(env) && (role === "super_admin" || role === "account_manager")) return STAFF_VIEW_PATH;
   if (!publicHomepageEnabled(env)) return "/";
   if (role === "super_admin" || role === "account_manager") return STAFF_VIEW_PATH;
   return APP_PATH;

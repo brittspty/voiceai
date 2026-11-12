@@ -222,17 +222,17 @@ test("count-up respects reduced motion and the public query stays anonymous", ()
   assert.equal(nextLoginTab("team", "Home"), "client");
 });
 
-test("staff land on the portfolio and guests can read only the public aggregate", async () => {
+test("staff land on marketing and guests can read only the public aggregate", async () => {
   const on = { LOGIN_ANALYTICS: "on" };
-  assert.equal(postLoginPath("super_admin", on), "/portfolio");
-  assert.equal(postLoginPath("account_manager", on), "/portfolio");
+  assert.equal(postLoginPath("super_admin", on), "/marketing");
+  assert.equal(postLoginPath("account_manager", on), "/marketing");
   assert.equal(postLoginPath("client_viewer", on), "/marketing/client");
   assert.equal(postLoginPath("owner", on), "/");
   assert.equal(postLoginPath("admin", on), "/");
   assert.equal(postLoginPath("viewer", on), "/");
   assert.equal(postLoginPath("super_admin", { PUBLIC_HOMEPAGE: "on" }), "/marketing");
   assert.deepEqual(loginNextField("super_admin", {}), {});
-  assert.equal(loginNextField("super_admin", on).next, "/portfolio");
+  assert.equal(loginNextField("super_admin", on).next, "/marketing");
   assert.equal(loginNextField("owner", on).next, undefined);
   assert.equal(loginNextField("client_viewer", on).next, "/marketing/client");
   const open = await proxy(new NextRequest("http://voiceops.test/api/public/login-analytics"), {});

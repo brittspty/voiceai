@@ -170,9 +170,18 @@ test("an already signed-in visit to /login opens the platform, not the portfolio
     assert.equal(location.pathname, path, role);
     assert.equal(location.search, "");
   }
-  assert.equal(postLoginPath("super_admin", env), "/portfolio");
-  assert.equal(postLoginPath("account_manager", env), "/portfolio");
-  assert.equal(loginNextField("super_admin", env).next, "/portfolio");
+  assert.equal(postLoginPath("super_admin", env), "/marketing");
+  assert.equal(postLoginPath("account_manager", env), "/marketing");
+  assert.equal(postLoginPath("client_viewer", env), "/marketing/client");
+  assert.equal(postLoginPath("owner", env), "/app");
+  assert.equal(postLoginPath("admin", env), "/app");
+  assert.equal(postLoginPath("viewer", env), "/app");
+  assert.equal(postLoginPath("demo_viewer", env), "/demo");
+  assert.equal(loginNextField("super_admin", env).next, "/marketing");
+  for (const role of Object.keys(expect)) {
+    assert.notEqual(postLoginPath(role, env), "/portfolio", role);
+    assert.notEqual(signedInLoginBounce(role, env), "/portfolio", role);
+  }
   const portfolio = await proxy(request("/portfolio", await session("super_admin")), env);
   assert.equal(portfolio.headers.get("location"), null);
 });
