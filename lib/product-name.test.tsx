@@ -75,7 +75,7 @@ const loginBrand = {
   mark: "S",
   wordmark: "Specificity",
   tagline: "Identify. Engage. Convert.",
-  productLine: "Avery calls your new leads in minutes.",
+  productLine: "Your audience. Everywhere.",
 };
 
 test("rendered public pages and email templates do not say Jarvis", async () => {

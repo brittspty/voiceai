@@ -8,7 +8,7 @@ import { PublicHomepage } from "../components/public-homepage";
 import { acceptHomepageContact, saveHomepageContact } from "./homepage-contact";
 import { feedShouldAdvance } from "./homepage-feed";
 import { BOOK_DEMO_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
-import { BRAND_WORDMARK } from "./brand";
+import { BRAND_WORDMARK, PRODUCT_TAGLINE } from "./brand";
 import { PUBLIC_AD_LINE, PUBLIC_DESCRIPTION, PUBLIC_SITE_ORIGIN, PUBLIC_TAGLINE, publicLogos } from "./brand/public";
 import { EXEC_SUMMARY_BAND, EXEC_SUMMARY_HREF, HOMEPAGE_SECTION_ORDER, HOMEPAGE_SIGNOFF_TODO, SHOW_DEMO_TOUR, SHOW_LOGOS, SHOW_PROOF, SHOW_TODO_FAQS, homepageJsonLd, homepageMetadata, homepageModel, homepageProse, visibleFaqs } from "./homepage-content";
 import { quizRead } from "./homepage-quiz";
@@ -343,6 +343,8 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.equal(PUBLIC_TAGLINE, "Your audience. Everywhere.");
   assert.equal(PUBLIC_AD_LINE, "Bots optimize, humans make the call");
   assert.equal(PUBLIC_DESCRIPTION, "Your audience. Everywhere. Bots optimize, humans make the call");
+  assert.equal(PRODUCT_TAGLINE, "Your audience. Everywhere.");
+  assert.equal(sourceOf("lib/brand.ts").includes("Avery calls your new leads"), false);
   const layout = sourceOf("app/layout.tsx");
   assert.match(layout, /description: PUBLIC_DESCRIPTION/);
   assert.match(layout, /openGraph: \{ title: PRODUCT_TITLE, description: PUBLIC_DESCRIPTION/);
