@@ -479,6 +479,34 @@ test("placeholder proof blocks stay in the model and stay out of the page until 
   assert.match(shown, /Every audience has a paper trail\./);
 });
 
+test("the team strip uses the approved headshots and drops the photo placeholders", () => {
+  const html = page(homepageModel({ PUBLIC_HOMEPAGE: "on" })).replace(/&amp;/g, "&");
+  const start = html.indexOf('class="team-row"');
+  const end = html.indexOf('class="slip-wrap ', start);
+  assert.ok(start >= 0 && end > start);
+  const block = html.slice(start, end);
+  const people = [
+    ["/team/parth.jpg", "Parth", "Head of Paid Media & Performance"],
+    ["/team/jackson.jpg", "Jackson", "Client Services Manager"],
+    ["/team/brittany.jpg", "Brittany", "VP of Operations"],
+  ];
+  let cursor = -1;
+  for (const [src, name, role] of people) {
+    const at = block.indexOf(`src="${src}"`);
+    assert.ok(at > cursor, src);
+    cursor = at;
+    assert.match(block, new RegExp(`src="${src}" alt="${name}, ${role}" width="400" height="400" loading="lazy"`));
+    assert.match(block, new RegExp(`team-name">${name}</span>\\s*<span class="team-role">${role}</span>`));
+  }
+  assert.match(block, /The people who review your account\./);
+  assert.equal(block.includes("Real photos only, with permission."), false);
+  assert.equal(block.includes("JASON FACTS"), false);
+  assert.equal(block.includes("Photo:"), false);
+  const css = sourceOf("app/homepage.css");
+  assert.match(css, /\.home \.team-ph \.frame img\{[^}]*object-fit:\s*cover/);
+  assert.match(css, /\.home \.team-ph \.frame img\{[^}]*object-position:\s*center top/);
+});
+
 test("team login copy is specific and does not change role routing", () => {
   assert.equal(loginHeading("team", BRAND_WORDMARK), "Specificity team sign-in");
   assert.equal(loginHeading("client", BRAND_WORDMARK), "Sign in to Specificity");

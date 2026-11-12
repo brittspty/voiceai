@@ -129,7 +129,13 @@ export type HomepageModel = {
   demo: { kicker: string; title: string; lead: string; group: string; barNote: string; feedNote: string };
   segments: DemoSegment[];
   feed: FeedItem[];
-  platform: { quote: string; accent: string; points: string[]; photos: string; note: string };
+  platform: {
+    quote: string;
+    accent: string;
+    points: string[];
+    team: { name: string; role: string; src: string; alt: string }[];
+    note: string;
+  };
   slip: { title: string; body: string; why: string };
   modulesTitle: string;
   modules: { title: string; body: string; meta: string }[];
@@ -313,7 +319,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         { kicker: `TESTIMONIAL ${JASON_FACTS}`, body: "TODO(jason) Second client voice.", note: "Placeholder" },
       ],
       quotePhoto: `Photo: ${JASON_FACTS} the client who gave the quote`,
-      teamNote: "The people who review your account. Real photos only, with permission.",
+      teamNote: "The people who review your account.",
     },
     steps: [
       {
@@ -374,8 +380,12 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         "Your team owns every budget. A person approves or declines, and the decision is logged with who made it.",
         "Meta, Google, TikTok, and programmatic sit in one view.",
       ],
-      photos: `Photo: ${JASON_FACTS} team member`,
-      note: "The people who review your account. Real photos only, with permission.",
+      team: [
+        { name: "Parth", role: "Head of Paid Media & Performance", src: "/team/parth.jpg", alt: "Parth, Head of Paid Media & Performance" },
+        { name: "Jackson", role: "Client Services Manager", src: "/team/jackson.jpg", alt: "Jackson, Client Services Manager" },
+        { name: "Brittany", role: "VP of Operations", src: "/team/brittany.jpg", alt: "Brittany, VP of Operations" },
+      ],
+      note: "The people who review your account.",
     },
     slip: {
       title: "Shift part of the Meta budget to segment C on TikTok",
@@ -561,6 +571,7 @@ export function homepageProse(model: HomepageModel) {
     model.platform.quote,
     model.platform.accent,
     ...model.platform.points,
+    ...model.platform.team.flatMap((person) => [person.name, person.role]),
     model.platform.note,
     model.slip.title,
     model.slip.body,

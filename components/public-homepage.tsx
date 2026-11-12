@@ -389,10 +389,14 @@ export function PublicHomepage({
                       ))}
                     </ul>
                     <div className="team-row">
-                      {[0, 1, 2].map((index) => (
-                        <figure className="team-ph" key={index}>
-                          <div className="frame" aria-hidden="true" />
-                          <figcaption>{model.platform.photos}</figcaption>
+                      {model.platform.team.map((person) => (
+                        <figure className="team-ph" key={person.src}>
+                          <div className="frame">
+                            <img src={person.src} alt={person.alt} width={400} height={400} loading="lazy" />
+                          </div>
+                          <figcaption>
+                            <span className="team-name">{person.name}</span> <span className="team-role">{person.role}</span>
+                          </figcaption>
                         </figure>
                       ))}
                     </div>
