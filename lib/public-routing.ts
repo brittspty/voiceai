@@ -38,6 +38,16 @@ export function demoWorkspaceEnabled(env: Env = process.env) {
   return envEnabled(env.DEMO_WORKSPACE);
 }
 
+/** Kill switch for the homepage executive-summary band and its nav links. The page itself stays public. */
+export function publicExecSummaryBandEnabled(env: Env = process.env) {
+  return envEnabled(env.PUBLIC_EXEC_SUMMARY_BAND);
+}
+
+export function isExecutiveSummaryPath(pathname: string) {
+  const path = normalizePath(pathname);
+  return path === "/executive-summary" || path.startsWith("/executive-summary/");
+}
+
 export const LEGACY_PUBLIC_PREFIXES = [
   "/login",
   "/forgot-password",
@@ -108,6 +118,7 @@ export function isPublicPath(pathname: string, env: Env) {
   if (publicHomepageEnabled(env) && (isHomepageContactPath(pathname) || isHomepageWaitlistPath(pathname))) return true;
   if (demoWorkspaceEnabled(env) && (isDemoPath(pathname) || isDemoApiPath(pathname))) return true;
   if (isPlanPath(pathname)) return true;
+  if (isExecutiveSummaryPath(pathname)) return true;
   return false;
 }
 

@@ -13,7 +13,7 @@ import { HomepageQuiz } from "@/components/homepage-quiz";
 import { HOMEPAGE_REVEAL_SCRIPT, HomepageReveal } from "@/components/homepage-reveal";
 import { RecommendationSlip } from "@/components/homepage-slip";
 import type { MarkName } from "@/components/homepage-marks";
-import { HOMEPAGE_SECTION_ORDER, homepageJsonLd, type HomepageModel } from "@/lib/homepage-content";
+import { EXEC_SUMMARY_BAND, EXEC_SUMMARY_HREF, EXEC_SUMMARY_NAV, HOMEPAGE_SECTION_ORDER, homepageJsonLd, type HomepageModel } from "@/lib/homepage-content";
 import { homepageStyle } from "@/lib/homepage-style";
 
 const PILLAR_ICONS: MarkName[] = ["identify", "engage", "convert"];
@@ -210,16 +210,46 @@ export function PublicHomepage({
                   </article>
                 ))}
               </div>
-              <figure className="story-photo">
-                <img
-                  src="/homepage/story-photo-1440.webp"
-                  srcSet={STORY_SRCSET}
-                  sizes="(min-width: 1024px) 1216px, calc(100vw - 40px)"
-                  alt="Woman in a studio reviewing a tablet."
-                  width={2560}
-                  height={1440}
-                />
-              </figure>
+              {model.showExecSummaryBand ? (
+                <aside className="exec-cta rv" id="executive-summary" aria-labelledby="exec-cta-title">
+                  <div className="exec-cta-copy">
+                    <p className="lab">{EXEC_SUMMARY_BAND.label}</p>
+                    <h3 id="exec-cta-title">{EXEC_SUMMARY_BAND.title}</h3>
+                    <p className="exec-cta-dek">{EXEC_SUMMARY_BAND.dek}</p>
+                    <p className="exec-cta-note">{EXEC_SUMMARY_BAND.note}</p>
+                    <p className="exec-cta-meta">{EXEC_SUMMARY_BAND.meta}</p>
+                    <a className="btn" href={EXEC_SUMMARY_HREF}>
+                      {EXEC_SUMMARY_BAND.button}
+                    </a>
+                  </div>
+                  <div className="exec-cta-visual">
+                    <figure className="exec-cta-photo">
+                      <img
+                        src="/homepage/story-photo-1440.webp"
+                        srcSet={STORY_SRCSET}
+                        sizes="(min-width: 1024px) 680px, calc(100vw - 40px)"
+                        alt="Woman in a studio reviewing a tablet"
+                        width={2560}
+                        height={1440}
+                      />
+                    </figure>
+                    <div className="exec-doc" aria-hidden="true">
+                      <img src="/executive-summary/thumbs/page-01-card.webp" alt="" width={480} height={621} />
+                    </div>
+                  </div>
+                </aside>
+              ) : (
+                <figure className="story-photo">
+                  <img
+                    src="/homepage/story-photo-1440.webp"
+                    srcSet={STORY_SRCSET}
+                    sizes="(min-width: 1024px) 1216px, calc(100vw - 40px)"
+                    alt="Woman in a studio reviewing a tablet."
+                    width={2560}
+                    height={1440}
+                  />
+                </figure>
+              )}
             </div>
           </section>
 
@@ -585,6 +615,7 @@ export function PublicHomepage({
             <h2>{model.footer.product}</h2>
             <a href="#compare">How it works</a>
             <a href="#proof">Proof</a>
+            {model.showExecSummaryBand ? <a href={EXEC_SUMMARY_HREF}>{EXEC_SUMMARY_NAV}</a> : null}
             <a href="#faq">FAQ</a>
             <a href={model.agency.href}>{model.agency.navLabel}</a>
           </div>

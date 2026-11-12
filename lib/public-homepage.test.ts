@@ -10,13 +10,13 @@ import { feedShouldAdvance } from "./homepage-feed";
 import { BOOK_DEMO_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { BRAND_WORDMARK } from "./brand";
 import { PUBLIC_AD_LINE, PUBLIC_SITE_ORIGIN, PUBLIC_TAGLINE, publicLogos } from "./brand/public";
-import { HOMEPAGE_SECTION_ORDER, HOMEPAGE_SIGNOFF_TODO, homepageJsonLd, homepageMetadata, homepageModel, homepageProse } from "./homepage-content";
+import { EXEC_SUMMARY_BAND, EXEC_SUMMARY_HREF, HOMEPAGE_SECTION_ORDER, HOMEPAGE_SIGNOFF_TODO, homepageJsonLd, homepageMetadata, homepageModel, homepageProse } from "./homepage-content";
 import { quizRead } from "./homepage-quiz";
 import { loginHeading } from "./login-copy";
 import { homepageStyle } from "./homepage-style";
 import { authLinkOrigin, canonicalOrigin, isSpecificityPublicHost, publicHostRedirect, requestOrigin, safeRequestOrigin } from "./hosts";
 import { proxy } from "../proxy";
-import { loginNextField, postLoginPath, publicHomepageEnabled, demoWorkspaceEnabled } from "./public-routing";
+import { loginNextField, postLoginPath, publicHomepageEnabled, demoWorkspaceEnabled, publicExecSummaryBandEnabled } from "./public-routing";
 import { sameOriginPath } from "./same-origin-path";
 import { SESSION_COOKIE, sessionCookieOptions, signToken } from "./session-token";
 
@@ -376,6 +376,8 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(html, /hero-network-1440\.webp 1440w, \/homepage\/hero-network-2560\.webp 2560w/);
   assert.equal(html.toLowerCase().includes("executive-summary"), false);
   assert.equal(html.includes("Download the executive summary"), false);
+  assert.equal(html.includes(EXEC_SUMMARY_BAND.note), false);
+  assert.equal(publicExecSummaryBandEnabled({}), false);
   assert.equal(/client owner/i.test(html), false);
   const css = sourceOf("app/homepage.css");
   const motion = sourceOf("components/homepage-motion.tsx");
@@ -387,6 +389,36 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(motion, /prefers-reduced-motion/);
   assert.match(motion, /is-ready/);
   assert.match(motion, /is-animating/);
+});
+
+test("executive summary band renders the development line directly under the dek when the flag is on", () => {
+  assert.equal(publicExecSummaryBandEnabled({ PUBLIC_EXEC_SUMMARY_BAND: "on" }), true);
+  const model = homepageModel({ PUBLIC_HOMEPAGE: "on", PUBLIC_EXEC_SUMMARY_BAND: "on" });
+  assert.equal(model.showExecSummaryBand, true);
+  assert.equal(model.nav.some((item) => item.href === EXEC_SUMMARY_HREF), false);
+  assert.equal(model.menuNav.some((item) => item.href === EXEC_SUMMARY_HREF && item.label === "Executive summary"), true);
+  const html = page(model);
+  const start = html.indexOf('<aside class="exec-cta rv"');
+  const end = html.indexOf("</aside>", start);
+  assert.ok(start >= 0 && end > start);
+  const block = html.slice(start, end);
+  const dekAt = block.indexOf(EXEC_SUMMARY_BAND.dek);
+  const noteAt = block.indexOf(EXEC_SUMMARY_BAND.note);
+  assert.ok(dekAt > 0 && noteAt > dekAt);
+  assert.equal(block.slice(dekAt + EXEC_SUMMARY_BAND.dek.length, noteAt), '</p><p class="exec-cta-note">');
+  assert.ok(block.includes(`${EXEC_SUMMARY_BAND.note}</p><p class="exec-cta-meta">${EXEC_SUMMARY_BAND.meta}`));
+  const noteTag = block.slice(noteAt - '<p class="exec-cta-note">'.length, noteAt);
+  assert.equal(noteTag, '<p class="exec-cta-note">');
+  assert.equal(noteTag.includes("hidden"), false);
+  assert.equal(noteTag.includes("title="), false);
+  assert.equal(block.includes("tooltip"), false);
+  assert.equal((html.match(/href="\/executive-summary\/"/g) || []).length, 3);
+  assert.equal(html.includes("Woman in a studio reviewing a tablet."), false);
+  const css = sourceOf("app/homepage.css");
+  assert.match(css, /\.home \.exec-cta-note\s*\{[^}]*display:\s*block/);
+  assert.match(css, /\.home \.exec-cta-note\s*\{[^}]*overflow:\s*visible/);
+  assert.match(css, /\.home \.exec-cta-note\s*\{[^}]*white-space:\s*normal/);
+  assert.equal(/\.exec-cta-note\{[^}]*(?:display:\s*none|line-clamp|text-overflow:\s*ellipsis|content:\s*none)/.test(css), false);
 });
 
 test("team login copy is specific and does not change role routing", () => {
