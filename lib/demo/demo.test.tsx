@@ -1,5 +1,6 @@
 import React from "react";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DemoEntry } from "../../components/demo-entry";
@@ -20,6 +21,20 @@ import { moneyText } from "../marketing/spend-access";
 import { reseedDemo, type DemoWriter } from "./seed-apply";
 import { runOptionalSeeds } from "./modules";
 import { demoLoginAccepted, demoWriteStatus, secretMatches } from "./access";
+import { DemoLoginForm } from "../../app/demo/login/page";
+import { BOOK_DEMO_PATH } from "../homepage-cta";
+import { homepageModel } from "../homepage-content";
+
+test("demo login links people without a key to the homepage book a demo form", () => {
+  const html = renderToStaticMarkup(React.createElement(DemoLoginForm)).replace(/&#x27;/g, "'");
+  const anchor = homepageModel().bookHref;
+  assert.equal(BOOK_DEMO_PATH, `/${anchor}`);
+  assert.match(html, /Don't have an access key\?/);
+  assert.match(html, new RegExp(`href="${BOOK_DEMO_PATH.replace("#", "\\#")}">Request your demo here`));
+  assert.match(html, /text-brand/);
+  const form = readFileSync(new URL("../../components/homepage-contact-form.tsx", import.meta.url), "utf8");
+  assert.match(form, new RegExp(`id="${anchor.slice(1)}"`));
+});
 
 test("demo switches default off and the secret disables the demo", () => {
   assert.equal(demoWorkspaceEnabled({}), false);

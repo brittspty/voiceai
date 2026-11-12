@@ -3,7 +3,7 @@ import { PUBLIC_AD_LINE, PUBLIC_LOGO_ALT, PUBLIC_SITE_ORIGIN, PUBLIC_TAGLINE, pu
 import { DEMO_SUPPORTING_LINE, DEMO_TAGLINE } from "./demo/tour";
 import { brandTokens } from "./brand/tokens";
 import { CLIENT_COUNT_OPTIONS, MONTHLY_SPEND_OPTIONS } from "./agency-waitlist";
-import { AGENCY_WAITLIST_HREF, AGENCY_WAITLIST_LABEL, BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
+import { AGENCY_WAITLIST_HREF, AGENCY_WAITLIST_LABEL, BOOK_DEMO_ANCHOR, BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { homepageDirection } from "./homepage-style";
 import { canonicalOrigin } from "./hosts";
 import { demoWorkspaceEnabled, postLoginPath, publicExecSummaryBandEnabled, type Env } from "./public-routing";
@@ -245,7 +245,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     showProof: SHOW_PROOF,
     showTodoFaqs: SHOW_TODO_FAQS,
     demoHref: "/demo",
-    bookHref: "#contact",
+    bookHref: BOOK_DEMO_ANCHOR,
     bookLabel: BOOK_DEMO_LABEL,
     tryLabel: TRY_DEMO_LABEL,
     tryFirstLabel: TRY_DEMO_FIRST_LABEL,
