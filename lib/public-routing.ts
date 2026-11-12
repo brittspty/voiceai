@@ -19,7 +19,9 @@ import { clientViewerBlock } from "./marketing/client-gate";
  * - owner, admin, and viewer open /app
  * With the homepage off, client_viewer still opens the client view and everyone
  * else still opens "/". LOGIN_ANALYTICS sends super admins and account managers
- * to /portfolio instead, and leaves every client role on its own view.
+ * to /portfolio after they submit credentials, and leaves every client role on its own view.
+ * Someone already signed in who opens /login goes to the platform. Staff open
+ * /marketing, not /portfolio. /portfolio stays reachable on its own URL.
  * There is one sign-in, not a second auth system.
  */
 
@@ -135,6 +137,12 @@ export function postLoginPath(role: string | null | undefined, env: Env = proces
   return APP_PATH;
 }
 
+/** Already signed in and opening /login. Staff go to marketing, not the portfolio. */
+export function signedInLoginBounce(role: string | null | undefined, env: Env = process.env) {
+  if (role === "super_admin" || role === "account_manager") return STAFF_VIEW_PATH;
+  return postLoginPath(role, env);
+}
+
 /** Omitted while both switches are off so the sign-in page keeps its current destination. */
 export function loginNextField(role: string | null | undefined, env: Env = process.env): { next?: string } {
   if (!publicHomepageEnabled(env) && !loginAnalyticsEnabled(env)) return {};
@@ -188,7 +196,7 @@ export function gateDecision(input: {
   }
 
   if (signedIn && path === "/login") {
-    return { action: "redirect", pathname: postLoginPath(role, env), clearSearch: true };
+    return { action: "redirect", pathname: signedInLoginBounce(role, env), clearSearch: true };
   }
 
   if (!homepage && path === "/") return { action: "rewrite", pathname: APP_PATH };

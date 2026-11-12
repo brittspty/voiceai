@@ -16,7 +16,7 @@ import { loginHeading } from "./login-copy";
 import { homepageStyle } from "./homepage-style";
 import { authLinkOrigin, canonicalOrigin, isSpecificityPublicHost, publicHostRedirect, requestOrigin, safeRequestOrigin } from "./hosts";
 import { proxy } from "../proxy";
-import { loginNextField, postLoginPath, publicHomepageEnabled, demoWorkspaceEnabled, publicExecSummaryBandEnabled } from "./public-routing";
+import { loginNextField, postLoginPath, publicHomepageEnabled, demoWorkspaceEnabled, publicExecSummaryBandEnabled, signedInLoginBounce } from "./public-routing";
 import { sameOriginPath } from "./same-origin-path";
 import { SESSION_COOKIE, sessionCookieOptions, signToken } from "./session-token";
 
@@ -133,7 +133,7 @@ test("sign-in routes by role only when the public homepage is on", async () => {
     assert.equal(postLoginPath(role, {}), role === "client_viewer" ? "/marketing/client" : "/");
     assert.deepEqual(loginNextField(role, {}), {});
     const off = await proxy(request("/login", await session(role)), {});
-    assert.equal(new URL(off.headers.get("location") || "", ORIGIN).pathname, postLoginPath(role, {}));
+    assert.equal(new URL(off.headers.get("location") || "", ORIGIN).pathname, signedInLoginBounce(role, {}));
   }
   const on = { PUBLIC_HOMEPAGE: "on" };
   assert.equal(postLoginPath("super_admin", on), "/marketing");
@@ -146,10 +146,35 @@ test("sign-in routes by role only when the public homepage is on", async () => {
   assert.equal(loginNextField("client_viewer", on).next, "/marketing/client");
   for (const role of roles) {
     const response = await proxy(request("/login", await session(role)), on);
-    assert.equal(new URL(response.headers.get("location") || "", ORIGIN).pathname, postLoginPath(role, on), role);
+    assert.equal(new URL(response.headers.get("location") || "", ORIGIN).pathname, signedInLoginBounce(role, on), role);
   }
   const viewer = await proxy(request("/marketing", await session("client_viewer")), on);
   assert.equal(new URL(viewer.headers.get("location") || "", ORIGIN).pathname, "/marketing/client");
+});
+
+test("an already signed-in visit to /login opens the platform, not the portfolio", async () => {
+  const env = { PUBLIC_HOMEPAGE: "on", LOGIN_ANALYTICS: "on" };
+  const expect = {
+    super_admin: "/marketing",
+    account_manager: "/marketing",
+    client_viewer: "/marketing/client",
+    owner: "/app",
+    admin: "/app",
+    viewer: "/app",
+    demo_viewer: "/demo",
+  } as const;
+  for (const [role, path] of Object.entries(expect)) {
+    assert.equal(signedInLoginBounce(role, env), path, role);
+    const response = await proxy(request("/login?audience=team&next=/portfolio", await session(role)), env);
+    const location = new URL(response.headers.get("location") || "", ORIGIN);
+    assert.equal(location.pathname, path, role);
+    assert.equal(location.search, "");
+  }
+  assert.equal(postLoginPath("super_admin", env), "/portfolio");
+  assert.equal(postLoginPath("account_manager", env), "/portfolio");
+  assert.equal(loginNextField("super_admin", env).next, "/portfolio");
+  const portfolio = await proxy(request("/portfolio", await session("super_admin")), env);
+  assert.equal(portfolio.headers.get("location"), null);
 });
 
 test("login destinations stay on this site", () => {
