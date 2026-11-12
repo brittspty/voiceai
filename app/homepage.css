@@ -1309,3 +1309,4 @@ html.reduce-motion .home .ui-flow .ui-step[data-step="4"] span { color: var(--br
   text-overflow: clip;
   visibility: visible;
 }
+.home .proof-grid:not(:has(.tour)) { grid-template-columns: 1fr; }

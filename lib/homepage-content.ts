@@ -19,6 +19,11 @@ export const ILLUSTRATIVE_LABEL = "ILLUSTRATIVE";
 export const EXAMPLE_LABEL = "EXAMPLE";
 export const JASON_FACTS = "[JASON FACTS]";
 
+/** Placeholder proof blocks. Flip a flag to bring that group back. The copy stays in the model either way. */
+export const SHOW_LOGOS = false;
+export const SHOW_DEMO_TOUR = false;
+export const SHOW_PROOF = false;
+
 export const EXEC_SUMMARY_HREF = "/executive-summary/";
 export const EXEC_SUMMARY_NAV = "Executive summary";
 export const EXEC_SUMMARY_BAND = {
@@ -82,6 +87,9 @@ export type HomepageModel = {
   appHref: string;
   showTryDemo: boolean;
   showExecSummaryBand: boolean;
+  showLogos: boolean;
+  showDemoTour: boolean;
+  showProof: boolean;
   demoHref: "/demo";
   bookHref: "#contact";
   bookLabel: string;
@@ -219,6 +227,9 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     appHref: session.signedIn ? postLoginPath(session.role, env) : "/app",
     showTryDemo,
     showExecSummaryBand,
+    showLogos: SHOW_LOGOS,
+    showDemoTour: SHOW_DEMO_TOUR,
+    showProof: SHOW_PROOF,
     demoHref: "/demo",
     bookHref: "#contact",
     bookLabel: BOOK_DEMO_LABEL,
@@ -285,7 +296,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       methodTitle: "Every audience has a paper trail.",
       methodBody: "You can see where each list came from and why it is running.",
       method: [
-        { label: "Source", body: "Which data market vendor supplied the mobile ad IDs" },
+        { label: "Source", body: "Which data source supplied the mobile ad IDs" },
         { label: "Count", body: "Only deduped, contact-checked conversions from a data-market list count as wins" },
         { label: "Test", body: "Segments compared against each other, not against a guess" },
         { label: "Decide", body: "jAI recommends, your team approves" },

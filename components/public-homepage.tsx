@@ -256,18 +256,22 @@ export function PublicHomepage({
           <section className="proof" id="proof">
             <NetRule />
             <div className="w">
-              <div className="top rv">
-                <h2>{model.proof.title}</h2>
-                <p className="lead">{model.proof.lead}</p>
-              </div>
-              <div className="logo-row" aria-label="Client logos">
-                {model.proof.logos.map((logo, index) => (
-                  <div className="logo-ph" key={`${logo}-${index}`}>
-                    <span>LOGO</span>
-                    <span>{logo}</span>
+              {model.showLogos ? (
+                <>
+                  <div className="top rv">
+                    <h2>{model.proof.title}</h2>
+                    <p className="lead">{model.proof.lead}</p>
                   </div>
-                ))}
-              </div>
+                  <div className="logo-row" aria-label="Client logos">
+                    {model.proof.logos.map((logo, index) => (
+                      <div className="logo-ph" key={`${logo}-${index}`}>
+                        <span>LOGO</span>
+                        <span>{logo}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : null}
               <div className="proof-grid">
                 <div className="method rv">
                   <span className="lab">The method</span>
@@ -283,34 +287,38 @@ export function PublicHomepage({
                     ))}
                   </ol>
                 </div>
-                <div className="tour rv rv-d1" id="tour">
-                  <span className="lab">Demo tour</span>
-                  <h3>{model.proof.tourTitle}</h3>
-                  <p>{model.proof.tourBody}</p>
-                  <TryLink model={model} className="btn sec" cta="try-demo-tour" />
-                </div>
-                <div className="slots">
-                  {model.proof.slots.map((slot) => (
-                    <div className="slot" key={slot.kicker}>
-                      <span className="mono lab">{slot.kicker}</span>
-                      <b>{slot.title}</b>
-                      <span className="note">{slot.note}</span>
+                {model.showDemoTour ? (
+                  <div className="tour rv rv-d1" id="tour">
+                    <span className="lab">Demo tour</span>
+                    <h3>{model.proof.tourTitle}</h3>
+                    <p>{model.proof.tourBody}</p>
+                    <TryLink model={model} className="btn sec" cta="try-demo-tour" />
+                  </div>
+                ) : null}
+                {model.showProof ? (
+                  <div className="slots">
+                    {model.proof.slots.map((slot) => (
+                      <div className="slot" key={slot.kicker}>
+                        <span className="mono lab">{slot.kicker}</span>
+                        <b>{slot.title}</b>
+                        <span className="note">{slot.note}</span>
+                      </div>
+                    ))}
+                    <div className="quote">
+                      <span className="mono lab">{model.proof.quotes[0]?.kicker}</span>
+                      <p>{model.proof.quotes[0]?.body}</p>
+                      <p className="who">{model.proof.quotes[0]?.note}</p>
                     </div>
-                  ))}
-                  <div className="quote">
-                    <span className="mono lab">{model.proof.quotes[0]?.kicker}</span>
-                    <p>{model.proof.quotes[0]?.body}</p>
-                    <p className="who">{model.proof.quotes[0]?.note}</p>
+                    <figure className="slot-photo">
+                      <figcaption>{model.proof.quotePhoto}</figcaption>
+                    </figure>
+                    <div className="quote quote-wide">
+                      <span className="mono lab">{model.proof.quotes[1]?.kicker}</span>
+                      <p>{model.proof.quotes[1]?.body}</p>
+                      <p className="who">{model.proof.quotes[1]?.note}</p>
+                    </div>
                   </div>
-                  <figure className="slot-photo">
-                    <figcaption>{model.proof.quotePhoto}</figcaption>
-                  </figure>
-                  <div className="quote quote-wide">
-                    <span className="mono lab">{model.proof.quotes[1]?.kicker}</span>
-                    <p>{model.proof.quotes[1]?.body}</p>
-                    <p className="who">{model.proof.quotes[1]?.note}</p>
-                  </div>
-                </div>
+                ) : null}
               </div>
             </div>
           </section>
