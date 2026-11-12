@@ -6,7 +6,7 @@ import { CLIENT_COUNT_OPTIONS, MONTHLY_SPEND_OPTIONS } from "./agency-waitlist";
 import { AGENCY_WAITLIST_HREF, AGENCY_WAITLIST_LABEL, BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { homepageDirection } from "./homepage-style";
 import { canonicalOrigin } from "./hosts";
-import { demoWorkspaceEnabled, postLoginPath, type Env } from "./public-routing";
+import { demoWorkspaceEnabled, postLoginPath, publicExecSummaryBandEnabled, type Env } from "./public-routing";
 
 /**
  * TODO(jason): Privacy wording, pricing, and reply-time promises need Jason's sign-off before they can be added.
@@ -18,6 +18,17 @@ export const HOMEPAGE_SIGNOFF_TODO =
 export const ILLUSTRATIVE_LABEL = "ILLUSTRATIVE";
 export const EXAMPLE_LABEL = "EXAMPLE";
 export const JASON_FACTS = "[JASON FACTS]";
+
+export const EXEC_SUMMARY_HREF = "/executive-summary/";
+export const EXEC_SUMMARY_NAV = "Executive summary";
+export const EXEC_SUMMARY_BAND = {
+  label: "Executive summary · November 2026",
+  title: "Your audience. Everywhere.",
+  dek: "The marketing-optimization platform built to source fresh audiences from the live data market, run one audience on every channel, and optimize every metric, with people approving every change.",
+  note: "jAI is in development; features and availability may change.",
+  meta: "PDF · 10 pages",
+  button: "Download the executive summary",
+};
 
 export const HOMEPAGE_SECTION_ORDER = [
   "header",
@@ -70,6 +81,7 @@ export type HomepageModel = {
   signedIn: boolean;
   appHref: string;
   showTryDemo: boolean;
+  showExecSummaryBand: boolean;
   demoHref: "/demo";
   bookHref: "#contact";
   bookLabel: string;
@@ -191,6 +203,7 @@ const FEED: FeedItem[] = [
 
 export function homepageModel(env: Env = process.env, session: { signedIn: boolean; role?: string | null } = { signedIn: false }): HomepageModel {
   const showTryDemo = demoWorkspaceEnabled(env);
+  const showExecSummaryBand = publicExecSummaryBandEnabled(env);
   const wordmark = BRAND_WORDMARK;
   return {
     direction: homepageDirection(env),
@@ -205,6 +218,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     signedIn: session.signedIn,
     appHref: session.signedIn ? postLoginPath(session.role, env) : "/app",
     showTryDemo,
+    showExecSummaryBand,
     demoHref: "/demo",
     bookHref: "#contact",
     bookLabel: BOOK_DEMO_LABEL,
@@ -225,6 +239,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       { href: "#demo", label: "See it work" },
       { href: "#quiz", label: "Budget check" },
       { href: "#faq", label: "FAQ" },
+      ...(showExecSummaryBand ? [{ href: EXEC_SUMMARY_HREF, label: EXEC_SUMMARY_NAV }] : []),
       { href: AGENCY_WAITLIST_HREF, label: AGENCY_WAITLIST_LABEL },
     ],
     illustrative: ILLUSTRATIVE_LABEL,

@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The executive summary is a static directory page. Its relative links need the trailing slash.
+  skipTrailingSlashRedirect: true,
   serverExternalPackages: ["bcryptjs", "ioredis", "@prisma/client", "prisma", "qrcode"],
   experimental: { authInterrupts: true },
   async headers() {

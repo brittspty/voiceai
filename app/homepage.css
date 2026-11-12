@@ -1296,3 +1296,16 @@ html.reduce-motion .home .ui-flow .ui-step[data-step="4"] span { color: var(--br
 @media (max-width: 700px) {
   .home .agency-card { padding: 18px 16px; }
 }
+.home .exec-cta-copy .exec-cta-dek { margin-bottom: 8px; }
+.home .exec-cta-note {
+  display: block;
+  color: var(--mute);
+  font-size: 14px;
+  line-height: 1.45;
+  max-width: none;
+  margin: 0 0 24px;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  visibility: visible;
+}

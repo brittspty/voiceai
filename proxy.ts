@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { rewriteForDemoHost } from "@/lib/demo/routes";
 import { publicHostRedirect } from "@/lib/hosts";
-import { envForProxy, gateDecision } from "@/lib/public-routing";
+import { envForProxy, gateDecision, normalizePath } from "@/lib/public-routing";
 import { readToken, SESSION_COOKIE } from "@/lib/session-token";
 
 function withPath(request: NextRequest, rewriteUrl?: URL) {
@@ -19,6 +19,11 @@ function withPath(request: NextRequest, rewriteUrl?: URL) {
 
 export async function proxy(request: NextRequest, envOverride?: unknown) {
   const { pathname } = request.nextUrl;
+  if (pathname === "/index.html") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url, 308);
+  }
   if (pathname.startsWith("/_next") || pathname.startsWith("/favicon") || pathname.includes(".")) {
     return NextResponse.next();
   }
@@ -27,6 +32,21 @@ export async function proxy(request: NextRequest, envOverride?: unknown) {
   if (request.method === "GET" || request.method === "HEAD") {
     const bounce = publicHostRedirect(host, pathname, request.nextUrl.search, env);
     if (bounce) return NextResponse.redirect(bounce, 308);
+    if (normalizePath(pathname) === "/executive-summary") {
+      if (pathname !== "/executive-summary/") {
+        const target = new URL(request.nextUrl.href);
+        target.pathname = "/executive-summary/";
+        return NextResponse.redirect(target, 308);
+      }
+      const url = new URL(request.nextUrl.href);
+      url.pathname = "/executive-summary/index.html";
+      return withPath(request, url);
+    }
+    if (pathname.length > 1 && pathname.endsWith("/")) {
+      const target = new URL(request.nextUrl.href);
+      target.pathname = pathname.replace(/\/+$/, "") || "/";
+      return NextResponse.redirect(target, 308);
+    }
   }
   const demoPath = rewriteForDemoHost(host, pathname);
   const effectivePath = demoPath && demoPath !== pathname ? demoPath : pathname;
