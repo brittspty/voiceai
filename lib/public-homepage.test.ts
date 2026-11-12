@@ -257,6 +257,106 @@ test("the phone header menu keeps both logins available at 390px", () => {
   assert.match(source, /id="header-menu"/);
 });
 
+function homepageMedia(css: string) {
+  const blocks: { query: string; body: string }[] = [];
+  const marker = /@media\b/g;
+  let found = marker.exec(css);
+  while (found) {
+    const head = found.index + found[0].length;
+    const open = css.indexOf("{", head);
+    const query = css.slice(head, open).trim();
+    let depth = 1;
+    let cursor = open + 1;
+    while (cursor < css.length && depth > 0) {
+      if (css[cursor] === "{") depth += 1;
+      else if (css[cursor] === "}") depth -= 1;
+      cursor += 1;
+    }
+    blocks.push({ query, body: css.slice(open + 1, cursor - 1) });
+    marker.lastIndex = cursor;
+    found = marker.exec(css);
+  }
+  return blocks;
+}
+
+function mediaMatches(query: string, width: number, height: number) {
+  return query.split(",").some((clause) => {
+    const parts = clause.split(/\band\b/).map((part) => part.trim()).filter(Boolean);
+    if (parts.length === 0) return false;
+    return parts.every((part) => {
+      const maxWidth = part.match(/\(max-width:\s*(\d+)px\)/);
+      const minWidth = part.match(/\(min-width:\s*(\d+)px\)/);
+      const maxHeight = part.match(/\(max-height:\s*(\d+)px\)/);
+      const minHeight = part.match(/\(min-height:\s*(\d+)px\)/);
+      if (!maxWidth && !minWidth && !maxHeight && !minHeight) return false;
+      if (maxWidth && width > Number(maxWidth[1])) return false;
+      if (minWidth && width < Number(minWidth[1])) return false;
+      if (maxHeight && height > Number(maxHeight[1])) return false;
+      if (minHeight && height < Number(minHeight[1])) return false;
+      return true;
+    });
+  });
+}
+
+function hidesDesktopNav(body: string) {
+  return /\.desk-nav\s*,[^{}]*\{[^}]*display:\s*none/.test(body) || /\.desk-nav[^{}]*\{[^}]*display:\s*none/.test(body);
+}
+
+function stacksHero(body: string) {
+  return /\.hero \.w\s*\{[^}]*grid-template-columns:\s*1fr\s*;/.test(body);
+}
+
+function stacksAgency(body: string) {
+  return /\.agency-grid\s*,[^{}]*\{[^}]*grid-template-columns:\s*1fr\s*;/.test(body);
+}
+
+test("tablet widths keep the desktop homepage", () => {
+  const css = sourceOf("app/homepage.css");
+  const blocks = homepageMedia(css);
+  const tablets = [
+    [744, 1133],
+    [768, 1024],
+    [810, 1080],
+    [820, 1180],
+    [834, 1194],
+    [1024, 1366],
+    [1180, 820],
+    [1366, 1024],
+  ] as const;
+  const phones = [
+    [390, 844],
+    [430, 932],
+    [844, 390],
+  ] as const;
+
+  for (const [width, height] of tablets) {
+    for (const block of blocks) {
+      if (!mediaMatches(block.query, width, height)) continue;
+      assert.equal(hidesDesktopNav(block.body), false, `desktop nav hidden at ${width}x${height} by ${block.query}`);
+      assert.equal(stacksHero(block.body), false, `hero stacked at ${width}x${height} by ${block.query}`);
+      assert.equal(stacksAgency(block.body), false, `agency form stacked at ${width}x${height} by ${block.query}`);
+    }
+  }
+
+  for (const [width, height] of phones) {
+    assert.equal(
+      blocks.some((block) => mediaMatches(block.query, width, height) && hidesDesktopNav(block.body)),
+      true,
+      `phone layout missing at ${width}x${height}`,
+    );
+    assert.equal(
+      blocks.some((block) => mediaMatches(block.query, width, height) && stacksHero(block.body)),
+      true,
+      `phone hero missing at ${width}x${height}`,
+    );
+  }
+
+  const tabletScale = blocks.find((block) => mediaMatches(block.query, 768, 1024) && /\.desk-nav[^{]*\{[^}]*font-size:/.test(block.body));
+  assert.ok(tabletScale, "744px and up should scale the desktop nav instead of using the phone menu");
+  assert.match(tabletScale?.query || "", /min-width:\s*744px/);
+  assert.match(css, /@media \(max-width: 743px\), \(max-width: 1023px\) and \(max-height: 520px\)/);
+});
+
 test("direction B is the default and A is a layout switch", () => {
   assert.equal(homepageModel({}).direction, "B");
   assert.equal(homepageModel({ HOMEPAGE_DIRECTION: "A" }).direction, "A");
