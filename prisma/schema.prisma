@@ -948,18 +948,23 @@ model HomepageContact {
   alertSentAt  DateTime?
 }
 
-/// Agency early-access requests from the public homepage. Stored only. Nothing is emailed until a destination is chosen.
+/// Agency early-access requests from the public homepage. The row is saved first.
+/// GoHighLevel and the alert email follow and can fail without dropping the row.
 /// Not a workspace table. Demo reseed does not read or delete these rows.
 model AgencyWaitlist {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   name         String
   email        String
   agencyName   String
-  website      String   @default("")
-  clientCount  String   @default("")
-  monthlySpend String   @default("")
-  message      String   @default("")
-  createdAt    DateTime @default(now())
+  website      String    @default("")
+  clientCount  String    @default("")
+  monthlySpend String    @default("")
+  message      String    @default("")
+  createdAt    DateTime  @default(now())
+  ghlContactId String?
+  ghlSyncedAt  DateTime?
+  ghlError     String?
+  alertSentAt  DateTime?
 
   @@index([email])
   @@index([createdAt])

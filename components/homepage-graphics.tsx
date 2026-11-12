@@ -4,39 +4,39 @@ function CheckMark() {
   return <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" dangerouslySetInnerHTML={{ __html: CHECK_MARK }} />;
 }
 
-/** Illustrative vendor and list ids already used on the page. */
+/** Illustrative data-source names and list ids. Not real companies. */
 export function TrailGraphic() {
   return (
     <figure className="graphic graphic-trail">
       <p className="sr-only" id="g-trail-title">
-        Vendor and list id on every row
+        Data source and list id on every row
       </p>
       <div className="ui-card ui-ledger" role="region" aria-labelledby="g-trail-title g-trail-cap">
         <table className="ui-table">
           <thead>
             <tr>
-              <th>Vendor</th>
+              <th>Data source</th>
               <th>List id</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
             <tr className="is-focus">
-              <td>Vendor</td>
+              <td>Data Source A</td>
               <td className="mono">a91f-22c0</td>
               <td>
                 <span className="ui-chip ui-chip-ok">traced</span>
               </td>
             </tr>
             <tr>
-              <td>Vendor</td>
+              <td>Data Source B</td>
               <td className="mono">7be3-910d</td>
               <td>
                 <span className="ui-chip ui-chip-ok">traced</span>
               </td>
             </tr>
             <tr>
-              <td>Vendor</td>
+              <td>Data Source C</td>
               <td className="mono">demo-list-041</td>
               <td>
                 <span className="ui-chip ui-chip-ok">traced</span>
@@ -45,7 +45,7 @@ export function TrailGraphic() {
           </tbody>
         </table>
       </div>
-      <figcaption id="g-trail-cap">ILLUSTRATIVE · the vendor and list id on every row.</figcaption>
+      <figcaption id="g-trail-cap">ILLUSTRATIVE · the data source and list id on every row.</figcaption>
     </figure>
   );
 }

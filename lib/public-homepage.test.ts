@@ -10,13 +10,13 @@ import { feedShouldAdvance } from "./homepage-feed";
 import { BOOK_DEMO_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { BRAND_WORDMARK } from "./brand";
 import { PUBLIC_AD_LINE, PUBLIC_SITE_ORIGIN, PUBLIC_TAGLINE, publicLogos } from "./brand/public";
-import { HOMEPAGE_SECTION_ORDER, HOMEPAGE_SIGNOFF_TODO, homepageJsonLd, homepageMetadata, homepageModel, homepageProse } from "./homepage-content";
+import { EXEC_SUMMARY_BAND, EXEC_SUMMARY_HREF, HOMEPAGE_SECTION_ORDER, HOMEPAGE_SIGNOFF_TODO, SHOW_DEMO_TOUR, SHOW_LOGOS, SHOW_PROOF, SHOW_TODO_FAQS, homepageJsonLd, homepageMetadata, homepageModel, homepageProse, visibleFaqs } from "./homepage-content";
 import { quizRead } from "./homepage-quiz";
 import { loginHeading } from "./login-copy";
 import { homepageStyle } from "./homepage-style";
 import { authLinkOrigin, canonicalOrigin, isSpecificityPublicHost, publicHostRedirect, requestOrigin, safeRequestOrigin } from "./hosts";
 import { proxy } from "../proxy";
-import { loginNextField, postLoginPath, publicHomepageEnabled, demoWorkspaceEnabled } from "./public-routing";
+import { loginNextField, postLoginPath, publicHomepageEnabled, demoWorkspaceEnabled, publicExecSummaryBandEnabled } from "./public-routing";
 import { sameOriginPath } from "./same-origin-path";
 import { SESSION_COOKIE, sessionCookieOptions, signToken } from "./session-token";
 
@@ -221,9 +221,9 @@ test("try the demo is hidden unless DEMO_WORKSPACE is on", () => {
   assert.equal((off.match(/href="\/login\?audience=team"/g) || []).length, 3);
 
   const on = page(homepageModel({ PUBLIC_HOMEPAGE: "on", DEMO_WORKSPACE: "on" }));
-  assert.equal((on.match(new RegExp(`>${TRY_DEMO_LABEL}<`, "g")) || []).length, 3);
+  assert.equal((on.match(new RegExp(`>${TRY_DEMO_LABEL}<`, "g")) || []).length, 2);
   assert.equal((on.match(/>Or try the demo first</g) || []).length, 1);
-  assert.equal(on.split('href="/demo"').length - 1, 4);
+  assert.equal(on.split('href="/demo"').length - 1, 3);
   assert.equal(homepageModel({}).showTryDemo, false);
   assert.equal(homepageModel({ DEMO_WORKSPACE: "on" }).showTryDemo, true);
 });
@@ -470,12 +470,14 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(html, /Bots optimize, humans make the call/);
   assert.equal(html.includes("specificity-logo"), false);
   assert.equal(html.includes("diverai.specificityinc.com"), false);
-  assert.match(html, /TODO\(jason\)/);
+  assert.equal(html.includes("TODO("), false);
   assert.match(html, /jAI runs ads on virtually every ad platform available\./);
   assert.match(html, /Woman in a studio reviewing a tablet\./);
   assert.match(html, /hero-network-1440\.webp 1440w, \/homepage\/hero-network-2560\.webp 2560w/);
   assert.equal(html.toLowerCase().includes("executive-summary"), false);
   assert.equal(html.includes("Download the executive summary"), false);
+  assert.equal(html.includes(EXEC_SUMMARY_BAND.note), false);
+  assert.equal(publicExecSummaryBandEnabled({}), false);
   assert.equal(/client owner/i.test(html), false);
   const css = sourceOf("app/homepage.css");
   const motion = sourceOf("components/homepage-motion.tsx");
@@ -487,6 +489,154 @@ test("homepage sections stay in order with signed-off gaps and no invented stats
   assert.match(motion, /prefers-reduced-motion/);
   assert.match(motion, /is-ready/);
   assert.match(motion, /is-animating/);
+});
+
+test("executive summary band renders the development line directly under the dek when the flag is on", () => {
+  assert.equal(publicExecSummaryBandEnabled({ PUBLIC_EXEC_SUMMARY_BAND: "on" }), true);
+  const model = homepageModel({ PUBLIC_HOMEPAGE: "on", PUBLIC_EXEC_SUMMARY_BAND: "on" });
+  assert.equal(model.showExecSummaryBand, true);
+  assert.equal(model.nav.some((item) => item.href === EXEC_SUMMARY_HREF), false);
+  assert.equal(model.menuNav.some((item) => item.href === EXEC_SUMMARY_HREF && item.label === "Executive summary"), true);
+  const html = page(model);
+  const start = html.indexOf('<aside class="exec-cta rv"');
+  const end = html.indexOf("</aside>", start);
+  assert.ok(start >= 0 && end > start);
+  const block = html.slice(start, end);
+  const dekAt = block.indexOf(EXEC_SUMMARY_BAND.dek);
+  const noteAt = block.indexOf(EXEC_SUMMARY_BAND.note);
+  assert.ok(dekAt > 0 && noteAt > dekAt);
+  assert.equal(block.slice(dekAt + EXEC_SUMMARY_BAND.dek.length, noteAt), '</p><p class="exec-cta-note">');
+  assert.ok(block.includes(`${EXEC_SUMMARY_BAND.note}</p><p class="exec-cta-meta">${EXEC_SUMMARY_BAND.meta}`));
+  const noteTag = block.slice(noteAt - '<p class="exec-cta-note">'.length, noteAt);
+  assert.equal(noteTag, '<p class="exec-cta-note">');
+  assert.equal(noteTag.includes("hidden"), false);
+  assert.equal(noteTag.includes("title="), false);
+  assert.equal(block.includes("tooltip"), false);
+  assert.equal((html.match(/href="\/executive-summary\/"/g) || []).length, 3);
+  assert.equal(html.includes("Woman in a studio reviewing a tablet."), false);
+  const css = sourceOf("app/homepage.css");
+  assert.match(css, /\.home \.exec-cta-note\s*\{[^}]*display:\s*block/);
+  assert.match(css, /\.home \.exec-cta-note\s*\{[^}]*overflow:\s*visible/);
+  assert.match(css, /\.home \.exec-cta-note\s*\{[^}]*white-space:\s*normal/);
+  assert.equal(/\.exec-cta-note\{[^}]*(?:display:\s*none|line-clamp|text-overflow:\s*ellipsis|content:\s*none)/.test(css), false);
+});
+
+test("placeholder proof blocks stay in the model and stay out of the page until their flags are on", () => {
+  assert.equal(SHOW_LOGOS, false);
+  assert.equal(SHOW_DEMO_TOUR, false);
+  assert.equal(SHOW_PROOF, false);
+  const model = homepageModel({ PUBLIC_HOMEPAGE: "on", DEMO_WORKSPACE: "on" });
+  assert.equal(model.showLogos, false);
+  assert.equal(model.showDemoTour, false);
+  assert.equal(model.showProof, false);
+  assert.match(homepageProse(model), /You should see the method before the results/);
+  assert.match(homepageProse(model), /Case study coming/);
+  assert.match(homepageProse(model), /Walk through jAI with sample data/);
+  const hidden = page(model).replace(/&#x27;/g, "'");
+  for (const text of [
+    "You should see the method before the results.",
+    "We won't quote numbers we can't back up.",
+    "TODO(jason) [JASON FACTS] Logo",
+    "Walk through jAI with sample data.",
+    "TODO(jason) Case study coming",
+    "TODO(jason) White paper coming",
+    "TODO(jason) A real client quote goes here once they say yes.",
+    "TODO(jason) Second client voice.",
+    "Photo: [JASON FACTS] the client who gave the quote",
+  ]) {
+    assert.equal(hidden.includes(text), false, text);
+  }
+  assert.equal(hidden.includes('class="logo-row"'), false);
+  assert.equal(hidden.includes('class="tour'), false);
+  assert.equal(hidden.includes('class="slots"'), false);
+  assert.equal(hidden.includes('id="tour"'), false);
+  assert.equal(hidden.includes("try-demo-tour"), false);
+  assert.match(hidden, /Every audience has a paper trail\./);
+  assert.match(hidden, /class="method rv"/);
+  assert.match(hidden, /Which data source supplied the mobile ad IDs/);
+  const trailAt = hidden.indexOf('class="graphic graphic-trail"');
+  const trail = hidden.slice(trailAt, hidden.indexOf("</figure>", trailAt));
+  assert.match(trail, /<th>Data source<\/th>/);
+  assert.match(trail, />Data Source A</);
+  assert.match(trail, />Data Source B</);
+  assert.match(trail, />Data Source C</);
+  assert.match(trail, /ILLUSTRATIVE · the data source and list id on every row\./);
+  assert.equal(/vendor/i.test(trail), false);
+  assert.equal(trail.includes("AllSource"), false);
+  assert.equal((hidden.match(/>Try the demo</g) || []).length, 2);
+
+  const shown = page({ ...model, showLogos: true, showDemoTour: true, showProof: true }).replace(/&#x27;/g, "'");
+  assert.match(shown, /You should see the method before the results\./);
+  assert.match(shown, /We won't quote numbers we can't back up\./);
+  assert.match(shown, /class="logo-row"/);
+  assert.match(shown, /Walk through jAI with sample data\./);
+  assert.match(shown, /data-cta="try-demo-tour"/);
+  assert.match(shown, /TODO\(jason\) Case study coming/);
+  assert.match(shown, /TODO\(jason\) White paper coming/);
+  assert.match(shown, /TODO\(jason\) A real client quote goes here once they say yes\./);
+  assert.match(shown, /TODO\(jason\) Second client voice\./);
+  assert.match(shown, /Photo: \[JASON FACTS\] the client who gave the quote/);
+  assert.match(shown, /Every audience has a paper trail\./);
+});
+
+test("the team strip uses the approved headshots and drops the photo placeholders", () => {
+  const html = page(homepageModel({ PUBLIC_HOMEPAGE: "on" })).replace(/&amp;/g, "&");
+  const start = html.indexOf('class="team-row"');
+  const end = html.indexOf('class="slip-wrap ', start);
+  assert.ok(start >= 0 && end > start);
+  const block = html.slice(start, end);
+  const people = [
+    ["/team/parth.jpg", "Parth", "Head of Paid Media & Performance"],
+    ["/team/jackson.jpg", "Jackson", "Client Services Manager"],
+    ["/team/brittany.jpg", "Brittany", "VP of Operations"],
+  ];
+  let cursor = -1;
+  for (const [src, name, role] of people) {
+    const at = block.indexOf(`src="${src}"`);
+    assert.ok(at > cursor, src);
+    cursor = at;
+    assert.match(block, new RegExp(`src="${src}" alt="${name}, ${role}" width="400" height="400" loading="lazy"`));
+    assert.match(block, new RegExp(`team-name">${name}</span>\\s*<span class="team-role">${role}</span>`));
+  }
+  assert.match(block, /The people who review your account\./);
+  assert.equal(block.includes("Real photos only, with permission."), false);
+  assert.equal(block.includes("JASON FACTS"), false);
+  assert.equal(block.includes("Photo:"), false);
+  const css = sourceOf("app/homepage.css");
+  assert.match(css, /\.home \.team-ph \.frame img\{[^}]*object-fit:\s*cover/);
+  assert.match(css, /\.home \.team-ph \.frame img\{[^}]*object-position:\s*center top/);
+});
+
+test("unsigned FAQ answers stay in the model and stay off the page", () => {
+  assert.equal(SHOW_TODO_FAQS, false);
+  const model = homepageModel({ PUBLIC_HOMEPAGE: "on" });
+  assert.equal(model.showTodoFaqs, false);
+  assert.equal(model.faq.length, 7);
+  assert.equal(visibleFaqs(model.faq).length, 4);
+  const hiddenQuestions = ["Is this private and compliant?", "What does it cost?", "When will someone reply?"];
+  for (const question of hiddenQuestions) {
+    const item = model.faq.find((entry) => entry.question === question);
+    assert.match(item?.answer || "", /^TODO\(jason\):/);
+  }
+  const html = page(model);
+  assert.equal(html.includes("TODO("), false);
+  assert.equal((html.match(/<details/g) || []).length, 4);
+  for (const question of hiddenQuestions) assert.equal(html.includes(question), false, question);
+  for (const question of [
+    "How is this different from platform targeting?",
+    "Who controls the budget?",
+    "What will I see as a client?",
+    "How soon will I see results?",
+  ]) {
+    assert.match(html, new RegExp(question.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  const shown = page({ ...model, showTodoFaqs: true });
+  assert.equal((shown.match(/<details/g) || []).length, 7);
+  for (const question of hiddenQuestions) assert.match(shown, new RegExp(question.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const linked = JSON.stringify(homepageJsonLd());
+  assert.equal(linked.includes("FAQPage"), false);
+  assert.equal(linked.includes("TODO("), false);
+  for (const question of hiddenQuestions) assert.equal(linked.includes(question), false, question);
 });
 
 test("team login copy is specific and does not change role routing", () => {

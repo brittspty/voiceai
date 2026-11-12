@@ -13,7 +13,7 @@ import { HomepageQuiz } from "@/components/homepage-quiz";
 import { HOMEPAGE_REVEAL_SCRIPT, HomepageReveal } from "@/components/homepage-reveal";
 import { RecommendationSlip } from "@/components/homepage-slip";
 import type { MarkName } from "@/components/homepage-marks";
-import { HOMEPAGE_SECTION_ORDER, homepageJsonLd, type HomepageModel } from "@/lib/homepage-content";
+import { EXEC_SUMMARY_BAND, EXEC_SUMMARY_HREF, EXEC_SUMMARY_NAV, HOMEPAGE_SECTION_ORDER, homepageJsonLd, visibleFaqs, type HomepageModel } from "@/lib/homepage-content";
 import { homepageStyle } from "@/lib/homepage-style";
 
 const PILLAR_ICONS: MarkName[] = ["identify", "engage", "convert"];
@@ -210,34 +210,68 @@ export function PublicHomepage({
                   </article>
                 ))}
               </div>
-              <figure className="story-photo">
-                <img
-                  src="/homepage/story-photo-1440.webp"
-                  srcSet={STORY_SRCSET}
-                  sizes="(min-width: 1024px) 1216px, calc(100vw - 40px)"
-                  alt="Woman in a studio reviewing a tablet."
-                  width={2560}
-                  height={1440}
-                />
-              </figure>
+              {model.showExecSummaryBand ? (
+                <aside className="exec-cta rv" id="executive-summary" aria-labelledby="exec-cta-title">
+                  <div className="exec-cta-copy">
+                    <p className="lab">{EXEC_SUMMARY_BAND.label}</p>
+                    <h3 id="exec-cta-title">{EXEC_SUMMARY_BAND.title}</h3>
+                    <p className="exec-cta-dek">{EXEC_SUMMARY_BAND.dek}</p>
+                    <p className="exec-cta-note">{EXEC_SUMMARY_BAND.note}</p>
+                    <p className="exec-cta-meta">{EXEC_SUMMARY_BAND.meta}</p>
+                    <a className="btn" href={EXEC_SUMMARY_HREF}>
+                      {EXEC_SUMMARY_BAND.button}
+                    </a>
+                  </div>
+                  <div className="exec-cta-visual">
+                    <figure className="exec-cta-photo">
+                      <img
+                        src="/homepage/story-photo-1440.webp"
+                        srcSet={STORY_SRCSET}
+                        sizes="(min-width: 1024px) 680px, calc(100vw - 40px)"
+                        alt="Woman in a studio reviewing a tablet"
+                        width={2560}
+                        height={1440}
+                      />
+                    </figure>
+                    <div className="exec-doc" aria-hidden="true">
+                      <img src="/executive-summary/thumbs/page-01-card.webp" alt="" width={480} height={621} />
+                    </div>
+                  </div>
+                </aside>
+              ) : (
+                <figure className="story-photo">
+                  <img
+                    src="/homepage/story-photo-1440.webp"
+                    srcSet={STORY_SRCSET}
+                    sizes="(min-width: 1024px) 1216px, calc(100vw - 40px)"
+                    alt="Woman in a studio reviewing a tablet."
+                    width={2560}
+                    height={1440}
+                  />
+                </figure>
+              )}
             </div>
           </section>
 
           <section className="proof" id="proof">
             <NetRule />
             <div className="w">
-              <div className="top rv">
-                <h2>{model.proof.title}</h2>
-                <p className="lead">{model.proof.lead}</p>
-              </div>
-              <div className="logo-row" aria-label="Client logos">
-                {model.proof.logos.map((logo, index) => (
-                  <div className="logo-ph" key={`${logo}-${index}`}>
-                    <span>LOGO</span>
-                    <span>{logo}</span>
+              {model.showLogos ? (
+                <>
+                  <div className="top rv">
+                    <h2>{model.proof.title}</h2>
+                    <p className="lead">{model.proof.lead}</p>
                   </div>
-                ))}
-              </div>
+                  <div className="logo-row" aria-label="Client logos">
+                    {model.proof.logos.map((logo, index) => (
+                      <div className="logo-ph" key={`${logo}-${index}`}>
+                        <span>LOGO</span>
+                        <span>{logo}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : null}
               <div className="proof-grid">
                 <div className="method rv">
                   <span className="lab">The method</span>
@@ -253,34 +287,38 @@ export function PublicHomepage({
                     ))}
                   </ol>
                 </div>
-                <div className="tour rv rv-d1" id="tour">
-                  <span className="lab">Demo tour</span>
-                  <h3>{model.proof.tourTitle}</h3>
-                  <p>{model.proof.tourBody}</p>
-                  <TryLink model={model} className="btn sec" cta="try-demo-tour" />
-                </div>
-                <div className="slots">
-                  {model.proof.slots.map((slot) => (
-                    <div className="slot" key={slot.kicker}>
-                      <span className="mono lab">{slot.kicker}</span>
-                      <b>{slot.title}</b>
-                      <span className="note">{slot.note}</span>
+                {model.showDemoTour ? (
+                  <div className="tour rv rv-d1" id="tour">
+                    <span className="lab">Demo tour</span>
+                    <h3>{model.proof.tourTitle}</h3>
+                    <p>{model.proof.tourBody}</p>
+                    <TryLink model={model} className="btn sec" cta="try-demo-tour" />
+                  </div>
+                ) : null}
+                {model.showProof ? (
+                  <div className="slots">
+                    {model.proof.slots.map((slot) => (
+                      <div className="slot" key={slot.kicker}>
+                        <span className="mono lab">{slot.kicker}</span>
+                        <b>{slot.title}</b>
+                        <span className="note">{slot.note}</span>
+                      </div>
+                    ))}
+                    <div className="quote">
+                      <span className="mono lab">{model.proof.quotes[0]?.kicker}</span>
+                      <p>{model.proof.quotes[0]?.body}</p>
+                      <p className="who">{model.proof.quotes[0]?.note}</p>
                     </div>
-                  ))}
-                  <div className="quote">
-                    <span className="mono lab">{model.proof.quotes[0]?.kicker}</span>
-                    <p>{model.proof.quotes[0]?.body}</p>
-                    <p className="who">{model.proof.quotes[0]?.note}</p>
+                    <figure className="slot-photo">
+                      <figcaption>{model.proof.quotePhoto}</figcaption>
+                    </figure>
+                    <div className="quote quote-wide">
+                      <span className="mono lab">{model.proof.quotes[1]?.kicker}</span>
+                      <p>{model.proof.quotes[1]?.body}</p>
+                      <p className="who">{model.proof.quotes[1]?.note}</p>
+                    </div>
                   </div>
-                  <figure className="slot-photo">
-                    <figcaption>{model.proof.quotePhoto}</figcaption>
-                  </figure>
-                  <div className="quote quote-wide">
-                    <span className="mono lab">{model.proof.quotes[1]?.kicker}</span>
-                    <p>{model.proof.quotes[1]?.body}</p>
-                    <p className="who">{model.proof.quotes[1]?.note}</p>
-                  </div>
-                </div>
+                ) : null}
               </div>
             </div>
           </section>
@@ -351,10 +389,14 @@ export function PublicHomepage({
                       ))}
                     </ul>
                     <div className="team-row">
-                      {[0, 1, 2].map((index) => (
-                        <figure className="team-ph" key={index}>
-                          <div className="frame" aria-hidden="true" />
-                          <figcaption>{model.platform.photos}</figcaption>
+                      {model.platform.team.map((person) => (
+                        <figure className="team-ph" key={person.src}>
+                          <div className="frame">
+                            <img src={person.src} alt={person.alt} width={400} height={400} loading="lazy" />
+                          </div>
+                          <figcaption>
+                            <span className="team-name">{person.name}</span> <span className="team-role">{person.role}</span>
+                          </figcaption>
                         </figure>
                       ))}
                     </div>
@@ -420,7 +462,7 @@ export function PublicHomepage({
             <div className="w">
               <h2>{model.faqTitle}</h2>
               <div>
-                {model.faq.map((item, index) => (
+                {visibleFaqs(model.faq, model.showTodoFaqs).map((item, index) => (
                   <details key={item.question} open={index === 0}>
                     <summary>
                       <span className="faq-q">{item.question}</span>
@@ -585,6 +627,7 @@ export function PublicHomepage({
             <h2>{model.footer.product}</h2>
             <a href="#compare">How it works</a>
             <a href="#proof">Proof</a>
+            {model.showExecSummaryBand ? <a href={EXEC_SUMMARY_HREF}>{EXEC_SUMMARY_NAV}</a> : null}
             <a href="#faq">FAQ</a>
             <a href={model.agency.href}>{model.agency.navLabel}</a>
           </div>

@@ -3,10 +3,10 @@ import { PUBLIC_AD_LINE, PUBLIC_LOGO_ALT, PUBLIC_SITE_ORIGIN, PUBLIC_TAGLINE, pu
 import { DEMO_SUPPORTING_LINE, DEMO_TAGLINE } from "./demo/tour";
 import { brandTokens } from "./brand/tokens";
 import { CLIENT_COUNT_OPTIONS, MONTHLY_SPEND_OPTIONS } from "./agency-waitlist";
-import { AGENCY_WAITLIST_HREF, AGENCY_WAITLIST_LABEL, BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
+import { AGENCY_WAITLIST_HREF, AGENCY_WAITLIST_LABEL, BOOK_DEMO_ANCHOR, BOOK_DEMO_LABEL, TRY_DEMO_FIRST_LABEL, TRY_DEMO_LABEL } from "./homepage-cta";
 import { homepageDirection } from "./homepage-style";
 import { canonicalOrigin } from "./hosts";
-import { demoWorkspaceEnabled, postLoginPath, type Env } from "./public-routing";
+import { demoWorkspaceEnabled, postLoginPath, publicExecSummaryBandEnabled, type Env } from "./public-routing";
 
 /**
  * TODO(jason): Privacy wording, pricing, and reply-time promises need Jason's sign-off before they can be added.
@@ -18,6 +18,28 @@ export const HOMEPAGE_SIGNOFF_TODO =
 export const ILLUSTRATIVE_LABEL = "ILLUSTRATIVE";
 export const EXAMPLE_LABEL = "EXAMPLE";
 export const JASON_FACTS = "[JASON FACTS]";
+
+/** Placeholder proof blocks. Flip a flag to bring that group back. The copy stays in the model either way. */
+export const SHOW_LOGOS = false;
+export const SHOW_DEMO_TOUR = false;
+export const SHOW_PROOF = false;
+/** Unsigned FAQ answers. Flip to true once Jason supplies the real wording. */
+export const SHOW_TODO_FAQS = false;
+
+export function visibleFaqs<T extends { answer: string }>(items: T[], showTodoFaqs = SHOW_TODO_FAQS) {
+  return showTodoFaqs ? items : items.filter((item) => !item.answer.startsWith("TODO(jason):"));
+}
+
+export const EXEC_SUMMARY_HREF = "/executive-summary/";
+export const EXEC_SUMMARY_NAV = "Executive summary";
+export const EXEC_SUMMARY_BAND = {
+  label: "Executive summary · November 2026",
+  title: "Your audience. Everywhere.",
+  dek: "The marketing-optimization platform built to source fresh audiences from the live data market, run one audience on every channel, and optimize every metric, with people approving every change.",
+  note: "jAI is in development; features and availability may change.",
+  meta: "PDF · 10 pages",
+  button: "Download the executive summary",
+};
 
 export const HOMEPAGE_SECTION_ORDER = [
   "header",
@@ -70,6 +92,11 @@ export type HomepageModel = {
   signedIn: boolean;
   appHref: string;
   showTryDemo: boolean;
+  showExecSummaryBand: boolean;
+  showLogos: boolean;
+  showDemoTour: boolean;
+  showProof: boolean;
+  showTodoFaqs: boolean;
   demoHref: "/demo";
   bookHref: "#contact";
   bookLabel: string;
@@ -109,7 +136,13 @@ export type HomepageModel = {
   demo: { kicker: string; title: string; lead: string; group: string; barNote: string; feedNote: string };
   segments: DemoSegment[];
   feed: FeedItem[];
-  platform: { quote: string; accent: string; points: string[]; photos: string; note: string };
+  platform: {
+    quote: string;
+    accent: string;
+    points: string[];
+    team: { name: string; role: string; src: string; alt: string }[];
+    note: string;
+  };
   slip: { title: string; body: string; why: string };
   modulesTitle: string;
   modules: { title: string; body: string; meta: string }[];
@@ -191,6 +224,7 @@ const FEED: FeedItem[] = [
 
 export function homepageModel(env: Env = process.env, session: { signedIn: boolean; role?: string | null } = { signedIn: false }): HomepageModel {
   const showTryDemo = demoWorkspaceEnabled(env);
+  const showExecSummaryBand = publicExecSummaryBandEnabled(env);
   const wordmark = BRAND_WORDMARK;
   return {
     direction: homepageDirection(env),
@@ -205,8 +239,13 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     signedIn: session.signedIn,
     appHref: session.signedIn ? postLoginPath(session.role, env) : "/app",
     showTryDemo,
+    showExecSummaryBand,
+    showLogos: SHOW_LOGOS,
+    showDemoTour: SHOW_DEMO_TOUR,
+    showProof: SHOW_PROOF,
+    showTodoFaqs: SHOW_TODO_FAQS,
     demoHref: "/demo",
-    bookHref: "#contact",
+    bookHref: BOOK_DEMO_ANCHOR,
     bookLabel: BOOK_DEMO_LABEL,
     tryLabel: TRY_DEMO_LABEL,
     tryFirstLabel: TRY_DEMO_FIRST_LABEL,
@@ -225,6 +264,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       { href: "#demo", label: "See it work" },
       { href: "#quiz", label: "Budget check" },
       { href: "#faq", label: "FAQ" },
+      ...(showExecSummaryBand ? [{ href: EXEC_SUMMARY_HREF, label: EXEC_SUMMARY_NAV }] : []),
       { href: AGENCY_WAITLIST_HREF, label: AGENCY_WAITLIST_LABEL },
     ],
     illustrative: ILLUSTRATIVE_LABEL,
@@ -270,7 +310,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
       methodTitle: "Every audience has a paper trail.",
       methodBody: "You can see where each list came from and why it is running.",
       method: [
-        { label: "Source", body: "Which data market vendor supplied the mobile ad IDs" },
+        { label: "Source", body: "Which data source supplied the mobile ad IDs" },
         { label: "Count", body: "Only deduped, contact-checked conversions from a data-market list count as wins" },
         { label: "Test", body: "Segments compared against each other, not against a guess" },
         { label: "Decide", body: "jAI recommends, your team approves" },
@@ -287,7 +327,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         { kicker: `TESTIMONIAL ${JASON_FACTS}`, body: "TODO(jason) Second client voice.", note: "Placeholder" },
       ],
       quotePhoto: `Photo: ${JASON_FACTS} the client who gave the quote`,
-      teamNote: "The people who review your account. Real photos only, with permission.",
+      teamNote: "The people who review your account.",
     },
     steps: [
       {
@@ -348,8 +388,12 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
         "Your team owns every budget. A person approves or declines, and the decision is logged with who made it.",
         "Meta, Google, TikTok, and programmatic sit in one view.",
       ],
-      photos: `Photo: ${JASON_FACTS} team member`,
-      note: "The people who review your account. Real photos only, with permission.",
+      team: [
+        { name: "Parth", role: "Head of Paid Media & Performance", src: "/team/parth.jpg", alt: "Parth, Head of Paid Media & Performance" },
+        { name: "Jackson", role: "Client Services Manager", src: "/team/jackson.jpg", alt: "Jackson, Client Services Manager" },
+        { name: "Brittany", role: "VP of Operations", src: "/team/brittany.jpg", alt: "Brittany, VP of Operations" },
+      ],
+      note: "The people who review your account.",
     },
     slip: {
       title: "Shift part of the Meta budget to segment C on TikTok",
@@ -535,6 +579,7 @@ export function homepageProse(model: HomepageModel) {
     model.platform.quote,
     model.platform.accent,
     ...model.platform.points,
+    ...model.platform.team.flatMap((person) => [person.name, person.role]),
     model.platform.note,
     model.slip.title,
     model.slip.body,
