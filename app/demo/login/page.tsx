@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { PRODUCT_WORDMARK } from "@/lib/brand";
 import { readDemoSession } from "@/lib/demo/session";
+import { BOOK_DEMO_PATH } from "@/lib/homepage-cta";
 
-export default async function DemoLoginPage() {
-  if (await readDemoSession()) redirect("/demo");
+export function DemoLoginForm() {
   return (
     <main className="mx-auto max-w-md px-4 py-10">
       <h1 className="text-3xl font-semibold tracking-tight">{PRODUCT_WORDMARK} demo</h1>
@@ -17,6 +17,17 @@ export default async function DemoLoginPage() {
           Enter the demo
         </button>
       </form>
+      <p className="mt-4 text-sm leading-6 text-muted">
+        Don't have an access key?{" "}
+        <a className="font-semibold text-brand underline" href={BOOK_DEMO_PATH}>
+          Request your demo here
+        </a>
+      </p>
     </main>
   );
+}
+
+export default async function DemoLoginPage() {
+  if (await readDemoSession()) redirect("/demo");
+  return <DemoLoginForm />;
 }
