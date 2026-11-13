@@ -506,7 +506,7 @@ export function homepageModel(env: Env = process.env, session: { signedIn: boole
     },
     agency: {
       id: "agency-waitlist",
-      href: AGENCY_WAITLIST_HREF,
+      href: "#agency-waitlist",
       navLabel: AGENCY_WAITLIST_LABEL,
       kicker: "Agency waitlist",
       title: "Bring jAI to your agency",

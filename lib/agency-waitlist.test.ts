@@ -319,8 +319,14 @@ test("the homepage links to the agency waitlist and shows a success state", () =
   assert.match(html, /More than 50/);
   assert.match(html, /Under 25,000/);
   assert.equal(html.includes("$"), false);
-  const nav = (html.match(/href="#agency-waitlist"/g) || []).length;
-  assert.ok(nav >= 4, String(nav));
+  assert.equal(model.agency.id, "agency-waitlist");
+  assert.equal(model.agency.href, "#agency-waitlist");
+  assert.equal(model.nav.filter((item) => item.label === "Agency waitlist").map((item) => item.href).join(","), "/early-access");
+  assert.equal(model.menuNav.filter((item) => item.label === "Agency waitlist").map((item) => item.href).join(","), "/early-access");
+  assert.equal((html.match(/href="#agency-waitlist"/g) || []).length, 2);
+  assert.equal((html.match(/href="\/early-access"/g) || []).length, 3);
+  assert.match(html, /id="agency-waitlist"/);
+  assert.match(html, />Early access</);
   assert.match(html, /data-cta="agency-waitlist-hero"/);
   const saved = renderToStaticMarkup(createElement(PublicHomepage, { model, waitlist: "saved" }));
   assert.equal(saved.includes('action="/api/homepage/waitlist"'), false);
