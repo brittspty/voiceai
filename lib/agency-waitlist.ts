@@ -51,6 +51,7 @@ export type WaitlistResult =
   | { status: 404 }
   | { status: 400; error: string }
   | { status: 429; error: string }
+  | { status: 500; error: string }
   | { status: 200; id?: string }
   | { status: 303; location: typeof SAVED | typeof INVALID | typeof LIMITED };
 
@@ -163,7 +164,7 @@ export async function acceptAgencyWaitlist(input: {
   }
   if (text(input.fields.company_fax)) {
     if (input.form) return { status: 303, location: SAVED };
-    return { status: 200 };
+    return { status: 400, error: "invalid" };
   }
   const draft = waitlistDraft(input.fields);
   if (!draft.ok) {

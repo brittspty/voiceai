@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextRequest } from "next/server";
 import { PublicHomepage } from "../components/public-homepage";
-import { POST } from "../app/api/homepage/waitlist/route";
+import { handleWaitlistPost, POST } from "../app/api/homepage/waitlist/route";
 import { proxy } from "../proxy";
 import {
   CLIENT_COUNT_OPTIONS,
@@ -106,7 +106,18 @@ test("waitlist fields are validated and a honeypot is not stored", async () => {
     ip: "203.0.113.9",
     limits,
   });
-  assert.deepEqual(hidden, { status: 200 });
+  assert.deepEqual(hidden, { status: 400, error: "invalid" });
+  assert.equal(saved.length, 0);
+  const formHidden = await acceptAgencyWaitlist({
+    fields: { name: "Ada", email: "ada@example.com", agency: "North", company_fax: "bot" },
+    form: true,
+    env: { PUBLIC_HOMEPAGE: "on" },
+    store,
+    now: 1_000,
+    ip: "203.0.113.11",
+    limits,
+  });
+  assert.deepEqual(formHidden, { status: 303, location: "/?waitlist=saved#agency-waitlist" });
   assert.equal(saved.length, 0);
 
   const stored = await acceptAgencyWaitlist({
@@ -184,14 +195,11 @@ test("the waitlist route rejects bad input and does not require a new mail secre
 
     const invalid = await POST(post({ name: "Ada", email: "not-an-email", agency: "North" }, "203.0.113.32"));
     assert.equal(invalid.status, 400);
-    const invalidBody = (await invalid.json()) as { error: string };
-    assert.match(invalidBody.error, /email you use for work/);
+    assert.deepEqual(await invalid.json(), { ok: false, error: "invalid" });
 
     const honeypot = await POST(post({ name: "Ada", email: "ada@example.com", agency: "North", company_fax: "filled" }, "203.0.113.33"));
-    assert.equal(honeypot.status, 200);
-    const honeypotBody = (await honeypot.json()) as { ok: boolean; id?: string };
-    assert.equal(honeypotBody.ok, true);
-    assert.equal(honeypotBody.id, undefined);
+    assert.equal(honeypot.status, 400);
+    assert.deepEqual(await honeypot.json(), { ok: false, error: "invalid" });
 
     const data = new FormData();
     data.set("name", "");
@@ -214,6 +222,7 @@ test("the waitlist route rejects bad input and does not require a new mail secre
     }
     const limited = await POST(post({ name: "Ada", email: "ada@example.com", agency: "North" }, "203.0.113.40"));
     assert.equal(limited.status, 429);
+    assert.deepEqual(await limited.json(), { ok: false, error: "limited" });
   });
 
   for (const file of ["lib/agency-waitlist.ts", "app/api/homepage/waitlist/route.ts", "components/homepage-waitlist-form.tsx"]) {
@@ -223,6 +232,55 @@ test("the waitlist route rejects bad input and does not require a new mail secre
     assert.equal(source.includes("mailto:"), false, file);
     assert.equal(/process\.env\.[A-Z0-9_]*KEY/.test(source), false, file);
   }
+});
+
+test("json waitlist is ok only after a row is saved", async () => {
+  resetWaitlistLimits();
+  await withHomepage("on", async () => {
+    const saved: WaitlistDraft[] = [];
+    const store: WaitlistStore = {
+      create: async (data) => {
+        saved.push(data);
+        return { id: "wait-json" };
+      },
+    };
+    const ok = await handleWaitlistPost(
+      post(
+        {
+          name: "Ada",
+          email: "ada@example.com",
+          agency: "North",
+          website: "north.example",
+          clients: CLIENT_COUNT_OPTIONS[0],
+          spend: MONTHLY_SPEND_OPTIONS[1],
+          message: "Channels: search",
+          company_fax: "",
+        },
+        "203.0.113.50",
+        { accept: "application/json" },
+      ),
+      store,
+    );
+    assert.equal(ok.status, 200);
+    assert.deepEqual(await ok.json(), { ok: true });
+    assert.equal(saved.length, 1);
+    assert.equal(saved[0]?.agencyName, "North");
+    assert.equal(saved[0]?.clientCount, CLIENT_COUNT_OPTIONS[0]);
+    assert.equal(saved[0]?.monthlySpend, MONTHLY_SPEND_OPTIONS[1]);
+    assert.equal(saved[0]?.message, "Channels: search");
+
+    const failed = await handleWaitlistPost(
+      post({ name: "Ada", email: "ada@example.com", agency: "North" }, "203.0.113.51", { accept: "application/json" }),
+      {
+        create: async () => {
+          throw new Error("db down");
+        },
+      },
+    );
+    assert.equal(failed.ok, false);
+    assert.equal(failed.status, 500);
+    assert.deepEqual(await failed.json(), { ok: false, error: "failed" });
+  });
 });
 
 test("the waitlist route is public with the homepage and closed to demo viewers", async () => {

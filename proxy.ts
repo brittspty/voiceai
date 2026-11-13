@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { rewriteForDemoHost } from "@/lib/demo/routes";
 import { publicHostRedirect } from "@/lib/hosts";
-import { envForProxy, gateDecision, normalizePath } from "@/lib/public-routing";
+import { envForProxy, gateDecision, normalizePath, protoDesignRedirect, publicHomepageEnabled } from "@/lib/public-routing";
 import { readToken, SESSION_COOKIE } from "@/lib/session-token";
 
 function withPath(request: NextRequest, rewriteUrl?: URL) {
@@ -19,6 +19,15 @@ function withPath(request: NextRequest, rewriteUrl?: URL) {
 
 export async function proxy(request: NextRequest, envOverride?: unknown) {
   const { pathname } = request.nextUrl;
+  const env = envForProxy(envOverride);
+  if ((request.method === "GET" || request.method === "HEAD") && publicHomepageEnabled(env)) {
+    const protoTarget = protoDesignRedirect(pathname, env);
+    if (protoTarget) {
+      const url = new URL(request.nextUrl.href);
+      url.pathname = protoTarget;
+      return NextResponse.redirect(url, 308);
+    }
+  }
   if (pathname === "/index.html") {
     const url = request.nextUrl.clone();
     url.pathname = "/";
@@ -28,7 +37,6 @@ export async function proxy(request: NextRequest, envOverride?: unknown) {
     return NextResponse.next();
   }
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
-  const env = envForProxy(envOverride);
   if (request.method === "GET" || request.method === "HEAD") {
     const bounce = publicHostRedirect(host, pathname, request.nextUrl.search, env);
     if (bounce) return NextResponse.redirect(bounce, 308);

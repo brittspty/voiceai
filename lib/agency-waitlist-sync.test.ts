@@ -244,7 +244,7 @@ test("a GoHighLevel or mail failure still accepts the visitor", async () => {
     ip: "203.0.113.79",
     limits: new Map(),
   });
-  assert.deepEqual(hidden, { status: 200 });
+  assert.deepEqual(hidden, { status: 400, error: "invalid" });
   assert.deepEqual(honeypotCalls, []);
 });
 

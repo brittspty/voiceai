@@ -49,6 +49,27 @@ export function isExecutiveSummaryPath(pathname: string) {
   return path === "/executive-summary" || path.startsWith("/executive-summary/");
 }
 
+export function isEarlyAccessPath(pathname: string) {
+  return normalizePath(pathname) === "/early-access";
+}
+
+export function isProtoDesignPath(pathname: string) {
+  const path = normalizePath(pathname);
+  return path === "/proto-d" || path.startsWith("/proto-d/");
+}
+
+/**
+ * Where a /proto-d link from the early-access page should land.
+ * Off while the public homepage is off. The fragment stays in the browser.
+ */
+export function protoDesignRedirect(pathname: string, env: Env = process.env) {
+  if (!publicHomepageEnabled(env)) return null;
+  const path = normalizePath(pathname);
+  if (path === "/proto-d/index.html") return "/";
+  if (path === "/proto-d/executive-summary") return "/executive-summary/";
+  return null;
+}
+
 export const LEGACY_PUBLIC_PREFIXES = [
   "/login",
   "/forgot-password",
@@ -120,6 +141,7 @@ export function isPublicPath(pathname: string, env: Env) {
   if (demoWorkspaceEnabled(env) && (isDemoPath(pathname) || isDemoApiPath(pathname))) return true;
   if (isPlanPath(pathname)) return true;
   if (isExecutiveSummaryPath(pathname)) return true;
+  if (isEarlyAccessPath(pathname) || isProtoDesignPath(pathname)) return true;
   return false;
 }
 
