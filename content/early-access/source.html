@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="robots" content="noindex, nofollow">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Early access for agencies | jAI by Specificity</title>
+  <meta name="description" content="Request early access to jAI for your agency. Built to source a fresh audience from the live data market for each campaign, run one list on major ad platforms, and put a person on every change."/>
+  <link rel="icon" href="../proto-d/assets/jai-favicon-32.png" sizes="32x32" type="image/png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    /* Tokens copied from proto-d / frozen executive summary. Do not fork. */
+    :root {
+      --bg: #120f10;
+      --panel: #231f20;
+      --panel-2: #191516;
+      --line: #2f2a2b;
+      --tx: #f3eee9;
+      --paper: #d9d2cc;
+      --mute: #a89f9a;
+      --dim: #8d8486;
+      --brand: #FF5800;
+      --brand-hover: #ff7024;
+      --on-brand: #120f10;
+      --hair: #5a5254;
+      --font: "Poppins", "Segoe UI", Arial, sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+      --e: cubic-bezier(.2, .7, .2, 1);
+      --w: 1280px;
+      --gutter: 32px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; background: var(--bg); }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--tx);
+      font-family: var(--font); font-size: 18px; font-weight: 400; line-height: 1.6;
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    }
+    img { display: block; max-width: 100%; height: auto; }
+    a { color: inherit; }
+    button, input, textarea, select { font: inherit; color: inherit; }
+    h1, h2, h3 { text-wrap: balance; font-weight: 600; margin: 0; }
+    p { margin: 0; }
+    :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+    .skip {
+      position: absolute; left: 16px; top: 12px; z-index: 80;
+      background: var(--brand); color: var(--on-brand);
+      padding: 10px 14px; border-radius: 4px; font-weight: 600; text-decoration: none;
+      transform: translateY(-160%);
+    }
+    .skip:focus { transform: none; }
+    .lab {
+      font-family: var(--mono); font-size: 11px; font-weight: 400;
+      letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim);
+      font-variant-numeric: tabular-nums;
+    }
+    .w { width: 100%; max-width: var(--w); margin: 0 auto; padding: 0 var(--gutter); }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 48px; padding: 15px 24px; gap: 10px;
+      background: var(--brand); color: var(--on-brand);
+      border: 0; border-radius: 4px;
+      font-family: var(--font); font-size: 16px; font-weight: 600; line-height: 1.2;
+      text-decoration: none; cursor: pointer;
+      transition: transform .12s var(--e), background .12s var(--e);
+    }
+    .btn:hover { background: var(--brand-hover); }
+    .btn:active { transform: translateY(1px); }
+    .btn.sec { background: transparent; color: var(--tx); box-shadow: inset 0 0 0 1px var(--hair); }
+    .btn.sec:hover { background: transparent; box-shadow: inset 0 0 0 1px var(--tx); }
+    .btn.lg { min-height: 56px; padding: 18px 28px; font-size: 17px; }
+
+    /* Header (same as frozen executive summary; Client login removed) */
+    .site-header { position: sticky; top: 0; z-index: 40; height: 84px; }
+    .site-header::before {
+      content: ""; position: absolute; inset: 0; z-index: -1;
+      background: rgba(18,15,16,0.72);
+      -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(47,42,43,0.7);
+    }
+    .topbar { display: flex; align-items: center; gap: 28px; height: 84px; position: relative; }
+    .wordmark { height: 44px; width: auto; }
+    .desk-nav {
+      margin-left: auto; display: flex; align-items: center; gap: 28px;
+      font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; color: var(--mute);
+    }
+    .desk-nav a { text-decoration: none; }
+    .desk-nav a:hover, .desk-nav a[aria-current="page"] { color: var(--tx); }
+    .desk-logins { display: flex; align-items: center; gap: 16px; }
+    .desk-logins .btn { min-height: 40px; padding: 9px 16px; font-size: 14px; }
+    .header-cta { display: none; }
+    .menu-btn {
+      display: none; margin-left: auto; min-height: 40px; padding: 8px 12px;
+      background: transparent; border: 1px solid var(--dim); border-radius: 4px;
+      color: var(--tx); font: 500 14px var(--font); cursor: pointer;
+    }
+    .mnav {
+      display: none; position: absolute; left: 0; right: 0; top: 84px;
+      background: rgba(18,15,16,0.96); border-bottom: 1px solid var(--line);
+      padding: 12px var(--gutter) 28px;
+    }
+    .site-header.open .mnav { display: block; }
+    .mnav a { display: block; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 24px; font-weight: 500; text-decoration: none; }
+    .mnav .btn { margin-top: 16px; border: 0; font-size: 16px; color: var(--on-brand); }
+
+    /* Hero */
+    .ea-hero {
+      position: relative; isolation: isolate;
+      padding: 104px 0 136px;
+      border-bottom: 1px solid var(--line);
+    }
+    .ea-hero-bg { position: absolute; inset: 0; z-index: -2; overflow: hidden; }
+    .ea-hero-bg img {
+      position: absolute; inset: 0; width: 100%; height: 100%; max-width: none;
+      object-fit: cover; object-position: 50% 100%;
+      opacity: 0.9;
+    }
+    .ea-hero-bg::before {
+      content: ""; position: absolute; inset: 0; z-index: 1;
+      background:
+        linear-gradient(90deg, rgba(18,15,16,0.97) 0%, rgba(18,15,16,0.88) 34%, rgba(18,15,16,0.35) 62%, rgba(18,15,16,0.15) 100%),
+        linear-gradient(180deg, rgba(18,15,16,0.2) 0%, rgba(18,15,16,0) 50%, rgba(18,15,16,0.55) 100%);
+    }
+    .ea-hero-bg::after {
+      content: ""; position: absolute; inset: 0; z-index: 2;
+      background: url("../proto-d/assets/grain-tile.png");
+      opacity: 0.18; mix-blend-mode: overlay;
+    }
+    .ea-hero .w {
+      display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+      gap: 64px; align-items: end;
+    }
+    .ea-hero h1 {
+      font-size: clamp(44px, 5.6vw, 80px);
+      line-height: 0.98; letter-spacing: -0.04em;
+      max-width: 15ch; margin-bottom: 28px;
+    }
+    .ea-hero h1 .hl { color: var(--brand); }
+    .ea-hero .sub { font-size: 20px; line-height: 1.5; color: var(--paper); max-width: 40ch; margin-bottom: 36px; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+    .hero-meta {
+      margin-top: 28px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em;
+      color: var(--dim); max-width: 52ch;
+    }
+
+    /* The craft cue: an alert slip, tilted, pinned past the hero rule */
+    .slip {
+      position: relative; justify-self: end;
+      width: min(100%, 400px);
+      margin-bottom: -196px;
+      transform: rotate(-2deg);
+      transform-origin: 30% 100%;
+      background: var(--panel);
+      border: 1px solid var(--hair);
+      border-top: 3px solid var(--brand);
+      border-radius: 4px;
+      padding: 22px 24px 18px;
+      font-family: var(--mono); font-size: 13px; line-height: 1.55; color: var(--paper);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+      z-index: 2;
+    }
+    .slip-top { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; letter-spacing: 0.06em; color: var(--dim); margin-bottom: 14px; }
+    .slip-top .dn { color: var(--paper); }
+    .slip h3 { font-family: var(--font); font-size: 19px; font-weight: 600; line-height: 1.25; color: var(--tx); margin: 4px 0 14px; letter-spacing: -0.01em; }
+    .slip .rec-lab { font-size: 11px; letter-spacing: 0.12em; color: var(--brand); margin-bottom: 4px; }
+    .slip .rec { font-family: var(--font); font-size: 15px; color: var(--tx); margin-bottom: 10px; }
+    .slip .basis { color: var(--mute); padding-bottom: 16px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+    .slip-act { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .slip-act span { font-family: var(--font); font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 4px; }
+    .slip-act .ap { background: var(--brand); color: var(--on-brand); }
+    .slip-act .rv { box-shadow: inset 0 0 0 1px var(--hair); color: var(--tx); }
+    .slip-act small { font-size: 11px; color: var(--dim); }
+    .slip-foot { margin-top: 14px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+
+    /* Why agencies */
+    .why { padding: 120px 0 112px; }
+    .why .w { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 64px; align-items: start; }
+    .why-head { position: sticky; top: 120px; }
+    .why h2 { font-size: clamp(32px, 3.6vw, 48px); line-height: 1.04; letter-spacing: -0.03em; max-width: 14ch; margin-bottom: 24px; }
+    .why-head p { color: var(--mute); max-width: 34ch; font-size: 17px; }
+    .why-list { list-style: none; margin: 0; padding: 0; margin-top: 56px; }
+    .why-list li {
+      display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 24px;
+      border-top: 1px solid var(--hair); padding: 28px 0 32px;
+    }
+    .why-list li:last-child { border-bottom: 1px solid var(--hair); }
+    .why-list .k {
+      font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--dim); padding-top: 6px;
+    }
+    .why-list b { display: block; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--tx); margin-bottom: 8px; }
+    .why-list p { color: var(--paper); font-size: 17px; max-width: 56ch; }
+    .why-list li.lead b { font-size: 32px; }
+    .why-list li.lead .k { color: var(--brand); }
+
+    /* Form */
+    .req { background: var(--panel); padding: 112px 0 104px; scroll-margin-top: 84px; }
+    .req .w { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 64px; align-items: start; }
+    .req h2 { font-size: clamp(40px, 4.8vw, 64px); line-height: 0.98; letter-spacing: -0.04em; margin-bottom: 24px; max-width: 9ch; }
+    .req-copy p { color: var(--paper); max-width: 32ch; font-size: 17px; }
+    .req-copy p + p { margin-top: 16px; }
+    .req-copy .fine { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: 0.02em; }
+    form { display: grid; grid-template-columns: 1fr 1fr; gap: 28px 32px; }
+    form .full { grid-column: 1 / -1; }
+    form label, form legend {
+      display: block; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em;
+      color: var(--mute); padding: 0;
+    }
+    form .opt { color: var(--dim); }
+    form input[type=text], form input[type=email], form input[type=url], form textarea, form select {
+      display: block; width: 100%; max-width: 100%; margin-top: 6px;
+      background: transparent; border: 0; border-bottom: 1px solid var(--hair); border-radius: 0;
+      padding: 10px 0 8px; font-family: var(--font); font-size: 17px; color: var(--tx); outline: none;
+    }
+    form select {
+      appearance: none; cursor: pointer;
+      background-image: linear-gradient(45deg, transparent 50%, var(--mute) 50%), linear-gradient(135deg, var(--mute) 50%, transparent 50%);
+      background-position: calc(100% - 12px) 55%, calc(100% - 7px) 55%;
+      background-size: 5px 5px; background-repeat: no-repeat;
+    }
+    form select option { background: var(--panel); color: var(--tx); }
+    form input:focus, form textarea:focus, form select:focus { border-bottom-color: var(--brand); }
+    form textarea { min-height: 72px; resize: vertical; }
+    fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .chips label {
+      position: relative; cursor: pointer;
+      font-family: var(--font); font-size: 14px; letter-spacing: 0; color: var(--tx);
+      border: 1px solid var(--hair); border-radius: 4px; padding: 8px 12px;
+      transition: background .12s var(--e), border-color .12s var(--e);
+    }
+    .chips input {
+      position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+      clip: rect(0,0,0,0); clip-path: inset(50%); white-space: nowrap; border: 0; appearance: none;
+    }
+    .chips label:hover { border-color: var(--tx); }
+    .chips label:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
+    .chips label:has(input:checked) { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+    .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+    .submit-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+    .submit-row small { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+
+    .done { display: none; border-top: 3px solid var(--brand); padding-top: 32px; }
+    .done h3 { font-size: clamp(32px, 3.4vw, 44px); letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 16px; }
+    .done p { color: var(--paper); max-width: 46ch; }
+    .done .lab { display: block; margin-top: 24px; }
+    .done a { color: var(--brand); text-underline-offset: 4px; }
+    #requested { scroll-margin-top: 96px; }
+    #requested:focus { outline: none; }
+    body.sent #ea-form { display: none; }
+    body.sent .done { display: block; }
+    .form-err { color: var(--tx); border-left: 3px solid var(--brand); padding: 4px 0 4px 12px; font-size: 15px; }
+    .form-err[hidden] { display: none; }
+    .btn[disabled] { opacity: 0.6; cursor: progress; }
+    .submit-row .privacy { flex-basis: 100%; font-family: var(--mono); font-size: 12px; color: var(--dim); }
+    .submit-row .privacy a { color: var(--paper); text-underline-offset: 3px; }
+
+    /* FAQ: narrow column pushed right */
+    .faq { padding: 112px 0 120px; }
+    .faq .w { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr) minmax(0, 1fr); gap: 64px; }
+    .faq h2 { font-size: 28px; letter-spacing: -0.02em; line-height: 1.15; max-width: 12ch; }
+    details { border-top: 1px solid var(--line); }
+    details:last-of-type { border-bottom: 1px solid var(--line); }
+    summary {
+      list-style: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 24px 0; font-size: 20px; font-weight: 500;
+    }
+    summary::-webkit-details-marker { display: none; }
+    .faq-mark { width: 24px; height: 24px; flex: 0 0 24px; }
+    .faq-v { transform-origin: 12px 12px; transition: opacity .2s var(--e), transform .2s var(--e); }
+    details[open] .faq-v { opacity: 0; transform: scaleY(0); }
+    details p { color: var(--mute); max-width: 60ch; padding: 0 40px 26px 0; font-size: 16px; }
+
+    /* Footer (frozen executive summary, plus Early access) */
+    footer { color: var(--mute); border-top: 1px solid var(--line); padding: 56px 0 40px; font-size: 14px; }
+    footer .w { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 32px; }
+    footer .lockup { width: 160px; height: auto; }
+    footer .tag { margin-top: 16px; max-width: 30ch; color: var(--mute); }
+    footer h2 { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); margin-bottom: 14px; }
+    footer nav, footer .col { display: flex; flex-direction: column; gap: 8px; }
+    footer a { text-decoration: none; }
+    footer a:hover { color: var(--tx); }
+    .legal { grid-column: 1 / -1; border-top: 1px solid var(--line); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 20px; font-size: 12px; color: var(--dim); }
+    .legal .fls { flex-basis: 100%; font-family: var(--mono); font-size: 11px; letter-spacing: 0.02em; }
+
+    .sticky-cta {
+      display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+      background: rgba(18,15,16,0.92); border-top: 1px solid var(--line);
+    }
+    .sticky-cta .btn { width: 100%; }
+
+    @media (max-width: 1023px) {
+      :root { --gutter: 24px; }
+      .desk-nav, .desk-logins { display: none; }
+      .header-cta { display: inline-flex; min-height: 40px; padding: 8px 14px; font-size: 14px; margin-left: auto; }
+      .menu-btn { display: inline-flex; margin-left: 0; }
+      .ea-hero { padding: 72px 0 0; }
+      .ea-hero .w, .why .w, .req .w, .faq .w, footer .w { grid-template-columns: 1fr; }
+      .ea-hero .w { gap: 48px; }
+      .slip { justify-self: start; margin: 0 0 -56px 12px; width: min(calc(100% - 24px), 400px); }
+      .why { padding: 120px 0 88px; }
+      .why-head { position: static; }
+      .why-list { margin-top: 8px; }
+      .faq .w { gap: 32px; }
+      .sticky-cta { display: block; }
+      body { padding-bottom: 76px; }
+    }
+    @media (max-width: 700px) {
+      :root { --gutter: 20px; }
+      body { font-size: 17px; }
+      .site-header, .topbar { height: 72px; }
+      .mnav { top: 72px; }
+      .wordmark { height: 36px; }
+      .ea-hero { padding-top: 56px; }
+      .ea-hero h1 { font-size: clamp(40px, 11.5vw, 56px); }
+      .ea-hero .sub { font-size: 18px; }
+      .hero-actions .btn { width: 100%; }
+      .why { padding: 104px 0 72px; }
+      .why-list li { grid-template-columns: 1fr; gap: 8px; padding: 24px 0 28px; }
+      .why-list li.lead b { font-size: 26px; }
+      .why-list b { font-size: 21px; }
+      .slip-top { flex-direction: column; gap: 2px; }
+      .slip { transform: rotate(-1.5deg); }
+      .req, .faq { padding: 72px 0; }
+      form { grid-template-columns: 1fr; gap: 24px; }
+      .submit-row .btn { width: 100%; }
+      footer .w { grid-template-columns: 1fr 1fr; }
+      footer .w > div:first-child, .legal { grid-column: 1 / -1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .btn, .chips label, .faq-v { transition: none; }
+      .btn:active { transform: none; }
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header" id="header">
+    <div class="w topbar">
+      <a href="../proto-d/index.html" aria-label="jAI by Specificity">
+        <img class="wordmark" src="../proto-d/assets/jai-wordmark-dark.svg" alt="jAI by Specificity" width="60" height="52"/>
+      </a>
+      <nav class="desk-nav" aria-label="Primary">
+        <a href="../proto-d/index.html#story">Your story</a>
+        <a href="../proto-d/index.html#how-it-works">How it works</a>
+        <a href="../proto-d/index.html#faq">FAQ</a>
+        <a href="./" aria-current="page">Early access</a>
+      </nav>
+      <div class="desk-logins">
+        <a class="btn sec" href="https://jai.specificityinc.com/login?audience=team">Team login</a>
+        <a class="btn" href="#request">Request early access</a>
+      </div>
+      <a class="btn header-cta" href="#request">Early access</a>
+      <button class="menu-btn" type="button" aria-expanded="false" aria-controls="header-menu">Menu</button>
+    </div>
+    <nav class="mnav" id="header-menu" hidden>
+      <p class="lab" style="margin-bottom:8px">Menu</p>
+      <a href="../proto-d/index.html#story">Your story</a>
+      <a href="../proto-d/index.html#how-it-works">How it works</a>
+      <a href="../proto-d/index.html#faq">FAQ</a>
+      <a href="../proto-d/executive-summary/">Executive summary</a>
+      <a href="./" aria-current="page">Early access</a>
+      <a href="https://jai.specificityinc.com/login?audience=team">Team login</a>
+      <a class="btn" href="#request">Request early access</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="ea-hero" aria-labelledby="h1">
+      <div class="ea-hero-bg" aria-hidden="true">
+        <img src="../proto-d/assets/hero-network-1440.webp" alt="" width="1440" height="811"/>
+      </div>
+      <div class="w">
+        <div class="ea-copy">
+          <h1 id="h1">Own the audience for <span class="hl">every client</span> you run.</h1>
+          <p class="sub">jAI is built to source a fresh audience from the live data market for each campaign, run that one list on major ad platforms, and put a person on every change.</p>
+          <div class="hero-actions">
+            <a class="btn lg" href="#request">Request early access</a>
+            <a class="btn sec" href="../proto-d/executive-summary/">Read the executive summary</a>
+          </div>
+          <p class="hero-meta">For agencies and media teams. jAI is in development; features and availability may change.</p>
+        </div>
+
+        <aside class="slip" aria-label="Illustrative jAI alert, sample data">
+          <div class="slip-top"><span>jAI alert · Mon 9:14 AM</span><span class="dn">▼ Underperforming</span></div>
+          <p class="lab">Data segment / audience</p>
+          <h3>"Recent movers" segment is going stale</h3>
+          <p class="rec-lab">jAI RECOMMENDS</p>
+          <p class="rec">Refresh the segment with a newly sourced list from the live data market.</p>
+          <p class="basis">Based on: Same segment definition, fresh source; old list retired, not reused.</p>
+          <div class="slip-act"><span class="ap">Approve</span><span class="rv">Review</span><small>No change until a person approves</small></div>
+          <p class="slip-foot">Illustrative example: sample data, not client results</p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="why" aria-labelledby="why-title">
+      <div class="w">
+        <div class="why-head">
+          <h2 id="why-title">Built for teams that run many channels for many clients.</h2>
+          <p>Built to bring alerts, approvals, and client-ready reports into one place, instead of a dashboard per platform per client.</p>
+        </div>
+        <ul class="why-list">
+          <li class="lead">
+            <span class="k">Audience</span>
+            <div>
+              <b>Stop renting targeting.</b>
+              <p>Built to source a fresh audience from vetted vendors in the live data market for each campaign, with the vendor, list ID, and time stamped on every list. Not the platform's targeting. Not last year's file.</p>
+            </div>
+          </li>
+          <li>
+            <span class="k">Every channel</span>
+            <div>
+              <b>One list. One view.</b>
+              <p>The same audience, built to run on social, search, display and programmatic, CTV, email, and text, plus an optional voice agent. Spend, reach, frequency, CPA, ROAS, pacing, and lead quality, designed to sit in one view.</p>
+            </div>
+          </li>
+          <li>
+            <span class="k">Your call</span>
+            <div>
+              <b>Bots optimize. Your team makes the call.</b>
+              <p>Every recommendation is designed to come with a "Based on" line. A person approves, declines, or modifies it. By design, the bot cannot send a budget or setting change on its own.</p>
+            </div>
+          </li>
+          <li>
+            <span class="k">Client views</span>
+            <div>
+              <b>Show the work. Hide the spend.</b>
+              <p>Client views are designed to hide spend when needed.</p>
+            </div>
+          </li>
+          <li>
+            <span class="k">Weekly note</span>
+            <div>
+              <b>A weekly note, built to write itself.</b>
+              <p>Designed to send a weekly note in plain English, with a "Based on" line for every recommendation.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="req" id="request" aria-labelledby="req-title">
+      <div class="w">
+        <div class="req-copy">
+          <h2 id="req-title">Request early access.</h2>
+          <p>Tell us about your agency and what you run. We review every request.</p>
+          <p class="fine">This form asks for early access. It is not a contract.</p>
+        </div>
+
+        <div class="req-body">
+          <form id="ea-form" action="/api/homepage/waitlist" method="post" novalidate>
+            <label>Name<input type="text" name="name" autocomplete="name" required/></label>
+            <label>Agency name<input type="text" name="agency" autocomplete="organization" required/></label>
+            <label>Work email<input type="email" name="email" autocomplete="email" required/></label>
+            <label>Agency website <span class="opt">(optional)</span><input type="url" name="website" inputmode="url" placeholder="agency.com" autocomplete="url"/></label>
+            <label>Clients you manage <span class="opt">(optional)</span>
+              <select name="clients">
+                <option value="">Choose a range</option>
+                <option>1-5</option>
+                <option>6-20</option>
+                <option>21-50</option>
+                <option>More than 50</option>
+              </select>
+            </label>
+            <label>Monthly ad spend managed, USD <span class="opt">(optional)</span>
+              <select name="spend">
+                <option value="">Choose a range</option>
+                <option>Under 25,000</option>
+                <option>25,000-100,000</option>
+                <option>100,000-500,000</option>
+                <option>More than 500,000</option>
+              </select>
+            </label>
+            <fieldset class="full">
+              <legend>Channels you run today <span class="opt">(pick any)</span></legend>
+              <div class="chips">
+                <label><input type="checkbox" name="channels" value="Social"/>Social</label>
+                <label><input type="checkbox" name="channels" value="Search / Google Ads"/>Search / Google Ads</label>
+                <label><input type="checkbox" name="channels" value="Display / programmatic"/>Display / programmatic</label>
+                <label><input type="checkbox" name="channels" value="CTV"/>CTV</label>
+                <label><input type="checkbox" name="channels" value="Email"/>Email</label>
+                <label><input type="checkbox" name="channels" value="Text"/>Text</label>
+                <label><input type="checkbox" name="channels" value="Voice"/>Voice</label>
+              </div>
+            </fieldset>
+            <label class="full">Anything we should know? <span class="opt">(optional)</span><textarea name="message" rows="3"></textarea></label>
+            <div class="hp" aria-hidden="true"><label>Company fax<input type="text" name="company_fax" tabindex="-1" autocomplete="off"/></label></div>
+            <div class="full submit-row">
+              <button class="btn lg" type="submit">Request early access</button>
+              <small>Name, agency, and work email are required.</small>
+              <p class="privacy">We use this to contact you about early access. See our <a href="/privacy">Privacy policy</a>.</p>
+              <p class="form-err" id="ea-err" role="alert" hidden></p>
+            </div>
+          </form>
+
+          <div class="done" id="requested" role="status" tabindex="-1">
+            <h3>Request received.</h3>
+            <p>Thanks. We'll be in touch about early access for your agency.</p>
+            <span class="lab" style="text-transform:none;letter-spacing:0.04em">jAI is in development; features and availability may change.</span>
+            <p style="margin-top:24px"><a href="../proto-d/executive-summary/">Read the executive summary while you wait</a></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="faq" aria-labelledby="faq-title">
+      <div class="w">
+        <h2 id="faq-title">Before you ask</h2>
+        <div>
+          <details open>
+            <summary><span>Will a bot change my client's budget?</span><svg class="faq-mark" viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="6" fill="#d9d2cc"/><rect x="6.2" y="10.5" width="11.6" height="3" rx="1" fill="#FF5800"/><rect class="faq-v" x="10.5" y="6.2" width="3" height="11.6" rx="1" fill="#FF5800"/></svg></summary>
+            <p>No. Bots recommend. By design, they cannot send a budget or setting change. A person approves, declines, or modifies it, and every decision is designed to be logged.</p>
+          </details>
+          <details>
+            <summary><span>Do my clients see what we spend?</span><svg class="faq-mark" viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="6" fill="#d9d2cc"/><rect x="6.2" y="10.5" width="11.6" height="3" rx="1" fill="#FF5800"/><rect class="faq-v" x="10.5" y="6.2" width="3" height="11.6" rx="1" fill="#FF5800"/></svg></summary>
+            <p>That is your call. Client views are designed to hide spend when needed.</p>
+          </details>
+          <details>
+            <summary><span>Where do the audiences come from?</span><svg class="faq-mark" viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="6" fill="#d9d2cc"/><rect x="6.2" y="10.5" width="11.6" height="3" rx="1" fill="#FF5800"/><rect class="faq-v" x="10.5" y="6.2" width="3" height="11.6" rx="1" fill="#FF5800"/></svg></summary>
+            <p>The live data market, not the ad platforms. jAI is built to work from mobile ad IDs (MAIDs) acquired from vetted vendors, uploaded to each channel where its audience policies allow, with pixels to serve and retarget.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer id="footer">
+    <div class="w">
+      <div>
+        <img class="lockup" src="../proto-d/assets/jai-lockup-dark.svg" alt="jAI by Specificity" width="220" height="187"/>
+        <p class="tag">jAI by Specificity. Audiences built from the data market.</p>
+      </div>
+      <div class="col">
+        <h2>Product</h2>
+        <a href="../proto-d/index.html#how-it-works">How it works</a>
+        <a href="../proto-d/executive-summary/">Executive summary</a>
+        <a href="./">Early access</a>
+        <a href="../proto-d/index.html#faq">FAQ</a>
+      </div>
+      <nav class="col" aria-label="Account">
+        <h2>Account</h2>
+        <a href="https://jai.specificityinc.com/login?audience=team">Team login</a>
+        <a href="../proto-d/index.html#contact">Book a demo</a>
+      </nav>
+      <div class="col">
+        <h2>Legal</h2>
+        <a href="https://jai.specificityinc.com/privacy">Privacy</a>
+        <a href="https://jai.specificityinc.com/terms">Terms</a>
+      </div>
+      <div class="legal">
+        <span>© 2026 Specificity, Inc.</span>
+        <span>Your audience. Everywhere. Bots optimize, humans make the call</span>
+        <span class="fls">jAI is in development; features and availability may change. The alert shown is illustrative sample data, not client results.</span>
+      </div>
+    </div>
+  </footer>
+
+  <div class="sticky-cta">
+    <a class="btn" href="#request">Request early access</a>
+  </div>
+
+  <script>
+    (function () {
+      var header = document.getElementById("header");
+      var btn = header.querySelector(".menu-btn");
+      var menu = document.getElementById("header-menu");
+      btn.addEventListener("click", function () {
+        var open = header.classList.toggle("open");
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+        btn.textContent = open ? "Close" : "Menu";
+        if (open) menu.removeAttribute("hidden"); else menu.setAttribute("hidden", "");
+      });
+      menu.querySelectorAll("a").forEach(function (a) {
+        a.addEventListener("click", function () {
+          header.classList.remove("open"); btn.setAttribute("aria-expanded", "false");
+          btn.textContent = "Menu"; menu.setAttribute("hidden", "");
+        });
+      });
+      // Posts JSON to the agency waitlist route (origin/main, PRs #80 and #83).
+      // The route reads: name, email, agency, website, clients, spend, message, company_fax (honeypot).
+      // It does not read "channels" yet, so picked channels are folded into message.
+      var form = document.getElementById("ea-form");
+      var err = document.getElementById("ea-err");
+      var submit = form.querySelector('button[type="submit"]');
+      var label = submit.textContent;
+      var FAIL = "That didn't go through. Please try again, or email support@specificityinc.com.";
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        if (submit.disabled) return;
+        err.hidden = true; err.textContent = "";
+        var v = function (n) { var el = form.elements[n]; return el ? String(el.value || "").trim() : ""; };
+        var channels = Array.prototype.map.call(form.querySelectorAll('input[name="channels"]:checked'), function (c) { return c.value; });
+        var note = v("message");
+        if (channels.length) note = "Channels: " + channels.join(", ") + (note ? "\n\n" + note : "");
+        var payload = {
+          name: v("name"),
+          email: v("email"),
+          agency: v("agency"),
+          website: v("website"),
+          clients: v("clients"),
+          spend: v("spend"),
+          message: note,
+          company_fax: v("company_fax")
+        };
+        submit.disabled = true;
+        submit.setAttribute("aria-busy", "true");
+        submit.textContent = "Sending...";
+        fetch("/api/homepage/waitlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify(payload)
+        }).then(function (res) {
+          if (!res.ok) throw new Error("status " + res.status);
+          document.body.classList.add("sent");
+          var done = document.getElementById("requested");
+          done.focus();
+          done.scrollIntoView({ block: "start" });
+        }).catch(function () {
+          err.textContent = FAIL;
+          err.hidden = false;
+        }).then(function () {
+          submit.disabled = false;
+          submit.removeAttribute("aria-busy");
+          submit.textContent = label;
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
