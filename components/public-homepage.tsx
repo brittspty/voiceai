@@ -630,6 +630,7 @@ export function PublicHomepage({
             {model.showExecSummaryBand ? <a href={EXEC_SUMMARY_HREF}>{EXEC_SUMMARY_NAV}</a> : null}
             <a href="#faq">FAQ</a>
             <a href={model.agency.href}>{model.agency.navLabel}</a>
+            <a href="/early-access">Early access</a>
           </div>
           <nav aria-label="Account" className="col">
             <h2>{model.footer.account}</h2>

@@ -10,6 +10,6 @@ export const BOOK_DEMO_PATH = `/${BOOK_DEMO_ANCHOR}` as const;
 export const TRY_DEMO_LABEL = "Try the demo";
 /** Secondary line under the contact form. Same action as Try the demo. */
 export const TRY_DEMO_FIRST_LABEL = "Or try the demo first";
-/** Nav, hero, and footer link to the agency waitlist section. */
+/** Header nav and the menu. The on-page section keeps the agency-waitlist anchor. */
 export const AGENCY_WAITLIST_LABEL = "Agency waitlist";
-export const AGENCY_WAITLIST_HREF = "#agency-waitlist";
+export const AGENCY_WAITLIST_HREF = "/early-access";

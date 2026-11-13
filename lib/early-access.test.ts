@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { NextRequest } from "next/server";
@@ -9,9 +9,10 @@ import { GET } from "../app/early-access/route";
 import { proxy } from "../proxy";
 import { AGENCY_WAITLIST_HREF } from "./homepage-cta";
 import { isPublicPath, protoDesignRedirect } from "./public-routing";
+import { publicSitemapPaths } from "./public-sitemap";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const HASH = "7542a88aa9051cecd6f56f7bfc784ba5609430ee28b69caa18d10269f12d799d";
+const HASH = "750ce3a763db4336d46186a14ec824b8f926737285cb2ad426e645ec605a9ffc";
 const SOURCE = "content/early-access/source.html";
 
 const ASSETS: Record<string, string> = {
@@ -51,17 +52,20 @@ test("early access html and the served body match the compliance hash", async ()
   await withHomepage(undefined, async () => {
     const hidden = GET();
     assert.equal(hidden.status, 404);
-    assert.equal(hidden.headers.get("x-robots-tag"), "noindex, nofollow");
+    assert.equal(hidden.headers.get("x-robots-tag"), null);
   });
   await withHomepage("on", async () => {
     const response = GET();
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("content-type"), "text/html; charset=utf-8");
-    assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow");
-    assert.equal(response.headers.get("cache-control"), "private, no-store");
+    assert.equal(response.headers.get("x-robots-tag"), null);
+    assert.equal(response.headers.get("cache-control"), "public, max-age=300");
     const body = Buffer.from(await response.arrayBuffer());
     assert.equal(body.equals(bytes(SOURCE)), true);
     assert.equal(createHash("sha256").update(body).digest("hex"), HASH);
+    const html = body.toString("utf8");
+    assert.match(html, /<link rel="canonical" href="https:\/\/jai\.specificityinc\.com\/early-access"\/>/);
+    assert.equal(html.includes('name="robots"'), false);
   });
 });
 
@@ -74,7 +78,8 @@ test("proto-d assets are the homepage files and the page links are not rewritten
   assert.match(html, /\.\.\/proto-d\/index\.html#contact/);
   assert.match(html, /\.\.\/proto-d\/executive-summary\//);
   assert.match(html, /href="\.\/"/);
-  assert.equal(html.includes("/early-access"), false);
+  assert.match(html, /<link rel="canonical" href="https:\/\/jai\.specificityinc\.com\/early-access"\/>/);
+  assert.equal(html.includes('name="robots"'), false);
 });
 
 test("proto-d redirects preserve the homepage and stay off when the flag is off", async () => {
@@ -106,11 +111,14 @@ test("proto-d redirects preserve the homepage and stay off when the flag is off"
   assert.equal(new URL(bare.headers.get("location") || "").pathname, "/executive-summary/");
 });
 
-test("early access is public, unlinked, and absent from sitemap and robots rules", async () => {
+test("early access is public, listed in the sitemap only while the homepage is on, and not disallowed", async () => {
   assert.equal(isPublicPath("/early-access", {}), true);
   assert.equal(isPublicPath("/early-access", { PUBLIC_HOMEPAGE: "on" }), true);
   assert.equal(isPublicPath("/proto-d/assets/grain-tile.png", {}), true);
-  assert.equal(AGENCY_WAITLIST_HREF, "#agency-waitlist");
+  assert.equal(AGENCY_WAITLIST_HREF, "/early-access");
+  assert.deepEqual(publicSitemapPaths({}), []);
+  assert.deepEqual(publicSitemapPaths({ PUBLIC_HOMEPAGE: "off" }), []);
+  assert.deepEqual(publicSitemapPaths({ PUBLIC_HOMEPAGE: "on" }), ["/", "/early-access"]);
 
   const signedOut = await proxy(request("/early-access"), {});
   assert.equal(signedOut.headers.get("x-middleware-next"), "1");
@@ -121,33 +129,11 @@ test("early access is public, unlinked, and absent from sitemap and robots rules
 
   const homepage = readFileSync(join(ROOT, "lib/homepage-content.ts"), "utf8");
   assert.match(homepage, /jAI runs our own client campaigns today/);
-  assert.equal(homepage.includes("/early-access"), false);
-  assert.equal(readFileSync(join(ROOT, "components/public-homepage.tsx"), "utf8").includes("/early-access"), false);
+  assert.match(homepage, /id: "agency-waitlist"/);
 
-  for (const file of ["app/sitemap.ts", "app/sitemap.js", "app/robots.ts", "app/robots.js", "public/robots.txt", "public/sitemap.xml"]) {
+  for (const file of ["app/robots.ts", "app/robots.js", "public/robots.txt"]) {
     if (!existsSync(join(ROOT, file))) continue;
     const text = readFileSync(join(ROOT, file), "utf8");
-    assert.equal(text.includes("/early-access"), false, file);
     assert.equal(/disallow:\s*\/early-access/i.test(text), false, file);
   }
-
-  const allow = new Set(["lib/public-routing.ts", "lib/early-access.test.ts"]);
-  const linked: string[] = [];
-  function walk(dir: string) {
-    for (const entry of readdirSync(dir)) {
-      if (entry === "node_modules" || entry === ".git" || entry === ".next") continue;
-      const path = join(dir, entry);
-      if (statSync(path).isDirectory()) {
-        walk(path);
-        continue;
-      }
-      const rel = relative(ROOT, path);
-      if (allow.has(rel)) continue;
-      if (!/\.(ts|tsx|js|jsx|css|md|html|txt|xml|json)$/.test(rel)) continue;
-      const text = readFileSync(path, "utf8");
-      if (text.includes('"/early-access"') || text.includes("'/early-access'")) linked.push(rel);
-    }
-  }
-  walk(ROOT);
-  assert.deepEqual(linked, []);
 });
