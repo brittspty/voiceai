@@ -1,7 +1,6 @@
 import { publicLogoSize } from "@/lib/brand/public";
 import { TrackedLink } from "@/components/homepage-cta-link";
 import { ContactForm } from "@/components/homepage-contact-form";
-import { WaitlistForm } from "@/components/homepage-waitlist-form";
 import { HomepageDemo } from "@/components/homepage-demo";
 import { HomepageFeed } from "@/components/homepage-feed";
 import { HomepageFlow } from "@/components/homepage-flow";
@@ -87,11 +86,9 @@ function ArtLine({ text, strike, accent }: { text: string; strike?: boolean; acc
 export function PublicHomepage({
   model,
   notice = null,
-  waitlist = null,
 }: {
   model: HomepageModel;
   notice?: "saved" | "invalid" | null;
-  waitlist?: "saved" | "invalid" | "limited" | null;
 }) {
   const style = homepageStyle(model.direction);
   const jsonLd = JSON.stringify(homepageJsonLd()).replace(/</g, "\\u003c");
@@ -476,95 +473,11 @@ export function PublicHomepage({
           </section>
 
           <section className="agency" id={model.agency.id} aria-labelledby="agency-title">
-            <div className="w agency-grid">
-              <div>
-                <p className="kicker mono">{model.agency.kicker}</p>
-                <h2 id="agency-title">{model.agency.title}</h2>
-                <p className="lead">{model.agency.lead}</p>
-                <p className="lead agency-note">{model.agency.note}</p>
-                <ul className="points">
-                  {model.agency.points.map((point) => (
-                    <li key={point}>{point}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="agency-card">
-                {waitlist === "saved" ? (
-                  <div className="agency-success" role="status">
-                    <p className="kicker mono">{model.agency.kicker}</p>
-                    <h3>{model.agency.savedTitle}</h3>
-                    <p>{model.agency.saved}</p>
-                  </div>
-                ) : (
-                  <>
-                    {waitlist === "invalid" ? (
-                      <p className="notice bad" role="alert">
-                        {model.agency.invalid}
-                      </p>
-                    ) : null}
-                    {waitlist === "limited" ? (
-                      <p className="notice bad" role="alert">
-                        {model.agency.limited}
-                      </p>
-                    ) : null}
-                    <WaitlistForm>
-                      <label>
-                        {model.agency.nameLabel}
-                        <input name="name" autoComplete="name" required maxLength={120} />
-                      </label>
-                      <label>
-                        {model.agency.emailLabel}
-                        <input name="email" type="email" autoComplete="email" required maxLength={200} />
-                      </label>
-                      <label className="full">
-                        {model.agency.agencyLabel}
-                        <input name="agency" autoComplete="organization" required maxLength={160} />
-                      </label>
-                      <label className="full">
-                        {model.agency.websiteLabel}
-                        <input name="website" type="text" inputMode="url" autoComplete="url" maxLength={200} />
-                      </label>
-                      <label className="full">
-                        {model.agency.clientsLabel}
-                        <select name="clients" defaultValue="">
-                          <option value="">Optional</option>
-                          {model.agency.clientOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="full">
-                        {model.agency.spendLabel}
-                        <select name="spend" defaultValue="">
-                          <option value="">Optional</option>
-                          {model.agency.spendOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="full">
-                        {model.agency.messageLabel}
-                        <textarea name="message" rows={3} maxLength={4000} />
-                      </label>
-                      <div className="sr-only" aria-hidden="true">
-                        <label>
-                          Company fax
-                          <input name="company_fax" tabIndex={-1} autoComplete="off" defaultValue="" />
-                        </label>
-                      </div>
-                      <div className="full">
-                        <button className="btn" type="submit">
-                          {model.agency.submit}
-                        </button>
-                      </div>
-                    </WaitlistForm>
-                  </>
-                )}
-              </div>
+            <div className="w agency-band">
+              <p id="agency-title">{model.agency.bandText}</p>
+              <TrackedLink href={model.agency.bandHref} cta="agency-waitlist-band" className="btn">
+                {model.agency.bandCta}
+              </TrackedLink>
             </div>
           </section>
 

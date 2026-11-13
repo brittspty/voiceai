@@ -117,7 +117,7 @@ test("waitlist fields are validated and a honeypot is not stored", async () => {
     ip: "203.0.113.11",
     limits,
   });
-  assert.deepEqual(formHidden, { status: 303, location: "/?waitlist=saved#agency-waitlist" });
+  assert.deepEqual(formHidden, { status: 303, location: "/early-access" });
   assert.equal(saved.length, 0);
 
   const stored = await acceptAgencyWaitlist({
@@ -177,7 +177,7 @@ test("waitlist rate limit stops before another row is written", async () => {
     ip: "203.0.113.20",
     limits,
   });
-  assert.deepEqual(form, { status: 303, location: "/?waitlist=limited#agency-waitlist" });
+  assert.deepEqual(form, { status: 303, location: "/early-access" });
 });
 
 test("the waitlist route rejects bad input and does not require a new mail secret", async () => {
@@ -213,7 +213,7 @@ test("the waitlist route rejects bad input and does not require a new mail secre
       }),
     );
     assert.equal(form.status, 303);
-    assert.match(form.headers.get("location") || "", /waitlist=invalid#agency-waitlist/);
+    assert.equal(new URL(form.headers.get("location") || "", ORIGIN).pathname, "/early-access");
 
     resetWaitlistLimits();
     for (let i = 0; i < WAITLIST_LIMIT; i += 1) {
@@ -225,7 +225,7 @@ test("the waitlist route rejects bad input and does not require a new mail secre
     assert.deepEqual(await limited.json(), { ok: false, error: "limited" });
   });
 
-  for (const file of ["lib/agency-waitlist.ts", "app/api/homepage/waitlist/route.ts", "components/homepage-waitlist-form.tsx"]) {
+  for (const file of ["lib/agency-waitlist.ts", "app/api/homepage/waitlist/route.ts"]) {
     const source = sourceOf(file);
     assert.equal(source.includes("resend"), false, file);
     assert.equal(source.includes("nodemailer"), false, file);
@@ -308,35 +308,29 @@ test("demo reseed does not name the agency waitlist table", () => {
   assert.match(block, /agencyName/);
 });
 
-test("the homepage links to the agency waitlist and shows a success state", () => {
+test("the homepage agency section is a one-line band to early access", () => {
   const model = homepageModel({ PUBLIC_HOMEPAGE: "on" });
   const html = renderToStaticMarkup(createElement(PublicHomepage, { model }));
-  assert.match(html, /Bring jAI to your agency/);
-  assert.match(html, /Agency subscriptions are coming/);
-  assert.match(html, /action="\/api\/homepage\/waitlist"/);
-  assert.match(html, /name="company_fax"/);
-  assert.match(html, /name="agency"/);
-  assert.match(html, /More than 50/);
-  assert.match(html, /Under 25,000/);
+  assert.match(html, /id="agency-waitlist"/);
+  assert.match(html, /Bring jAI to your agency\./);
+  assert.match(html, /data-cta="agency-waitlist-band"[^>]*>Request early access</);
+  assert.match(html, /href="\/early-access"[^>]*>Request early access</);
+  assert.equal(html.includes("client campaigns today"), false);
+  assert.equal(html.includes("action=\"/api/homepage/waitlist\""), false);
+  assert.equal(html.includes("agency-waitlist-form"), false);
   assert.equal(html.includes("$"), false);
   assert.equal(model.agency.id, "agency-waitlist");
   assert.equal(model.agency.href, "#agency-waitlist");
+  assert.equal(model.agency.bandHref, "/early-access");
   assert.equal(model.nav.filter((item) => item.label === "Agency waitlist").map((item) => item.href).join(","), "/early-access");
   assert.equal(model.menuNav.filter((item) => item.label === "Agency waitlist").map((item) => item.href).join(","), "/early-access");
   assert.equal((html.match(/href="#agency-waitlist"/g) || []).length, 2);
-  assert.equal((html.match(/href="\/early-access"/g) || []).length, 3);
-  assert.match(html, /id="agency-waitlist"/);
+  assert.equal((html.match(/href="\/early-access"/g) || []).length, 4);
   assert.match(html, />Early access</);
   assert.match(html, /data-cta="agency-waitlist-hero"/);
-  const saved = renderToStaticMarkup(createElement(PublicHomepage, { model, waitlist: "saved" }));
-  assert.equal(saved.includes('action="/api/homepage/waitlist"'), false);
-  assert.match(saved, /on the list/);
-  assert.match(saved, /Nothing was sent/);
-  const invalid = renderToStaticMarkup(createElement(PublicHomepage, { model, waitlist: "invalid" }));
-  assert.match(invalid, /Enter your name, a work email, and your agency name/);
-  assert.match(invalid, /action="\/api\/homepage\/waitlist"/);
   const prose = homepageProse(model);
   assert.equal(prose.includes("$"), false);
   assert.equal(prose.includes("%"), false);
+  assert.equal(prose.includes("client campaigns today"), false);
   assert.match(prose, /Bring jAI to your agency/);
 });
