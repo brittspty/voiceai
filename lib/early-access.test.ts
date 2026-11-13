@@ -128,7 +128,7 @@ test("early access is public, listed in the sitemap only while the homepage is o
   assert.equal(asset.headers.get("location"), null);
 
   const homepage = readFileSync(join(ROOT, "lib/homepage-content.ts"), "utf8");
-  assert.match(homepage, /jAI runs our own client campaigns today/);
+  assert.equal(homepage.includes("client campaigns today"), false);
   assert.match(homepage, /id: "agency-waitlist"/);
 
   for (const file of ["app/robots.ts", "app/robots.js", "public/robots.txt"]) {

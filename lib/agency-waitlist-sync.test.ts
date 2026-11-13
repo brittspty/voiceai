@@ -204,7 +204,7 @@ test("a GoHighLevel or mail failure still accepts the visitor", async () => {
     ip: "203.0.113.77",
     limits: new Map(),
   });
-  assert.deepEqual(form, { status: 303, location: "/?waitlist=saved#agency-waitlist" });
+  assert.deepEqual(form, { status: 303, location: "/early-access" });
   assert.deepEqual(saved, ["save"]);
   assert.equal(failed.updates[0]?.ghlError, "GoHighLevel upsert failed (503)");
   assert.equal(failed.updates[0]?.alertSentAt?.toISOString(), NOW.toISOString());

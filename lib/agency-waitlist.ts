@@ -15,9 +15,9 @@ export const WAITLIST_WEBSITE = "Enter a website like agency.com, or leave it bl
 export const WAITLIST_RANGE = "Choose a listed range, or leave it blank.";
 export const WAITLIST_LONG = "That entry is too long.";
 
-const SAVED = "/?waitlist=saved#agency-waitlist";
-const INVALID = "/?waitlist=invalid#agency-waitlist";
-const LIMITED = "/?waitlist=limited#agency-waitlist";
+const SAVED = "/early-access";
+const INVALID = "/early-access";
+const LIMITED = "/early-access";
 
 export type WaitlistInput = {
   name?: string;
